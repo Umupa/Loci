@@ -48,7 +48,7 @@ struct TranscriptAgentLiveTests {
       segments: Self.sentences.enumerated().map { index, text in
         try Transcript.Segment(start: .seconds(index * 4), end: .seconds(index * 4 + 4), text: text)
       })
-    let installed = InstalledAgents()
+    let installed = InstalledAgents(tool: nil)
     let writer = AgentTranscriptAgent(runtime: Runtime(provider: .pi), agents: { await installed.driver(for: $0) })
     let clock = ContinuousClock()
 

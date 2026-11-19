@@ -101,7 +101,7 @@ struct AsideLine: View {
           Rectangle().fill(Palette.line).frame(height: Size.hairline)
         }
         .padding(.vertical, Spacing.xs)
-      case .prompt, .reply, .thinking, .tool, .savedToNote:
+      case .prompt, .reply, .thinking, .tool, .savedToNote, .savedItem:
         EmptyView()
       }
     }

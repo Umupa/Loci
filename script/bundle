@@ -35,12 +35,16 @@ while [ $# -gt 0 ]; do
 done
 
 swift build -c "$configuration" $arches --product Loci >/dev/null
+swift build -c "$configuration" $arches --product LociTool >/dev/null
 bin="$(swift build -c "$configuration" $arches --show-bin-path)"
 
 app="output/Loci (Beta).app"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$bin/Loci" "$app/Contents/MacOS/Loci"
+# The command Loci's agent runs. Not in MacOS/: on a disk that ignores case, `loci` is `Loci`.
+mkdir -p "$app/Contents/Helpers"
+cp "$bin/LociTool" "$app/Contents/Helpers/loci"
 cp script/resources/Loci.icns "$app/Contents/Resources/Loci.icns"
 for bundle in "$bin"/*.bundle; do
   if [ -d "$bundle" ]; then cp -R "$bundle" "$app/Contents/Resources/"; fi

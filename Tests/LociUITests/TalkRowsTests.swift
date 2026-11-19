@@ -31,6 +31,7 @@ struct TalkRowsTests {
       case .finished(let item, _): "finished " + item.title
       case .task(let item, _): "task " + item.title
       case .cards(let items): "cards " + items.map(\.title).joined(separator: " ")
+      case .savedItems(let items): "savedItems \(items.count)"
       }
     }
   }
@@ -115,5 +116,33 @@ struct TalkRowsTests {
     let rows = TalkRow.rows(ConversationEntry.layout(entries, live: false))
 
     #expect(Self.kinds(rows) == ["day", "cards 一 二", "task 三"])
+  }
+
+  private static func tool(_ second: Int64, _ state: ToolActivity.State = .succeeded) -> Message {
+    message(
+      second,
+      .tool(ToolActivity(id: "\(second)", name: "Bash", kind: .execute, subject: "loci save", output: "", state: state))
+    )
+  }
+
+  @Test func itemsLociSavesDuringOneRunOfToolsGatherInOneCardUnderTheTools() {
+    let rows = Self.rows([
+      Self.asked(0, "存下来"), Self.tool(1), Self.message(2, .savedItem(EntityID())), Self.tool(3),
+      Self.message(4, .savedItem(EntityID())), Self.message(5, .reply("存好了")),
+    ])
+
+    #expect(Self.kinds(rows) == ["day", "asked 存下来", "steps", "savedItems 2", "said 存好了"])
+  }
+
+  @Test func theToolLociIsStillRunningKeepsGoingAfterTheItemItSaved() {
+    let entries = ConversationEntry.layout(
+      [Self.tool(1, .running), Self.message(2, .savedItem(EntityID()))].map { .message($0) }, live: true)
+
+    guard case .steps(let steps) = entries.first else {
+      Issue.record("expected the steps first")
+      return
+    }
+    #expect(steps.map(\.isGoing) == [true])
+    #expect(steps[0].took == nil)
   }
 }

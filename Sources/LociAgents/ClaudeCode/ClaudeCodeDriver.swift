@@ -37,7 +37,7 @@ public struct ClaudeCodeDriver: AgentDriver {
     let program = try launcher.launch(
       Invocation(
         executable: executable, arguments: arguments + self.arguments,
-        workingDirectory: configuration.workingDirectory, environment: environment))
+        workingDirectory: configuration.workingDirectory, environment: configuration.environment(over: environment)))
     let channel = ClaudeCodeChannel(program: program, clock: clock)
     do throws(AgentError) {
       _ = try await channel.request(.control("initialize"), within: .seconds(45))

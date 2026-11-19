@@ -46,6 +46,7 @@ let package = Package(
       ],
       resources: [.process("Resources")], swiftSettings: strict),
     .executableTarget(name: "Loci", dependencies: ["LociModel", "LociUI", "LociHost"], swiftSettings: strict),
+    .executableTarget(name: "LociTool", dependencies: ["LociModel", "LociRemote"], swiftSettings: strict),
     .testTarget(name: "LociModelTests", dependencies: ["LociModel"], swiftSettings: strict),
     .testTarget(name: "LociStoreTests", dependencies: ["LociStore"], swiftSettings: strict),
     .testTarget(
@@ -59,6 +60,7 @@ let package = Package(
       swiftSettings: strict),
     .testTarget(
       name: "LociUITests", dependencies: ["LociUI"], resources: [.copy("Fixtures")], swiftSettings: strict),
+    .testTarget(name: "LociToolTests", dependencies: ["LociTool"], swiftSettings: strict),
     .testTarget(name: "ArchitectureTests", swiftSettings: strict),
   ]
 )

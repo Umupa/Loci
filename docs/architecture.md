@@ -21,17 +21,18 @@
 | `LociAgents` | 各家 agent CLI 的协议驱动、会话、权限 | `LociModel` |
 | `LociMedia` | 取回链接（yt-dlp、网页正文、PDF）、组件、转录、断句；系统框架可用 AVFoundation、CoreMedia、CoreGraphics（PDF 元数据）、NaturalLanguage、WebKit（在不显示的网页里取正文）、Synchronization | `LociModel` |
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |
-| `LociRemote` | 配对、加密通道（Noise）、中继（alma-relay 协议）、局域网发现（Bonjour）；系统框架可用 CryptoKit、Network | `LociModel` |
+| `LociRemote` | 配对、加密通道（Noise）、中继（alma-relay 协议）、局域网发现（Bonjour）、`loci` 命令连进来的本机 unix socket；系统框架可用 CryptoKit、Network | `LociModel` |
 | `LociHost` | 命令层的实现：本机和远程；Loci 的会话、上下文拼装与每日回顾；系统框架可用 IOKit（有已配对的 Mac 时阻止空闲睡眠，读机型） | 以上全部 |
 | `LociUI` | 界面与设计系统；系统框架可用 AVKit、AVFoundation（播放）、PDFKit（论文）、WebKit（内置浏览器） | `LociModel`；第三方：swift-markdown、Textual、HighlightSwift、SwiftMath |
 | `Loci` | 应用入口，把界面接到 Host 上 | `LociModel` `LociUI` `LociHost` |
+| `LociTool` | `loci` 命令：读参数，把动词翻成 Host 命令，经本机 socket 发给应用，打印回复。打包成 `Contents/Helpers/loci` | `LociModel` `LociRemote` |
 
-现在已经存在的模块：`LociModel`、`LociStore`、`LociAgents`、`LociMedia`、`LociRemote`、`LociHost`、`LociUI`、`Loci`。其余在用到时创建，创建时照这张表。
+现在已经存在的模块：`LociModel`、`LociStore`、`LociAgents`、`LociMedia`、`LociRemote`、`LociHost`、`LociUI`、`Loci`、`LociTool`。其余在用到时创建，创建时照这张表。
 
 ## 三条不变量
 
 1. **界面只认 Host 协议。** `LociUI` 引用不到 `LociStore`、`LociAgents`，它只能发命令、订阅数据。本机和远程因此是同一套界面。
-2. **每条出口只有一个主人。** 磁盘归 `LociStore`，外部程序归 `LociAgents` 和 `LociMedia`，网络归 `LociMedia` 和 `LociRemote`。
+2. **每条出口只有一个主人。** 磁盘归 `LociStore`，外部程序归 `LociAgents` 和 `LociMedia`，网络归 `LociMedia` 和 `LociRemote`。本机的 unix socket 也算网络：Network 框架只在 `LociRemote`，应用这头（`LociHost`）和 `loci` 命令那头（`LociTool`）都经它收发。
 3. **核心不依赖界面。** 除了 `LociUI` 和 `Loci`，没有模块引用 SwiftUI 或 AppKit。关掉窗口，会话照样跑。
 
 第三方依赖也记在这张表里，模块只能引用它那一行列出的包；新增一个之前先问。版本都钉死在 `Package.swift` 里：
@@ -90,3 +91,5 @@ output/                       构建产物、截图、日志（不提交）
 - `SystemLauncherTests` 会启动 `/bin/cat` 和 `/bin/sh`。把管道接成 `AsyncStream` 的那一层只有对着真实进程才测得出问题（退出与最后一块输出的先后、写给已经退出的进程），这两个程序每台 Mac 都有，不碰网络。别的测试不启动程序。
 - `PiLiveTests` 对着真实的 pi 跑，默认跳过，`LOCI_PI=<pi 的路径>` 时才跑，会花一点额度。加上 `LOCI_PI_RECORD=<目录>`，它把每段对话录成 fixture；`PiReplayTests` 在 `script/check` 里回放这些录音。pi 升级后重录一遍，就知道协议变了没有。
 - `OmpLiveTests` 同样默认跳过，用 `LOCI_OMP=<omp 的路径>` 开启、`LOCI_OMP_RECORD=<目录>` 录制；`OmpReplayTests` 离线回放 omp 的真实录音。
+
+另外，`LocalSocketTests`（`Tests/LociRemoteTests`）和 `ToolScenarioTests`（`Tests/LociHostTests`）在 `/tmp` 下开真实的 unix socket：socket 路径最长 104 字节，系统的临时文件夹太深。不碰网络。

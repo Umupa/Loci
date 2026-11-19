@@ -30,6 +30,9 @@ public struct HostEnvironment: Sendable {
   /// Waits a moment: how long a running turn holds what it said before showing it, so that the words
   /// streaming in are shown a few at a time.
   public let wait: @Sendable (Duration) async -> Void
+  /// The `loci` command Loci puts things in the library with, and the socket the host answers it on;
+  /// `nil` when the app has none, such as outside its bundle.
+  public let tool: AgentTool?
 
   public init(
     newID: @escaping @Sendable () -> EntityID, now: @escaping @Sendable () -> Timestamp, timeZone: TimeZone = .gmt,
@@ -39,7 +42,8 @@ public struct HostEnvironment: Sendable {
     models: @escaping @Sendable (Provider) async -> [String] = { _ in [] },
     ticks: @escaping @Sendable () -> AsyncStream<Void> = { AsyncStream { $0.finish() } },
     media: MediaEnvironment = .disconnected,
-    wait: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
+    wait: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+    tool: AgentTool? = nil
   ) {
     self.newID = newID
     self.now = now
@@ -53,17 +57,18 @@ public struct HostEnvironment: Sendable {
     self.ticks = ticks
     self.media = media
     self.wait = wait
+    self.tool = tool
   }
 
   /// The real clock and time zone, fresh identifiers, the Trash, and the agent programs installed on this Mac.
-  public static func system(defaultRuntime: Runtime) -> HostEnvironment {
-    let installed = InstalledAgents()
+  public static func system(defaultRuntime: Runtime, tool: AgentTool? = nil) -> HostEnvironment {
+    let installed = InstalledAgents(tool: tool)
     return HostEnvironment(
       newID: { EntityID() }, now: { Timestamp(.now) }, timeZone: .current, defaultRuntime: defaultRuntime,
       discard: .toTrash, agents: { await installed.driver(for: $0) },
       unavailability: { await installed.unavailability(of: $0) },
       detectAgents: { await installed.detect(again: $0) }, models: { await installed.models(of: $0) },
-      ticks: { everyMinute() }, media: .system(agents: { await installed.driver(for: $0) }))
+      ticks: { everyMinute() }, media: .system(agents: { await installed.driver(for: $0) }), tool: tool)
   }
 
   private static func everyMinute() -> AsyncStream<Void> {
@@ -83,9 +88,14 @@ public struct HostEnvironment: Sendable {
 /// Looks for the agent programs the first time one is needed, which takes a moment: the login shell is asked
 /// for its PATH. Looking again replaces what was found, so the drivers see a program installed since.
 actor InstalledAgents {
+  private let tool: AgentTool?
   private var search: Task<AgentSearch, Never>?
   private var found: [AgentInstallation]?
   private var listed: [Provider: [String]] = [:]
+
+  init(tool: AgentTool?) {
+    self.tool = tool
+  }
 
   /// Asked once per provider; a program that listed nothing is asked again next time.
   func models(of provider: Provider) async -> [String] {
@@ -96,11 +106,11 @@ actor InstalledAgents {
   }
 
   func driver(for provider: Provider) async -> (any AgentDriver)? {
-    AgentPrograms(search: await currentSearch()).driver(for: provider)
+    AgentPrograms(search: await currentSearch(), tool: tool).driver(for: provider)
   }
 
   func unavailability(of provider: Provider) async -> AgentStartFailure {
-    AgentPrograms(search: await currentSearch()).unavailability(of: provider)
+    AgentPrograms(search: await currentSearch(), tool: tool).unavailability(of: provider)
   }
 
   func detect(again: Bool) async -> [AgentInstallation] {

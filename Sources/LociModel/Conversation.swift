@@ -85,6 +85,8 @@ public struct Message: Hashable, Codable, Sendable, Identifiable {
     case tool(ToolActivity)
     /// The question and its answer were saved in this note on the passage the question was about.
     case savedToNote(EntityID)
+    /// Loci put this item into the library during the turn, with the `loci` command.
+    case savedItem(EntityID)
     /// Something the agent reported that is not part of the reply: a retry, compaction, a warning.
     case notice(String)
     /// How a turn ended, when it did not simply finish.

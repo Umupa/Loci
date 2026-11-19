@@ -95,6 +95,10 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     }
     await host.hub.hold(work)
     await host.hub.hold(reviews)
+    if let tool = environment.tool {
+      try? store.writeSkill(named: "loci", ToolGuide.skill)
+      await host.hub.hold(Task { await ToolGateway.serve(host, at: tool.socket) })
+    }
     await host.library.queue.resume()
     return host
   }
@@ -137,6 +141,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     case .dataFolder: url = store.root
     case .agentFolder: url = store.agentFolder
     case .media(let item): url = try? store.mediaFile(of: item)
+    case .item(let item): url = try? store.itemFolder(item)
     }
     return url.map(LocalFile.init)
   }

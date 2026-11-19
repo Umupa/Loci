@@ -34,14 +34,16 @@ final class TestWorld: Sendable {
     environment(running: { [agent] provider in provider == .pi ? agent : nil })
   }
 
-  func environment(running agents: @escaping @Sendable (Provider) async -> (any AgentDriver)?) -> HostEnvironment {
+  func environment(
+    running agents: @escaping @Sendable (Provider) async -> (any AgentDriver)?, tool: AgentTool? = nil
+  ) -> HostEnvironment {
     HostEnvironment(
       newID: { [self] in self.nextID() }, now: { [self] in self.now }, timeZone: Self.timeZone,
       defaultRuntime: Runtime(provider: .pi), discard: .permanently, agents: agents,
       detectAgents: { [self] again in
         self.looks.withLock { $0.append(again) }
         return Self.installed
-      }, ticks: { [ticking] in ticking.stream })
+      }, ticks: { [ticking] in ticking.stream }, tool: tool)
   }
 
   var now: Timestamp { clock.withLock { $0 } }

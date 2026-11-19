@@ -43,6 +43,11 @@ actor LociAgent {
     }
   }
 
+  /// Says in the conversation's running turn that Loci put an item into the library.
+  func saved(_ item: EntityID, in conversation: ConversationRef) async {
+    await runs[conversation]?.saved(item)
+  }
+
   /// Stops Loci answering on an item that is being deleted, and deletes the conversation there. Until
   /// `forgotten(item:)`, the item's conversation gets no run.
   func forget(item: EntityID) async {

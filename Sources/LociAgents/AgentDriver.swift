@@ -15,15 +15,26 @@ public struct SessionConfiguration: Hashable, Sendable {
   public var effort: ThinkingEffort?
   /// An earlier session to continue instead of starting a new one.
   public var resume: SessionHandle?
+  /// Variables this session's program gets on top of the environment every program gets.
+  public var environment: [String: String]
 
   /// Every session runs with full access: the agent does not stop to ask before using a tool.
   public init(
-    workingDirectory: URL, model: String? = nil, effort: ThinkingEffort? = nil, resume: SessionHandle? = nil
+    workingDirectory: URL, model: String? = nil, effort: ThinkingEffort? = nil, resume: SessionHandle? = nil,
+    environment: [String: String] = [:]
   ) {
     self.workingDirectory = workingDirectory
     self.model = model
     self.effort = effort
     self.resume = resume
+    self.environment = environment
+  }
+
+  /// The whole environment of the session's program: `base`, or this process's own when it is `nil`, with
+  /// the session's variables over it.
+  func environment(over base: [String: String]?) -> [String: String]? {
+    guard !environment.isEmpty else { return base }
+    return (base ?? ProcessInfo.processInfo.environment).merging(environment) { $1 }
   }
 }
 

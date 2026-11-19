@@ -64,6 +64,8 @@ enum Palette {
 
   /// Behind a cover while it loads, and under a player.
   static let coverBackdrop = Color(nsColor: Tones.coverBackdrop)
+  /// In a small thumbnail of an item that has no cover: paper in light, the backdrop in dark.
+  static let coverPlaceholder = Color(nsColor: Tones.coverPlaceholder)
   /// Words over a cover or a picture, the same in light and dark because the picture is.
   static let onCover = Color(nsColor: NSColor(rgb: 0xFFF6EA))
   static let onCoverMuted = Color(nsColor: NSColor(rgb: 0xFFF0E0)).opacity(0.7)
@@ -134,6 +136,7 @@ enum Tones {
   static let thumb = NSColor(dark: 0x5A544D, light: 0xFFFFFF)
   static let ring = NSColor(dark: 0xFFF5E6, light: 0xFFFFFF, alpha: (dark: 0.14, light: 0.9))
   static let coverBackdrop = NSColor(dark: 0x2A2420, light: 0x2A2420)
+  static let coverPlaceholder = NSColor(dark: 0x2A2420, light: 0xEFEAE2)
   static let menuFace = NSColor(dark: 0x2C2824, light: 0xFDFBF8)
   static let scrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.32, light: 0.10))
   static let floating = NSColor(dark: 0x2C2824, light: 0xFDFBF8, alpha: (dark: 0.96, light: 0.96))

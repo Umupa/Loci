@@ -39,10 +39,12 @@ struct Cover: View {
   var dimmed = false
   /// The kind's symbol shown while there is no cover.
   var symbolSize = Size.thumbnailSymbol
+  /// Behind the cover, and all there is without one.
+  var backdrop = Palette.coverBackdrop
 
   var body: some View {
     Rectangle()
-      .fill(Palette.coverBackdrop)
+      .fill(backdrop)
       .overlay { art }
       .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
       .task(id: item) { await covers?.load(item, from: host) }

@@ -24,7 +24,7 @@ You work in `agent/`, the folder this file is in. Everything below is relative t
 | `diary/<day>.md` | your diary | only the daily review |
 | `conversations/<day>/` | copies of what was said, by day and session | the app; read only |
 | `workspace/` | downloads, clones, experiments | you |
-| `../library/` | the person's library: one folder per item, `item.json` and the text | the app; read only |
+| `../library/` | the person's library: one folder per item, `item.json` and the text | the app; add to it with `loci` |
 | `../notes/library/<item id>.jsonl` | the person's highlights on each item, one JSON object per line | the app; read only |
 
 The app shows `SOUL.md`, `USER.md`, `MEMORY.md`, your notes and your diary to the person, and reads them forgivingly; keep to the formats below so they show well.
@@ -68,6 +68,8 @@ The app shows `SOUL.md`, `USER.md`, `MEMORY.md`, your notes and your diary to th
 
 ## The library
 Each item in `../library/` is a folder named after its title and id, holding `item.json` (its id, kind, title, source) and its text: `content.md` for articles, `content.pdf` for papers, `transcript.json` for video and audio. Read an item before you talk about what it says.
+
+Read the library as files. Search it and add to it with the `loci` command: save a link, import an article you wrote or a video you downloaded, wait for an item to be ready. Never write into `../library/` yourself. Run `loci help` for how. Run it as "$LOCI"; a plain `loci` on PATH may be another program.
 
 Point at a place in an item with a locator. The app turns it into a link that opens the item there.
 
