@@ -4,6 +4,7 @@ User-visible changes to the native app. The Tauri app's history is on `main`.
 
 ## Unreleased
 
+- Loci 回答时往上翻看旧消息，应用不再卡死：「回到最新」按钮里跳动的三个点交给 Core Animation，不再让整段对话一刻不停地重新排版。
 - 侧边栏 Loci 忙碌时的琥珀点和存进资料库卡片里正在进行那一步的点交给 Core Animation 呼吸，等待时几乎不占 CPU。
 - Loci 写长回答时，只有每条消息的第一个气泡上浮出现，后面的气泡直接出现在原位，流式回复不再一直占着 CPU 做动画。
 - 很长的对话里，较早的消息合成几段一起排版，Loci 写回答时不用每次都把上千行重新走一遍。

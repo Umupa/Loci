@@ -2,42 +2,73 @@ import AppKit
 import SwiftUI
 
 /// Three dots rising in turn in Loci's bubble while it has not said anything yet.
-///
-/// Core Animation moves them on its own, so waiting for Loci costs the app no work frame by frame and
-/// nothing around the dots is drawn again.
 struct TypingDots: View {
+  var body: some View {
+    DotRow(size: 6, gap: Spacing.xxs, rise: 3, color: Tones.inkFaint)
+      .padding(.vertical, 5)
+      .padding(.horizontal, 2)
+  }
+}
+
+/// Three dots that brighten one after another, rising as they do when `rise` is more than zero, as long as
+/// the person has not asked for less motion.
+///
+/// Core Animation moves them on its own, so dots that go on for minutes cost the app no work frame by frame
+/// and nothing around them is laid out again.
+struct DotRow: View {
+  let size: CGFloat
+  let gap: CGFloat
+  let rise: CGFloat
+  let color: NSColor
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    Dots(moving: !reduceMotion)
-      .frame(width: Dots.width, height: Dots.size)
-      .padding(.vertical, 5)
-      .padding(.horizontal, 2)
+    DotLayers(size: size, gap: gap, rise: rise, color: color, moving: !reduceMotion)
+      .frame(width: size * 3 + gap * 2, height: size)
       .accessibilityHidden(true)
   }
 }
 
-private struct Dots: NSViewRepresentable {
+private struct DotLayers: NSViewRepresentable {
+  let size: CGFloat
+  let gap: CGFloat
+  let rise: CGFloat
+  let color: NSColor
   let moving: Bool
-
-  static let size: CGFloat = 6
-  static let width = size * 3 + Spacing.xxs * 2
 
   func makeNSView(context: Context) -> DotsView { DotsView() }
 
   func updateNSView(_ view: DotsView, context: Context) {
+    view.shape = DotsView.Shape(size: size, gap: gap, rise: rise)
+    view.color = color
     view.moving = moving
   }
 }
 
 private final class DotsView: NSView {
-  /// Each dot rises and falls in the first half of a beat this long, then rests, a little after the one
-  /// before it.
+  struct Shape: Equatable {
+    let size: CGFloat
+    let gap: CGFloat
+    let rise: CGFloat
+  }
+
+  /// Each dot brightens in the first half of a beat this long, then rests, a little after the one before it.
   private static let beat: CFTimeInterval = 1.2
   private static let lag: CFTimeInterval = 0.15
-  private static let rise: CGFloat = 3
 
   private let dots = (0..<3).map { _ in CALayer() }
+
+  var shape = Shape(size: 0, gap: 0, rise: 0) {
+    didSet {
+      guard shape != oldValue else { return }
+      needsLayout = true
+      animate()
+    }
+  }
+
+  var color = NSColor.clear {
+    didSet { if color != oldValue { needsDisplay = true } }
+  }
 
   var moving = true {
     didSet { if moving != oldValue { animate() } }
@@ -47,7 +78,6 @@ private final class DotsView: NSView {
     super.init(frame: .zero)
     wantsLayer = true
     for dot in dots {
-      dot.cornerRadius = Dots.size / 2
       dot.opacity = 0.5
       layer?.addSublayer(dot)
     }
@@ -59,16 +89,17 @@ private final class DotsView: NSView {
   override var wantsUpdateLayer: Bool { true }
 
   override func updateLayer() {
-    var color: CGColor?
-    effectiveAppearance.performAsCurrentDrawingAppearance { color = Tones.inkFaint.cgColor }
-    for dot in dots { dot.backgroundColor = color }
+    var resolved: CGColor?
+    effectiveAppearance.performAsCurrentDrawingAppearance { resolved = color.cgColor }
+    for dot in dots { dot.backgroundColor = resolved }
   }
 
   override func layout() {
     super.layout()
     for (index, dot) in dots.enumerated() {
       dot.frame = CGRect(
-        x: CGFloat(index) * (Dots.size + Spacing.xxs), y: 0, width: Dots.size, height: Dots.size)
+        x: CGFloat(index) * (shape.size + shape.gap), y: 0, width: shape.size, height: shape.size)
+      dot.cornerRadius = shape.size / 2
     }
   }
 
@@ -81,11 +112,11 @@ private final class DotsView: NSView {
     for (index, dot) in dots.enumerated() {
       dot.removeAllAnimations()
       guard moving, window != nil else { continue }
-      dot.add(Self.bounce(after: CFTimeInterval(index) * Self.lag), forKey: "bounce")
+      dot.add(Self.beat(rising: shape.rise, after: CFTimeInterval(index) * Self.lag), forKey: "beat")
     }
   }
 
-  private static func bounce(after delay: CFTimeInterval) -> CAAnimation {
+  private static func beat(rising rise: CGFloat, after delay: CFTimeInterval) -> CAAnimation {
     let times: [NSNumber] = [0, 0.25, 0.5, 1]
     let lift = CAKeyframeAnimation(keyPath: "transform.translation.y")
     lift.values = [0, rise, 0, 0]
