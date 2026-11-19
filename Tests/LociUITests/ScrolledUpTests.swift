@@ -114,6 +114,61 @@ struct ScrolledUpTests {
     #expect(still, "laid out \(host.layouts) times in half a second")
   }
 
+  @Test func scrollingUpALongConversationReachesItsFirstMessageWithoutJumping() async throws {
+    var clock: Int64 = 1_763_400_000_000
+    func message(_ body: Message.Body) -> Message {
+      clock += 1000
+      return Message(id: EntityID(), at: Timestamp(millisecondsSince1970: clock), body: body)
+    }
+    let history = (1...250).flatMap { question in
+      [
+        message(.prompt(Prompt(text: "问题 \(question)", purpose: .chat))),
+        message(.reply((1...4).map { "第 \(question).\($0) 段。" }.joined(separator: "\n\n"))),
+      ]
+    }
+    let feed = Feed(Conversation(ref: .main, entries: history.map { .message($0) }, turn: nil))
+    let size = CGSize(width: 420, height: 600)
+    let host = CountingHost(
+      rootView: Window(feed: feed).frame(width: size.width, height: size.height).lociHost(
+        FakeHost(try Sample(problems: false))))
+    let window = NSWindow(
+      contentRect: CGRect(origin: CGPoint(x: -20_000, y: -20_000), size: size), styleMask: [.titled],
+      backing: .buffered, defer: false)
+    window.contentView = host
+    window.orderBack(nil)
+    defer { window.orderOut(nil) }
+    try await eventually("the conversation to show its end") {
+      guard let scroll = Self.scrollView(in: host), let document = scroll.documentView else { return false }
+      return document.frame.height > 2000 && scroll.contentView.bounds.minY > 1000
+    }
+    let scroll = try #require(Self.scrollView(in: host))
+
+    var stretches = 0
+    var stillAtTop = 0
+    var phase = CGScrollPhase.began
+    var last = (height: scroll.documentView?.frame.height ?? 0, top: scroll.contentView.bounds.minY)
+    let deadline = ContinuousClock.now + .seconds(60)
+    while stillAtTop < 20 && ContinuousClock.now < deadline {
+      let event = CGEvent(
+        scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: 400, wheel2: 0, wheel3: 0)
+      event?.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
+      if let event, let scrolled = NSEvent(cgEvent: event) { scroll.scrollWheel(with: scrolled) }
+      phase = .changed
+      try await Task.sleep(for: .milliseconds(20))
+      let now = (height: scroll.documentView?.frame.height ?? 0, top: scroll.contentView.bounds.minY)
+      let grown = now.height - last.height
+      if grown > 5000 {
+        stretches += 1
+        #expect(now.top - last.top > grown / 2, "jumped to the top of what was added")
+      }
+      stillAtTop = now.top < 1 && grown < 1 ? stillAtTop + 1 : 0
+      last = now
+    }
+
+    #expect(stillAtTop >= 20)
+    #expect(stretches >= 2)
+  }
+
   private static func textField(in view: NSView) -> NSTextField? {
     if let field = view as? NSTextField, field.isEditable { return field }
     return view.subviews.lazy.compactMap(textField(in:)).first

@@ -50,14 +50,16 @@ struct ConversationView: View {
   @State private var scrolling = false
   @State private var pointedAnswer: EntityID?
   @State private var settled = Remembered(TalkRow.settled)
+  /// How many of the earliest rows are not drawn; `nil` until the conversation arrives.
+  @State private var hidden: Int?
 
   var body: some View {
-    let turn = conversation?.turn
-    let said = settled(SaidSoFar(conversation?.entries ?? [], turn: turn))
-    let live = TalkRow.live(turn)
+    let said = said
+    let live = TalkRow.live(conversation?.turn)
+    let start = min(hidden ?? RowWindow.latest(in: said), said.count)
     return ScrollView {
       LazyVStack(alignment: .leading, spacing: 0) {
-        ForEach(said + live) { row in
+        ForEach(said[start...] + live) { row in
           view(of: row).arriving()
         }
       }
@@ -79,7 +81,17 @@ struct ConversationView: View {
     .onScrollGeometryChange(for: CGFloat.self, of: \.contentSize.height) { _, _ in
       if follow.isOn && !scrolling { position.scrollTo(edge: .bottom) }
     }
+    .onScrollGeometryChange(for: Bool.self, of: { $0.contentOffset.y + $0.contentInsets.top < 1 }) { _, atTop in
+      let said = said
+      guard atTop, let hidden, hidden > 0, hidden < said.count else { return }
+      self.hidden = RowWindow.earlier(than: hidden, in: said)
+      position.scrollTo(id: said[hidden].id, anchor: .top)
+    }
+    .onChange(of: said.isEmpty, initial: true) {
+      if hidden == nil, !said.isEmpty { hidden = RowWindow.latest(in: said) }
+    }
     .onChange(of: questions) {
+      hidden = RowWindow.latest(in: said)
       follow.asked()
       withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
     }
@@ -111,6 +123,10 @@ struct ConversationView: View {
   }
 
   /// Questions the person has asked; one more means the conversation goes to its end to show the answer.
+  private var said: [TalkRow] {
+    settled(SaidSoFar(conversation?.entries ?? [], turn: conversation?.turn))
+  }
+
   private var questions: Int {
     let said = (conversation?.entries ?? []).count {
       if case .message(let message) = $0, case .prompt = message.body { true } else { false }
