@@ -215,7 +215,7 @@ struct LibrarySnapshots {
       ("Keeping etcd Healthy at 10,000 Nodes", "29:48", "etcd"),
       ("Kueue: Fair Sharing for Batch and AI Workloads", "31:05", "kueue"),
     ]
-    browser.learn(
+    browser.current.learn(
       PageFacts(
         videos: videos.compactMap { title, duration, id in
           URL(string: "https://www.youtube.com/watch?v=\(id)").map {
@@ -236,9 +236,33 @@ struct LibrarySnapshots {
     browser.open(
       URL(string: "https://blog.cloudflare.com/how-we-built-pingora-the-proxy-that-connects-cloudflare-to-the-internet")
     )
-    browser.learn(PageFacts(hasArticle: true))
+    browser.current.learn(PageFacts(hasArticle: true))
     try await Self.shoot(
       "browser-article", try SampleLibrary(empty: true), at: WindowState(place: .browser), appearance: appearance,
+      standIns: StandIns(webPage: Self.webPage("article", appearance)), browser: browser)
+  }
+
+  /// B-S5: the start page offers the sign-ins of the browser used most lately.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func browserSignInOffer(appearance: Snapshot.Appearance) async throws {
+    let browser = BrowserSession(signIns: FakeSignIns(answer: .offer(.chrome)))
+    await browser.checkSignIns()
+    try await Self.shoot(
+      "browser-sign-ins", try SampleLibrary(), at: WindowState(place: .browser), appearance: appearance,
+      browser: browser)
+  }
+
+  /// B-S2: several tabs show above the address, the one in front raised.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func browserTabs(appearance: Snapshot.Appearance) async throws {
+    let browser = BrowserSession()
+    browser.open(URL(string: "https://www.youtube.com/@cncf/videos"))
+    browser.open(
+      URL(string: "https://blog.cloudflare.com/how-we-built-pingora-the-proxy-that-connects-cloudflare-to-the-internet")
+    )
+    browser.current.learn(PageFacts(hasArticle: true))
+    try await Self.shoot(
+      "browser-tabs", try SampleLibrary(empty: true), at: WindowState(place: .browser), appearance: appearance,
       standIns: StandIns(webPage: Self.webPage("article", appearance)), browser: browser)
   }
 

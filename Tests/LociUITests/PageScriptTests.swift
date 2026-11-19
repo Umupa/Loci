@@ -9,18 +9,19 @@ import Testing
 struct PageScriptTests {
   static func facts(of html: String, at address: String) async throws -> PageFacts {
     let session = BrowserSession()
+    let tab = session.current
     let url = try #require(URL(string: address))
-    session.webView.loadHTMLString(html, baseURL: url)
+    session.webView(for: tab).loadHTMLString(html, baseURL: url)
     let deadline = ContinuousClock.now + .seconds(60)
     var last = PageFacts()
     var unchanged = 0
     while ContinuousClock.now < deadline {
       try await Task.sleep(for: .milliseconds(100))
-      unchanged = session.facts == last ? unchanged + 1 : 0
-      last = session.facts
+      unchanged = tab.facts == last ? unchanged + 1 : 0
+      last = tab.facts
       if last != PageFacts() && unchanged >= 5 { return last }
     }
-    return session.facts
+    return tab.facts
   }
 
   @Test func aChannelPageReportsEachVideoOnceWithItsTitleAndLength() async throws {

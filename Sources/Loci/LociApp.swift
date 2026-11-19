@@ -10,7 +10,8 @@ struct LociApp: App {
       switch launch.state {
       case .running:
         RootView(
-          folder: launch.folder, machines: launch.machines, updates: launch.updater, talkShown: launch.talkShown)
+          folder: launch.folder, machines: launch.machines, updates: launch.updater, signIns: launch.signIns,
+          talkShown: launch.talkShown)
       case .problem(let problem):
         StartupProblemView(problem: problem, rebuild: launch.rebuild)
       }

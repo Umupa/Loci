@@ -99,6 +99,7 @@ enum Size {
   static let timeColumn: CGFloat = 40
 
   static let addressHeight: CGFloat = 32
+  static let tabHeight: CGFloat = 28
   static let primaryHeight: CGFloat = 30
   static let browserField = CGSize(width: 560, height: 52)
   static let linkField: CGFloat = 44

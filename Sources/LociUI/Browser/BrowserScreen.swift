@@ -3,8 +3,8 @@ import LociModel
 import SwiftUI
 import WebKit
 
-/// The built-in browser: an address bar with what the page can become in the library beside it, and the page.
-/// With no page open it is a search field and a few sites to start from.
+/// The built-in browser: the tabs when there are several, an address bar with what the page can become in the
+/// library beside it, and the page. A tab with no page shows a search field and a few sites to start from.
 struct BrowserScreen: View {
   @Environment(\.host) private var host
   let session: BrowserSession
@@ -14,56 +14,68 @@ struct BrowserScreen: View {
   @State private var items: Feed<[Item]>?
   @State private var picking = false
 
+  private var tab: BrowserTab { session.current }
+
   var body: some View {
-    Group {
-      if session.address == nil {
-        BrowserStart { session.go(to: $0) }
+    VStack(spacing: 0) {
+      if session.tabs.count > 1 { TabStrip(session: session) }
+      AddressBar(session: session, tab: tab) {
+        if let offer { OfferButton(offer: offer, take: take).changesData() }
+        IconButton(symbol: Symbols.add, title: .loci("browser.newTab"), tint: Palette.ink) { session.newTab() }
+      }
+      if tab.atStart {
+        BrowserStart(session: session)
       } else {
-        VStack(spacing: 0) {
-          AddressBar(session: session) {
-            if let offer { OfferButton(offer: offer, take: take).changesData() }
-          }
-          page
-            .clipShape(RoundedRectangle(cornerRadius: Radius.group, style: .continuous))
-            .overlay(
-              RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
-                .strokeBorder(Palette.lineStrong, lineWidth: Size.hairline)
-            )
-            .padding([.horizontal, .bottom], Spacing.s)
+        page
+          .id(ObjectIdentifier(tab))
+          .clipShape(RoundedRectangle(cornerRadius: Radius.group, style: .continuous))
+          .overlay(
+            RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
+              .strokeBorder(Palette.lineStrong, lineWidth: Size.hairline)
+          )
+          .padding([.horizontal, .bottom], Spacing.s)
+      }
+    }
+    .overlay(alignment: .topTrailing) {
+      if picking, case .videos(let videos) = offer {
+        VideoPicker(videos: videos, library: items?.value ?? []) { chosen in
+          picking = false
+          Task { await add(chosen) }
         }
-        .overlay(alignment: .topTrailing) {
-          if picking, case .videos(let videos) = offer {
-            VideoPicker(videos: videos, library: items?.value ?? []) { chosen in
-              picking = false
-              Task { await add(chosen) }
-            }
-            .changesData()
-            .padding(.top, 50)
-            .padding(.trailing, 14)
-            .transition(.scale(scale: 0.96, anchor: .topTrailing).combined(with: .opacity))
-          }
-        }
+        .changesData()
+        .padding(.top, session.tabs.count > 1 ? 50 + Size.tabHeight : 50)
+        .padding(.trailing, 14)
+        .transition(.scale(scale: 0.96, anchor: .topTrailing).combined(with: .opacity))
       }
     }
     .background(Palette.canvas)
     .subscribing(AllItems(), into: $items)
-    .onChange(of: session.address) { picking = false }
+    .onChange(of: tab.address) { picking = false }
+    .onChange(of: ObjectIdentifier(tab)) { picking = false }
     .onAppear { if standIns?.videoPickerOpen == true { picking = true } }
+    .task { await session.checkSignIns() }
+    .focusedSceneValue(\.browserCommands, commands)
+  }
+
+  private var commands: BrowserCommands {
+    BrowserCommands(
+      newTab: session.newTab, closeTab: session.tabs.count > 1 ? { session.close(session.current) } : nil,
+      openLocation: session.focusAddress, reload: tab.atStart ? nil : { session.current.reload() })
   }
 
   @ViewBuilder private var page: some View {
     if let picture = standIns?.webPage {
-      Image(nsImage: picture).resizable().scaledToFill()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+      Color.clear
+        .overlay(alignment: .top) { Image(nsImage: picture).resizable().scaledToFill() }
         .clipped()
     } else {
-      WebPage(view: session.webView)
+      WebPage(view: session.webView(for: tab))
     }
   }
 
   private var offer: PageOffer? {
-    guard let address = session.address else { return nil }
-    return PageOffer(at: address, facts: session.facts, library: items?.value ?? [])
+    guard !tab.atStart, let address = tab.address else { return nil }
+    return PageOffer(at: address, facts: tab.facts, library: items?.value ?? [])
   }
 
   private func take(_ offer: PageOffer) {
@@ -71,7 +83,7 @@ struct BrowserScreen: View {
     case .inLibrary(let item):
       opened(WindowState(place: .library(nil), pages: [.item(item)]))
     case .video, .add:
-      guard let address = session.address else { return }
+      guard let address = tab.address else { return }
       Task { await add([address], open: true) }
     case .videos:
       withAnimation(Motion.quick) { picking.toggle() }
@@ -102,105 +114,6 @@ private struct WebPage: NSViewRepresentable {
 
   func makeNSView(context: Context) -> WKWebView { view }
   func updateNSView(_ nsView: WKWebView, context: Context) {}
-}
-
-/// Back, forward, the address with its site in ink and the rest faint, reload, and what trails it.
-struct AddressBar<Trailing: View>: View {
-  let session: BrowserSession
-  @ViewBuilder let trailing: () -> Trailing
-  @State private var editing: String?
-  @FocusState private var focused: Bool
-
-  var body: some View {
-    HStack(spacing: Spacing.xxs) {
-      IconButton(
-        symbol: Symbols.back, title: .loci("browser.back"), tint: Palette.ink
-      ) { session.back() }
-      .disabled(!session.canGoBack)
-      .opacity(session.canGoBack ? 1 : 0.35)
-      IconButton(
-        symbol: Symbols.forward, title: .loci("browser.forward"), tint: Palette.ink
-      ) { session.forward() }
-      .disabled(!session.canGoForward)
-      .opacity(session.canGoForward ? 1 : 0.35)
-      field
-      trailing()
-    }
-    .padding(.top, Spacing.s)
-    .padding(.horizontal, 14)
-    .padding(.bottom, 10)
-  }
-
-  private var field: some View {
-    HStack(spacing: Spacing.xs) {
-      Image(systemName: Symbols.lock).font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.inkFaint)
-      ZStack(alignment: .leading) {
-        TextField(text: Binding(get: { editing ?? "" }, set: { editing = $0 })) { Text(.loci("browser.address")) }
-          .textFieldStyle(.plain)
-          .focused($focused)
-          .opacity(focused ? 1 : 0)
-          .onSubmit {
-            if let editing { session.go(to: editing) }
-            focused = false
-          }
-        if !focused {
-          shownAddress.lineLimit(1).truncationMode(.tail).allowsHitTesting(false)
-        }
-      }
-      .font(.system(size: 13))
-      .contentShape(Rectangle())
-      .onTapGesture {
-        editing = session.address?.absoluteString
-        focused = true
-      }
-      IconButton(
-        symbol: Symbols.reload, title: .loci("browser.reload"), size: 24, symbolSize: 12
-      ) { session.reload() }
-    }
-    .padding(.leading, 14)
-    .padding(.trailing, 6)
-    .frame(height: Size.addressHeight)
-    .background(Capsule().fill(Palette.surface).shadow(color: .black.opacity(0.04), radius: 1, y: 1))
-    .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
-    .padding(.horizontal, 6)
-  }
-
-  /// `youtube.com/@cncf/videos`: the site in ink, the rest faint.
-  private var shownAddress: Text {
-    guard let url = session.address else { return Text(verbatim: "") }
-    let host = (url.host() ?? "").replacing(/^www\./, with: "")
-    var rest = url.path()
-    if let query = url.query() { rest += "?" + query }
-    if rest == "/" { rest = "" }
-    return Text(
-      joining: Text(verbatim: host).foregroundStyle(Palette.ink), Text(verbatim: rest).foregroundStyle(Palette.inkFaint)
-    )
-  }
-}
-
-private struct IconButton: View {
-  let symbol: String
-  let title: LocalizedStringResource
-  var size: CGFloat = Size.iconButton
-  var symbolSize: CGFloat = 14
-  var tint: Color = Palette.inkMuted
-  let action: () -> Void
-  @State private var hovering = false
-
-  var body: some View {
-    Button(action: action) {
-      Image(systemName: symbol)
-        .font(.system(size: symbolSize))
-        .foregroundStyle(hovering ? Palette.ink : tint)
-        .frame(width: size, height: size)
-        .background(Circle().fill(hovering ? Palette.fillStrong : .clear))
-        .contentShape(Circle())
-    }
-    .buttonStyle(PressStyle())
-    .onHover { hovering = $0 }
-    .help(Text(title))
-    .accessibilityLabel(Text(title))
-  }
 }
 
 /// The amber button for what the page can become.
