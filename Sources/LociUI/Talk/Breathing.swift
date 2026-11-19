@@ -23,22 +23,23 @@ extension View {
   }
 }
 
+/// While it breathes, the content sits in a branch of its own, so when it stops the branch goes and its
+/// repeating animation with it.
 private struct Breathing: ViewModifier {
   let on: Bool
   let period: Double
-  @State private var low = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   func body(content: Content) -> some View {
-    content
-      .opacity(low ? Motion.breathLow : 1)
-      .onChange(of: on && !reduceMotion, initial: true) { _, going in
-        if going {
-          withAnimation(Motion.breathe(period)) { low = true }
-        } else {
-          withAnimation(nil) { low = false }
-        }
+    if on && !reduceMotion {
+      content.phaseAnimator([1, Motion.breathLow]) { content, opacity in
+        content.opacity(opacity)
+      } animation: { _ in
+        Motion.breath(period)
       }
+    } else {
+      content
+    }
   }
 }
 

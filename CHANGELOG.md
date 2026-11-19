@@ -4,6 +4,7 @@ User-visible changes to the native app. The Tauri app's history is on `main`.
 
 ## Unreleased
 
+- Loci 忙完后侧边栏的琥珀点真正停下，不再在后台每秒唤醒几十次。
 - 等 Loci 开口时跳动的三个点交给 Core Animation，几乎不占 CPU，也不再带着整段对话重绘。
 - 很长的对话里 Loci 边想边写时不再占满一个 CPU 核：之前说过的话只排一次版，只有正在写的那条回答跟着更新。
 - Loci 回答到一半时退出应用，刚发出的消息不再丢失：重开后它还在，后面标着「已停止」，对话照常接着聊。
