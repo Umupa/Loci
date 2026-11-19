@@ -1,0 +1,57 @@
+name: Dmg
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/dmg.yml
+      - .github/workflows/release.yml
+      - Package.swift
+      - Package.resolved
+      - script/bundle
+      - script/release
+      - script/toolchain
+      - script/resources/**
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/dmg.yml
+      - .github/workflows/release.yml
+      - Package.swift
+      - Package.resolved
+      - script/bundle
+      - script/release
+      - script/toolchain
+      - script/resources/**
+  workflow_dispatch:
+
+concurrency:
+  group: dmg-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Dmg
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Use the newest Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+
+      - name: Build the dmg
+        run: script/release
+
+      - name: Keep the dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: |
+            output/*.dmg
+            output/*.sha256
+          retention-days: 7
+          if-no-files-found: error

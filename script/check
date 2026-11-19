@@ -1,7 +1,14 @@
 #!/bin/sh
-# The one gate. CI runs exactly this. Quiet when everything passes; on a
+# The delivery gate. --fast runs the checks for routine CI. On a
 # failure it prints what failed and how to fix it.
 set -eu
+case "$#:${1:-}" in
+  0:) ;;
+  1:--fast)
+    set -- --skip '^LociUITests\.([^./]+Snapshots/|LongConversationTests/aLongConversationKeepsShowingItsMessagesWhileQuestionsFollowOneAnother)'
+    ;;
+  *) echo "usage: script/check [--fast]" >&2; exit 2 ;;
+esac
 cd "$(dirname "$0")/.."
 . script/toolchain
 mkdir -p output
@@ -9,17 +16,18 @@ mkdir -p output
 step() {
   name=$1
   shift
-  if "$@" >output/check.log 2>&1; then
+  log="output/check-$name.log"
+  if "$@" >"$log" 2>&1; then
     echo "ok    $name"
   else
     echo "FAIL  $name"
-    grep -E -A3 'recorded an issue|error:|warning:' output/check.log || cat output/check.log
-    echo "full log: output/check.log"
+    grep -E -A3 'recorded an issue|error:|warning:' "$log" || cat "$log"
+    echo "full log: $log"
     exit 1
   fi
 }
 
 step format swift format lint --strict --recursive --parallel Package.swift Sources Tests
 step build swift build --build-tests
-step test swift test --skip-build
+step test swift test --skip-build "$@"
 step commits script/check-commits

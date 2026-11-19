@@ -148,6 +148,7 @@ jobs:
           path: |
             output/*.dmg
             output/*.sha256
+            output/check-*.log
             output/launch.txt
           if-no-files-found: ignore
 
