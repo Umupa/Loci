@@ -52,14 +52,22 @@ struct ConversationView: View {
   @State private var settled = Remembered(TalkRow.settled)
 
   var body: some View {
-    let rows = self.rows
+    let turn = conversation?.turn
+    let said = settled(SaidSoFar(conversation?.entries ?? [], turn: turn))
+    let live = TalkRow.live(turn)
+    let (runs, recent) = RowRun.split(said)
     return ScrollView {
       LazyVStack(alignment: .leading, spacing: 0) {
-        ForEach(rows) { row in
+        ForEach(runs) { run in
+          VStack(alignment: .leading, spacing: 0) {
+            ForEach(run.rows) { row in view(of: row) }
+          }
+        }
+        ForEach(recent + live) { row in
           view(of: row).arriving()
         }
       }
-      .animatingArrivals(rows.count)
+      .animatingArrivals(said.count + live.count)
       .padding(.horizontal, scale == .main ? 28 : Spacing.m)
       .frame(maxWidth: scale == .main ? 640 : .infinity)
       .padding(.top, scale == .main ? Spacing.l : 0)
@@ -114,11 +122,6 @@ struct ConversationView: View {
       if case .message(let message) = $0, case .prompt = message.body { true } else { false }
     }
     return said + (conversation?.turn == nil ? 0 : 1)
-  }
-
-  private var rows: [TalkRow] {
-    let turn = conversation?.turn
-    return settled(SaidSoFar(conversation?.entries ?? [], turn: turn)) + TalkRow.live(turn)
   }
 
   @ViewBuilder private func view(of row: TalkRow) -> some View {

@@ -4,6 +4,7 @@ User-visible changes to the native app. The Tauri app's history is on `main`.
 
 ## Unreleased
 
+- 很长的对话里，较早的消息合成几段一起排版，Loci 写回答时不用每次都把上千行重新走一遍。
 - 加快资料较多时主对话刷新「已保存」和「读完」记录的速度。
 - 减少 Loci 空闲时每日回顾检查读取长对话历史的开销。
 - Loci 忙完后侧边栏的琥珀点真正停下，不再在后台每秒唤醒几十次。
