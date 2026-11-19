@@ -70,12 +70,13 @@ struct ReplyChunksTests {
     let whole = try await Self.lines(ReplyChunk(markdown: Self.reply).frame(maxWidth: .infinity, alignment: .leading))
     let cut = try await Self.lines(VStack(spacing: 0) { ReplyText(text: Self.reply, streaming: false) })
 
-    #expect(cut.count == whole.count)
-    #expect(zip(cut, whole).allSatisfy { abs($0 - $1) <= 1.5 })
+    #expect(cut.starts.count == whole.starts.count)
+    #expect(zip(cut.starts, whole.starts).allSatisfy { abs($0 - $1) <= 3 * whole.pixel })
   }
 
-  /// Where each line of text begins, from the top, in points.
-  private static func lines(_ view: some View) async throws -> [CGFloat] {
+  /// Where each line of text begins, from the top, in points, and how many points a pixel of the screen is:
+  /// SwiftUI places views on whole pixels, so where a reply is cut can move a line by up to a pixel.
+  private static func lines(_ view: some View) async throws -> (starts: [CGFloat], pixel: CGFloat) {
     let host = NSHostingView(rootView: view.frame(width: 380).fixedSize(horizontal: false, vertical: true))
     let window = NSWindow(
       contentRect: CGRect(x: -20_000, y: -20_000, width: 380, height: 1200), styleMask: [.borderless],
@@ -100,6 +101,6 @@ struct ReplyChunksTests {
       if row && !inked { starts.append(CGFloat(y) / scale) }
       inked = row
     }
-    return starts
+    return (starts, 1 / window.backingScaleFactor)
   }
 }
