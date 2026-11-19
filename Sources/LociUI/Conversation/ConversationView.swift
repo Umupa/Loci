@@ -92,7 +92,6 @@ struct ConversationView: View {
       if hidden == nil, !said.isEmpty { hidden = RowWindow.latest(in: said) }
     }
     .onChange(of: questions) {
-      hidden = RowWindow.latest(in: said)
       follow.asked()
       withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
     }
