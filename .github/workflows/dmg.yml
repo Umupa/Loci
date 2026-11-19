@@ -47,7 +47,7 @@ jobs:
         run: script/release
 
       - name: Keep the dmg
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dmg
           path: |
