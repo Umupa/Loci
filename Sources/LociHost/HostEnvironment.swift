@@ -42,7 +42,7 @@ public struct HostEnvironment: Sendable {
     models: @escaping @Sendable (Provider) async -> [String] = { _ in [] },
     ticks: @escaping @Sendable () -> AsyncStream<Void> = { AsyncStream { $0.finish() } },
     media: MediaEnvironment = .disconnected,
-    wait: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+    wait: (@Sendable (Duration) async -> Void)? = nil,
     tool: AgentTool? = nil
   ) {
     self.newID = newID
@@ -56,7 +56,7 @@ public struct HostEnvironment: Sendable {
     self.models = models
     self.ticks = ticks
     self.media = media
-    self.wait = wait
+    self.wait = wait ?? { duration in try? await Task.sleep(for: duration) }
     self.tool = tool
   }
 

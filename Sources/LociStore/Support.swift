@@ -32,6 +32,11 @@ public struct Support: Sendable {
     try? FileManager.default.removeItem(at: leftover)
   }
 
+  /// Puts the app at `staged` where `installed` is, in place of the copy there.
+  public func replaceApp(_ installed: URL, with staged: URL) throws {
+    _ = try FileManager.default.replaceItemAt(installed, withItemAt: staged)
+  }
+
   /// Replaces a component's folder with `unpacked` and makes `executable` inside it runnable.
   public func installComponent(_ component: Component, unpacked: URL, executable: String) throws {
     let target = components.appending(path: component.rawValue, directoryHint: .isDirectory)

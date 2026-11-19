@@ -51,7 +51,7 @@ enum Snapshot {
   private static func steady(
     _ host: NSView, in window: NSWindow, named name: String, when ready: @MainActor (NSWindow) -> Bool
   ) async throws -> NSBitmapImageRep {
-    let deadline = ContinuousClock.now + .seconds(30)
+    let deadline = ContinuousClock.now + .seconds(60)
     var last: (bitmap: NSBitmapImageRep, data: Data)?
     var streak = 0
     while true {

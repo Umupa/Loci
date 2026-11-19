@@ -90,6 +90,7 @@ struct LociSnapshots {
         ReplyText(text: "图画好了，挂在 Pingora 第二条划线旁边", streaming: false)
       }
       StepsCard.working(since: Timestamp(millisecondsSince1970: 0)).padding(.leading, TalkScale.main.indent)
+      LatestButton {}.padding(.leading, 40)
       SavingCard(
         item: video, job: LociModel.Job(item: video.id, stage: .translate, state: .running(progress: nil)), indent: 40)
       SavingCard(

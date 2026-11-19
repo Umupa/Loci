@@ -21,6 +21,7 @@ final class Launch {
   /// without a relay or when the device key cannot be kept.
   let machines: any Machines
   let folder: URL
+  let updater = AppUpdater(environment: .system())
   private var reportedStart = false
 
   private static let log = Logger(subsystem: "com.loci.native.dev", category: "launch")
@@ -42,6 +43,7 @@ final class Launch {
     case .refuse(let path): state = .problem(.refusedFolder(path))
     }
     if let service { Task { await service.start() } }
+    Task { [updater] in await updater.watch() }
   }
 
   /// The relay's address and key are written into the app's Info.plist when it is built.
@@ -51,7 +53,7 @@ final class Launch {
     else { return nil }
     return MachinesService.onThisMac(
       relay: address, registrationKey: key, local: host,
-      support: URL.applicationSupportDirectory.appending(path: DataFolder.developmentName))
+      support: URL.applicationSupportDirectory.appending(path: DataFolder.name))
   }
 
   /// The `loci` command in the app's bundle, which `script/bundle` puts in `Contents/Helpers`; `nil` when

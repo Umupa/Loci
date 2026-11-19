@@ -1,7 +1,7 @@
 #!/bin/sh
 # Builds Loci (Beta).app into output/ and opens it.
 #   --no-open        only build
-#   --root <folder>  run with LOCI_ROOT=<folder> instead of ~/Loci Dev
+#   --root <folder>  run with LOCI_ROOT=<folder> instead of ~/Loci-Beta
 set -eu
 cd "$(dirname "$0")/.."
 . script/toolchain

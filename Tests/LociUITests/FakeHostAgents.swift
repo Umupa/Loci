@@ -38,5 +38,5 @@ extension FakeHost {
 
   func runtime() async throws(HostError) -> Runtime { sample.runtime }
   func setRuntime(_ command: SetRuntime) async throws(HostError) -> Runtime { command.runtime }
-  func dataLocation() async -> HostPath { HostPath(URL(filePath: "/Users/someone/Loci Dev")) }
+  func dataLocation() async -> HostPath { HostPath(URL(filePath: "/Users/someone/Loci-Beta")) }
 }

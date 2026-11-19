@@ -41,7 +41,7 @@ script/check   # full checks for a pull request or release
 script/run     # build and open Loci (Beta)
 ```
 
-`script/run --root <folder>` runs against a separate data folder instead of `~/Loci Dev`.
+`script/run --root <folder>` runs against a separate data folder instead of `~/Loci-Beta`.
 
 ## Read more
 

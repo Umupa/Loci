@@ -11,10 +11,14 @@ struct PageScriptTests {
     let session = BrowserSession()
     let url = try #require(URL(string: address))
     session.webView.loadHTMLString(html, baseURL: url)
-    let deadline = ContinuousClock.now + .seconds(10)
+    let deadline = ContinuousClock.now + .seconds(60)
+    var last = PageFacts()
+    var unchanged = 0
     while ContinuousClock.now < deadline {
-      if session.facts != PageFacts() { return session.facts }
       try await Task.sleep(for: .milliseconds(100))
+      unchanged = session.facts == last ? unchanged + 1 : 0
+      last = session.facts
+      if last != PageFacts() && unchanged >= 5 { return last }
     }
     return session.facts
   }

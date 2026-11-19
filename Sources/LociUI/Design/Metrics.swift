@@ -50,6 +50,7 @@ enum Size {
   static let cardMinimumWidth: CGFloat = 200
   static let cardThumbnailRatio: CGFloat = 16 / 9
   static let panelWidth: CGFloat = 384
+  static let updateButton: CGFloat = 28
   /// The strip along a pane's edge that drags it wider.
   static let resizer: CGFloat = 8
   /// Where the button that brings the sidebar back sits, clear of the window's buttons.
@@ -140,11 +141,7 @@ enum Motion {
   static let flashFadeStep = Duration.milliseconds(50)
   /// A message, event or card arriving: it rises into place as it fades in.
   static let arrive = Animation.timingCurve(0.28, 0.67, 0.32, 1, duration: 0.45)
-  /// Loci's dot while it works, and the step of a task going on now: fading to `breathLow` and back once
-  /// every `period` seconds.
-  static func breathe(_ period: Double) -> Animation {
-    .easeInOut(duration: period / 2).repeatForever(autoreverses: true)
-  }
+  /// How faint a breathing dot gets before it brightens again.
   static let breathLow = 0.3
   /// A rebuild finishing sooner than this is not shown at all, so nothing flickers.
   static let quietDelay = Duration.milliseconds(300)

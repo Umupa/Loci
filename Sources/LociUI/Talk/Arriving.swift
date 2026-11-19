@@ -1,11 +1,6 @@
 import SwiftUI
 
 extension View {
-  /// Fades to `Motion.breathLow` and back while `on`, as long as the person has not asked for less motion.
-  func breathing(_ on: Bool, period: Double) -> some View {
-    modifier(Breathing(on: on, period: period))
-  }
-
   /// Rises into place as it fades in when it arrives, and simply appears for someone who asked for less
   /// motion.
   func arriving() -> some View {
@@ -20,25 +15,6 @@ extension View {
   /// A card's soft shadow in light; in dark, where shadows vanish, a faint hairline instead.
   func cardShadow<S: InsettableShape>(_ shape: S) -> some View {
     modifier(CardShadow(shape: shape))
-  }
-}
-
-private struct Breathing: ViewModifier {
-  let on: Bool
-  let period: Double
-  @State private var low = false
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-  func body(content: Content) -> some View {
-    content
-      .opacity(low ? Motion.breathLow : 1)
-      .onChange(of: on && !reduceMotion, initial: true) { _, going in
-        if going {
-          withAnimation(Motion.breathe(period)) { low = true }
-        } else {
-          withAnimation(nil) { low = false }
-        }
-      }
   }
 }
 

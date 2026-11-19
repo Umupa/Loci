@@ -39,6 +39,10 @@ struct TalkRow: Identifiable {
   /// For a part of a reply, the reply it belongs to, so hovering any part offers to copy the answer.
   var reply: EntityID?
 
+  /// Whether it rises into place when it appears. The later bubbles of a reply appear where they are
+  /// written, since a reply being written brings new ones several times a second.
+  var arrives: Bool { id.part < 1 }
+
   var speaker: Speaker? {
     switch kind {
     case .asked: .person
@@ -47,12 +51,16 @@ struct TalkRow: Identifiable {
     }
   }
 
-  /// The rows of a conversation, including the work status while its next reply is pending.
-  static func rows(_ entries: [ConversationEntry], turn: LiveTurn? = nil) -> [TalkRow] {
+  /// The rows of a conversation: each reply split into bubbles, a date wherever a sitting begins, and the
+  /// work status while the next reply is pending. With `earlier`, they go on from it: it decides whether a
+  /// sitting begins and where the first bubble sits in its run.
+  static func rows(_ entries: [ConversationEntry], turn: LiveTurn? = nil, after earlier: ConversationEntry? = nil)
+    -> [TalkRow]
+  {
     let answers = ConversationEntry.answers(entries)
     var rows: [TalkRow] = []
     for (index, entry) in entries.enumerated() {
-      if let day = Sitting.start(of: entry, after: index > 0 ? entries[index - 1] : nil) {
+      if let day = Sitting.start(of: entry, after: index > 0 ? entries[index - 1] : earlier) {
         rows.append(TalkRow(id: ID(message: entry.id, part: -1), kind: .day(day)))
       }
       switch entry {
@@ -86,12 +94,13 @@ struct TalkRow: Identifiable {
     if let turn, waitingForReply(turn) {
       rows.append(TalkRow(id: ID(message: nil, part: 0), kind: .working(since: turn.startedAt)))
     }
-    let speakers = rows.map(\.speaker)
-    let positions = BubbleLayout.positions(speakers)
-    let turns = BubbleLayout.turns(speakers)
-    for index in rows.indices {
-      rows[index].position = positions[index]
-      rows[index].turn = turns[index]
+    let lead: [Speaker?] = earlier.map { [$0.speaker] } ?? []
+    let speakers = lead + rows.map(\.speaker)
+    let positions = BubbleLayout.positions(speakers).dropFirst(lead.count)
+    let turns = BubbleLayout.turns(speakers).dropFirst(lead.count)
+    for (index, (position, turn)) in zip(rows.indices, zip(positions, turns)) {
+      rows[index].position = position
+      rows[index].turn = turn
     }
     return rows
   }

@@ -10,7 +10,7 @@ import Testing
 /// α1-S4: after quitting, Loci reopens where it was, without the system's window restoration.
 @MainActor
 struct WindowMemoryTests {
-  static let folder = URL(filePath: "/Users/someone/Loci Dev")
+  static let folder = URL(filePath: "/Users/someone/Loci-Beta")
 
   @Test func aPlaceRememberedByOneLaunchIsRecalledByTheNext() throws {
     let suite = "loci-window-memory-\(UUID().uuidString)"
