@@ -39,7 +39,9 @@ struct BubbleRow<Words: View, Beside: View>: View {
   var body: some View {
     HStack(alignment: .bottom, spacing: Spacing.xs + 2) {
       if speaker == .loci {
-        LociAvatar(size: scale.face).opacity(position.showsFace ? 1 : 0)
+        LociAvatar(size: scale.face)
+          .opacity(position.showsFace ? 1 : 0)
+          .animation(nil, value: position.showsFace)
       }
       CappedWidth(share: scale.widest, aside: speaker == .loci ? scale.indent : 0) { bubble }
       beside
