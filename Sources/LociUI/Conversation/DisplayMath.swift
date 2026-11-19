@@ -1,4 +1,4 @@
-/// Display formulas a mentor writes as `$$…$$` or `\[…\]`, on one line or across several, turned into
+/// Display formulas Loci writes as `$$…$$` or `\[…\]`, on one line or across several, turned into
 /// ```` ```math ```` blocks before Markdown sees them, so that no Markdown rule can take the TeX apart and
 /// each one is typeset centred on a line of its own.
 enum DisplayMath {

@@ -1,7 +1,7 @@
 import SwiftUI
 import Textual
 
-/// Markdown said by a mentor, rendered by Textual: paragraphs, lists, code with highlighting, tables and
+/// Markdown said by Loci, rendered by Textual: paragraphs, lists, code with highlighting, tables and
 /// formulas. It is drawn again as the text grows, so a streaming reply can use it.
 struct RichText: View {
   let markdown: String

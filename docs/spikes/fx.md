@@ -46,11 +46,11 @@
 
 ## 实施与验收顺序
 
-1. 合并 `herdr/a2-core`，核对 ACP 的启动配置、恢复策略和模式设置入口。只在 `Sources/LociAgents/Fx/` 增加 fx 启动及实际差异；不新增注册表、工厂、协议层。`.fx` 已存在于 `Mentor.Provider`，无需改它。
+1. 核对共用 ACP 的启动配置、恢复策略和模式设置入口。fx 的启动和实际差异放在 `LociAgents` 里新建的 Fx 文件夹；不新增注册表、工厂、协议层。`.fx` 已存在于 `Runtime`，无需改它。
 2. 先写调用方可见行为测试，再实现 `FxDriver`。测试复用 `RecordingLauncher`、`ScriptedLauncher`、`TurnPipe` 的现有方式，按真实录音验证启动参数、流式回复、工具结果、权限允许与拒绝、停止后继续、恢复与恢复不存在的会话。
-3. 增加默认跳过的 `FxLiveTests`；建议以 `LOCI_FX=<程序路径>` 打开，以 `LOCI_FX_RECORD=<目录>` 保存录音。所有文件操作都在临时工作目录，绝不使用 `~/Loci`。fixture 放在 `Tests/LociAgentsTests/Fixtures/Fx/`，沿用 `launch`、`to`、`from`、`close`、`exit` 的 JSONL 格式，并脱敏本机路径与凭据。
+3. 增加默认跳过的 `FxLiveTests`；建议以 `LOCI_FX=<程序路径>` 打开，以 `LOCI_FX_RECORD=<目录>` 保存录音。所有文件操作都在临时工作目录，绝不使用 `~/Loci`。fixture 放在 `Fixtures` 下新建的 Fx 文件夹，沿用 `launch`、`to`、`from`、`close`、`exit` 的 JSONL 格式，并脱敏本机路径与凭据。
 4. 在已安装且已登录的 fx 上小额跑一次，优先录 `reply`、`tool`、`permission-allow`、`permission-deny`、`interrupt`、`interrupt-asking`、`resume`、`resume-missing` 和 `bad-model`。无法稳定触发的边界另用明确标为 `synthetic-` 的 fixture，不能冒充抓包。
-5. 对照 α2-S6 检查流式、权限卡允许后执行及拒绝后不执行；对照 α2-S7 检查停止与续聊。会话恢复提供 α2-S8 的驱动层证据，不能据此声称应用的对话持久化也已验证。设置探测与 provider 选择由相应任务接线。
-6. 有用户可见能力时再更新 `CHANGELOG.md`。合并最新 `native`，运行 `script/check`，报告真实测试结果、差距和共用层改动后提交。
+5. 对照 α2-S6 检查流式与一律完全权限下的工具执行；对照 α2-S7 检查停止与续聊。会话恢复提供 α2-S8 的驱动层证据，不能据此声称应用的对话持久化也已验证。设置探测与 provider 选择由相应任务接线。
+6. 有用户可见能力时再更新 `CHANGELOG.md`。合并最新 `main`，运行 `script/check`，报告真实测试结果、差距和共用层改动后提交。
 
 本次未增加 Swift 文件、fixture、依赖或共用层改动；没有可交付的 fx 运行能力。

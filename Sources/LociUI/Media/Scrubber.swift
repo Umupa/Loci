@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The progress bar under a player: what has played in ink, the stretches a mentor picked out in amber with a
+/// The progress bar under a player: what has played in ink, the stretches Loci picked out in amber with a
 /// diamond where each begins, a cut between chapters, and a knob to drag.
 struct Scrubber: View {
   let timeline: Timeline

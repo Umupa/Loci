@@ -39,10 +39,10 @@
 | 包 | 版本 | 模块 | 用在哪 |
 |---|---|---|---|
 | GRDB | 7.11.1 | `LociStore` | SQLite 与全文索引 |
-| swift-markdown | 0.9.0 | `LociUI` | 课文阅读器把 Markdown 解析成 TextKit 2 的文字 |
-| Textual | 0.5.0 | `LociUI` | 对话里 Loci 的回复、笔记面板里的回答（流式 Markdown） |
-| HighlightSwift（swift-highlight） | 0.1.1 | `LociUI` | 课文代码块的语法高亮，纯 Swift，不跑 JavaScript |
-| SwiftMath | 1.7.3 | `LociUI` | 课文里的公式排版 |
+| swift-markdown | 0.9.0 | `LociUI` | 阅读器把文章的 Markdown 解析成 TextKit 2 的文字 |
+| Textual | 0.5.0 | `LociUI` | 对话里 Loci 的回复、划线里的回答（流式 Markdown） |
+| HighlightSwift（swift-highlight） | 0.1.1 | `LociUI` | 代码块的语法高亮，纯 Swift，不跑 JavaScript |
+| SwiftMath | 1.7.3 | `LociUI` | 公式排版 |
 | whisper.cpp（`whisper.xcframework`） | b5454（与 v1.9.5 同一次构建，校验和钉在 `Package.swift`） | `LociMedia` | 本机语音识别（Metal），逐词时间 |
 | defuddle | 0.19.6 | `LociMedia`（资源） | 在不显示的网页里取正文转 Markdown。npm `defuddle@0.19.6` 的 `dist/index.full.js` 原样放在 `Sources/LociMedia/Resources/defuddle.js`，许可证在旁边；升级时换这两个文件并改这里的版本 |
 
@@ -59,7 +59,7 @@ Tests/<模块>Tests/             模块的行为
 Tests/ArchitectureTests/      架构规则和它自己的测试
 Tests/LociUITests/Snapshot    把界面渲染成图
 script/                       check · format · bundle · run · release · measure-launch
-docs/                         路线、设计、架构、功能地图
+docs/                         路线、设计、架构、功能地图、agent、发布
 docs/agents/                  派活、审阅、黑盒测试的说明
 docs/spikes/                  验证的结论
 output/                       构建产物、截图、日志（不提交）

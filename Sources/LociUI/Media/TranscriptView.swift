@@ -44,7 +44,7 @@ struct TranscriptLayout {
 }
 
 /// The transcript beside a player. The sentence playing is washed in amber and kept in view until the reader
-/// scrolls; sentences a mentor picked out carry an amber bar; highlighted words are underlined. A click
+/// scrolls; sentences Loci picked out carry an amber bar; highlighted words are underlined. A click
 /// plays from a sentence; a drag across sentences chooses them for a highlight or a question.
 struct TranscriptView: View {
   let transcript: ReadableTranscript

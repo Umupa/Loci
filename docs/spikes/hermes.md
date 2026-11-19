@@ -23,7 +23,7 @@
 | 中断 | `session/cancel` 通知，参数 `sessionId`；撤销尚未回答的审批 |
 | 恢复 | `session/load`，参数 `sessionId`、`cwd`、`mcpServers: []`；加载时不重复展示历史通知 |
 
-旧版还接受 `session_id` / `id` 和 `current_model_id` 字段，支持 `accept_edits` 模式。当前 `Mentor.Permission` 只有 `.ask` 和 `.full`，不新增权限档位。字段兼容是否需要保留，以真实录像为准。
+旧版还接受 `session_id` / `id` 和 `current_model_id` 字段，支持 `accept_edits` 模式。Loci 一律以完全权限运行，不新增权限档位。字段兼容是否需要保留，以真实录像为准。
 
 旧版恢复失败会新建会话；原生 `AgentError.sessionNotFound` 已有明确合同，接入时应报告恢复失败，不能默默丢失上下文。`SessionHandle.provider` 必须是 `.hermes`，不能泄漏成 `.grok`。
 

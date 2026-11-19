@@ -31,7 +31,7 @@ struct Following: Equatable {
   }
 }
 
-/// The round button over the composer that goes back to the newest message: an arrow, or while the mentor
+/// The round button over the composer that goes back to the newest message: an arrow, or while Loci
 /// is still answering, dots that pulse.
 struct LatestButton: View {
   let busy: Bool

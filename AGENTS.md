@@ -1,6 +1,15 @@
 # 在这个仓库里工作
 
-Loci 是给工程师的 AI native 学习工作台，原生 Swift 写成（macOS 26+）。要做什么看 [docs/roadmap.md](docs/roadmap.md) 和 [docs/design.md](docs/design.md)，功能叫什么、怎样算做对看 [docs/features.md](docs/features.md)，模块怎么分看 [docs/architecture.md](docs/architecture.md)。
+Loci 是一个 Mac 应用：从你读的、看的、听的东西里学习，身边有一个住在你资料库里的 AI 伙伴。原生 Swift 写成（macOS 26+）。
+
+| 文档 | 写什么 |
+|---|---|
+| [docs/roadmap.md](docs/roadmap.md) | 做完了哪些版本，下一版做什么 |
+| [docs/features.md](docs/features.md) | 功能叫什么、怎样算做对（场景） |
+| [docs/design.md](docs/design.md) | 现在的产品、视觉、数据和远程设计 |
+| [docs/agent.md](docs/agent.md) | Loci 这个 agent 为什么这样设计 |
+| [docs/architecture.md](docs/architecture.md) | 模块怎么分 |
+| [CHANGELOG.md](CHANGELOG.md) | 用户看得到的变化，按版本 |
 
 ## 一条命令
 
@@ -8,13 +17,14 @@ Loci 是给工程师的 AI native 学习工作台，原生 Swift 写成（macOS 
 script/check
 ```
 
-格式、编译（警告即错误）、测试、架构检查都在里面，CI 跑的就是它。通过时只打印三行 `ok`；失败时打印哪里错了、该怎么改。交付之前必须通过。
+格式、编译（警告即错误）、测试、架构与文档检查、还没推送的提交信息都在里面，CI 跑的就是它。通过时只打印四行 `ok`；失败时打印哪里错了、该怎么改。交付之前必须通过。
 
 | 命令 | 作用 |
 |---|---|
 | `script/check` | 唯一的闸门 |
 | `script/format` | 按项目风格重排代码 |
 | `script/run` | 构建并打开 `output/Loci Dev.app`；`--no-open` 只构建 |
+| `script/cut-release <版本>` | 定一个版本：改 CHANGELOG、跑闸门、提交、打 tag |
 
 ## 这个仓库是你的教材
 
@@ -32,8 +42,22 @@ script/check
 - 不写注释。`///` 只用来说明一个声明承诺什么。
 - 不用 `try!`、`as!`、`fatalError`、`print`，不绕过并发检查，不用 GCD 和锁。
 - 不留 `TODO`。源文件不超过 400 行。每个库模块都有测试。
+- 文档不说旧词：`docs/features.md` 末尾「不再用的词」里的词，出现在文档、未发布的 CHANGELOG 或 `Sources` 里就报错。
+- 文档里的链接和 `Sources/…`、`Tests/…` 这类路径必须存在；功能地图里每个词对应的类型必须在代码里声明。
 
 规则挡住了你，先假设规则是对的，去改设计。确实是规则错了，就在同一次改动里改规则，并在交付说明里写明原因。不要想办法绕过去。
+
+## 版本怎么走
+
+1. **规划**：在 `docs/roadmap.md` 的「接下来」写下一版的主题和范围，场景写进 `docs/features.md`，带编号。
+2. **开发**：`feat` 和 `fix` 的提交在 `CHANGELOG.md` 的 Unreleased 下写最终状态（`script/check` 会检查）。还没发布的功能又改了，就改原来那条，不追加；删了，就删那条。
+3. **发版**：roadmap 里把这一版挪进「已完成」，然后 `script/cut-release <版本>`，推送 tag。整个流程见 [docs/releasing.md](docs/releasing.md)。
+
+## 文档只写现在
+
+- 删掉或改名一个东西，在同一次改动里：删代码、删或改文档里写它的地方、把旧词加进 `docs/features.md` 的「不再用的词」。`script/check` 会列出所有漏掉的地方。
+- `design.md`、`agent.md`、`features.md` 写现在的样子，不写「当时的记录」「已作废」。计划放在 roadmap，做完的进 CHANGELOG，过程留给 git 历史。
+- 同一件事只写在一个地方，别处链接过去。规则和格式写在代码旁边的，文档里只指过去，不重抄。
 
 ## 需要你自己判断的
 
@@ -67,6 +91,6 @@ script/check
 
 ## 提交
 
-- 提交信息用 Conventional Commits，祈使句：`feat: open a pasted link in the library`。
+- 提交信息用 Conventional Commits，祈使句：`feat: open a pasted link in the library`。`feat`、`fix` 必须同时改 CHANGELOG；用户看不到的改动用别的类型。
 - 一次改动一个主题。不提交生成的文件（`.build/`、`output/`）。
 - 新增第三方依赖要先问。每个依赖都要在交付说明里写明为什么不自己写。

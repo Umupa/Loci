@@ -5,7 +5,7 @@ struct Timeline: Equatable {
   let length: Duration
   /// Where each chapter after the first begins; the bar is cut there.
   let cuts: [Double]
-  /// The stretches a mentor picked out, drawn in amber with a diamond at their start.
+  /// The stretches Loci picked out, drawn in amber with a diamond at their start.
   let highlights: [ClosedRange<Double>]
   let chapters: [Outline.Chapter]
 
