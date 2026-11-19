@@ -61,7 +61,7 @@ extension Store {
 
   /// A text file in the work folder, such as subtitles yt-dlp saved there; `nil` when it is not there.
   public func workText(named name: String, of item: EntityID) throws -> String? {
-    try existing(workFolder(of: item).appending(path: name)).map(readText)
+    try existing(itemFolder(item).appending(path: Self.workFolder).appending(path: name)).map(readText)
   }
 
   /// The item's media, which may be a link to a file elsewhere; `nil` until it is downloaded or imported.

@@ -43,6 +43,19 @@ struct ReaderTests {
     #expect(coordinator.topQuote()?.text.hasPrefix("第 200 段") == true)
   }
 
+  @Test func leavingTheReaderDismissesItsSelectionBar() async throws {
+    let (coordinator, _, window) = Self.reader(heard: Heard())
+    defer { window.orderOut(nil) }
+    coordinator.events.passage = PassageActions(highlight: { _ in nil }, think: { _, _ in })
+    coordinator.show(ReadingText(markdown: Self.long), from: nil)
+    coordinator.select("调度器先过滤")
+    try await eventually("the selection bar") { window.childWindows?.count == 1 }
+
+    window.contentView = NSView()
+
+    #expect(window.childWindows?.isEmpty != false)
+  }
+
   @Test func aRevisedTextKeepsTheReaderOnTheSameParagraph() throws {
     let (coordinator, _, window) = Self.reader(heard: Heard())
     defer { window.orderOut(nil) }

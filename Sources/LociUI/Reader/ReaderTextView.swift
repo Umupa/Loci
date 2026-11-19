@@ -10,8 +10,7 @@ final class ReaderTextView: NSTextView {
   var resized: () -> Void = {}
   /// Runs when a mouse selection is finished.
   var selectionEnded: () -> Void = {}
-  /// Runs once the text is in a window, where things can float over it.
-  var joinedWindow: () -> Void = {}
+  var windowChanged: (NSWindow?) -> Void = { _ in }
   /// Runs when the mouse is released, whether or not it selected anything.
   var dragEnded: () -> Void = {}
   /// Whether the mouse is down in the text, dragging out a selection.
@@ -30,7 +29,7 @@ final class ReaderTextView: NSTextView {
 
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
-    if window != nil { joinedWindow() }
+    windowChanged(window)
   }
   private var noteDots: [EntityID: NoteDot] = [:]
   private var highlights: [(note: EntityID, rects: [CGRect], bands: [CGRect])] = []

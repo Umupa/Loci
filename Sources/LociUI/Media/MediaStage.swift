@@ -76,6 +76,7 @@ struct VideoStage: View {
         symbol: model.player.playing ? Symbols.pause : Symbols.play,
         title: model.player.playing ? .loci("player.pause") : .loci("player.play"), symbolSize: 18
       ) { model.player.toggle() }
+      .disabled(!model.player.canPlay)
       if !compact {
         RoundIconButton(symbol: Symbols.back5, title: .loci("player.back")) { model.player.skip(by: .seconds(-5)) }
         RoundIconButton(symbol: Symbols.forward5, title: .loci("player.forward")) {

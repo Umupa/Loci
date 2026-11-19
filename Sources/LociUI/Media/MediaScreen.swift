@@ -100,7 +100,22 @@ struct MediaScreen: View {
     let model = StageModel(
       item: item, player: player, timeline: Timeline(length: length, outline: media?.value?.outline),
       transcript: readable, subtitles: $subtitles, subtitlesShown: $subtitlesShown, menuOpen: $menuOpen)
-    if case .audio = item.kind { PodcastStage(model: model) } else { VideoStage(model: model) }
+    VStack(spacing: 0) {
+      if let playbackJob {
+        JobDetail(line: JobLine(playbackJob), act: act).padding(.top, Spacing.m)
+      } else if player.availability == .failed {
+        Text(.loci("player.failed")).font(Typography.bodyEmphasis).padding(.top, Spacing.m)
+      }
+      if case .audio = item.kind { PodcastStage(model: model) } else { VideoStage(model: model) }
+    }
+  }
+
+  private var playbackJob: Job? {
+    guard readable != nil || tab != .transcript || (!layout.besideStage && !layout.overStage),
+      !player.canPlay, let job = job?.value ?? nil, job.stage == .resolve || job.stage == .download,
+      case .action = JobLine(job)
+    else { return nil }
+    return job
   }
 
   private var length: Duration {
@@ -154,13 +169,15 @@ struct MediaScreen: View {
         if let recognizing { RecognitionCard(progress: recognizing).padding(Spacing.s) }
       }
     } else {
-      TranscriptPending(job: job?.value ?? nil) { fix in
-        JobFixes(
-          host: host, openPlace: openPlace, browser: browser, failed: showFailure, changesAllowed: changesAllowed
-        ).apply(fix, to: item)
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      TranscriptPending(job: job?.value ?? nil, act: act)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+  }
+
+  private func act(_ fix: JobLine.Fix) {
+    JobFixes(
+      host: host, openPlace: openPlace, browser: browser, failed: showFailure, changesAllowed: changesAllowed
+    ).apply(fix, to: item)
   }
 
   private var highlightsPage: some View {

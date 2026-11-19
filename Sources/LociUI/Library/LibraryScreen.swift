@@ -94,7 +94,7 @@ struct LibraryScreen: View {
 
   private func click(_ item: EntityID, in items: [Item], progress: Progress) {
     let order = LibraryList.order(of: items, progress: progress).map(\.id)
-    let click = LibrarySelection.Click(NSEvent.modifierFlags)
+    let click = LibrarySelection.Click(event: NSApp.currentEvent)
     if selection.click(item, click, in: order) {
       opened(WindowState(place: .library(kind), pages: [.item(item)]))
     }

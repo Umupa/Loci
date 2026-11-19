@@ -69,9 +69,13 @@ extension JobRun {
 
 /// Fetching the text of articles and papers.
 extension JobRun {
+  static let articleHTML = "article.html"
+
   func extract(_ item: Item) async throws(StageStop) {
     guard let source = item.source else { return }
-    if try await recognize(item) { return }
+    let html =
+      item.kind == .article ? try stored { try context.store.workText(named: Self.articleHTML, of: item.id) } : nil
+    if html == nil, try await recognize(item) { return }
     guard let fetcher = context.media.textFetching else {
       throw .failed("Fetching articles and papers is not available in this build.", nil)
     }
@@ -86,7 +90,9 @@ extension JobRun {
           language: item.language, site: item.site, published: paper.published.map(Timestamp.init))
       }
     default:
-      let article = try await fetch(source) { () async throws(FetchError) in try await fetcher.article(at: source) }
+      let article = try await fetch(source) { () async throws(FetchError) in
+        try await fetcher.article(at: source, html: html)
+      }
       let images = Dictionary(article.images.map { ($0.name, $0.data) }, uniquingKeysWith: { first, _ in first })
       try stored { try context.store.saveArticle(article.markdown, images: images, of: item.id) }
       fetched = try stored {
@@ -96,7 +102,10 @@ extension JobRun {
           published: article.published.map(Timestamp.init))
       }
     }
-    try stored { try context.store.retitle(fetched, from: item.title) }
+    try stored {
+      try context.store.retitle(fetched, from: item.title)
+      if html != nil { try context.store.clearWork(of: item.id) }
+    }
   }
 
   private func fetch<Value>(_ source: URL, _ body: () async throws(FetchError) -> Value) async throws(StageStop)

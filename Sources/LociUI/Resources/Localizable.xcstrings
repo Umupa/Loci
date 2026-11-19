@@ -2432,6 +2432,23 @@
         }
       }
     },
+    "player.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can’t Play"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法播放"
+          }
+        }
+      }
+    },
     "player.pause": {
       "extractionState": "manual",
       "localizations": {

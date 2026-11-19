@@ -81,4 +81,16 @@ struct PageReaderTests {
     #expect(PageReader.failure(status: 401)?.needsLogin == true)
     #expect(PageReader.failure(status: 404)?.needsLogin == false)
   }
+
+  @Test(.timeLimit(.minutes(1)))
+  func savingTheBrowserMarkupReadsTheArticleWithoutRunningItsScripts() async throws {
+    let html = Self.html.replacing(
+      "<article>", with: "<article><script>document.querySelector('article').remove()</script>")
+    let url = try #require(URL(string: "https://blog.example.com/posts/scheduler"))
+
+    let extraction = try await PageReader.read(.html(html, base: url), timeout: .seconds(10), store: .nonPersistent())
+
+    #expect(extraction.markdown.contains("feasible set"))
+    #expect(extraction.markdown.contains("https://blog.example.com/img/flow.png"))
+  }
 }

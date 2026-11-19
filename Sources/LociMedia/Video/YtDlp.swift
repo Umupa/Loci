@@ -82,9 +82,11 @@ public struct YtDlp: Sendable {
       result = try await run(
         Self.downloadArguments(info.map(Source.info) ?? .link(url), audio: audio, folder: folder),
         line: { line in tracker.hear(line) })
-    } catch  where info != nil && !Task.isCancelled {
-      result = try await run(
-        Self.downloadArguments(.link(url), audio: audio, folder: folder), line: { line in tracker.hear(line) })
+    } catch {
+      let refused = error.reason.lowercased().contains("unable to download video data: http error 403")
+      guard !Task.isCancelled, info != nil || refused else { throw error }
+      let args = Self.downloadArguments(.link(url), audio: audio, folder: folder, checkFormats: refused)
+      result = try await run(args, line: { line in tracker.hear(line) })
     }
     let path = result.output.split(whereSeparator: \.isNewline).map(String.init).last { $0.hasPrefix("/") }
     guard let path else { throw MediaError(.other, reason: "yt-dlp finished without saying where the file is") }
@@ -97,7 +99,7 @@ public struct YtDlp: Sendable {
     case info(URL)
   }
 
-  static func downloadArguments(_ source: Source, audio: Bool, folder: URL) -> [String] {
+  static func downloadArguments(_ source: Source, audio: Bool, folder: URL, checkFormats: Bool = false) -> [String] {
     let format =
       audio
       ? ["-f", "ba[ext=m4a]/ba/b", "-x", "--audio-format", "m4a"]
@@ -110,8 +112,9 @@ public struct YtDlp: Sendable {
       case .link(let url): [url.absoluteString]
       case .info(let file): ["--load-info-json", file.path(percentEncoded: false)]
       }
-    return format + [
-      "--no-playlist", "--continue", "-P", folder.path(percentEncoded: false), "-o", "media.%(ext)s",
+    let resume = checkFormats ? ["--check-formats", "--no-continue"] : ["--continue"]
+    return format + resume + [
+      "--no-playlist", "-P", folder.path(percentEncoded: false), "-o", "media.%(ext)s",
       "--print", "after_move:filepath", "--no-simulate", "--progress", "--newline",
       "--progress-template", "download:[loci] %(progress)j",
     ] + from

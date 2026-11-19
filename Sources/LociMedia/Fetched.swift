@@ -68,6 +68,6 @@ public struct FetchError: Error, Sendable, Equatable {
 /// Fetches the text behind article and paper links. The app's version loads the page in a web view that
 /// is never shown, so pages that need JavaScript and the built-in browser's logins both work.
 public protocol TextFetching: Sendable {
-  func article(at url: URL) async throws(FetchError) -> FetchedArticle
+  func article(at url: URL, html: String?) async throws(FetchError) -> FetchedArticle
   func paper(at url: URL) async throws(FetchError) -> FetchedPaper
 }

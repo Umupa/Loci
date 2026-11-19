@@ -53,7 +53,7 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     }
     defer { timer.cancel() }
     try await reader.load(source).get()
-    await reader.waitForTextToSettle()
+    if case .url = source { await reader.waitForTextToSettle() }
     guard ContinuousClock.now < deadline else {
       throw FetchError(reason: "The page took too long to load.")
     }
@@ -65,7 +65,7 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
       loading = continuation
       switch source {
       case .url(let url): webView.load(URLRequest(url: url))
-      case .html(let html, let base): webView.loadHTMLString(html, baseURL: base)
+      case .html: webView.loadHTMLString("<!doctype html>", baseURL: nil)
       }
     }
   }
@@ -94,9 +94,14 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   }
 
   private func extract(at source: Source) async throws(FetchError) -> Extraction {
+    let arguments: [String: Any] =
+      switch source {
+      case .url: ["html": NSNull(), "base": NSNull()]
+      case .html(let html, let base): ["html": html, "base": base.absoluteString]
+      }
     let reply: Any?
     do {
-      reply = try await webView.callAsyncJavaScript(Self.extraction, contentWorld: Self.world)
+      reply = try await webView.callAsyncJavaScript(Self.extraction, arguments: arguments, contentWorld: Self.world)
     } catch {
       throw FetchError(reason: "The page's text could not be read: \(error.localizedDescription)")
     }
@@ -112,12 +117,13 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   /// defuddle takes the page's cover image out of the text, expecting it to be shown above the article. Loci
   /// shows no cover there, so the cover is not named and a figure that is also the cover stays where it is.
   private static let extraction = """
-    for (const meta of document.querySelectorAll(
+    const page = html === null ? document : new DOMParser().parseFromString(html, 'text/html');
+    for (const meta of page.querySelectorAll(
       'meta[property="og:image"], meta[name="twitter:image"], meta[name="sailthru.image.full"]')) meta.remove();
-    const result = new Defuddle(document, { url: location.href, separateMarkdown: true }).parse();
+    const result = new Defuddle(page, { url: base ?? location.href, separateMarkdown: true }).parse();
     return JSON.stringify({
       title: result.title, author: result.author, site: result.site, published: result.published,
-      language: result.language || document.documentElement.lang || "", domain: result.domain,
+      language: result.language || page.documentElement.lang || "", domain: result.domain,
       markdown: result.contentMarkdown || ""
     });
     """

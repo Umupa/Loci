@@ -34,7 +34,7 @@ struct MachineWindow: View {
   var body: some View {
     layout
       .background(WindowButtons(inset: Size.windowButtons))
-      .background(WindowKeys(handle: { event in LinkPasteKey.isPaste(event) && keyPaste() }))
+      .background(WindowKeys(whileTyping: true, handle: key))
       .toolbar(removing: .title)
       .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
       .tint(Palette.accent)
@@ -223,9 +223,14 @@ struct MachineWindow: View {
       pasteLink: linkPaste.map { paste in { _ = paste() } })
   }
 
-  /// What ⌘V does: an invite link pairs from any page; another link is added where the window takes one.
-  private var keyPaste: @MainActor () -> Bool {
-    { pasteInvite() || linkPaste?() == true }
+  private func key(_ event: NSEvent) -> Bool {
+    if window.place == .browser, window.pages.isEmpty,
+      browser.handle(event, closeWindow: { event.window?.performClose(nil) })
+    {
+      return true
+    }
+    guard !KeyMonitor.isTyping(into: event.window?.firstResponder), LinkPasteKey.isPaste(event) else { return false }
+    return pasteInvite() || linkPaste?() == true
   }
 
   /// What ⌘V does with a link where the window takes one.

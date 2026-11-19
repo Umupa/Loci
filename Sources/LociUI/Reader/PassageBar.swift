@@ -118,8 +118,8 @@ final class PassagePopover {
     guard let window = view.window else { return }
     let panel = PassagePanel()
     panel.appearance = window.effectiveAppearance
-    let place = { [weak view, weak panel] (size: CGSize) in
-      guard let view, let panel else { return }
+    let place = { [weak view, weak panel, weak window] (size: CGSize) in
+      guard let view, let panel, let window, view.window === window else { return }
       let frame = Self.frame(of: size, over: lines, within: view.visibleRect)
       panel.setFrame(window.convertToScreen(view.convert(frame, to: nil)), display: true)
     }

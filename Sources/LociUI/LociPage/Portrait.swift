@@ -14,9 +14,16 @@ struct ChoosePicture {
   /// The system's open panel.
   static let panel = ChoosePicture {
     let panel = NSOpenPanel()
-    panel.allowedContentTypes = Avatar.formats.compactMap { UTType(filenameExtension: $0) }
+    panel.allowedContentTypes = Set(Avatar.formats.compactMap { UTType(filenameExtension: $0) })
+      .sorted { $0.identifier < $1.identifier }
     panel.allowsMultipleSelection = false
-    return await panel.begin() == .OK ? panel.url : nil
+    let response: NSApplication.ModalResponse
+    if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+      response = await panel.beginSheetModal(for: window)
+    } else {
+      response = await panel.begin()
+    }
+    return response == .OK ? panel.url : nil
   }
 }
 

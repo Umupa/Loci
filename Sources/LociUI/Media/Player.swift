@@ -9,6 +9,12 @@ import LociModel
 @MainActor
 @Observable
 final class Player {
+  enum Availability {
+    case waiting, ready, failed
+  }
+
+  private(set) var availability = Availability.waiting
+  var canPlay: Bool { availability == .ready }
   private(set) var time: Duration
   private(set) var playing = false
   private(set) var speed = PlaybackSpeed.normal
@@ -20,6 +26,7 @@ final class Player {
   let engine = AVPlayer()
   @ObservationIgnored private var ticking: Any?
   @ObservationIgnored private var watching: NSKeyValueObservation?
+  @ObservationIgnored private var recovering: Task<Void, Never>?
   @ObservationIgnored private var savedAt = Duration.zero
   @ObservationIgnored private var finished = false
   @ObservationIgnored var remember: (Duration) -> Void = { _ in }
@@ -36,20 +43,31 @@ final class Player {
 
   /// Starts from where the clock is. A stream with headers sends them with every request.
   func load(_ source: PlayerSource) {
+    load(source, refreshing: false)
+  }
+
+  private func load(_ source: PlayerSource, refreshing: Bool) {
+    recovering?.cancel()
+    recovering = nil
     let asset: AVURLAsset
+    let canRefresh: Bool
     ranged = nil
     switch source {
     case .file(let file):
       asset = AVURLAsset(url: file.url)
       streamsPicture = true
+      canRefresh = false
     case .ranges(let media):
       ranged = media
       asset = media.asset()
       streamsPicture = true
+      canRefresh = false
     case .online(let stream):
       asset = AVURLAsset(url: stream.url, options: ["AVURLAssetHTTPHeaderFieldsKey": stream.headers])
       streamsPicture = !stream.audioOnly
+      canRefresh = !refreshing
     }
+    availability = .ready
     let item = AVPlayerItem(asset: asset)
     engine.replaceCurrentItem(with: item)
     engine.seek(to: Self.cmTime(time), toleranceBefore: .zero, toleranceAfter: .zero)
@@ -60,11 +78,14 @@ final class Player {
       }
     }
     soundOnly = true
-    watching = item.observe(\.status) { [weak self] item, _ in
+    watching = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
+      let id = ObjectIdentifier(item)
       let failed = item.status == .failed
       let ready = item.status == .readyToPlay
       let seconds = item.duration.seconds
-      MainActor.assumeIsolated { self?.settled(failed: failed, ready: ready, seconds: seconds) }
+      MainActor.assumeIsolated {
+        self?.settled(id, failed: failed, ready: ready, seconds: seconds, canRefresh: canRefresh)
+      }
     }
     if playing { engine.rate = Float(speed.rawValue) }
   }
@@ -74,6 +95,7 @@ final class Player {
   }
 
   func play() {
+    guard canPlay else { return }
     playing = true
     engine.rate = Float(speed.rawValue)
   }
@@ -105,6 +127,7 @@ final class Player {
 
   /// Shows the controls as playing with nothing loaded, for a snapshot of the page.
   func showPlaying() {
+    availability = .ready
     playing = true
   }
 
@@ -115,6 +138,11 @@ final class Player {
     if let ticking { engine.removeTimeObserver(ticking) }
     ticking = nil
     watching = nil
+    recovering?.cancel()
+    recovering = nil
+    engine.replaceCurrentItem(with: nil)
+    playing = false
+    availability = .waiting
   }
 
   private func tick(_ moment: CMTime) {
@@ -127,13 +155,31 @@ final class Player {
     }
   }
 
-  private func settled(failed: Bool, ready: Bool, seconds: Double) {
+  private func settled(_ id: ObjectIdentifier, failed: Bool, ready: Bool, seconds: Double, canRefresh: Bool) {
+    guard engine.currentItem.map(ObjectIdentifier.init) == id else { return }
     if seconds.isFinite, seconds > 0 { length = .milliseconds(Int(seconds * 1000)) }
     if ready { soundOnly = !streamsPicture }
     guard failed else { return }
-    Task {
-      if let fresh = await refresh() { load(fresh) }
+    guard canRefresh else {
+      failedToPlay()
+      return
     }
+    guard recovering == nil else { return }
+    recovering = Task { [weak self, refresh] in
+      let fresh = await refresh()
+      guard !Task.isCancelled, let self else { return }
+      recovering = nil
+      if let fresh {
+        load(fresh, refreshing: true)
+      } else {
+        failedToPlay()
+      }
+    }
+  }
+
+  private func failedToPlay() {
+    availability = .failed
+    pause()
   }
 
   private func save() {

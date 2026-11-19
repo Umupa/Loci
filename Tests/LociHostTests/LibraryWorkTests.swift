@@ -91,6 +91,18 @@ struct LibraryWorkTests {
     }
   }
 
+  @Test func aReadableBrowserPageIsSavedEvenWhenFetchingItsLinkWouldAskForSignIn() async throws {
+    try await withMediaHost { host, _ in
+      let url = try #require(URL(string: "https://example.com/members/post"))
+      let item = try await host.run(AddLink(url: url, articleHTML: "<article>Body already in the browser.</article>"))
+
+      #expect(await job(host, item.id, where: isDone) != nil)
+      let page = try await host.itemPage(item.id)
+      #expect(page.item.source == url)
+      #expect(page.text?.contains("Body already in the browser.") == true)
+    }
+  }
+
   @Test func withoutAFetcherAnArticleFailsSayingSo() async throws {
     try await withMediaHost(text: false) { host, _ in
       let item = try await host.run(AddLink(url: Links.url(Links.article)))

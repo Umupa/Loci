@@ -8,6 +8,13 @@ import Foundation
 enum PageScript {
   static let channel = "loci"
 
+  static let article = #"""
+    const page = document.documentElement.cloneNode(true);
+    page.querySelectorAll('script:not([type="application/ld+json"]), iframe, object, embed, form, input, textarea, select')
+      .forEach(node => node.remove());
+    return { url: location.href, html: page.outerHTML };
+    """#
+
   /// Reads a report the script sent.
   static func facts(from body: Any) -> PageFacts? {
     guard let report = body as? [String: Any] else { return nil }

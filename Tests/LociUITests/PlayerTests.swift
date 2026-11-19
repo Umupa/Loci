@@ -143,3 +143,26 @@ extension PlayerTests {
     #expect(SpeechModel.base.sizeText == "148 MB")
   }
 }
+
+@MainActor
+extension PlayerTests {
+  @Test func pressingPlayBeforeMediaIsAvailableDoesNotShowPause() {
+    let player = Player(start: .zero, length: .seconds(19))
+
+    player.play()
+
+    #expect(!player.playing)
+  }
+
+  @Test func anUnreadableFileStopsPlaybackAndSaysItCannotPlay() async throws {
+    let url = URL(filePath: "/tmp/\(UUID()).mp4")
+    let player = Player(start: .zero, length: .seconds(19))
+    defer { player.close() }
+    player.load(.file(LocalFile(url)))
+    player.play()
+
+    try await eventually("the unavailable file to stop playing") { player.availability == .failed }
+
+    #expect(!player.playing)
+  }
+}

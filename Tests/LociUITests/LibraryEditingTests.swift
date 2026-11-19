@@ -6,6 +6,7 @@ import Testing
 @testable import LociUI
 
 /// A-S6, A-S7, A-S10: choosing items, what a right click acts on, and renaming in place.
+@MainActor
 struct LibraryEditingTests {
   static let ids = (1...5).map { _ in EntityID() }
 
@@ -42,6 +43,19 @@ struct LibraryEditingTests {
     #expect(LibrarySelection.Click([]) == .open)
     #expect(LibrarySelection.Click(.command) == .toggle)
     #expect(LibrarySelection.Click(.shift) == .extend)
+  }
+
+  @Test(arguments: [NSEvent.ModifierFlags.command, .shift])
+  func theMouseEventsModifiersChooseWithoutOpening(modifiers: NSEvent.ModifierFlags) throws {
+    let event = try #require(
+      NSEvent.mouseEvent(
+        with: .leftMouseUp, location: .zero, modifierFlags: modifiers, timestamp: 0, windowNumber: 0,
+        context: nil, eventNumber: 0, clickCount: 1, pressure: 0))
+    var selection = LibrarySelection()
+
+    let opens = selection.click(Self.ids[1], LibrarySelection.Click(event: event), in: Self.ids)
+    #expect(!opens)
+    #expect(selection.chosen == [Self.ids[1]])
   }
 
   @Test func aRightClickActsOnTheChosenOnlyWhenTheItemIsOneOfThem() {

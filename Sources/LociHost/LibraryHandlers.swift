@@ -19,6 +19,14 @@ extension LocalHost {
       }
     let item = try attempt { try Item(id: environment.newID(), kind: kind, title: LinkTitle.of(url), source: url) }
     try attempt { try store.addPending(item) }
+    if kind == .article, let html = command.articleHTML, html.utf8.count <= AddLink.maximumArticleBytes {
+      do throws(HostError) {
+        _ = try attempt { try store.saveWork(Data(html.utf8), named: JobRun.articleHTML, of: item.id) }
+      } catch {
+        try? store.deleteItem(item.id)
+        throw error
+      }
+    }
     await follow([.item(item.id)])
     if let first = Job.Stage.all(for: item).first { await library.queue.begin(item.id, at: first) }
     await saved(item.id, by: saver)

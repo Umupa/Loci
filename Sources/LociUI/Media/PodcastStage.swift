@@ -59,6 +59,7 @@ struct PodcastStage: View {
             .background(Circle().fill(Palette.ink).shadow(color: .black.opacity(0.18), radius: 8, y: 6))
         }
         .buttonStyle(PressStyle())
+        .disabled(!model.player.canPlay)
         .accessibilityLabel(Text(model.player.playing ? .loci("player.pause") : .loci("player.play")))
         RoundIconButton(
           symbol: Symbols.forward5, title: .loci("player.forward"), size: Size.podcastButton, symbolSize: 21

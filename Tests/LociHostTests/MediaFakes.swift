@@ -255,11 +255,11 @@ final class FakeTranscriptAgent: TranscriptAgent {
 
 /// Fetches articles and papers from a fixed answer.
 struct FakeTextFetcher: TextFetching {
-  func article(at url: URL) async throws(FetchError) -> FetchedArticle {
-    if url.path().contains("members") { throw FetchError(reason: "sign in to read", needsLogin: true) }
+  func article(at url: URL, html: String?) async throws(FetchError) -> FetchedArticle {
+    if html == nil, url.path().contains("members") { throw FetchError(reason: "sign in to read", needsLogin: true) }
     return FetchedArticle(
       title: "Borg, Omega, and Kubernetes", authors: ["Brendan Burns"], site: "ACM Queue", published: nil,
-      language: "en", markdown: "# Borg, Omega, and Kubernetes\n\n![](images/figure-1.png)\n",
+      language: "en", markdown: html ?? "# Borg, Omega, and Kubernetes\n\n![](images/figure-1.png)\n",
       images: [FetchedFile(name: "figure-1.png", data: Data("png".utf8))])
   }
 

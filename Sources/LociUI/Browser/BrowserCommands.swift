@@ -1,3 +1,4 @@
+import AppKit
 import LociModel
 import SwiftUI
 
@@ -12,6 +13,25 @@ struct BrowserCommands {
 
 extension FocusedValues {
   @Entry var browserCommands: BrowserCommands?
+}
+
+extension BrowserSession {
+  func handle(_ event: NSEvent, closeWindow: () -> Void) -> Bool {
+    guard KeyMonitor.modifiers(of: event) == .command else { return false }
+    switch event.charactersIgnoringModifiers?.lowercased() {
+    case "w":
+      if tabs.count > 1 {
+        close(current)
+      } else {
+        closeWindow()
+      }
+    case "r" where !current.atStart:
+      current.reload()
+    default:
+      return false
+    }
+    return true
+  }
 }
 
 extension EnvironmentValues {

@@ -33,6 +33,7 @@ struct ContentReader: View {
   @AppStorage private var panelWidth: Double
   @AppStorage(ReadingWidth.key) private var readingWidth = ReadingWidth.comfortable
   @State private var draft: PassageDraft?
+  @State private var passageBar = PassagePopover()
   @State private var marks: [ReaderMark] = []
   @State private var placedNotes: [PlacedNote] = []
 
@@ -110,8 +111,9 @@ struct ContentReader: View {
     if let text {
       Reader(
         text: text, start: start, width: readingWidth, marks: marks, reveal: reveal, selected: standIns?.selection,
-        events: events
+        events: events, passageBar: passageBar
       )
+      .onDisappear { passageBar.close() }
       .overlay(alignment: .topTrailing) {
         if let language {
           TranslateButton(language: language, mode: $mode) {

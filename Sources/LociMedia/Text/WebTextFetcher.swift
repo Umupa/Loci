@@ -13,9 +13,15 @@ public struct WebTextFetcher: TextFetching {
     self.timeout = timeout
   }
 
-  public func article(at url: URL) async throws(FetchError) -> FetchedArticle {
+  public func article(at url: URL, html: String? = nil) async throws(FetchError) -> FetchedArticle {
+    let assembler = ArticleAssembler(network: network)
+    if let html, let extraction = try? await PageReader.read(.html(html, base: url), timeout: timeout),
+      let article = try? await assembler.article(from: extraction, at: url)
+    {
+      return article
+    }
     let extraction = try await PageReader.read(.url(url), timeout: timeout)
-    return try await ArticleAssembler(network: network).article(from: extraction, at: url)
+    return try await assembler.article(from: extraction, at: url)
   }
 
   public func paper(at url: URL) async throws(FetchError) -> FetchedPaper {

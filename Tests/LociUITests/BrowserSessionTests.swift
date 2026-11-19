@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import LociModel
 import Testing
@@ -79,6 +80,30 @@ struct BrowserSessionTests {
     #expect(session.tabs.count == 1)
     #expect(session.current.atStart)
     #expect(session.current.address == nil)
+  }
+
+  @Test func commandWClosesATabThenTheWindow() throws {
+    let session = BrowserSession()
+    session.open(Self.video)
+    session.open(Self.article)
+    let window = NSWindow(
+      contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.orderBack(nil)
+    defer { window.orderOut(nil) }
+    let event = try #require(
+      NSEvent.keyEvent(
+        with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0, windowNumber: window.windowNumber,
+        context: nil, characters: "w", charactersIgnoringModifiers: "w", isARepeat: false, keyCode: 13))
+    let close = { window.performClose(nil) }
+
+    #expect(session.handle(event, closeWindow: close))
+    #expect(session.current.address == Self.video)
+    #expect(window.isVisible)
+
+    #expect(session.handle(event, closeWindow: close))
+    #expect(session.current.address == Self.video)
+    #expect(!window.isVisible)
   }
 
   @Test func theStartPageKeepsThePageBehindItAndBackReturnsToIt() {

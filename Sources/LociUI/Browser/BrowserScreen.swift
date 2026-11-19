@@ -84,14 +84,18 @@ struct BrowserScreen: View {
       opened(WindowState(place: .library(nil), pages: [.item(item)]))
     case .video, .add:
       guard let address = tab.address else { return }
-      Task { await add([address], open: true) }
+      let page = tab
+      Task {
+        let html = offer == .add ? await page.articleHTML(at: address) : nil
+        await add([address], articleHTML: html, open: true)
+      }
     case .videos:
       withAnimation(Motion.quick) { picking.toggle() }
     }
   }
 
   /// Hands the browser's sign-in to the host, then adds each link. One link opens; several stay in the list.
-  private func add(_ links: [URL], open: Bool = false) async {
+  private func add(_ links: [URL], articleHTML: String? = nil, open: Bool = false) async {
     if let first = links.first {
       let cookies = await session.cookies(for: first)
       if !cookies.isEmpty { _ = try? await host.run(HandOverBrowserCookies(cookies)) }
@@ -99,7 +103,7 @@ struct BrowserScreen: View {
     var last: Item?
     for link in links {
       do throws(HostError) {
-        last = try await host.run(AddLink(url: link))
+        last = try await host.run(AddLink(url: link, articleHTML: articleHTML))
       } catch {
         failed(error)
       }

@@ -99,6 +99,22 @@ struct YtDlpTests {
     #expect(file == URL(filePath: "/w/media.mp4"))
     #expect(runner.calls.count == 2)
     #expect(runner.calls.last?.arguments.last == Self.link.absoluteString)
+    #expect(runner.calls.last?.arguments.contains("--check-formats") == true)
+  }
+
+  @Test func whenThePreferredFormatIsRefusedItTriesOneThatCanBeDownloaded() async throws {
+    let runner = ScriptedRunner { call in
+      call.arguments.contains("--check-formats")
+        ? ([], ProgramResult(status: 0, output: "/w/media.mp4\n"))
+        : (
+          [], ProgramResult(status: 1, output: "", diagnostics: "ERROR: unable to download video data: HTTP Error 403")
+        )
+    }
+
+    let file = try await Self.ytDlp(runner).download(Self.link, audio: false, into: Self.folder) { _ in }
+
+    #expect(file == URL(filePath: "/w/media.mp4"))
+    #expect(runner.calls.map { $0.arguments.contains("--check-formats") } == [false, true])
   }
 
   @Test func theDownloadSaysWhereTheFileIsAndHowFarItGot() async throws {

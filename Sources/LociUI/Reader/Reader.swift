@@ -16,9 +16,10 @@ struct Reader: NSViewRepresentable {
   /// Words to select as soon as they are shown, as if the reader had just chosen them; for a snapshot.
   var selected: String?
   let events: ReaderEvents
+  let passageBar: PassagePopover
 
   func makeCoordinator() -> ReaderCoordinator {
-    ReaderCoordinator(events: events)
+    ReaderCoordinator(events: events, passageBar: passageBar)
   }
 
   func makeNSView(context: Context) -> NSScrollView {
@@ -66,7 +67,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   private var endReported = false
   private var marks: [ReaderMark] = []
   private var marksStale = false
-  private let passageBar = PassagePopover()
+  private let passageBar: PassagePopover
   private var revealed: Int?
   private var selecting: String?
   private var selected: String?
@@ -75,9 +76,10 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   private let settle: Duration
   private static let quoteLength = 40
 
-  init(events: ReaderEvents, settle: Duration = .milliseconds(500)) {
+  init(events: ReaderEvents, settle: Duration = .milliseconds(500), passageBar: PassagePopover = PassagePopover()) {
     self.events = events
     self.settle = settle
+    self.passageBar = passageBar
   }
 
   /// The scroll view holding the text, which this coordinator then looks after.
@@ -100,7 +102,13 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     textView.resized = { [weak self] in self?.applyPendingStart() }
     clip.scrolled = { [weak self] in self?.scrolled() }
     textView.selectionEnded = { [weak self] in self?.selectionEnded() }
-    textView.joinedWindow = { [weak self] in Task { self?.selectWanted() } }
+    textView.windowChanged = { [weak self] window in
+      if window == nil {
+        self?.passageBar.close()
+      } else {
+        Task { self?.selectWanted() }
+      }
+    }
     textView.dragEnded = { [weak self] in self?.dragEnded() }
     textView.markClicked = { [weak self] in self?.events.noteClicked($0) }
     return scrollView
@@ -108,6 +116,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
 
   func show(_ text: ReadingText, from start: TextQuote?) {
     guard let textView, current?.plain != text.plain else { return }
+    passageBar.close()
     let keep = current == nil ? start : topQuote()
     current = text
     textView.textStorage?.setAttributedString(text.string)

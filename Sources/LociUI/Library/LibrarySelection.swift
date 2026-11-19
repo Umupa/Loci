@@ -10,6 +10,10 @@ struct LibrarySelection: Equatable {
   enum Click: Equatable {
     case open, toggle, extend
 
+    @MainActor init(event: NSEvent?) {
+      self.init(event?.type == .leftMouseUp || event?.type == .leftMouseDown ? event?.modifierFlags ?? [] : [])
+    }
+
     init(_ modifiers: NSEvent.ModifierFlags) {
       if modifiers.contains(.command) {
         self = .toggle

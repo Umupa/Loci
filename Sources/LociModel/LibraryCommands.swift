@@ -4,10 +4,14 @@ import Foundation
 /// titled after the link until its real title is known; its job does the rest.
 public struct AddLink: Command {
   public static let name = "library.addLink"
+  public static let maximumArticleBytes = 2 * 1024 * 1024
   public let url: URL
+  /// The article already open in the built-in browser.
+  public let articleHTML: String?
 
-  public init(url: URL) {
+  public init(url: URL, articleHTML: String? = nil) {
     self.url = url
+    self.articleHTML = articleHTML
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Item {

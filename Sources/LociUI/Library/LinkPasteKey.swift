@@ -13,6 +13,7 @@ enum LinkPasteKey {
 
 /// Keys pressed in the window while no text is being typed; see `KeyMonitor`.
 struct WindowKeys: NSViewRepresentable {
+  var whileTyping = false
   /// Whether it handled the key; `nil` hears nothing.
   let handle: (@MainActor (NSEvent) -> Bool)?
 
@@ -22,6 +23,7 @@ struct WindowKeys: NSViewRepresentable {
 
   func updateNSView(_ view: KeyMonitor, context: Context) {
     view.handle = handle
+    view.whileTyping = whileTyping
   }
 }
 
@@ -30,6 +32,7 @@ struct WindowKeys: NSViewRepresentable {
 final class KeyMonitor: NSView {
   /// Whether it handled the key; `nil` hears nothing.
   var handle: (@MainActor (NSEvent) -> Bool)?
+  var whileTyping = false
   private var monitor: Any?
 
   override func hitTest(_ point: NSPoint) -> NSView? {
@@ -42,7 +45,7 @@ final class KeyMonitor: NSView {
     guard window != nil else { return }
     monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
       guard let self, let window = self.window, event.window === window, let handle = self.handle,
-        !Self.isTyping(into: window.firstResponder), handle(event)
+        self.whileTyping || !Self.isTyping(into: window.firstResponder), handle(event)
       else { return event }
       return nil
     }

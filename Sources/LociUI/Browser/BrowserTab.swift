@@ -84,6 +84,16 @@ final class BrowserTab: Identifiable {
     facts.isPDF = true
   }
 
+  func articleHTML(at address: URL) async -> String? {
+    guard LinkKind(address) == .article, facts.hasArticle, !facts.isPDF, let view, view.url == address,
+      let report = try? await view.callAsyncJavaScript(PageScript.article, contentWorld: .defaultClient)
+        as? [String: String],
+      report["url"].flatMap(URL.init(string:)) == address, let html = report["html"],
+      html.utf8.count <= AddLink.maximumArticleBytes
+    else { return nil }
+    return html
+  }
+
   func update(from view: WKWebView) {
     if let url = view.url, url.isWebLink {
       if PageAddress(url) != address.map(PageAddress.init) { facts = PageFacts() }

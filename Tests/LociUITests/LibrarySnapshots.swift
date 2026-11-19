@@ -318,6 +318,17 @@ extension LibrarySnapshots {
       standIns: StandIns(moment: MediaMoment(playing: false)))
   }
 
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func aDownloadFailureIsVisibleBesideTheAvailableTranscript(appearance: Snapshot.Appearance) async throws {
+    var library = try SampleLibrary()
+    let video = library.video.id
+    library.jobs.removeAll { $0.item == video }
+    library.jobs.append(Job(item: video, stage: .download, state: .failed(.init(reason: "HTTP 403"))))
+    try await Self.shoot(
+      "video-download-failed", library, at: Self.reading(video), appearance: appearance,
+      standIns: StandIns(moment: MediaMoment(playing: false)))
+  }
+
   /// A small window: the transcript panel folds away and the controls keep inside the page.
   @Test(arguments: Snapshot.Appearance.allCases)
   func videoInASmallWindow(appearance: Snapshot.Appearance) async throws {
