@@ -21,7 +21,7 @@ struct MediaScreen: View {
   @State private var job: Feed<Job?>?
   @State private var notes: Feed<[Note]>?
   @State private var tab = MediaTab.transcript
-  @AppStorage("subtitleMode") private var subtitles = SubtitleMode.both
+  @AppStorage(SubtitleMode.key) private var subtitles = SubtitleMode.both
   @AppStorage("subtitlesShown") private var subtitlesShown = true
   @State private var menuOpen = false
   @State private var follow = TranscriptFollow()

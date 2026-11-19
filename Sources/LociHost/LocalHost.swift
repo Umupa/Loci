@@ -102,6 +102,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   /// Stops watching the folder and stops Loci. Subscriptions stay open but receive nothing more.
   public func close() async {
     await library.queue.close()
+    await library.translator.close()
     await loci.close()
     await hub.stop()
   }

@@ -20,6 +20,20 @@ extension Store {
     try existing(itemFolder(item).appending(path: Self.contentFile)).map(readText)
   }
 
+  /// The article in `language`, as far as it has been translated; `nil` before any of it is.
+  public func articleTranslation(of item: EntityID, into language: String) throws -> ArticleTranslation? {
+    try existing(translationFile(of: item, language)).map { try decodeJSON(ArticleTranslation.self, at: $0) }
+  }
+
+  public func save(_ translation: ArticleTranslation, of item: EntityID) throws {
+    try write(Formats.document(translation), to: translationFile(of: item, translation.language))
+  }
+
+  private func translationFile(of item: EntityID, _ language: String) throws -> URL {
+    try itemFolder(item).appending(path: Self.translationsFolder, directoryHint: .isDirectory)
+      .appending(path: "\(try Self.plainName(language)).json")
+  }
+
   public func savePDF(_ data: Data, of item: EntityID) throws {
     try write(data, to: itemFolder(item).appending(path: Self.pdfFile))
   }

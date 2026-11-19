@@ -16,6 +16,21 @@ enum TranscriptPrompts {
     """
   }
 
+  static func translation(ofPassages passages: [String], into language: String) -> String {
+    """
+    Translate each passage of this article into the language with BCP 47 tag `\(language)`. Each passage is \
+    Markdown: a heading or a paragraph. Translate the meaning naturally and keep technical terms recognizable. \
+    Keep the Markdown as it is: heading marks, emphasis, links and their addresses, inline code and formulas \
+    stay unchanged around the translated words. Keep one output passage for each input passage, in the same \
+    order: the answer has exactly \(passages.count) passages, none of them empty.
+
+    Return only one JSON object, no prose around it: {"lines": ["…", …]}
+
+    The passages:
+    \(json(["lines": passages]))
+    """
+  }
+
   static func outline(of segments: [Transcript.Segment], title: String, piece: Int, of pieces: Int) -> String {
     let from = seconds(segments.first?.start ?? .zero)
     let to = seconds(segments.last?.end ?? .zero)

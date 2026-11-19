@@ -62,7 +62,8 @@ final class FakeHost: LociModel.Host, CommandHandler {
       return ItemPage(item: found, text: found.id == library.article.id ? SampleLibrary.articleText : nil)
     }
     guard let found = sample.items.first(where: { $0.id == item }) else { throw .notFound(item.description) }
-    return ItemPage(item: found, text: sample.text)
+    let translated = found.id == sample.borg.id ? sample.translation : nil
+    return ItemPage(item: found, text: sample.text, translatable: translated != nil, translation: translated)
   }
 
   func search(_ command: Search) async throws(HostError) -> [SearchHit] { [] }

@@ -29,7 +29,9 @@ let package = Package(
       url: "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-b5454-xcframework.zip",
       checksum: "e57f8c48933000acabc13bb913fbe82805d483a2deff692cc6738836bd92393b"),
     .target(
-      name: "LociMedia", dependencies: ["LociModel", "whisper"], resources: [.copy("Resources")],
+      name: "LociMedia",
+      dependencies: ["LociModel", "whisper", .product(name: "Markdown", package: "swift-markdown")],
+      resources: [.copy("Resources")],
       swiftSettings: strict),
     .target(name: "LociRemote", dependencies: ["LociModel"], swiftSettings: strict),
     .target(

@@ -60,6 +60,21 @@ public struct CancelJob: Command {
   }
 }
 
+/// Translates an article into the reader's language, passage by passage, keeping what was translated before.
+/// The page shows each passage as it arrives.
+public struct TranslateArticle: Command {
+  public static let name = "library.translateArticle"
+  public let item: EntityID
+
+  public init(item: EntityID) {
+    self.item = item
+  }
+
+  public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
+    try await handler.translateArticle(item)
+  }
+}
+
 /// Where a video or audio item plays from now. `refresh` asks the site for a new address, for when the
 /// one given before has stopped working.
 public struct ReadPlayback: Command {

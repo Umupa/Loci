@@ -11,9 +11,8 @@ struct PlacedNote: Identifiable {
 
   /// The notes in the order of the text; lost notes after the rest, in the order they were saved.
   static func place(_ notes: [Note], in text: ReadingText) -> [PlacedNote] {
-    let plain = text.plain
     let placed = notes.map { note in
-      PlacedNote(note: note, range: note.locator.quote?.range(in: plain).map { NSRange($0, in: plain) })
+      PlacedNote(note: note, range: note.locator.quote.flatMap { text.range(of: $0) })
     }
     let found = placed.filter { $0.range != nil }.sorted { ($0.range?.location ?? 0) < ($1.range?.location ?? 0) }
     return found + placed.filter { $0.range == nil }

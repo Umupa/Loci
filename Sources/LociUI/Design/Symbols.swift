@@ -29,6 +29,7 @@ enum Symbols {
   static let backToPlaying = "play.circle"
   static let download = "arrow.down.to.line"
   static let update = "arrow.up"
+  static let translate = "translate"
   static let restart = "arrow.clockwise"
   static let retry = "exclamationmark"
   static let add = "plus"

@@ -69,4 +69,25 @@ struct TranscriptAgentLiveTests {
     ].joined(separator: "\n")
     Issue.record(Comment(rawValue: report), severity: .warning)
   }
+
+  @Test func anArticlesPassagesAreTranslatedKeepingTheirMarkdown() async throws {
+    let passages = [
+      "# The Tail at Scale",
+      "Systems that respond to user actions **quickly** (within 100ms) feel more fluid than those that take longer.",
+      "See [the paper](https://research.google/pubs/pub40801/) and run `sysctl -a` to compare.",
+      "The fan-out math is simple: $p = 1 - 0.99^{100}$, about 63%.",
+    ]
+    let installed = InstalledAgents()
+    let writer = AgentTranscriptAgent(runtime: Runtime(provider: .codex), agents: { await installed.driver(for: $0) })
+
+    let lines = try await writer.translate(passages: passages, into: "zh-Hans")
+
+    #expect(lines.count == passages.count)
+    #expect(lines[0].hasPrefix("# "))
+    #expect(lines[1].contains("**"))
+    #expect(lines[2].contains("](https://research.google/pubs/pub40801/)"))
+    #expect(lines[2].contains("`sysctl -a`"))
+    #expect(lines[3].contains("$p = 1 - 0.99^{100}$"))
+    Issue.record(Comment(rawValue: "LIVE passages\n" + lines.joined(separator: "\n")), severity: .warning)
+  }
 }

@@ -19,7 +19,7 @@
 | `LociModel` | 值类型、定位符、Host 协议与命令的请求和响应、线路注册表；系统框架可用 CryptoKit（`MachineID` 是公钥的指纹，邀请链接带校验和） | 无 |
 | `LociStore` | 文件读写与监听、SQLite、全文索引、Loci 的 `agent/` 文件夹；配对名单与别的 Mac 的缓存；系统框架可用 Security（设备私钥放钥匙串）、CryptoKit（缓存文件名） | `LociModel`；第三方：GRDB |
 | `LociAgents` | 各家 agent CLI 的协议驱动、会话、权限 | `LociModel` |
-| `LociMedia` | 取回链接（yt-dlp、网页正文、PDF）、组件、Loci 自己的新版本（GitHub release、挂载 dmg、核对签名）、转录、断句；系统框架可用 AVFoundation、CoreMedia、CoreGraphics（PDF 元数据）、NaturalLanguage、WebKit（在不显示的网页里取正文）、Synchronization | `LociModel` |
+| `LociMedia` | 取回链接（yt-dlp、网页正文、PDF）、组件、Loci 自己的新版本（GitHub release、挂载 dmg、核对签名）、转录、断句；系统框架可用 AVFoundation、CoreMedia、CoreGraphics（PDF 元数据）、NaturalLanguage、WebKit（在不显示的网页里取正文）、Synchronization | `LociModel`；第三方：swift-markdown |
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |
 | `LociRemote` | 配对、加密通道（Noise）、中继（alma-relay 协议）、局域网发现（Bonjour）；系统框架可用 CryptoKit、Network | `LociModel` |
 | `LociHost` | 命令层的实现：本机和远程；Loci 的会话、上下文拼装与每日回顾；系统框架可用 IOKit（有已配对的 Mac 时阻止空闲睡眠，读机型） | 以上全部 |
@@ -39,7 +39,7 @@
 | 包 | 版本 | 模块 | 用在哪 |
 |---|---|---|---|
 | GRDB | 7.11.1 | `LociStore` | SQLite 与全文索引 |
-| swift-markdown | 0.9.0 | `LociUI` | 阅读器把文章的 Markdown 解析成 TextKit 2 的文字 |
+| swift-markdown | 0.9.0 | `LociUI` `LociMedia` | 阅读器把文章的 Markdown 解析成 TextKit 2 的文字；文章按段切开去翻译，界面按同样的段找译文 |
 | Textual | 0.5.0 | `LociUI` | 对话里 Loci 的回复、划线里的回答（流式 Markdown） |
 | HighlightSwift（swift-highlight） | 0.1.1 | `LociUI` | 代码块的语法高亮，纯 Swift，不跑 JavaScript |
 | SwiftMath | 1.7.3 | `LociUI` | 公式排版 |

@@ -144,6 +144,23 @@ struct MediaFilesTests {
     }
   }
 
+  @Test func anArticlesTranslationIsKeptPerLanguage() throws {
+    try withStore { store in
+      let item = try Fixture.item()
+      try store.addPending(item)
+      try store.saveArticle("# Borg\n", images: [:], of: item.id)
+      #expect(try store.articleTranslation(of: item.id, into: "zh-Hans") == nil)
+
+      let translation = try ArticleTranslation(
+        language: "zh-Hans", passages: [.init(source: "# Borg", text: "# Borg 集群管理")])
+      try store.save(translation, of: item.id)
+
+      #expect(try store.articleTranslation(of: item.id, into: "zh-Hans") == translation)
+      #expect(try store.articleTranslation(of: item.id, into: "ja") == nil)
+      #expect(throws: StoreError.self) { try store.articleTranslation(of: item.id, into: "../item") }
+    }
+  }
+
   @Test func aPaperKeepsItsPDF() throws {
     try withStore { store in
       let item = try Item(id: Fixture.id(6), kind: .paper, title: "Borg")

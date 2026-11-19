@@ -231,6 +231,19 @@ final class FakeTranscriptAgent: TranscriptAgent {
     }
   }
 
+  func translate(passages: [String], into language: String) async throws(HostError) -> [String] {
+    asked.withLock { $0.append("passages \(language) \(passages.count)") }
+    if let failure = failing.withLock({ $0 }) { throw .invalidRequest(failure) }
+    return passages.map { "[\(language)] \($0)" }
+  }
+
+  /// Makes passage translations fail with `reason`, or succeed again with `nil`.
+  func fail(_ reason: String?) {
+    failing.withLock { $0 = reason }
+  }
+
+  private let failing = Mutex<String?>(nil)
+
   private static func attempt<Value>(_ body: () throws -> Value) throws(HostError) -> Value {
     do {
       return try body()

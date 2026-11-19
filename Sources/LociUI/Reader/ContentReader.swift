@@ -19,6 +19,9 @@ struct ContentReader: View {
   let images: [String: NSImage]
   let serif: Bool
   let pane: PaneWidth
+  /// The article's translation, when it is in another language than the reader's.
+  let language: ArticleLanguage?
+  @AppStorage(SubtitleMode.key) private var mode = SubtitleMode.both
   @State private var text: ReadingText?
   @State private var start: TextQuote?
   @State private var notes: Feed<[Note]>?
@@ -35,8 +38,9 @@ struct ContentReader: View {
 
   init(
     item: EntityID, title: String?, markdown: String, byline: NSAttributedString? = nil,
-    images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel
+    images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel, language: ArticleLanguage? = nil
   ) {
+    self.language = language
     self.byline = byline
     self.images = images
     self.serif = serif
@@ -93,6 +97,11 @@ struct ContentReader: View {
       text = setText()
       remark()
     }
+    .onChange(of: shownTranslation) {
+      guard text != nil else { return }
+      text = setText()
+      remark()
+    }
     .onChange(of: notes) { remark() }
     .subscribing(NotesOn(content: content), into: $notes)
   }
@@ -101,14 +110,28 @@ struct ContentReader: View {
     if let text {
       Reader(
         text: text, start: start, width: readingWidth, marks: marks, reveal: reveal, selected: standIns?.selection,
-        events: events)
+        events: events
+      )
+      .overlay(alignment: .topTrailing) {
+        if let language {
+          TranslateButton(language: language, mode: $mode) {
+            Task { _ = try? await host.run(TranslateArticle(item: item)) }
+          }
+          .padding(.top, Spacing.xs)
+          .padding(.trailing, panelShown ? Spacing.s : Spacing.s * 2 + Size.iconButton)
+        }
+      }
     } else {
       Palette.canvas
     }
   }
 
+  private var shownTranslation: ShownTranslation? {
+    language?.shown(mode)
+  }
+
   private func setText() -> ReadingText {
-    ReadingText(markdown: markdown, byline: byline, images: images, serif: serif)
+    ReadingText(markdown: markdown, byline: byline, images: images, serif: serif, translation: shownTranslation)
   }
 
   private static func titled(_ markdown: String, _ title: String?) -> String {
@@ -128,8 +151,8 @@ struct ContentReader: View {
   }
 
   private func show(_ locator: Locator) {
-    guard let plain = text?.plain, let words = locator.quote?.range(in: plain) else { return }
-    show(NSRange(words, in: plain))
+    guard let quote = locator.quote, let range = text?.range(of: quote) else { return }
+    show(range)
   }
 
   private var events: ReaderEvents {
@@ -180,10 +203,8 @@ struct ContentReader: View {
   }
 
   private func passage(_ range: NSRange) -> (locator: Locator, excerpt: String)? {
-    guard let plain = text?.plain, let words = Range(range, in: plain),
-      let quote = try? TextQuote(quoting: words, in: plain)
-    else { return nil }
-    return (Locator(quote, in: content), String(plain[words]))
+    guard let passage = text?.quote(range) else { return nil }
+    return (Locator(passage.quote, in: content), passage.excerpt)
   }
 }
 
