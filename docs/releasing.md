@@ -26,14 +26,11 @@
 
 ## 版本号
 
-| 阶段 | 版本号 | 渠道 |
-|---|---|---|
-| 现在 | `1.0.0-alpha.N` | Loci Dev，GitHub 上的 pre-release |
-| 功能齐了、只修问题 | `1.0.0-beta.N`，然后 `1.0.0-rc.N` | Loci Dev |
-| 正式版 | `1.0.0`，之后按 semver | Loci（β2 之后才有） |
+显示出来是 `1.1.0 (412)`：前面是版本号，括号里是构建号。
 
-- tag 是 `v` 加版本号，CHANGELOG 的段落标题是 `## <版本号> — <日期>`。`script/check` 会检查标题的写法。
-- 应用包里的 `CFBundleShortVersionString` 取自 tag，`CFBundleVersion` 是流水线的运行次数，只增不减。本机构建是 `1.0.0-alpha` 和 `1`。
+- **版本号**是三段数字，按 semver：只修问题加最后一段，有新东西加中间一段。tag 是 `v` 加版本号，CHANGELOG 的段落标题是 `## <版本号> — <日期>`，`script/check` 会检查标题的写法。每个版本都是正式的 GitHub release。
+- **构建号**是 main 上到这个提交为止的提交数，只增不减，同一个构建号对应同一份代码。
+- 应用包里的 `CFBundleShortVersionString` 和 `CFBundleVersion` 就是这两个。发布时版本号取自 tag；本机构建取 HEAD 之前最近的版本 tag，构建号同样是提交数。设置 › 通用最下面显示它们。
 
 ## 从一次改动到一个版本
 
@@ -53,12 +50,12 @@
 3. **定版本。** 在 `docs/roadmap.md` 里把这一版挪进「已完成」，「发布」一列写上版本号，提交并推送。然后在 main 上：
 
    ```sh
-   script/cut-release 1.0.0-alpha.1
+   script/cut-release 1.1.0
    ```
 
-   它检查：版本号的写法；在 main 上、工作区干净、和 `origin/main` 一致；tag 还没有；Unreleased 下有内容；roadmap 写了这个版本。然后把 Unreleased 改成 `## 1.0.0-alpha.1 — <今天>`，上面留一个空的 Unreleased，跑 `script/check`，提交 `chore: release 1.0.0-alpha.1`，打带注释的 tag。它不推送。
+   它检查：版本号的写法，并且比已有的版本都大；在 main 上、工作区干净、和 `origin/main` 一致；tag 还没有；Unreleased 下有内容；roadmap 写了这个版本。然后把 Unreleased 改成 `## 1.1.0 — <今天>`，上面留一个空的 Unreleased，跑 `script/check`，提交 `chore: release 1.1.0`，打带注释的 tag。它不推送。
 
-4. **发布。** `git push origin main v1.0.0-alpha.1`。推上去的 tag 会触发 [release.yml](../.github/workflows/release.yml)：
+4. **发布。** `git push origin main v1.1.0`。推上去的 tag 会触发 [release.yml](../.github/workflows/release.yml)：
 
    1. 确认 tag 在 main 上，用 `script/changelog` 取出这一版的 CHANGELOG 段落作为发布说明；没有这一段就失败。
    2. `script/check`。
@@ -66,7 +63,7 @@
    4. 把 `MACOS_SIGNING_IDENTITY` 里的 `.p12` 导入一个临时钥匙串：有 Developer ID 就用它；否则信任其中的「Loci Signing」并用它。
    5. `script/release`：通用构建、签名、Developer ID 时公证、写 dmg 和校验和。
    6. `script/measure-launch`：记录 release 构建的冷启动，**只记录，不卡发布**。
-   7. 建 GitHub release，附上 dmg 和校验和；带 `-` 的版本是 pre-release。重跑只替换文件，不会重复建 release。
+   7. 建 GitHub release，附上 dmg 和校验和。重跑只替换文件，不会重复建 release。
 
 `gh workflow run release` 是试 secrets 用的：构建和签名都和 tag 一样，但不发版，dmg 留成 workflow artifact。
 
@@ -77,7 +74,7 @@
 ```sh
 script/release                                   # 用本机的 Developer ID 或「Loci Signing」签名；Developer ID 加公证凭据时公证
 LOCI_ARCHS="arm64 x86_64" script/release         # 通用包（默认只打本机架构）
-LOCI_VERSION=1.0.0-alpha.3 LOCI_BUILD=42 script/release
+LOCI_VERSION=1.1.0 LOCI_BUILD=412 script/release
 ```
 
 脚本把 dmg 的路径打印到 stdout（其余进度都在 stderr），所以 `dmg="$(script/release)"` 可以直接拿到路径。
@@ -87,7 +84,7 @@ LOCI_VERSION=1.0.0-alpha.3 LOCI_BUILD=42 script/release
 | `LOCI_SIGN_IDENTITY` | 用哪个 codesign 身份；默认取本机第一个 `Developer ID Application`，没有就用「Loci Signing」 |
 | `LOCI_NOTARY_PROFILE` | `xcrun notarytool store-credentials` 存的钥匙串 profile |
 | `APPLE_ID`、`APPLE_TEAM_ID`、`APPLE_APP_PASSWORD` | 或者直接给 Apple ID 的公证凭据 |
-| `LOCI_VERSION`、`LOCI_BUILD` | 包里的 `CFBundleShortVersionString`、`CFBundleVersion`（默认 `1.0.0-alpha` 和 `1`） |
+| `LOCI_VERSION`、`LOCI_BUILD` | 包里的 `CFBundleShortVersionString`、`CFBundleVersion`（默认 HEAD 之前最近的版本 tag 和提交数） |
 | `LOCI_ARCHS` | 空格分隔的架构；默认是本机的 |
 
 本机可以把公证凭据存一次，之后不再给密码：

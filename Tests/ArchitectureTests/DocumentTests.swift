@@ -65,7 +65,7 @@ struct DocumentTests {
         .map {
           Violation(
             file: changelog.path, line: $0.offset + 1, found: $0.element,
-            fix: "A released section is `## 1.0.0-alpha.2 — 2026-11-20`: the tag without `v`, then the day.")
+            fix: "A released section is `## 1.1.0 — 2026-11-20`: the tag without `v`, then the day.")
         })
   }
 

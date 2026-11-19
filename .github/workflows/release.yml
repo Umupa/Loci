@@ -108,7 +108,6 @@ jobs:
       - name: Build and sign, and notarize with a Developer ID
         env:
           LOCI_ARCHS: arm64 x86_64
-          LOCI_BUILD: ${{ github.run_number }}
           APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
@@ -171,14 +170,12 @@ jobs:
               echo "Loci Dev is not notarized by Apple. The first time you open it, macOS says it cannot check it for malicious software: open **System Settings → Privacy & Security** and choose **Open Anyway**, or run \`xattr -dr com.apple.quarantine \"/Applications/Loci Dev.app\"\`."
             fi
           } >> "$notes"
-          # An alpha tag is a pre-release; a rerun replaces the dmg it uploaded before.
-          prerelease=""
-          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+          # A rerun replaces the dmg it uploaded before.
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$DMG" "$DMG_SHA256" --clobber
           else
             gh release create "$GITHUB_REF_NAME" "$DMG" "$DMG_SHA256" \
-              --title "Loci Dev $GITHUB_REF_NAME" --notes-file "$notes" $prerelease
+              --title "Loci Dev $GITHUB_REF_NAME" --notes-file "$notes"
           fi
           gh release view "$GITHUB_REF_NAME" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
 
