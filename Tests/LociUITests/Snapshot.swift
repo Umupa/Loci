@@ -86,9 +86,24 @@ enum Snapshot {
 
   private static func picture(of host: NSView, in window: NSWindow) throws -> NSBitmapImageRep {
     host.layoutSubtreeIfNeeded()
-    guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { throw RenderingFailed() }
-    host.cacheDisplay(in: host.bounds, to: bitmap)
+    let bitmap = try Self.bitmap(of: host)
     drawChildWindows(of: window, onto: bitmap)
+    return bitmap
+  }
+
+  /// What `view` draws, at two pixels a point whatever screen the Mac has, so a picture and what a test measures
+  /// in it are the same on a Retina Mac and on a CI runner without a display.
+  static func bitmap(of view: NSView) throws -> NSBitmapImageRep {
+    let size = view.bounds.size
+    guard
+      let blank = NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: Int((size.width * 2).rounded(.up)),
+        pixelsHigh: Int((size.height * 2).rounded(.up)), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+        isPlanar: false, colorSpaceName: .calibratedRGB, bytesPerRow: 0, bitsPerPixel: 0),
+      let bitmap = blank.retagging(with: .sRGB)
+    else { throw RenderingFailed() }
+    bitmap.size = size
+    view.cacheDisplay(in: view.bounds, to: bitmap)
     return bitmap
   }
 
@@ -99,9 +114,7 @@ enum Snapshot {
     defer { NSGraphicsContext.restoreGraphicsState() }
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
     for child in children {
-      guard let view = child.contentView, let picture = view.bitmapImageRepForCachingDisplay(in: view.bounds)
-      else { continue }
-      view.cacheDisplay(in: view.bounds, to: picture)
+      guard let view = child.contentView, let picture = try? Self.bitmap(of: view) else { continue }
       picture.draw(
         in: window.convertFromScreen(child.frame), from: .zero, operation: .sourceOver, fraction: 1,
         respectFlipped: true, hints: nil)

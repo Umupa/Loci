@@ -86,8 +86,7 @@ struct ReplyChunksTests {
     try await Task.sleep(for: .seconds(1))
     host.setFrameSize(host.fittingSize)
     host.layoutSubtreeIfNeeded()
-    guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return [] }
-    host.cacheDisplay(in: host.bounds, to: bitmap)
+    let bitmap = try Snapshot.bitmap(of: host)
     let scale = CGFloat(bitmap.pixelsHigh) / host.bounds.height
     var starts: [CGFloat] = []
     var inked = false

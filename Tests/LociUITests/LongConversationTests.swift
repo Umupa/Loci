@@ -102,8 +102,7 @@ struct LongConversationTests {
 
   private static func avatarRows(in view: NSView) -> [Int] {
     view.layoutSubtreeIfNeeded()
-    guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return [] }
-    view.cacheDisplay(in: view.bounds, to: bitmap)
+    guard let bitmap = try? Snapshot.bitmap(of: view) else { return [] }
     let x = Int((ReplyBubbles.inset + TalkScale.main.face / 2) * CGFloat(bitmap.pixelsWide) / view.bounds.width)
     var rows: [Int] = []
     var inside = false
@@ -167,8 +166,7 @@ struct LongConversationTests {
   /// Whether the part of the window above the input field has nothing drawn in it.
   private static func isBlank(_ host: NSView) -> Bool {
     host.layoutSubtreeIfNeeded()
-    guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return true }
-    host.cacheDisplay(in: host.bounds, to: bitmap)
+    guard let bitmap = try? Snapshot.bitmap(of: host) else { return true }
     guard let paper = bitmap.colorAt(x: bitmap.pixelsWide / 2, y: 2) else { return true }
     for y in stride(from: bitmap.pixelsHigh / 8, to: bitmap.pixelsHigh * 6 / 10, by: 4) {
       for x in stride(from: 0, to: bitmap.pixelsWide, by: 4) {
