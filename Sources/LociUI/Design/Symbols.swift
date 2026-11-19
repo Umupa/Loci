@@ -40,8 +40,8 @@ enum Symbols {
   static let recognizing = "waveform"
   static let copy = "doc.on.doc"
   static let latest = "arrow.down"
-  static let thinking = "sparkle"
-  static let tools = "list.bullet"
+  static let thinking = "brain"
+  static let tools = "hammer"
   static let web = "globe"
   static let remote = "display.2"
 

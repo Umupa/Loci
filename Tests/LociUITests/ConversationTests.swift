@@ -5,8 +5,9 @@ import Testing
 @testable import LociUI
 
 struct ConversationTests {
-  private static func layout(_ messages: [Message], live: Bool) -> [ConversationEntry] {
-    ConversationEntry.layout(messages.map { .message($0) }, live: live)
+  private static func layout(_ messages: [Message], live: Bool, turnStartedAt: Timestamp? = nil) -> [ConversationEntry]
+  {
+    ConversationEntry.layout(messages.map { .message($0) }, live: live, turnStartedAt: turnStartedAt)
   }
 
   private static func message(_ second: Int64, _ body: Message.Body) -> Message {
@@ -49,6 +50,35 @@ struct ConversationTests {
     let streaming = entries.compactMap { if case .reply(_, _, let streaming) = $0 { streaming } else { nil } }
 
     #expect(streaming == [false, true])
+  }
+
+  @Test func onlyTheCurrentUnfinishedActivityHasAnElapsedClock() {
+    let running = ToolActivity(id: "r", name: "read", kind: .read, subject: "a.md", output: "", state: .running)
+    let thought = Self.message(2, .thinking("先看看资料"))
+    let reading = Self.message(7, .tool(running))
+    let finished = Self.message(7, .tool(Self.read))
+
+    let waiting = Self.layout([Self.asked, thought], live: true, turnStartedAt: Self.asked.at)
+    #expect(Self.steps(waiting).first?.map(\.activeSince) == [Self.asked.at])
+    #expect(
+      Self.steps(Self.layout([Self.asked, thought, reading], live: true)).first?.map(\.activeSince) == [
+        nil, reading.at,
+      ])
+    #expect(
+      Self.steps(Self.layout([Self.asked, thought, finished], live: true)).first?.map(\.activeSince) == [nil, nil])
+  }
+
+  @Test func theThinkingAndToolSymbolsStayTheSameAsWorkFinishesOrFails() {
+    let thought = Self.message(1, .thinking("先看看资料"))
+    let running = ToolActivity(id: "r", name: "read", kind: .read, subject: "a.md", output: "", state: .running)
+    let failed = ToolActivity(id: "r", name: "read", kind: .read, subject: "a.md", output: "", state: .failed)
+
+    #expect(Self.steps(Self.layout([Self.asked, thought], live: true)).first?.first?.symbol == Symbols.thinking)
+    #expect(Self.steps(Self.layout([Self.asked, thought], live: false)).first?.first?.symbol == Symbols.thinking)
+    for (tool, live) in [(running, true), (Self.read, false), (failed, false)] {
+      let step = Self.steps(Self.layout([Self.asked, Self.message(2, .tool(tool))], live: live)).first?.first
+      #expect(step?.symbol == Symbols.tool(.read))
+    }
   }
 
   @Test func whatArrivedOfAStreamingReplyIsShownASentenceAtATime() {

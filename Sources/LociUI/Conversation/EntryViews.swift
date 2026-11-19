@@ -91,19 +91,9 @@ struct AsideLine: View {
       case .ended(.interrupted):
         Text(.loci("conversation.stopped"))
       case .ended(.failed(let reason)):
-        Label {
-          Text(verbatim: reason)
-        } icon: {
-          Image(systemName: Symbols.problem)
-        }
-        .foregroundStyle(Palette.accentInk)
+        Text(verbatim: reason).foregroundStyle(Palette.accentInk)
       case .ended(.unstarted(let provider, let failure)):
-        Label {
-          Self.unstarted(provider, failure)
-        } icon: {
-          Image(systemName: Symbols.problem)
-        }
-        .foregroundStyle(Palette.accentInk)
+        Self.unstarted(provider, failure).foregroundStyle(Palette.accentInk)
       case .startedOver:
         HStack(spacing: Spacing.s) {
           Rectangle().fill(Palette.line).frame(height: Size.hairline)

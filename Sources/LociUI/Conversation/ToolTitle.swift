@@ -58,6 +58,18 @@ struct ToolTitle: Equatable {
     }
   }
 
+  var runningVerb: LocalizedStringResource {
+    switch action {
+    case .ran: .loci("tool.running")
+    case .read: .loci("tool.reading")
+    case .edited: .loci("tool.editing")
+    case .created: .loci("tool.creating")
+    case .deleted: .loci("tool.deleting")
+    case .searched: .loci("tool.searching")
+    case .used: .loci("tool.using")
+    }
+  }
+
   /// A command or a tool's own name, set in monospace.
   var isCode: Bool {
     switch action {
@@ -102,9 +114,11 @@ struct ToolTally: Equatable {
   var deleted = 0
   var searched = 0
   var used = 0
+  var failed = 0
 
   init(_ tools: [ToolActivity]) {
     for tool in tools {
+      if tool.state == .failed { failed += 1 }
       switch ToolTitle(tool).action {
       case .ran: ran += 1
       case .read: read += 1

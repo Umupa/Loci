@@ -78,6 +78,28 @@ struct ScreenSnapshots {
     try await Self.shoot("chat", view, appearance: appearance, size: CGSize(width: 720, height: 1100))
   }
 
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func chatWorking(appearance: Snapshot.Appearance) async throws {
+    let sample = try Sample(problems: false)
+    let start = Timestamp(millisecondsSince1970: 1_763_400_000_000)
+    let question = Message(
+      id: EntityID(), at: start, body: .prompt(Prompt(text: "对比这两篇资料对连接池的解释。", purpose: .chat)))
+    let thought = Message(
+      id: EntityID(), at: Timestamp(millisecondsSince1970: start.millisecondsSince1970 + 2_000),
+      body: .thinking("先核对两篇资料各自描述的复用范围。"))
+    let conversation = Conversation(
+      ref: .main, entries: [], turn: LiveTurn(startedAt: start, messages: [question, thought]))
+    var away = Following()
+    away.scrolled(to: 600)
+    let view = ConversationView(
+      conversation: conversation, draft: .constant(nil), revealPassage: { _ in },
+      send: { (_: String, _: Passage?) async throws(HostError) -> Done in Done() }, stop: {}, attach: {}, follow: away
+    )
+    .environment(\.standIns, StandIns(conversationAt: start.date.addingTimeInterval(5)))
+    .lociHost(FakeHost(sample))
+    try await Self.shoot("chat-working", view, appearance: appearance, size: CGSize(width: 720, height: 310))
+  }
+
   /// UI-S19: an agent that is not installed, and one that is there but would not start, in both languages.
   @Test(arguments: Snapshot.Appearance.allCases)
   func agentUnavailable(appearance: Snapshot.Appearance) async throws {
@@ -107,6 +129,7 @@ struct ScreenSnapshots {
     .padding(Spacing.m)
     .frame(maxHeight: .infinity, alignment: .top)
     .background(Palette.canvas)
+    .environment(\.standIns, StandIns(conversationAt: steps.last?.at.date.addingTimeInterval(4)))
     try await Self.shoot("tool-run", cards, appearance: appearance, size: CGSize(width: 420, height: 420))
   }
 

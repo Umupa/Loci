@@ -54,6 +54,24 @@ struct ChatTests {
     #expect(title.object == "python str.strip")
   }
 
+  @Test func runningActivityShowsWholeSecondsWithoutRoundingUpOrGoingNegative() {
+    let start = Date(timeIntervalSinceReferenceDate: 100)
+
+    #expect(ActivityElapsed.wholeSeconds(since: start, at: start.addingTimeInterval(-1)) == 0)
+    #expect(ActivityElapsed.wholeSeconds(since: start, at: start.addingTimeInterval(5.9)) == 5)
+  }
+
+  @Test func activityDotsMoveAcrossBothAxesInsideOneIconSlot() {
+    let initial = ActivityDots.spots(at: 0)
+    let later = ActivityDots.spots(at: 0.4)
+    let bounds = CGRect(origin: .zero, size: ActivityDots.size)
+
+    #expect(initial.count == 3)
+    #expect(Set(initial.map(\.midY)).count == 3)
+    #expect(zip(initial, later).allSatisfy { $0.midX != $1.midX && $0.midY != $1.midY })
+    #expect((initial + later).allSatisfy { bounds.contains($0) })
+  }
+
   @Test func fileToolsReadAsWhatTheyDidToWhichFile() {
     #expect(ToolTitle(Self.tool(.read, "/w/src/cleanup.py")).object == "cleanup.py")
     #expect(ToolTitle(Self.tool(.edit, "/w/cleanup.py", name: "fileChange")).action == .edited)
@@ -69,6 +87,14 @@ struct ChatTests {
     #expect(ToolTitle(deleted).object == "qa_r2_file_event.txt")
     #expect(tally.deleted == 1)
     #expect(tally.edited == 0)
+  }
+
+  @Test func failedToolsAreCountedAlongsideTheirActions() {
+    let failed = ToolActivity(id: "f", name: "read", kind: .read, subject: "a.md", output: "", state: .failed)
+    let tally = ToolTally([failed, Self.tool(.read, "b.md")])
+
+    #expect(tally.read == 2)
+    #expect(tally.failed == 1)
   }
 
   @Test func aCodeBlocksCopyButtonShowsOnlyWhileThePointerIsOverIt() {

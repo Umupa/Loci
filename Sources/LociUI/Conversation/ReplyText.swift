@@ -97,21 +97,3 @@ private struct AmberNumber: StructuredText.OrderedListMarker {
       .frame(minWidth: 14, alignment: .leading)
   }
 }
-
-/// Text that a light sweeps across, for work still going on.
-struct Shimmer: View {
-  let text: Text
-
-  var body: some View {
-    TimelineView(.animation) { timeline in
-      let phase =
-        timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period
-      text.foregroundStyle(
-        LinearGradient(
-          colors: [Palette.inkFaint, Palette.ink, Palette.inkFaint],
-          startPoint: UnitPoint(x: phase * 2 - 1.5, y: 0.5), endPoint: UnitPoint(x: phase * 2 - 0.5, y: 0.5)))
-    }
-  }
-
-  private static let period = 1.8
-}

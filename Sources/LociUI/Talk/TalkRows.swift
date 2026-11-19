@@ -10,7 +10,7 @@ struct TalkRow: Identifiable {
     /// where it is copied from.
     case said(String, answer: String?)
     /// Loci is at work but has said nothing yet.
-    case typing
+    case working(since: Timestamp)
     case steps([ConversationStep])
     case aside(Message)
     case saved
@@ -40,14 +40,13 @@ struct TalkRow: Identifiable {
   var speaker: Speaker? {
     switch kind {
     case .asked: .person
-    case .said, .typing: .loci
-    case .day, .steps, .aside, .saved, .finished, .task, .cards: nil
+    case .said: .loci
+    case .day, .working, .steps, .aside, .saved, .finished, .task, .cards: nil
     }
   }
 
-  /// The rows of a conversation: each reply split into bubbles, a date wherever a sitting begins, and the
-  /// dots while Loci has said nothing yet.
-  static func rows(_ entries: [ConversationEntry], waiting: Bool) -> [TalkRow] {
+  /// The rows of a conversation, including the work status while its next reply is pending.
+  static func rows(_ entries: [ConversationEntry], turn: LiveTurn? = nil) -> [TalkRow] {
     let answers = ConversationEntry.answers(entries)
     var rows: [TalkRow] = []
     for (index, entry) in entries.enumerated() {
@@ -60,7 +59,8 @@ struct TalkRow: Identifiable {
       case .reply(let message, let text, let streaming):
         let parts = BubbleLayout.bubbles(in: ReplyText.settled(text, streaming: streaming))
         if parts.isEmpty, streaming {
-          rows.append(TalkRow(id: ID(message: message.id, part: 0), kind: .typing))
+          rows.append(
+            TalkRow(id: ID(message: message.id, part: 0), kind: .working(since: turn?.startedAt ?? message.at)))
         }
         for (part, words) in parts.enumerated() {
           let answer = part == parts.count - 1 ? answers[message.id] : nil
@@ -78,7 +78,9 @@ struct TalkRow: Identifiable {
       }
     }
     rows = Self.joiningCards(rows)
-    if waiting { rows.append(TalkRow(id: ID(message: nil, part: 0), kind: .typing)) }
+    if let turn, waitingForReply(turn) {
+      rows.append(TalkRow(id: ID(message: nil, part: 0), kind: .working(since: turn.startedAt)))
+    }
     let speakers = rows.map(\.speaker)
     let positions = BubbleLayout.positions(speakers)
     let turns = BubbleLayout.turns(speakers)
@@ -87,6 +89,14 @@ struct TalkRow: Identifiable {
       rows[index].turn = turns[index]
     }
     return rows
+  }
+
+  private static func waitingForReply(_ turn: LiveTurn) -> Bool {
+    switch turn.messages.last?.body {
+    case nil, .prompt: true
+    case .tool(let tool): tool.state != .running
+    default: false
+    }
   }
 
   private static func rows(of event: WorldEvent) -> [TalkRow] {

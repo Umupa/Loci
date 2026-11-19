@@ -13,6 +13,7 @@ struct StandIns {
   var pointerOnFirstPairedMac = false
   /// Words of the reading text selected, with the bar over them.
   var selection: String?
+  var conversationAt: Date?
 }
 
 /// A reader of a video or audio item caught part way through.

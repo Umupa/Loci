@@ -31,29 +31,21 @@ struct Following: Equatable {
   }
 }
 
-/// The round button over the composer that goes back to the newest message: an arrow, or while Loci
-/// is still answering, dots that pulse.
+/// The round button over the composer that goes back to the newest message.
 struct LatestButton: View {
-  let busy: Bool
   let action: () -> Void
 
   static let size: CGFloat = 30
 
   var body: some View {
     Button(action: action) {
-      Group {
-        if busy {
-          Image(systemName: Symbols.more).symbolEffect(.variableColor.iterative, options: .repeating)
-        } else {
-          Image(systemName: Symbols.latest)
-        }
-      }
-      .font(.system(size: 13, weight: .semibold))
-      .foregroundStyle(busy ? Palette.accentInk : Palette.inkMuted)
-      .frame(width: Self.size, height: Self.size)
-      .background(Circle().fill(Palette.surface).shadow(color: .black.opacity(0.1), radius: 6, y: 3))
-      .overlay(Circle().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
-      .contentShape(Circle())
+      Image(systemName: Symbols.latest)
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(Palette.inkMuted)
+        .frame(width: Self.size, height: Self.size)
+        .background(Circle().fill(Palette.surface).shadow(color: .black.opacity(0.1), radius: 6, y: 3))
+        .overlay(Circle().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+        .contentShape(Circle())
     }
     .buttonStyle(PressStyle())
     .accessibilityLabel(Text(.loci("conversation.latest")))

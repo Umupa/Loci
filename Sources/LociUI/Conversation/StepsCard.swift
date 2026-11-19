@@ -7,18 +7,26 @@ struct StepsCard: View {
   let steps: [ConversationStep]
   /// Folded runs of tools start open, for looking at them.
   var opened = false
+  @State private var openDetails: Set<EntityID> = []
 
   var body: some View {
     VStack(spacing: 0) {
-      ForEach(Array(Self.segments(steps).enumerated()), id: \.element.id) { index, segment in
-        if index > 0 { Divider() }
+      ForEach(Self.segments(steps)) { segment in
         switch segment {
-        case .one(let step): StepRow(step: step)
-        case .tools(let steps): ToolRun(steps: steps, open: opened)
+        case .one(let step): StepRow(step: step, open: detail(for: step.id))
+        case .tools(let steps):
+          ToolRun(steps: steps, open: opened || openDetails.contains(segment.id), detail: detail(for:))
         }
       }
     }
-    .modifier(StepsBackground())
+  }
+
+  private func detail(for id: EntityID) -> Binding<Bool> {
+    Binding(
+      get: { openDetails.contains(id) },
+      set: { open in
+        if open { openDetails.insert(id) } else { openDetails.remove(id) }
+      })
   }
 
   /// A thought on its own, a tool on its own, or tools used one after another.
@@ -54,24 +62,20 @@ struct StepsCard: View {
     return segments
   }
 
-  /// A card with one thought that has not started to say anything yet.
-  static var waiting: some View {
-    HStack(spacing: 9) {
-      SparkleMark(spinning: true).frame(width: 13)
-      Shimmer(text: Text(.loci("conversation.thinkingNow"))).font(.system(size: 12))
+  /// The status before there is a reply or a tool to show.
+  static func working(since: Timestamp) -> some View {
+    StepLine(activeSince: since) {
+      Text(.loci("conversation.working"))
     }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 7)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .modifier(StepsBackground())
   }
 
   /// How long a step took: tenths under two seconds, whole seconds after.
-  static func duration(_ took: Duration) -> String {
+  static func duration(_ took: Duration, fractional: Bool = true) -> String {
     let seconds = Double(took.components.seconds) + Double(took.components.attoseconds) / 1e18
-    if seconds < 2 { return String(format: "%.1fs", seconds) }
-    if seconds < 60 { return "\(Int(seconds.rounded()))s" }
-    return "\(Int(seconds) / 60)m \(Int(seconds) % 60)s"
+    if fractional && seconds < 2 { return String(format: "%.1fs", seconds) }
+    let whole = Int(seconds.rounded())
+    if whole < 60 { return "\(whole)s" }
+    return "\(whole / 60)m \(whole % 60)s"
   }
 }
 
@@ -81,34 +85,42 @@ private struct Divider: View {
   }
 }
 
-private struct StepsBackground: ViewModifier {
-  func body(content: Content) -> some View {
-    content
-      .background(RoundedRectangle(cornerRadius: Radius.group, style: .continuous).fill(Palette.surface))
-      .overlay {
-        RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
-          .strokeBorder(Palette.line, lineWidth: Size.hairline)
-      }
-      .clipShape(RoundedRectangle(cornerRadius: Radius.group, style: .continuous))
-  }
-}
-
 /// The line every step row is drawn on: an icon, what it was, how long it took, and a chevron when it opens.
 private struct StepLine<Label: View>: View {
-  let icon: AnyView
-  let took: Duration?
-  let opens: Bool
-  let open: Bool
+  var symbol: String?
+  var activeSince: Timestamp?
+  var took: Duration?
+  var failure: LocalizedStringResource?
+  var opens = false
+  var open = false
   @ViewBuilder let label: Label
 
   var body: some View {
     HStack(spacing: 9) {
-      icon.frame(width: 13)
-      label
+      Group {
+        if let symbol {
+          Image(systemName: symbol)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(Palette.inkMuted)
+        } else {
+          ActivityDots()
+        }
+      }
+      .frame(width: ActivityDots.size.width, height: ActivityDots.size.height)
+      .accessibilityHidden(true)
+      label.font(.system(size: 12)).foregroundStyle(activeSince == nil ? Palette.inkMuted : Palette.ink)
+      if let activeSince {
+        if symbol != nil { ActivityDots() }
+        ActivityElapsed(since: activeSince)
+      }
+      if let failure {
+        Text(failure).font(.system(size: 11)).foregroundStyle(Palette.accentInk).fixedSize()
+      }
       Spacer(minLength: Spacing.xxs)
-      if let took {
-        Text(verbatim: StepsCard.duration(took)).font(.system(size: 10.5).monospaced())
-          .foregroundStyle(Palette.inkFaint)
+      if let took, activeSince == nil {
+        Text(verbatim: StepsCard.duration(took)).font(.system(size: 11).monospaced())
+          .foregroundStyle(Palette.inkMuted)
+          .fixedSize()
       }
       if opens {
         Image(systemName: Symbols.fold)
@@ -127,20 +139,26 @@ private struct StepLine<Label: View>: View {
 private struct ToolRun: View {
   let steps: [ConversationStep]
   @State var open: Bool
+  let detail: (EntityID) -> Binding<Bool>
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
+    let tally = ToolTally(tools)
     VStack(alignment: .leading, spacing: 0) {
       Button {
-        withAnimation(Motion.fold) { open.toggle() }
+        withAnimation(reduceMotion ? nil : Motion.fold) { open.toggle() }
       } label: {
-        StepLine(icon: AnyView(icon), took: took, opens: true, open: open) { label }
+        StepLine(
+          symbol: Symbols.tools, activeSince: active?.activeSince, took: took,
+          failure: tally.failed > 0 ? .loci("tools.failed \(tally.failed)") : nil, opens: true, open: open
+        ) { label(for: tally) }
       }
       .buttonStyle(.plain)
       if open {
         VStack(spacing: 0) {
           ForEach(steps) { step in
             Divider()
-            StepRow(step: step)
+            StepRow(step: step, open: detail(step.id))
           }
         }
         .padding(.leading, 22)
@@ -152,48 +170,43 @@ private struct ToolRun: View {
     steps.compactMap { if case .tool(let tool) = $0.kind { tool } else { nil } }
   }
 
-  private var going: Bool { steps.last?.isGoing == true && tools.last?.state == .running }
+  private var active: ConversationStep? { open ? nil : steps.last }
 
   private var took: Duration? {
-    guard !going, let first = steps.first, let last = steps.last, let tail = last.took else { return nil }
+    guard let first = steps.first, let last = steps.last, let tail = last.took else { return nil }
     return .milliseconds(last.at.millisecondsSince1970 - first.at.millisecondsSince1970) + tail
   }
 
-  @ViewBuilder private var icon: some View {
-    let failed = tools.contains { $0.state == .failed }
-    Image(systemName: failed ? Symbols.problem : Symbols.tools)
-      .font(.system(size: 11, weight: .medium))
-      .foregroundStyle(failed ? Palette.accentInk : Palette.inkMuted)
-  }
-
-  @ViewBuilder private var label: some View {
-    let phrases = ToolTally(tools).phrases.map { Text($0) }
-    let text = phrases.dropFirst().reduce(phrases.first ?? Text(verbatim: "")) { whole, next in
-      Text(joining: whole, Text(.loci("tools.separator")), next)
-    }
-    if going {
-      Shimmer(text: text).font(.system(size: 12))
+  @ViewBuilder private func label(for tally: ToolTally) -> some View {
+    if let active, active.activeSince != nil, case .tool(let tool) = active.kind {
+      StepRow.title(ToolTitle(tool), running: true).lineLimit(1).truncationMode(.middle)
     } else {
-      text.font(.system(size: 12)).foregroundStyle(Palette.inkMuted)
+      let phrases = tally.phrases.map { Text($0) }
+      phrases.dropFirst().reduce(phrases.first ?? Text(verbatim: "")) { whole, next in
+        Text(joining: whole, Text(.loci("tools.separator")), next)
+      }
     }
   }
 }
 
 private struct StepRow: View {
   let step: ConversationStep
-  @State private var open = false
+  @Binding var open: Bool
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       Button {
         guard !detail.isEmpty else { return }
-        withAnimation(Motion.fold) { open.toggle() }
+        withAnimation(reduceMotion ? nil : Motion.fold) { open.toggle() }
       } label: {
-        StepLine(icon: AnyView(icon), took: step.took, opens: !detail.isEmpty, open: open) { label }
+        StepLine(
+          symbol: step.symbol, activeSince: step.activeSince, took: step.took, failure: failure,
+          opens: !detail.isEmpty, open: open
+        ) { label }
       }
       .buttonStyle(.plain)
       if open && !detail.isEmpty {
-        Divider()
         ScrollView {
           Text(verbatim: detail)
             .font(isThinking ? .system(size: 12) : Typography.mono)
@@ -203,9 +216,11 @@ private struct StepRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxHeight: Size.toolOutputHeight)
-        .padding(.leading, 34)
-        .padding(.trailing, 12)
+        .padding(.horizontal, 10)
         .padding(.vertical, 8)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.group))
+        .padding(.leading, 39)
+        .padding(.trailing, 12)
       }
     }
   }
@@ -228,69 +243,54 @@ private struct StepRow: View {
     return tool.output.isEmpty ? "$ \(subject)" : "$ \(subject)\n\n\(tool.output)"
   }
 
-  @ViewBuilder private var icon: some View {
-    switch step.kind {
-    case .thinking:
-      SparkleMark(spinning: step.isGoing)
-    case .tool(let tool):
-      Image(systemName: tool.state == .failed ? Symbols.problem : Self.symbol(ToolTitle(tool), tool.kind))
-        .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(tool.state == .failed ? Palette.accentInk : Palette.inkMuted)
-    }
-  }
-
-  private static func symbol(_ title: ToolTitle, _ kind: ToolActivity.Kind) -> String {
-    switch title.action {
-    case .ran: Symbols.tool(.execute)
-    case .searched: Symbols.web
-    case .read, .edited, .created, .deleted, .used: Symbols.tool(kind)
-    }
+  private var failure: LocalizedStringResource? {
+    guard case .tool(let tool) = step.kind, tool.state == .failed else { return nil }
+    return .loci("tool.failed")
   }
 
   @ViewBuilder private var label: some View {
     switch step.kind {
-    case .thinking where step.isGoing:
-      Shimmer(text: Text(.loci("conversation.thinkingNow"))).font(.system(size: 12))
+    case .thinking where step.activeSince != nil:
+      Text(.loci("conversation.working"))
     case .thinking:
-      Text(.loci("conversation.thinking")).font(.system(size: 12)).foregroundStyle(Palette.inkMuted)
+      Text(.loci("conversation.thinking"))
     case .tool(let tool):
-      let title = Self.title(ToolTitle(tool))
-      Group {
-        if step.isGoing && tool.state == .running {
-          Shimmer(text: title)
-        } else {
-          title.foregroundStyle(Palette.ink)
-        }
-      }
-      .lineLimit(1)
-      .truncationMode(.middle)
+      Self.title(ToolTitle(tool), running: step.activeSince != nil)
+        .lineLimit(1)
+        .truncationMode(.middle)
     }
   }
 
-  private static func title(_ title: ToolTitle) -> Text {
-    let object = Text(verbatim: title.object ?? "")
-      .font(title.isCode ? .system(size: 11.5).monospaced() : .system(size: 12, weight: .medium))
-    if case .used(let name) = title.action {
-      let tool = Text(verbatim: name).font(.system(size: 11.5).monospaced())
-      return title.object == nil
-        ? tool : Text(joining: tool, Text(verbatim: " "), object.foregroundStyle(Palette.inkMuted))
+  static func title(_ title: ToolTitle, running: Bool) -> Text {
+    let object = title.object.map {
+      Text(verbatim: $0).font(title.isCode ? .system(size: 11.5).monospaced() : .system(size: 12, weight: .medium))
     }
-    guard let verb = title.verb else { return object }
-    let said = Text(verb).font(.system(size: 12)).foregroundStyle(Palette.inkMuted)
-    return title.object == nil ? said : Text(joining: said, Text(verbatim: " "), object)
+    let subject: Text?
+    if case .used(let name) = title.action {
+      let named = Text(verbatim: name).font(.system(size: 11.5).monospaced())
+      subject = object.map { Text(joining: named, Text(verbatim: " "), $0.foregroundStyle(Palette.inkMuted)) } ?? named
+    } else {
+      subject = object
+    }
+    guard let verb = running ? title.runningVerb : title.verb else {
+      return subject?.foregroundStyle(Palette.ink) ?? Text(verbatim: "")
+    }
+    let said = Text(verb)
+    return subject.map { Text(joining: said, Text(verbatim: " "), $0.foregroundStyle(Palette.ink)) } ?? said
   }
 }
 
-/// The four-pointed star that marks thinking, turning while Loci thinks.
-struct SparkleMark: View {
-  let spinning: Bool
-
-  var body: some View {
-    TimelineView(.animation(paused: !spinning)) { timeline in
-      Image(systemName: Symbols.thinking)
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(spinning ? Palette.accentInk : Palette.inkMuted)
-        .rotationEffect(.degrees(spinning ? timeline.date.timeIntervalSinceReferenceDate * 120 : 0))
+extension ConversationStep {
+  var symbol: String {
+    switch kind {
+    case .thinking:
+      return Symbols.thinking
+    case .tool(let tool):
+      switch ToolTitle(tool).action {
+      case .ran: return Symbols.tool(.execute)
+      case .searched: return Symbols.web
+      case .read, .edited, .created, .deleted, .used: return Symbols.tool(tool.kind)
+      }
     }
   }
 }

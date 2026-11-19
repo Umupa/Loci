@@ -23,7 +23,7 @@ enum ConversationEntry: Identifiable {
 
   /// A conversation's messages and events, oldest first, as the conversation shows them. With `live`, the
   /// last one belongs to the turn running now.
-  static func layout(_ said: [Conversation.Entry], live: Bool) -> [ConversationEntry] {
+  static func layout(_ said: [Conversation.Entry], live: Bool, turnStartedAt: Timestamp? = nil) -> [ConversationEntry] {
     var entries: [ConversationEntry] = []
     var steps: [ConversationStep] = []
     func close() {
@@ -45,7 +45,9 @@ enum ConversationEntry: Identifiable {
       let isLast = index == said.count - 1 && live
       switch message.body {
       case .thinking(let text):
-        steps.append(ConversationStep(message: message, kind: .thinking(text), next: next, isGoing: isLast))
+        steps.append(
+          ConversationStep(
+            message: message, kind: .thinking(text), next: next, isGoing: isLast, turnStartedAt: turnStartedAt))
       case .tool(let tool):
         steps.append(ConversationStep(message: message, kind: .tool(tool), next: next, isGoing: isLast))
       case .prompt(let prompt):
@@ -113,16 +115,23 @@ struct ConversationStep: Identifiable {
   /// The last thing the running turn did.
   let isGoing: Bool
 
+  let activeSince: Timestamp?
+
   enum Kind {
     case thinking(String)
     case tool(ToolActivity)
   }
 
-  init(message: Message, kind: Kind, next: Message?, isGoing: Bool) {
+  init(message: Message, kind: Kind, next: Message?, isGoing: Bool, turnStartedAt: Timestamp? = nil) {
     id = message.id
     at = message.at
     self.kind = kind
     self.isGoing = isGoing
     took = next.map { .milliseconds($0.at.millisecondsSince1970 - message.at.millisecondsSince1970) }
+    switch (isGoing, kind) {
+    case (true, .thinking): activeSince = turnStartedAt ?? at
+    case (true, .tool(let tool)) where tool.state == .running: activeSince = at
+    default: activeSince = nil
+    }
   }
 }

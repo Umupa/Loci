@@ -86,10 +86,10 @@ struct LociSnapshots {
     let pieces = VStack(alignment: .leading, spacing: 0) {
       DayDivider(label: Text(verbatim: "今天 09:12"))
       BubbleRow(speaker: .loci, position: .first, turn: false, scale: .main) { ReplyText(text: "早", streaming: false) }
-      BubbleRow(speaker: .loci, position: .middle, turn: false, scale: .main) {
+      BubbleRow(speaker: .loci, position: .last, turn: false, scale: .main) {
         ReplyText(text: "图画好了，挂在 Pingora 第二条划线旁边", streaming: false)
       }
-      BubbleRow(speaker: .loci, position: .last, turn: false, scale: .main) { TypingDots() }
+      StepsCard.working(since: Timestamp(millisecondsSince1970: 0)).padding(.leading, TalkScale.main.indent)
       SavingCard(
         item: video, job: LociModel.Job(item: video.id, stage: .translate, state: .running(progress: nil)), indent: 40)
       SavingCard(
@@ -107,6 +107,7 @@ struct LociSnapshots {
     .frame(width: 640)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .background(Palette.canvas)
+    .environment(\.standIns, StandIns(conversationAt: Date(timeIntervalSince1970: 5)))
     .lociHost(FakeHost(try Sample(problems: false), library: library))
     try await ScreenSnapshots.shoot(
       "talk-pieces", pieces, appearance: appearance, size: CGSize(width: 760, height: 640))

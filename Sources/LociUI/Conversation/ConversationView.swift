@@ -43,6 +43,7 @@ struct ConversationView: View {
   var attach: (() -> Void)?
   /// Changes each time the composer should take the keyboard.
   var focusRequest = 0
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   /// Starts keeping the newest line in view.
   @State var follow = Following()
   @State private var position = ScrollPosition(edge: .bottom)
@@ -76,7 +77,7 @@ struct ConversationView: View {
     }
     .onChange(of: questions) {
       follow.asked()
-      withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
+      withAnimation(reduceMotion ? nil : Motion.standard) { position.scrollTo(edge: .bottom) }
     }
     .scrollIndicators(.never)
     .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -87,15 +88,15 @@ struct ConversationView: View {
       )
       .overlay(alignment: .top) {
         if follow.offersLatest {
-          LatestButton(busy: conversation?.turn != nil) {
+          LatestButton {
             follow.returned()
-            withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
+            withAnimation(reduceMotion ? nil : Motion.standard) { position.scrollTo(edge: .bottom) }
           }
           .offset(y: -(LatestButton.size + Spacing.s))
-          .transition(.opacity.combined(with: .scale(scale: 0.8)))
+          .transition(reduceMotion ? .identity : .opacity.combined(with: .scale(scale: 0.8)))
         }
       }
-      .animation(Motion.quick, value: follow.offersLatest)
+      .animation(reduceMotion ? nil : Motion.quick, value: follow.offersLatest)
       .frame(maxWidth: scale == .main ? 640 : .infinity)
       .padding(.horizontal, scale == .main ? 28 : 14)
       .padding(.bottom, scale == .main ? 18 : 14)
@@ -113,18 +114,11 @@ struct ConversationView: View {
   private var entries: [ConversationEntry] {
     ConversationEntry.layout(
       (conversation?.entries ?? []) + (conversation?.turn?.messages ?? []).map { .message($0) },
-      live: conversation?.turn != nil)
+      live: conversation?.turn != nil, turnStartedAt: conversation?.turn?.startedAt)
   }
 
   private var rows: [TalkRow] {
-    TalkRow.rows(entries, waiting: waiting)
-  }
-
-  /// Loci is at work but has shown nothing of it yet.
-  private var waiting: Bool {
-    guard let turn = conversation?.turn else { return false }
-    if case .prompt = turn.messages.last?.body { return true }
-    return false
+    TalkRow.rows(entries, turn: conversation?.turn)
   }
 
   @ViewBuilder private func view(of row: TalkRow) -> some View {
@@ -144,8 +138,8 @@ struct ConversationView: View {
         }
       )
       .onHover { pointedAnswer = $0 ? row.reply : nil }
-    case .typing:
-      bubble(row) { TypingDots() }
+    case .working(let since):
+      StepsCard.working(since: since).padding(.leading, scale.indent).padding(.vertical, 6)
     case .steps(let steps):
       StepsCard(steps: steps).padding(.leading, scale.indent).padding(.vertical, 6)
     case .aside(let message):
