@@ -60,7 +60,7 @@ struct LibrarySnapshots {
     let file = try await Snapshot.render(view, named: name, size: size, appearance: appearance) { window in
       guard quiet.settled(), let content = window.contentView else { return false }
       content.layoutSubtreeIfNeeded()
-      #expect(Self.editableField(in: content) == nil)
+      #expect(Self.editableField(in: content) != nil)
       return true
     }
 

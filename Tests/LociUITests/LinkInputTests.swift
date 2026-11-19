@@ -78,6 +78,36 @@ struct LinkInputTests {
     #expect(text.text == "# Notes\n")
   }
 
+  /// A-S3: a video or audio file is added as itself, not read as text.
+  @Test func aDraggedVideoOrAudioFileIsAddedAsMedia() async throws {
+    for name in ["talk.mp4", "episode.m4a"] {
+      let file = FileManager.default.temporaryDirectory.appending(path: "loci-drop-\(UUID().uuidString)-\(name)")
+      try Data("media".utf8).write(to: file)
+      defer { try? FileManager.default.removeItem(at: file) }
+
+      let dropped = await Dropped.collect(Dropped.reading([try #require(NSItemProvider(contentsOf: file))]))
+
+      #expect(dropped == [.mediaFile(file)])
+    }
+  }
+
+  /// A-S2: the field takes the link pasted alone or shared among words, and nothing else.
+  @Test func theLinkFieldFindsTheLinkInWhatIsPasted() {
+    let shared = "7.92 复制打开抖音，看看【猫和狗的作品】 https://v.douyin.com/iRNBho6u/ 你好"
+    #expect(LinkField.link(in: "  \(Self.link.absoluteString)\n") == Self.link)
+    #expect(LinkField.link(in: shared) == URL(string: "https://v.douyin.com/iRNBho6u/"))
+    #expect(LinkField.link(in: "explain the scheduler") == nil)
+    #expect(LinkField.link(in: "") == nil)
+  }
+
+  /// A-S1: each page says what it takes.
+  @Test func theLinkFieldSaysWhatEachPageTakes() {
+    #expect(LinkField.prompt(for: nil).key == "link.prompt")
+    #expect(LinkField.prompt(for: .video).key == "link.promptVideo")
+    #expect(LinkField.prompt(for: .audio).key == "link.promptAudio")
+    #expect(LinkField.prompt(for: .paper).key == "link.promptPaper")
+  }
+
   @Test func aDraggedLinkThatIsNotOnTheWebIsLeftOut() async {
     let mail = URL(string: "mailto:someone@example.com")!
     #expect(await Dropped.collect(Dropped.reading([NSItemProvider(object: mail as NSURL)])).isEmpty)

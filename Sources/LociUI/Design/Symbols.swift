@@ -29,6 +29,8 @@ enum Symbols {
   static let backToPlaying = "play.circle"
   static let download = "arrow.down.to.line"
   static let add = "plus"
+  static let link = "link"
+  static let folder = "folder"
   static let camera = "camera"
   static let lock = "lock"
   static let reload = "arrow.clockwise"

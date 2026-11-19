@@ -2,14 +2,15 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// The library: what is being watched on a shelf of large covers, and every item in a list below with the work
-/// on it. Pasting or dropping a link adds it.
+/// The library: the link field, what is being watched on a shelf of large covers, and every item in a list
+/// below with the work on it. Pasting or dropping a link adds it too.
 struct LibraryScreen: View {
   @Environment(\.host) private var host
   @Environment(\.changesAllowed) private var changesAllowed
   @Environment(\.openPlace) private var openPlace
   @Environment(\.browser) private var browser
   let kind: ItemKind?
+  let chooseFiles: () -> Void
   let opened: (WindowState) -> Void
   let failed: (HostError) -> Void
   let delete: (Item) -> Void
@@ -20,15 +21,21 @@ struct LibraryScreen: View {
 
   var body: some View {
     let items = shown
-    Group {
-      if !items.isEmpty, let progress {
-        LibraryList(
-          items: items, jobs: jobsByItem, progress: progress, act: act, delete: delete,
-          stop: { item in Task { _ = try? await host.run(CancelJob(item: item.id)) } })
-      } else {
-        Color.clear
+    ScrollView {
+      VStack(alignment: .leading, spacing: 0) {
+        LinkField(kind: kind, add: add, chooseFiles: chooseFiles)
+          .padding(.bottom, 26)
+        if !items.isEmpty, let progress {
+          LibraryList(
+            items: items, jobs: jobsByItem, progress: progress, act: act, delete: delete,
+            stop: { item in Task { _ = try? await host.run(CancelJob(item: item.id)) } })
+        }
       }
+      .padding(.horizontal, 28)
+      .padding(.top, 22)
+      .padding(.bottom, 60)
     }
+    .scrollIndicators(.automatic)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Palette.canvas)
     .navigationTitle(kind.map { Text(Messages.name(of: $0)) } ?? Text(.loci("sidebar.library")))
@@ -59,6 +66,17 @@ struct LibraryScreen: View {
     progress = Progress(states: states)
   }
 
+  private func add(_ link: URL) {
+    Task {
+      do throws(HostError) {
+        let item = try await host.run(AddLink(url: link))
+        opened(WindowState(place: .library(kind), pages: [.item(item.id)]))
+      } catch {
+        failed(error)
+      }
+    }
+  }
+
   private func act(_ fix: JobLine.Fix, on item: Item) {
     JobFixes(
       host: host, openPlace: openPlace, browser: browser, failed: ShowFailure(action: failed),
@@ -67,7 +85,7 @@ struct LibraryScreen: View {
   }
 }
 
-/// The shelf over the list. Both scroll together.
+/// The shelf over the list, scrolled with the page around them.
 struct LibraryList: View {
   let items: [Item]
   let jobs: [EntityID: Job]
@@ -83,38 +101,32 @@ struct LibraryList: View {
 
   var body: some View {
     let shelf = progress.shelf(of: items)
-    ScrollView {
-      VStack(alignment: .leading, spacing: 0) {
-        if !shelf.isEmpty {
-          ShelfRow(items: shelf, jobs: jobs, progress: progress, act: act)
-            .padding(.bottom, 26)
-        }
-        let rows = items.filter { item in !shelf.contains { $0.id == item.id } }
-        ForEach(Array(rows.enumerated()), id: \.element.id) { index, item in
-          NavigationLink(value: Page.item(item.id)) {
-            LibraryRow(item: item, job: jobs[item.id], share: progress.share(of: item)) { act($0, item) }
-              .background(
-                RoundedRectangle(cornerRadius: Radius.cover, style: .continuous)
-                  .fill(hovered == item.id ? Palette.fill : .clear)
-              )
-              .overlay(alignment: .top) {
-                if index > 0, hovered != item.id, hovered != rows[index - 1].id {
-                  Rectangle().fill(Palette.lineStrong).frame(height: Size.hairline)
-                    .padding(.leading, Size.listThumbnail + Spacing.xs + 14)
-                    .padding(.trailing, Spacing.xs)
-                }
-              }
-          }
-          .buttonStyle(.plain)
-          .onHover { inside in pointing = inside ? item.id : (pointing == item.id ? nil : pointing) }
-          .contextMenu { menu(for: item).changesData() }
-        }
+    VStack(alignment: .leading, spacing: 0) {
+      if !shelf.isEmpty {
+        ShelfRow(items: shelf, jobs: jobs, progress: progress, act: act)
+          .padding(.bottom, 26)
       }
-      .padding(.horizontal, 28)
-      .padding(.top, 22)
-      .padding(.bottom, 60)
+      let rows = items.filter { item in !shelf.contains { $0.id == item.id } }
+      ForEach(Array(rows.enumerated()), id: \.element.id) { index, item in
+        NavigationLink(value: Page.item(item.id)) {
+          LibraryRow(item: item, job: jobs[item.id], share: progress.share(of: item)) { act($0, item) }
+            .background(
+              RoundedRectangle(cornerRadius: Radius.cover, style: .continuous)
+                .fill(hovered == item.id ? Palette.fill : .clear)
+            )
+            .overlay(alignment: .top) {
+              if index > 0, hovered != item.id, hovered != rows[index - 1].id {
+                Rectangle().fill(Palette.lineStrong).frame(height: Size.hairline)
+                  .padding(.leading, Size.listThumbnail + Spacing.xs + 14)
+                  .padding(.trailing, Spacing.xs)
+              }
+            }
+        }
+        .buttonStyle(.plain)
+        .onHover { inside in pointing = inside ? item.id : (pointing == item.id ? nil : pointing) }
+        .contextMenu { menu(for: item).changesData() }
+      }
     }
-    .scrollIndicators(.automatic)
   }
 
   @ViewBuilder private func menu(for item: Item) -> some View {

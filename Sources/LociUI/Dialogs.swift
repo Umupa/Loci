@@ -61,9 +61,7 @@ private struct DialogsModifier: ViewModifier {
       isPresented: $dialogs.importing, allowedContentTypes: [.text, .audiovisualContent], allowsMultipleSelection: true
     ) { result in
       let chosen = (try? result.get()) ?? []
-      let media = chosen.filter {
-        UTType(filenameExtension: $0.pathExtension)?.conforms(to: .audiovisualContent) == true
-      }
+      let media = chosen.filter(Dropped.isMedia)
       let files = chosen.filter { !media.contains($0) }.compactMap { try? TextFile(reading: $0) }
       perform {
         for file in files { _ = try await host.run(AddTextItem(fileName: file.fileName, text: file.text)) }
