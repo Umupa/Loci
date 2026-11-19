@@ -42,6 +42,24 @@ public struct YtDlp: Sendable {
     return (try MediaInfo(json: json), json)
   }
 
+  /// What is behind a link the address alone does not tell, when one of the sites yt-dlp knows by name has
+  /// it; `nil` when none does. yt-dlp's catch-all for any page is left out, so an article stays an article.
+  public func recognize(_ url: URL) async throws(MediaError) -> (info: MediaInfo, json: Data)? {
+    let result: ProgramResult
+    do {
+      result = try await run(["-J", "--no-playlist", "--use-extractors", "default,-generic", url.absoluteString])
+    } catch  where Self.knowsNoSite(error) {
+      return nil
+    }
+    let json = Data(result.output.utf8)
+    return (try MediaInfo(json: json), json)
+  }
+
+  private static func knowsNoSite(_ error: MediaError) -> Bool {
+    let reason = error.reason.lowercased()
+    return reason.hasPrefix("no suitable extractor") || reason.hasPrefix("unsupported url")
+  }
+
   /// Saves the site's subtitles in `language` as WebVTT into `folder` and returns the file.
   public func subtitles(info: URL, language: String, into folder: URL) async throws(MediaError) -> URL {
     _ = try await run([

@@ -39,9 +39,11 @@ public struct MediaError: Error, Hashable, Sendable {
       && ["could not", "failed to", "operation not permitted", "permission", "unable to"].contains(where: text.contains)
     {
       kind = .cookiesUnreadable
-    } else if ["sign in", "login", "log in", "members-only", "confirm your age", "cookies-from-browser", "premium"]
-      .contains(where: text.contains)
-    {
+    } else if [
+      "sign in", "login", "log in", "members-only", "confirm your age", "cookies-from-browser", "premium",
+      "fresh cookies",
+    ]
+    .contains(where: text.contains) {
       kind = .needsLogin
     } else if [
       "video unavailable", "video is unavailable", "has been removed", "private video", "does not exist",

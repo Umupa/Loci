@@ -32,6 +32,29 @@ struct YtDlpTests {
     #expect(arguments.contains("quickjs:/support/quickJS/qjs"))
   }
 
+  @Test func recognizingAsksOnlyTheSitesYtDlpKnowsByName() async throws {
+    let json = try Fixture.data("youtube")
+    let runner = ScriptedRunner(output: String(decoding: json, as: UTF8.self))
+
+    let recognized = try await Self.ytDlp(runner).recognize(Self.link)
+
+    #expect(recognized?.info.title == "Me at the zoo")
+    let arguments = try #require(runner.calls.first?.arguments)
+    #expect(
+      arguments.suffix(5) == ["-J", "--no-playlist", "--use-extractors", "default,-generic", Self.link.absoluteString])
+  }
+
+  @Test func aLinkNoSiteKnowsIsNotRecognized() async throws {
+    let runner = ScriptedRunner { _ in
+      (
+        [],
+        ProgramResult(status: 1, output: "", diagnostics: "ERROR: No suitable extractor found for URL https://x.dev/a")
+      )
+    }
+
+    #expect(try await Self.ytDlp(runner).recognize(URL(string: "https://x.dev/a")!) == nil)
+  }
+
   @Test func aVideoDownloadsAsCompatible1080pMergedIntoMP4() {
     let arguments = YtDlp.downloadArguments(Self.link, audio: false, folder: Self.folder)
 
@@ -113,6 +136,7 @@ struct YtDlpTests {
   @Test(arguments: [
     ("ERROR: [youtube] x: Sign in to confirm your age. This video may be inappropriate", MediaError.Kind.needsLogin),
     ("ERROR: [youtube] x: Video unavailable. This video has been removed by the uploader", .unavailable),
+    ("ERROR: [Douyin] 6961737553342991651: Fresh cookies (not necessarily logged in) are needed", .needsLogin),
     ("ERROR: [apple:podcasts] x: Unable to extract JS asset path; please report this issue on …", .outdated),
     ("ERROR: Unsupported URL: https://example.com/", .unavailable),
     (

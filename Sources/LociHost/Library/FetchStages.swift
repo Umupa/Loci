@@ -15,6 +15,31 @@ extension JobRun {
     } catch {
       throw await context.stop(error, at: source)
     }
+    try await adopt(info, json: json, of: item, using: tool)
+  }
+
+  /// Asks yt-dlp about a link read as an article, and makes it a video or episode when a site it knows has
+  /// one there. Whether it did. Without yt-dlp, or when no site it knows has media there, the item is left be.
+  func recognize(_ item: Item) async throws(StageStop) -> Bool {
+    guard case .article = item.kind, let source = item.source,
+      let tool = try? await context.ytDlp(needing: [.ytDlp])
+    else { return false }
+    let recognized: (info: MediaInfo, json: Data)?
+    do {
+      recognized = try await tool.recognize(source)
+    } catch  where error.kind == .needsLogin {
+      throw await context.stop(error, at: source)
+    } catch {
+      return false
+    }
+    guard let recognized else { return false }
+    try await adopt(recognized.info, json: recognized.json, of: item, using: tool)
+    return true
+  }
+
+  /// Keeps what yt-dlp read behind the link: where to play from, the title, cover, chapters and subtitles.
+  private func adopt(_ info: MediaInfo, json: Data, of item: Item, using tool: YtDlp) async throws(StageStop) {
+    guard let source = item.source else { return }
     await context.streams.keep(info.stream, for: item.id)
     let resolved = try stored {
       try Item(
