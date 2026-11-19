@@ -39,7 +39,7 @@ struct LibraryScenarioTests {
       let listed = await value(items) { $0 == [item] }
       #expect(listed != nil)
 
-      _ = try await host.run(DeleteItem(item: item.id, notes: .delete))
+      _ = try await host.run(DeleteItems([item.id]))
 
       let emptied = await value(items) { $0.isEmpty }
       #expect(emptied != nil)

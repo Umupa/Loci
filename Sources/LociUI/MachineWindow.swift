@@ -34,7 +34,7 @@ struct MachineWindow: View {
   var body: some View {
     layout
       .background(WindowButtons(inset: Size.windowButtons))
-      .background(LinkPasteKey(paste: keyPaste))
+      .background(WindowKeys(handle: { event in LinkPasteKey.isPaste(event) && keyPaste() }))
       .toolbar(removing: .title)
       .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
       .tint(Palette.accent)
@@ -189,7 +189,8 @@ struct MachineWindow: View {
       LociScreen()
     case .library(let kind):
       LibraryScreen(
-        kind: kind, opened: { window = $0 }, failed: { dialogs.failure = $0 }, delete: { dialogs.deletingItem = $0 })
+        kind: kind, chooseFiles: { dialogs.importing = true }, opened: { window = $0 },
+        failed: { dialogs.failure = $0 })
     case .browser:
       BrowserScreen(session: browser, opened: { window = $0 }, failed: { dialogs.failure = $0 })
     case .settings(.general):

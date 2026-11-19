@@ -52,7 +52,7 @@ struct EventScenarioTests {
     try await withHost { host, _, _ in
       let item = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n\nterm\n"))
 
-      _ = try await host.run(DeleteItem(item: item.id, notes: .delete))
+      _ = try await host.run(DeleteItems([item.id]))
 
       #expect(events(try await host.conversation(.main)).isEmpty)
     }

@@ -68,7 +68,10 @@ public enum HostStartError: Error, Hashable, Codable, Sendable {
 /// Carries out commands. Each command calls exactly one of these, so a command cannot go unhandled.
 public protocol CommandHandler: Sendable {
   func addTextItem(_ command: AddTextItem) async throws(HostError) -> Item
-  func deleteItem(_ command: DeleteItem) async throws(HostError) -> Done
+  func deleteItems(_ command: DeleteItems) async throws(HostError) -> Done
+  func restoreDeleted() async throws(HostError) -> [Item]
+  func renameItem(_ command: RenameItem) async throws(HostError) -> Item
+  func setCover(_ command: SetCover) async throws(HostError) -> Done
   func listItems() async throws(HostError) -> [Item]
   func itemText(_ item: EntityID) async throws(HostError) -> String
   func itemPage(_ item: EntityID) async throws(HostError) -> ItemPage

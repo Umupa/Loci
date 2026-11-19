@@ -10,15 +10,16 @@ struct JobRun: Sendable {
   let context: LibraryContext
   let queue: JobQueue
 
+  /// Runs from `first` on. The stages left are read again after each one, since resolving or reading a link
+  /// can find it is something else than its address told.
   func run(from first: Job.Stage) async {
-    guard let current = try? context.store.item(item) else {
+    guard var current = try? context.store.item(item) else {
       await queue.forget(item)
       return
     }
-    let stages = Job.Stage.all(for: current)
-    let order = Job.Stage.allCases
-    let start = order.firstIndex(of: first) ?? 0
-    for stage in stages where (order.firstIndex(of: stage) ?? 0) >= start {
+    var last = first
+    var next = Self.stage(of: current, from: first, after: false)
+    while let stage = next {
       if Task.isCancelled { return }
       await queue.report(item, stage: stage, state: .running(progress: nil))
       do throws(StageStop) {
@@ -33,8 +34,22 @@ struct JobRun: Sendable {
       }
       if Task.isCancelled { return }
       await context.notify([.item(item)])
+      last = stage
+      guard let now = try? context.store.item(item) else { break }
+      current = now
+      next = Self.stage(of: current, from: stage, after: true)
     }
-    await queue.report(item, stage: stages.last ?? first, state: .done)
+    await queue.report(item, stage: last, state: .done)
+  }
+
+  /// The first stage `item` goes through at or after `stage`.
+  private static func stage(of item: Item, from stage: Job.Stage, after: Bool) -> Job.Stage? {
+    let order = Job.Stage.allCases
+    let start = order.firstIndex(of: stage) ?? 0
+    return Job.Stage.all(for: item).first { each in
+      let index = order.firstIndex(of: each) ?? 0
+      return after ? index > start : index >= start
+    }
   }
 
   private func perform(_ stage: Job.Stage) async throws(StageStop) {

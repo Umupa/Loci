@@ -112,9 +112,14 @@ struct ItemConversationTests {
       _ = try await host.run(SendMessage(to: .item(item.id), text: "Why?"))
       _ = try #require(await settled(host, .item(item.id)))
 
-      _ = try await host.run(DeleteItem(item: item.id, notes: .delete))
+      _ = try await host.run(DeleteItems([item.id]))
 
       await #expect(throws: HostError.notFound(item.id.description)) { try await host.conversation(.item(item.id)) }
+      #expect(try !host.database.messages(of: .conversation(.item(item.id))).isEmpty)
+
+      let other = try await host.run(AddTextItem(fileName: "b.md", text: "# B\n"))
+      _ = try await host.run(DeleteItems([other.id]))
+
       #expect(try host.database.messages(of: .conversation(.item(item.id))).isEmpty)
     }
   }

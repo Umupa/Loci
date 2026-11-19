@@ -15,7 +15,33 @@ extension JobRun {
     } catch {
       throw await context.stop(error, at: source)
     }
+    try await adopt(info, json: json, of: item, using: tool)
+  }
+
+  /// Asks yt-dlp about a link read as an article, and makes it a video or episode when a site it knows has
+  /// one there. Whether it did. Without yt-dlp, or when no site it knows has media there, the item is left be.
+  func recognize(_ item: Item) async throws(StageStop) -> Bool {
+    guard case .article = item.kind, let source = item.source,
+      let tool = try? await context.ytDlp(needing: [.ytDlp])
+    else { return false }
+    let recognized: (info: MediaInfo, json: Data)?
+    do {
+      recognized = try await tool.recognize(source)
+    } catch  where error.kind == .needsLogin {
+      throw await context.stop(error, at: source)
+    } catch {
+      return false
+    }
+    guard let recognized else { return false }
+    try await adopt(recognized.info, json: recognized.json, of: item, using: tool)
+    return true
+  }
+
+  /// Keeps what yt-dlp read behind the link: where to play from, the title, cover, chapters and subtitles.
+  private func adopt(_ info: MediaInfo, json: Data, of item: Item, using tool: YtDlp) async throws(StageStop) {
+    guard let source = item.source else { return }
     await context.streams.keep(info.stream, for: item.id)
+    _ = try? context.store.saveWork(json, named: Self.info, of: item.id)
     let resolved = try stored {
       try Item(
         id: item.id, kind: info.isAudio ? .audio(duration: info.duration) : kind(of: item, duration: info.duration),
@@ -29,7 +55,7 @@ extension JobRun {
       try stored { try context.store.save(try Outline(chapters: info.chapters, highlights: []), of: item.id) }
     }
     if let language = info.subtitleLanguage, try stored({ try context.store.transcript(of: item.id) }) == nil {
-      await saveSubtitles(language, info: json, using: tool)
+      await saveSubtitles(language, using: tool)
     }
   }
 
@@ -38,12 +64,13 @@ extension JobRun {
     guard try stored({ try context.store.mediaFile(of: item.id) }) == nil, let source = item.source else { return }
     let tool = try await context.ytDlp(needing: [.ytDlp, .ffmpeg])
     let folder = try stored { try context.store.workFolder(of: item.id) }
+    let read = try stored { try context.store.workFile(named: Self.info, of: item.id) }
     let audio: Bool = if case .audio = item.kind { true } else { false }
     let report = progress(.download)
     let fetch = context
     let file = try await inTurn(queue.gates.downloads, at: .download) { () async throws(StageStop) -> URL in
       do throws(MediaError) {
-        return try await tool.download(source, audio: audio, into: folder, progress: report)
+        return try await tool.download(source, info: read, audio: audio, into: folder, progress: report)
       } catch {
         throw await fetch.stop(error, at: source)
       }
@@ -78,10 +105,9 @@ extension JobRun {
   }
 
   /// Subtitles that cannot be had are left to recognition.
-  private func saveSubtitles(_ language: String, info json: Data, using tool: YtDlp) async {
-    guard let info = try? context.store.saveWork(json, named: "info.json", of: item),
-      let folder = try? context.store.workFolder(of: item),
-      let file = try? await tool.subtitles(info: info, language: language, into: folder),
+  private func saveSubtitles(_ language: String, using tool: YtDlp) async {
+    guard let folder = try? context.store.workFolder(of: item),
+      let file = try? await tool.subtitles(info: folder.appending(path: Self.info), language: language, into: folder),
       let text = try? context.store.workText(named: file.lastPathComponent, of: item)
     else { return }
     let segments = Subtitles.segments(fromWebVTT: text)
@@ -92,6 +118,9 @@ extension JobRun {
     try? context.store.save(transcript, of: item)
     await context.notify([.item(item)])
   }
+
+  /// What yt-dlp read behind the link, kept in the work folder until the download is done.
+  static let info = "info.json"
 
   /// A BCP 47 tag from a site's language code, which may carry extras such as `en-orig`.
   static func tag(_ code: String) -> String? {

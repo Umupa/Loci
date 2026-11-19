@@ -7,12 +7,15 @@ import UniformTypeIdentifiers
 enum Dropped: Equatable, Sendable {
   case link(URL)
   case textFile(TextFile)
+  /// A video or audio file on this Mac.
+  case mediaFile(URL)
 
   /// The kinds of drag a page accepts: a file, a link, or text that is a link.
   static let types: [UTType] = [.fileURL, .url, .plainText]
 
-  /// Starts reading each dragged thing during the drop, while it can still be read: a file as a text file, a
-  /// link as itself, text when it holds one link. Anything else comes to nothing.
+  /// Starts reading each dragged thing during the drop, while it can still be read: a video or audio file as
+  /// itself, another file as a text file, a link as itself, text when it holds one link. Anything else comes
+  /// to nothing.
   static func reading(_ providers: [NSItemProvider]) -> [AsyncStream<Dropped>] {
     providers.map(reading)
   }
@@ -35,7 +38,11 @@ enum Dropped: Equatable, Sendable {
       }
     }
     if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-      load(URL.self) { file in file.isFileURL ? (try? TextFile(reading: file)).map(Dropped.textFile) : nil }
+      load(URL.self) { file in
+        guard file.isFileURL else { return nil }
+        if isMedia(file) { return .mediaFile(file) }
+        return (try? TextFile(reading: file)).map(Dropped.textFile)
+      }
     } else if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
       load(URL.self) { url in url.isWebLink ? .link(url) : nil }
     } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
@@ -44,6 +51,10 @@ enum Dropped: Equatable, Sendable {
       continuation.finish()
     }
     return stream
+  }
+
+  static func isMedia(_ file: URL) -> Bool {
+    UTType(filenameExtension: file.pathExtension)?.conforms(to: .audiovisualContent) == true
   }
 
   /// Text that is a link, or holds exactly one among other words.
@@ -57,7 +68,7 @@ enum Dropped: Equatable, Sendable {
 }
 
 extension View {
-  /// A text file or a link dropped anywhere on the view becomes an item, and the last one opens. While
+  /// A text, video or audio file or a link dropped anywhere on the view becomes an item, and the last one opens. While
   /// something is dragged over it the view is outlined in amber.
   func acceptingDrops(opened: @escaping (WindowState) -> Void, failed: @escaping (HostError) -> Void) -> some View {
     modifier(AcceptingDrops(opened: opened, failed: failed))
@@ -96,6 +107,9 @@ private struct AcceptingDrops: ViewModifier {
         switch each {
         case .link(let url): last = try await host.run(AddLink(url: url))
         case .textFile(let file): last = try await host.run(AddTextItem(fileName: file.fileName, text: file.text))
+        case .mediaFile(let file):
+          let upload = try await host.upload(LocalFile(file))
+          last = try await host.run(ImportMediaFile(upload: upload, mode: .copy))
         }
       } catch {
         failed(error)

@@ -33,6 +33,8 @@ enum Symbols {
   static let restart = "arrow.clockwise"
   static let retry = "exclamationmark"
   static let add = "plus"
+  static let link = "link"
+  static let folder = "folder"
   static let camera = "camera"
   static let lock = "lock"
   static let reload = "arrow.clockwise"

@@ -4,7 +4,6 @@ import UniformTypeIdentifiers
 
 /// The questions and notices a window can show, one value so the root view keeps them in one place.
 struct Dialogs {
-  var deletingItem: Item?
   var importing = false
   /// What went wrong. A change refused because the Mac is offline is not told: the window already says so.
   var failure: HostError? {
@@ -20,11 +19,12 @@ extension View {
 }
 
 private struct DialogsModifier: ViewModifier {
+  @Environment(\.changesAllowed) private var changesAllowed
   @Binding var dialogs: Dialogs
   let host: any LociModel.Host
 
   func body(content: Content) -> some View {
-    importing(deleting(questions(content)))
+    importing(questions(content))
   }
 
   private func questions(_ content: Content) -> some View {
@@ -45,25 +45,13 @@ private struct DialogsModifier: ViewModifier {
       }
   }
 
-  private func deleting(_ content: some View) -> some View {
-    content
-      .confirmationDialog(
-        Text(.loci("item.deleteQuestion")), isPresented: present(\.deletingItem), presenting: dialogs.deletingItem
-      ) { item in
-        DeleteChoices { notes in
-          perform { _ = try await host.run(DeleteItem(item: item.id, notes: notes)) }
-        }
-      }
-  }
-
   private func importing(_ content: some View) -> some View {
     content.fileImporter(
       isPresented: $dialogs.importing, allowedContentTypes: [.text, .audiovisualContent], allowsMultipleSelection: true
     ) { result in
+      guard changesAllowed else { return }
       let chosen = (try? result.get()) ?? []
-      let media = chosen.filter {
-        UTType(filenameExtension: $0.pathExtension)?.conforms(to: .audiovisualContent) == true
-      }
+      let media = chosen.filter(Dropped.isMedia)
       let files = chosen.filter { !media.contains($0) }.compactMap { try? TextFile(reading: $0) }
       perform {
         for file in files { _ = try await host.run(AddTextItem(fileName: file.fileName, text: file.text)) }
@@ -89,29 +77,5 @@ private struct DialogsModifier: ViewModifier {
 
   private func present<Value>(_ field: WritableKeyPath<Dialogs, Value?>) -> Binding<Bool> {
     Binding(get: { dialogs[keyPath: field] != nil }, set: { if !$0 { dialogs[keyPath: field] = nil } })
-  }
-}
-
-/// Deleting asks what becomes of the notes on what is deleted.
-private struct DeleteChoices: View {
-  let choose: (NotesOnDelete) -> Void
-
-  var body: some View {
-    Button(role: .destructive) {
-      choose(.keep)
-    } label: {
-      Text(.loci("delete.keepNotes"))
-    }
-    .changesData()
-    Button(role: .destructive) {
-      choose(.delete)
-    } label: {
-      Text(.loci("delete.withNotes"))
-    }
-    .changesData()
-    Button(role: .cancel) {
-    } label: {
-      Text(.loci("dialog.cancel"))
-    }
   }
 }

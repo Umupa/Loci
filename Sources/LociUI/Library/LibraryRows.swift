@@ -9,12 +9,20 @@ struct ShelfCover: View {
   let share: Double?
   var job: Job?
   var act: (JobLine.Fix) -> Void = { _ in }
+  var chosen = false
+  /// Set while the title is being renamed: what to do with the new title, `nil` when it was left as it was.
+  var renamed: ((String?) -> Void)?
 
   var body: some View {
     Cover(item: item, corner: Radius.card, squareInset: 0.11, squareCorner: Size.shelfHeight * 0.78 * 0.05)
       .overlay(alignment: .bottom) { caption }
       .overlay(alignment: .bottom) { ProgressLine(share: share) }
       .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+      .overlay {
+        if chosen {
+          RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Palette.accent, lineWidth: 3)
+        }
+      }
       .coverShadow()
       .frame(height: Size.shelfHeight)
       .contentShape(Rectangle())
@@ -22,10 +30,14 @@ struct ShelfCover: View {
 
   private var caption: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text(serif: item.title, Typography.shelfTitle)
-        .foregroundStyle(Palette.onCover)
-        .lineLimit(2)
-        .lineSpacing(1)
+      if let renamed {
+        TitleField(title: item.title, font: Typography.shelfTitle.latin, ink: Palette.onCover, done: renamed)
+      } else {
+        Text(serif: item.title, Typography.shelfTitle)
+          .foregroundStyle(Palette.onCover)
+          .lineLimit(2)
+          .lineSpacing(1)
+      }
       Text(verbatim: item.byline)
         .font(Typography.mono)
         .foregroundStyle(Palette.onCoverMuted)
@@ -72,6 +84,8 @@ struct LibraryRow: View {
   let job: Job?
   let share: Double?
   let act: (JobLine.Fix) -> Void
+  /// Set while the title is being renamed: what to do with the new title, `nil` when it was left as it was.
+  var renamed: ((String?) -> Void)?
 
   var body: some View {
     let line = JobLine(job)
@@ -85,9 +99,13 @@ struct LibraryRow: View {
         )
         .frame(width: Size.listThumbnail, height: Size.listThumbnail * 9 / 16)
       VStack(alignment: .leading, spacing: 5) {
-        Text(serif: item.title, Typography.rowTitle)
-          .foregroundStyle(Palette.ink)
-          .lineLimit(1)
+        if let renamed {
+          TitleField(title: item.title, font: Typography.rowTitle.latin, ink: Palette.ink, done: renamed)
+        } else {
+          Text(serif: item.title, Typography.rowTitle)
+            .foregroundStyle(Palette.ink)
+            .lineLimit(1)
+        }
         Text(verbatim: item.byline)
           .font(Typography.mono)
           .foregroundStyle(Palette.inkFaint)

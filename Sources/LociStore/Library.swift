@@ -31,11 +31,4 @@ extension Store {
   public func save(_ item: Item) throws {
     try write(Formats.document(item), to: itemFolder(item.id).appending(path: Self.itemFile))
   }
-
-  public func deleteItem(_ id: EntityID, notes: NotesOnDelete) throws {
-    try discard(itemFolder(id))
-    if notes == .delete {
-      try discard(notesFile(on: .item(id)))
-    }
-  }
 }

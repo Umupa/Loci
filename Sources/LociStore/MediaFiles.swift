@@ -54,6 +54,11 @@ extension Store {
     return file
   }
 
+  /// A file in the work folder; `nil` when it is not there.
+  public func workFile(named name: String, of item: EntityID) throws -> URL? {
+    try existing(workFolder(of: item).appending(path: name))
+  }
+
   /// A text file in the work folder, such as subtitles yt-dlp saved there; `nil` when it is not there.
   public func workText(named name: String, of item: EntityID) throws -> String? {
     try existing(workFolder(of: item).appending(path: name)).map(readText)
@@ -102,6 +107,11 @@ extension Store {
     let folder = try itemFolder(item)
     if let earlier = named(Self.coverName, in: folder) { try FileManager.default.removeItem(at: earlier) }
     try write(data, to: folder.appending(path: "\(Self.coverName).\(pathExtension.lowercased())"))
+  }
+
+  /// Copies a picture in as the cover, replacing any earlier one.
+  public func saveCover(copying picture: URL, of item: EntityID) throws {
+    try saveCover(try read(picture), extension: picture.pathExtension, of: item)
   }
 
   private func named(_ stem: String, in folder: URL) -> URL? {

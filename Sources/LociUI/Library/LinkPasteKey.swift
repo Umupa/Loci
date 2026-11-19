@@ -5,21 +5,31 @@ import SwiftUI
 /// ⌘V on a page that takes links, wherever the keyboard is in the window: the sidebar, the list, or nowhere.
 /// The menu's Paste goes to whatever has the keyboard, and on these pages that is rarely anything that pastes.
 /// A text field that is being typed into keeps ⌘V for itself.
-struct LinkPasteKey: NSViewRepresentable {
-  /// `nil` while the window shows a page that does not take links. Whether the pasteboard held a link.
-  let paste: (@MainActor () -> Bool)?
-
-  func makeNSView(context: Context) -> LinkPasteMonitor {
-    LinkPasteMonitor()
-  }
-
-  func updateNSView(_ view: LinkPasteMonitor, context: Context) {
-    view.paste = paste
+enum LinkPasteKey {
+  static func isPaste(_ event: NSEvent) -> Bool {
+    KeyMonitor.modifiers(of: event) == .command && event.charactersIgnoringModifiers?.lowercased() == "v"
   }
 }
 
-final class LinkPasteMonitor: NSView {
-  var paste: (@MainActor () -> Bool)?
+/// Keys pressed in the window while no text is being typed; see `KeyMonitor`.
+struct WindowKeys: NSViewRepresentable {
+  /// Whether it handled the key; `nil` hears nothing.
+  let handle: (@MainActor (NSEvent) -> Bool)?
+
+  func makeNSView(context: Context) -> KeyMonitor {
+    KeyMonitor()
+  }
+
+  func updateNSView(_ view: KeyMonitor, context: Context) {
+    view.handle = handle
+  }
+}
+
+/// Hears the keys pressed in its window while no text is being typed, wherever the keyboard is: the sidebar,
+/// a list, or nowhere. A key it handles goes no further.
+final class KeyMonitor: NSView {
+  /// Whether it handled the key; `nil` hears nothing.
+  var handle: (@MainActor (NSEvent) -> Bool)?
   private var monitor: Any?
 
   override func hitTest(_ point: NSPoint) -> NSView? {
@@ -31,8 +41,8 @@ final class LinkPasteMonitor: NSView {
     stop()
     guard window != nil else { return }
     monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-      guard let self, let window = self.window, event.window === window, let paste = self.paste,
-        Self.takes(event, typingInto: window.firstResponder), paste()
+      guard let self, let window = self.window, event.window === window, let handle = self.handle,
+        !Self.isTyping(into: window.firstResponder), handle(event)
       else { return event }
       return nil
     }
@@ -43,10 +53,13 @@ final class LinkPasteMonitor: NSView {
     monitor = nil
   }
 
-  /// ⌘V, while no text is being typed: a field being typed into has the window's shared text view.
-  static func takes(_ event: NSEvent, typingInto responder: NSResponder?) -> Bool {
-    let modifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
-    return modifiers == .command && event.charactersIgnoringModifiers?.lowercased() == "v" && !(responder is NSText)
+  /// A field being typed into has the window's shared text view.
+  nonisolated static func isTyping(into responder: NSResponder?) -> Bool {
+    responder is NSText
+  }
+
+  nonisolated static func modifiers(of event: NSEvent) -> NSEvent.ModifierFlags {
+    event.modifierFlags.intersection([.command, .shift, .option, .control])
   }
 }
 

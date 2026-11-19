@@ -18,20 +18,20 @@ struct LinkInputTests {
 
   @Test func commandVIsTakenWhenTheSidebarOrNothingHasTheKeyboard() throws {
     let paste = try #require(Self.key("v", .command))
-    #expect(LinkPasteMonitor.takes(paste, typingInto: NSTableView()))
-    #expect(LinkPasteMonitor.takes(paste, typingInto: nil))
-    #expect(LinkPasteMonitor.takes(paste, typingInto: NSWindow()))
+    #expect(LinkPasteKey.isPaste(paste))
+    #expect(!KeyMonitor.isTyping(into: NSTableView()))
+    #expect(!KeyMonitor.isTyping(into: nil))
+    #expect(!KeyMonitor.isTyping(into: NSWindow()))
   }
 
-  @Test func aFieldBeingTypedIntoKeepsCommandV() throws {
-    let paste = try #require(Self.key("v", .command))
-    #expect(!LinkPasteMonitor.takes(paste, typingInto: NSTextView()))
+  @Test func aFieldBeingTypedIntoKeepsItsKeys() {
+    #expect(KeyMonitor.isTyping(into: NSTextView()))
   }
 
   @Test func onlyCommandVIsTaken() throws {
-    #expect(!LinkPasteMonitor.takes(try #require(Self.key("v", [])), typingInto: nil))
-    #expect(!LinkPasteMonitor.takes(try #require(Self.key("v", [.command, .shift])), typingInto: nil))
-    #expect(!LinkPasteMonitor.takes(try #require(Self.key("c", .command)), typingInto: nil))
+    #expect(!LinkPasteKey.isPaste(try #require(Self.key("v", []))))
+    #expect(!LinkPasteKey.isPaste(try #require(Self.key("v", [.command, .shift]))))
+    #expect(!LinkPasteKey.isPaste(try #require(Self.key("c", .command))))
   }
 
   @Test func aLinkIsReadFromThePasteboardAsALinkOrAsText() {
@@ -76,6 +76,36 @@ struct LinkInputTests {
     #expect(dropped == [.textFile(try TextFile(reading: file))])
     guard case .textFile(let text)? = dropped.first else { return }
     #expect(text.text == "# Notes\n")
+  }
+
+  /// A-S3: a video or audio file is added as itself, not read as text.
+  @Test func aDraggedVideoOrAudioFileIsAddedAsMedia() async throws {
+    for name in ["talk.mp4", "episode.m4a"] {
+      let file = FileManager.default.temporaryDirectory.appending(path: "loci-drop-\(UUID().uuidString)-\(name)")
+      try Data("media".utf8).write(to: file)
+      defer { try? FileManager.default.removeItem(at: file) }
+
+      let dropped = await Dropped.collect(Dropped.reading([try #require(NSItemProvider(contentsOf: file))]))
+
+      #expect(dropped == [.mediaFile(file)])
+    }
+  }
+
+  /// A-S2: the field takes the link pasted alone or shared among words, and nothing else.
+  @Test func theLinkFieldFindsTheLinkInWhatIsPasted() {
+    let shared = "7.92 复制打开抖音，看看【猫和狗的作品】 https://v.douyin.com/iRNBho6u/ 你好"
+    #expect(LinkField.link(in: "  \(Self.link.absoluteString)\n") == Self.link)
+    #expect(LinkField.link(in: shared) == URL(string: "https://v.douyin.com/iRNBho6u/"))
+    #expect(LinkField.link(in: "explain the scheduler") == nil)
+    #expect(LinkField.link(in: "") == nil)
+  }
+
+  /// A-S1: each page says what it takes.
+  @Test func theLinkFieldSaysWhatEachPageTakes() {
+    #expect(LinkField.prompt(for: nil).key == "link.prompt")
+    #expect(LinkField.prompt(for: .video).key == "link.promptVideo")
+    #expect(LinkField.prompt(for: .audio).key == "link.promptAudio")
+    #expect(LinkField.prompt(for: .paper).key == "link.promptPaper")
   }
 
   @Test func aDraggedLinkThatIsNotOnTheWebIsLeftOut() async {

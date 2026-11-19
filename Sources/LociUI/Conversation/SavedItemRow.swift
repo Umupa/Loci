@@ -33,7 +33,7 @@ struct SavedItemRow: View {
       }
       .buttonStyle(.plain)
       Button {
-        Task { _ = try? await host.run(DeleteItem(item: item.id, notes: .delete)) }
+        Task { _ = try? await host.run(DeleteItems([item.id])) }
       } label: {
         Text(.loci("added.undo")).font(.system(size: 11.5)).foregroundStyle(Palette.inkMuted)
       }

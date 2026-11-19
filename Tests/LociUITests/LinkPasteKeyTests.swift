@@ -30,9 +30,10 @@ struct LinkPasteKeyTests {
       defer: false)
     let container = NSView(frame: CGRect(x: 0, y: 0, width: 400, height: 200))
     let field = NSTextField(frame: CGRect(x: 20, y: 80, width: 360, height: 24))
-    let monitor = LinkPasteMonitor(frame: .zero)
+    let monitor = KeyMonitor(frame: .zero)
     let counter = Counter()
-    monitor.paste = {
+    monitor.handle = { event in
+      guard LinkPasteKey.isPaste(event) else { return false }
       counter.pastes += 1
       return true
     }

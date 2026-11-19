@@ -108,13 +108,13 @@ struct ToolScenarioTests {
     try await withHost { host, _, _ in
       let item = try await host.run(AddTextItem(fileName: "a.md", text: "# A\n"))
 
-      let deleting = await answer(try command(DeleteItem(item: item.id, notes: .delete)), on: host)
+      let deleting = await answer(try command(DeleteItems([item.id])), on: host)
       let following = await answer(
         LocalCall(
           conversation: nil, request: .follow(name: AllItems.name, body: try JSONEncoder().encode(AllItems()))),
         on: host)
 
-      #expect(deleting == [.failed(.invalidRequest("loci cannot run \(DeleteItem.name)"))])
+      #expect(deleting == [.failed(.invalidRequest("loci cannot run \(DeleteItems.name)"))])
       #expect(following == [.failed(.invalidRequest("loci cannot follow \(AllItems.name)"))])
       #expect(try await host.run(ListItems()) == [item])
     }

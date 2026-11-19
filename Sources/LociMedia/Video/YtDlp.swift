@@ -42,6 +42,24 @@ public struct YtDlp: Sendable {
     return (try MediaInfo(json: json), json)
   }
 
+  /// What is behind a link the address alone does not tell, when one of the sites yt-dlp knows by name has
+  /// it; `nil` when none does. yt-dlp's catch-all for any page is left out, so an article stays an article.
+  public func recognize(_ url: URL) async throws(MediaError) -> (info: MediaInfo, json: Data)? {
+    let result: ProgramResult
+    do {
+      result = try await run(["-J", "--no-playlist", "--use-extractors", "default,-generic", url.absoluteString])
+    } catch  where Self.knowsNoSite(error) {
+      return nil
+    }
+    let json = Data(result.output.utf8)
+    return (try MediaInfo(json: json), json)
+  }
+
+  private static func knowsNoSite(_ error: MediaError) -> Bool {
+    let reason = error.reason.lowercased()
+    return reason.hasPrefix("no suitable extractor") || reason.hasPrefix("unsupported url")
+  }
+
   /// Saves the site's subtitles in `language` as WebVTT into `folder` and returns the file.
   public func subtitles(info: URL, language: String, into folder: URL) async throws(MediaError) -> URL {
     _ = try await run([
@@ -53,20 +71,33 @@ public struct YtDlp: Sendable {
   }
 
   /// Downloads into `folder` as `media.mp4`, or `media.m4a` for something to listen to, picking up any part
-  /// already there. Returns the finished file.
+  /// already there. Returns the finished file. With the JSON `resolve` read, the page is not read again; when
+  /// the addresses in it no longer work, the link is read afresh.
   public func download(
-    _ url: URL, audio: Bool, into folder: URL, progress: @escaping @Sendable (Fraction?) -> Void
+    _ url: URL, info: URL? = nil, audio: Bool, into folder: URL, progress: @escaping @Sendable (Fraction?) -> Void
   ) async throws(MediaError) -> URL {
     let tracker = DownloadProgress(audio: audio, report: progress)
-    let result = try await run(
-      Self.downloadArguments(url, audio: audio, folder: folder),
-      line: { line in tracker.hear(line) })
+    let result: ProgramResult
+    do {
+      result = try await run(
+        Self.downloadArguments(info.map(Source.info) ?? .link(url), audio: audio, folder: folder),
+        line: { line in tracker.hear(line) })
+    } catch  where info != nil && !Task.isCancelled {
+      result = try await run(
+        Self.downloadArguments(.link(url), audio: audio, folder: folder), line: { line in tracker.hear(line) })
+    }
     let path = result.output.split(whereSeparator: \.isNewline).map(String.init).last { $0.hasPrefix("/") }
     guard let path else { throw MediaError(.other, reason: "yt-dlp finished without saying where the file is") }
     return URL(filePath: path)
   }
 
-  static func downloadArguments(_ url: URL, audio: Bool, folder: URL) -> [String] {
+  /// Where a download starts from: the link, or the JSON already read from it.
+  enum Source {
+    case link(URL)
+    case info(URL)
+  }
+
+  static func downloadArguments(_ source: Source, audio: Bool, folder: URL) -> [String] {
     let format =
       audio
       ? ["-f", "ba[ext=m4a]/ba/b", "-x", "--audio-format", "m4a"]
@@ -74,11 +105,16 @@ public struct YtDlp: Sendable {
         "-f", "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b", "-S", "vcodec:h264,res:1080,acodec:m4a",
         "--merge-output-format", "mp4",
       ]
+    let from =
+      switch source {
+      case .link(let url): [url.absoluteString]
+      case .info(let file): ["--load-info-json", file.path(percentEncoded: false)]
+      }
     return format + [
       "--no-playlist", "--continue", "-P", folder.path(percentEncoded: false), "-o", "media.%(ext)s",
       "--print", "after_move:filepath", "--no-simulate", "--progress", "--newline",
-      "--progress-template", "download:[loci] %(progress)j", url.absoluteString,
-    ]
+      "--progress-template", "download:[loci] %(progress)j",
+    ] + from
   }
 
   /// Everything every run shares.

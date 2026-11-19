@@ -40,6 +40,8 @@ struct MediaScenarioTests {
       let file = try #require(await host.localFile(.media(item.id))).url
       #expect(file.lastPathComponent == "media.mp4")
       #expect(world.programs.calls(with: "--merge-output-format").count == 1)
+      #expect(world.programs.calls(with: "-J").count == 1)
+      #expect(world.programs.calls(with: "--print").first?.arguments.contains("--load-info-json") == true)
     }
   }
 

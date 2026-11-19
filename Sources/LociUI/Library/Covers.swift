@@ -13,6 +13,11 @@ final class Covers {
     images[item]
   }
 
+  /// Shows a cover just chosen at once, rather than waiting for the item to change.
+  func replace(_ item: EntityID, with image: NSImage) {
+    images[item] = image
+  }
+
   /// Reads the cover once per version of the item: a link's cover arrives after its title and length do.
   func load(_ item: Item, from host: any LociModel.Host) async {
     guard images[item.id] == nil, asked.insert(item).inserted else { return }

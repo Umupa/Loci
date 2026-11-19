@@ -71,6 +71,7 @@ extension JobRun {
 extension JobRun {
   func extract(_ item: Item) async throws(StageStop) {
     guard let source = item.source else { return }
+    if try await recognize(item) { return }
     guard let fetcher = context.media.textFetching else {
       throw .failed("Fetching articles and papers is not available in this build.", nil)
     }

@@ -22,7 +22,7 @@ struct HostCodingTests {
   @Test func everyCommandSurvivesJSON() throws {
     let passage = Passage(locator: .item(Fixture.item, .quote(try TextQuote("打分"))), excerpt: "打分")
     #expect(try Self.roundTrips(AddTextItem(fileName: "a.md", text: "# A\n")))
-    #expect(try Self.roundTrips(DeleteItem(item: Fixture.item, notes: .keep)))
+    #expect(try Self.roundTrips(DeleteItems([Fixture.item])))
     #expect(try Self.roundTrips(ListItems()))
     #expect(try Self.roundTrips(ReadItemText(item: Fixture.item)))
     #expect(try Self.roundTrips(Search(text: "调度", limit: 10)))
@@ -124,7 +124,8 @@ struct HostCodingTests {
 
   @Test func commandAndSubscriptionNamesAreUnique() {
     let commands = [
-      AddTextItem.name, DeleteItem.name, ListItems.name, ReadItemText.name, Search.name, ReadReadingState.name,
+      AddTextItem.name, DeleteItems.name, RestoreDeleted.name, RenameItem.name, SetCover.name, ListItems.name,
+      ReadItemText.name, Search.name, ReadReadingState.name,
       SaveReadingPosition.name, MarkRead.name, SendMessage.name, StopTurn.name, StartOver.name, ReadRuntime.name,
       SetRuntime.name, DetectAgents.name, AgentModels.name, DataLocation.name, SaveSoul.name, Forget.name,
       SetAvatar.name, ResetAvatar.name,

@@ -32,8 +32,31 @@ struct YtDlpTests {
     #expect(arguments.contains("quickjs:/support/quickJS/qjs"))
   }
 
+  @Test func recognizingAsksOnlyTheSitesYtDlpKnowsByName() async throws {
+    let json = try Fixture.data("youtube")
+    let runner = ScriptedRunner(output: String(decoding: json, as: UTF8.self))
+
+    let recognized = try await Self.ytDlp(runner).recognize(Self.link)
+
+    #expect(recognized?.info.title == "Me at the zoo")
+    let arguments = try #require(runner.calls.first?.arguments)
+    #expect(
+      arguments.suffix(5) == ["-J", "--no-playlist", "--use-extractors", "default,-generic", Self.link.absoluteString])
+  }
+
+  @Test func aLinkNoSiteKnowsIsNotRecognized() async throws {
+    let runner = ScriptedRunner { _ in
+      (
+        [],
+        ProgramResult(status: 1, output: "", diagnostics: "ERROR: No suitable extractor found for URL https://x.dev/a")
+      )
+    }
+
+    #expect(try await Self.ytDlp(runner).recognize(URL(string: "https://x.dev/a")!) == nil)
+  }
+
   @Test func aVideoDownloadsAsCompatible1080pMergedIntoMP4() {
-    let arguments = YtDlp.downloadArguments(Self.link, audio: false, folder: Self.folder)
+    let arguments = YtDlp.downloadArguments(.link(Self.link), audio: false, folder: Self.folder)
 
     #expect(arguments.contains("vcodec:h264,res:1080,acodec:m4a"))
     #expect(arguments.contains("--merge-output-format"))
@@ -43,10 +66,39 @@ struct YtDlpTests {
   }
 
   @Test func anEpisodeDownloadsOnlyItsSoundAsM4A() {
-    let arguments = YtDlp.downloadArguments(Self.link, audio: true, folder: Self.folder)
+    let arguments = YtDlp.downloadArguments(.link(Self.link), audio: true, folder: Self.folder)
 
     #expect(arguments.starts(with: ["-f", "ba[ext=m4a]/ba/b", "-x", "--audio-format", "m4a"]))
     #expect(!arguments.contains("--merge-output-format"))
+  }
+
+  @Test func aDownloadUsesWhatResolvingReadInsteadOfReadingThePageAgain() async throws {
+    let runner = ScriptedRunner { _ in ([], ProgramResult(status: 0, output: "/w/media.mp4\n")) }
+    let info = Self.folder.appending(path: "info.json")
+
+    _ = try await Self.ytDlp(runner).download(Self.link, info: info, audio: false, into: Self.folder) { _ in }
+
+    let arguments = try #require(runner.calls.first?.arguments)
+    #expect(arguments.suffix(2) == ["--load-info-json", info.path(percentEncoded: false)])
+    #expect(!arguments.contains(Self.link.absoluteString))
+  }
+
+  @Test func whenWhatResolvingReadHasExpiredTheLinkIsReadAfresh() async throws {
+    let runner = ScriptedRunner { call in
+      call.arguments.contains("--load-info-json")
+        ? (
+          [], ProgramResult(status: 1, output: "", diagnostics: "ERROR: unable to download video data: HTTP Error 403")
+        )
+        : ([], ProgramResult(status: 0, output: "/w/media.mp4\n"))
+    }
+
+    let file = try await Self.ytDlp(runner).download(
+      Self.link, info: Self.folder.appending(path: "info.json"), audio: false, into: Self.folder
+    ) { _ in }
+
+    #expect(file == URL(filePath: "/w/media.mp4"))
+    #expect(runner.calls.count == 2)
+    #expect(runner.calls.last?.arguments.last == Self.link.absoluteString)
   }
 
   @Test func theDownloadSaysWhereTheFileIsAndHowFarItGot() async throws {
@@ -113,6 +165,7 @@ struct YtDlpTests {
   @Test(arguments: [
     ("ERROR: [youtube] x: Sign in to confirm your age. This video may be inappropriate", MediaError.Kind.needsLogin),
     ("ERROR: [youtube] x: Video unavailable. This video has been removed by the uploader", .unavailable),
+    ("ERROR: [Douyin] 6961737553342991651: Fresh cookies (not necessarily logged in) are needed", .needsLogin),
     ("ERROR: [apple:podcasts] x: Unable to extract JS asset path; please report this issue on …", .outdated),
     ("ERROR: Unsupported URL: https://example.com/", .unavailable),
     (

@@ -48,12 +48,11 @@ actor LociAgent {
     await runs[conversation]?.saved(item)
   }
 
-  /// Stops Loci answering on an item that is being deleted, and deletes the conversation there. Until
-  /// `forgotten(item:)`, the item's conversation gets no run.
+  /// Stops Loci answering on an item that is being deleted. Until `forgotten(item:)`, the item's
+  /// conversation gets no run. The conversation itself stays until the deletion can no longer be undone.
   func forget(item: EntityID) async {
     leaving.insert(item)
     if let run = runs.removeValue(forKey: .item(item)) { await run.close() }
-    try? context.database.deleteConversation(on: item)
   }
 
   func forgotten(item: EntityID) {

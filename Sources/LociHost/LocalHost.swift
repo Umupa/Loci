@@ -99,6 +99,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       try? store.writeSkill(named: "loci", ToolGuide.skill)
       await host.hub.hold(Task { await ToolGateway.serve(host, at: tool.socket) })
     }
+    await host.discardSetAside()
     await host.library.queue.resume()
     return host
   }
@@ -107,6 +108,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   public func close() async {
     await library.queue.close()
     await library.translator.close()
+    await discardSetAside()
     await loci.close()
     await hub.stop()
   }

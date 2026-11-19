@@ -39,7 +39,7 @@ struct MirrorTests {
 
       let retitled = try Item(id: library.video.id, kind: library.video.kind, title: "Borg at Google")
       try store.save(retitled)
-      try store.deleteItem(library.article.id, notes: .keep)
+      try store.deleteItem(library.article.id)
       let second = try Note(id: Fixture.id(11), locator: library.note.locator, thought: "再看", savedAt: Fixture.instant)
       try store.append(.saved(second), on: .item(library.article.id))
       let folder = try store.itemFolder(library.video.id)
@@ -60,7 +60,7 @@ struct MirrorTests {
     try withStore { store in
       let library = try Library(store: store)
       let database = try StoreDatabase.inMemory()
-      try store.deleteItem(library.video.id, notes: .keep)
+      try store.deleteItem(library.video.id)
 
       try database.apply([.everything, .item(library.article.id)], from: store)
       let rebuilt = try StoreDatabase.inMemory()
