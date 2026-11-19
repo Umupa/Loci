@@ -11,17 +11,21 @@ Loci 是一个 Mac 应用：从你读的、看的、听的东西里学习，身�
 | [docs/architecture.md](docs/architecture.md) | 模块怎么分 |
 | [CHANGELOG.md](CHANGELOG.md) | 用户看得到的变化，按版本 |
 
-## 一条命令
+## 本地迭代
+
+每轮小改动只跑覆盖改动的测试套件或用例。比如改对话列表时，从仓库根目录运行：
 
 ```sh
-script/check
+. script/toolchain
+swift test --filter 'LociUITests\.(ChatTests|ConversationTests|TalkRowsTests)/'
 ```
 
-格式、编译（警告即错误）、测试、架构与文档检查、还没推送的提交信息都在里面，CI 跑的就是它。通过时只打印四行 `ok`；失败时打印哪里错了、该怎么改。交付之前必须通过。
+过滤用 `模块.套件/用例` 的正则表达式，确认输出里确实运行了对应测试。改过代码就让 `swift test` 重新构建。
 
 | 命令 | 作用 |
 |---|---|
-| `script/check` | 唯一的闸门 |
+| `script/check --fast` | 跑 PR 和 `main` 日常 CI 的检查 |
+| `script/check` | 跑完整检查，含全量快照和长对话压测 |
 | `script/format` | 按项目风格重排代码 |
 | `script/run` | 构建并打开 `output/Loci (Beta).app`；`--no-open` 只构建 |
 | `script/cut-release <版本>` | 定一个版本：改 CHANGELOG、跑闸门、提交、打 tag |
@@ -84,7 +88,7 @@ script/check
 
 说「做完了」之前：
 
-- `script/check` 通过，把输出贴出来。
+- 本地小改动完成时，贴对应测试的结果。提交 PR、合并或发版前跑完整 `script/check`，把输出贴出来。
 - 改了界面：用 `Tests/LociUITests/Snapshot.swift` 给亮色和暗色各渲染一张，看过图再交。图在 `output/snapshots/`。
 - 对照 `docs/features.md` 里这次涉及的场景，逐条说明怎么验证的。没验证的明说没验证。
 - 用户看得到的变化，在 `CHANGELOG.md` 的 Unreleased 下加一行。

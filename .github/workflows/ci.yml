@@ -5,10 +5,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "17 19 * * *"
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -17,6 +19,7 @@ permissions:
 jobs:
   commits:
     name: Commits
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -55,7 +58,12 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Check
+      - name: Fast check
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        run: script/check --fast
+
+      - name: Full check
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: script/check
 
       - name: Keep the log and snapshots
@@ -64,31 +72,6 @@ jobs:
         with:
           name: output
           path: |
-            output/check.log
+            output/check-*.log
             output/snapshots
           if-no-files-found: ignore
-
-  package:
-    name: Dmg
-    runs-on: xcode-27
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Use the newest Xcode
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
-
-      # No secrets on a pull request: this runs the ad-hoc branch of script/release, which has to keep
-      # producing a dmg. The signed and notarized one is built by the release workflow from a tag.
-      - name: Build the dmg
-        run: script/release
-
-      - name: Keep the dmg
-        uses: actions/upload-artifact@v4
-        with:
-          name: dmg
-          path: |
-            output/*.dmg
-            output/*.sha256
-          retention-days: 7
-          if-no-files-found: error

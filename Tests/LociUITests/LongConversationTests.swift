@@ -115,7 +115,15 @@ struct LongConversationTests {
     return rows
   }
 
+  @Test func consecutiveRepliesKeepTheConversationVisible() async throws {
+    try await Self.checkConversationRemainsVisible(replies: 2)
+  }
+
   @Test func aLongConversationKeepsShowingItsMessagesWhileQuestionsFollowOneAnother() async throws {
+    try await Self.checkConversationRemainsVisible(replies: 12)
+  }
+
+  private static func checkConversationRemainsVisible(replies: Int) async throws {
     let sample = try Sample(problems: false)
     var clock: Int64 = 1_763_400_000_000
     func message(_ body: Message.Body) -> Message {
@@ -142,7 +150,7 @@ struct LongConversationTests {
     try await Task.sleep(for: .milliseconds(300))
 
     var blank: [Int] = []
-    for question in 31...42 {
+    for question in 31..<(31 + replies) {
       let asked = message(.prompt(Prompt(text: "R4-ACK-\(question)", purpose: .chat)))
       let answer = Self.reply(question, sections: question % 3 == 0 ? 40 : 3)
       let id = EntityID()

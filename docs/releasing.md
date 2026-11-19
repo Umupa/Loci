@@ -18,11 +18,11 @@
 |---|---|---|
 | 自签名的「Loci Signing」（现在用的） | `codesign --options runtime`，不公证 | 第一次打开要在「系统设置 › 隐私与安全性」里点「仍要打开」，发布说明里会写 |
 | Developer ID Application（需要 Apple Developer Program 会员） | `codesign --options runtime --timestamp`，`notarytool` 公证应用和 dmg，`stapler` 把票据钉上 | 双击就能打开 |
-| 都没有（PR 的 CI） | ad hoc | 只用来确认打包没坏 |
+| 都没有（Dmg 流水线） | ad hoc | 只用来确认打包没坏 |
 
 `script/release` 按这个顺序自己选。以后换成 Developer ID，只需要换 secrets，脚本和流水线都不用改；但签名变了，已经装好的用户要重新授权一次。
 
-[ci.yml](../.github/workflows/ci.yml) 的 `Dmg` 作业跑 ad hoc 这条分支，打包坏了在合并前就能看到。
+[Dmg 流水线](../.github/workflows/dmg.yml) 在包依赖、打包脚本、打包资源或发布流水线变更时验证 ad hoc 打包。也可以用 `gh workflow run dmg.yml` 手动打包。
 
 ## 版本号
 
@@ -39,13 +39,14 @@
 ```
 
 1. **提交。** 提交信息用 Conventional Commits。`feat` 和 `fix` 是用户看得到的，同一个提交里要在 CHANGELOG 的 Unreleased 下加一行或改一行；用户看不到的用 `refactor`、`test`、`build`、`ci`、`chore`、`docs`。`script/check` 会检查还没推送的提交，CI 会检查这次推送带来的提交（`script/check-commits`）。
-2. **推到 main。** CI 跑三个作业：
+2. **推到 main。** PR 和推送都会触发 [CI](../.github/workflows/ci.yml)：
 
    | 作业 | 做什么 |
    |---|---|
    | Commits | 检查这次推送或 PR 的提交信息 |
-   | Check | `script/check`，留下日志和快照 |
-   | Dmg | 不带证书跑一遍 `script/release`，打包坏了在合并前就能看到 |
+   | Check | `script/check --fast`，跑格式、编译、单测、行为回归、架构和文档检查，留下各阶段日志 |
+
+   每天定时运行和用 `gh workflow run ci.yml` 手动运行时，CI 跑完整 `script/check`，也留下全量快照。
 
 3. **定版本。** 在 `docs/roadmap.md` 里把这一版挪进「已完成」，「发布」一列写上版本号，提交并推送。然后在 main 上：
 

@@ -37,7 +37,7 @@ Every night after 23:00, once you have gone quiet, Loci looks back on the day: i
 Requires Xcode 27 or later.
 
 ```sh
-script/check   # format, build, tests and architecture rules: the one gate
+script/check   # full checks for a pull request or release
 script/run     # build and open Loci (Beta)
 ```
 
@@ -49,7 +49,7 @@ script/run     # build and open Loci (Beta)
 - Why it is built this way: [docs/design.md](docs/design.md)
 - What each feature is called and how it should behave: [docs/features.md](docs/features.md)
 - How the code is divided: [docs/architecture.md](docs/architecture.md)
-- Rules for working here, for people and agents: [AGENTS.md](AGENTS.md)
+- Focused tests and rules for working here: [AGENTS.md](AGENTS.md)
 
 Versions 0.2 to 0.11 were a Tauri app. Its code is kept at the `tauri` tag.
 
