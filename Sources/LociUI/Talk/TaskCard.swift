@@ -27,10 +27,9 @@ struct TaskCard: View {
         ForEach(steps.indices, id: \.self) { index in
           let step = steps[index]
           HStack(spacing: Spacing.xs) {
-            Circle()
-              .fill(step.state == .later ? Palette.fillStrong : Palette.accent)
-              .frame(width: 6, height: 6)
-              .breathing(step.state == .now, period: 1)
+            BreathingDot(
+              color: step.state == .later ? Tones.fillStrong : Tones.accent, size: 6, breathing: step.state == .now,
+              period: 1)
             step.words.foregroundStyle(step.state == .done ? Palette.ink : Palette.inkMuted)
           }
         }
