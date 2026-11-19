@@ -8,17 +8,19 @@ import Testing
 /// α1-S9: no text is hard to read, in either appearance.
 @MainActor
 struct PaletteTests {
-  /// The color as it shows, laid over the canvas when it lets the canvas through.
-  static func components(of color: Color, in appearance: NSAppearance.Name) -> [Double] {
+  /// The color composited over its surface in the given appearance.
+  static func components(
+    of color: Color, in appearance: NSAppearance.Name, over surface: NSColor = Tones.canvas
+  ) -> [Double] {
     var components: [Double] = []
     NSAppearance(named: appearance)?.performAsCurrentDrawingAppearance {
       guard let resolved = NSColor(color).usingColorSpace(.sRGB),
-        let canvas = Tones.canvas.usingColorSpace(.sRGB)
+        let base = surface.usingColorSpace(.sRGB)
       else { return }
       let alpha = resolved.alphaComponent
       components = zip(
         [resolved.redComponent, resolved.greenComponent, resolved.blueComponent],
-        [canvas.redComponent, canvas.greenComponent, canvas.blueComponent]
+        [base.redComponent, base.greenComponent, base.blueComponent]
       ).map { Double($0 * alpha + $1 * (1 - alpha)) }
     }
     return components
@@ -49,6 +51,15 @@ struct PaletteTests {
       let background = Self.components(of: pair.background, in: appearance)
       let ratio = Self.contrast(text, background)
       #expect(ratio >= 4.5, "\(pair.name) in \(appearance.rawValue) is \(ratio)")
+    }
+  }
+
+  @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
+  func theSelectedSidebarSymbolIsReadableAnywhereInTheSidebar(appearance: NSAppearance.Name) {
+    let symbol = Self.components(of: Palette.sidebarSelectedInk, in: appearance)
+    for surface in [Tones.sidebarTop, Tones.sidebarMiddle, Tones.sidebarBottom] {
+      let background = Self.components(of: Palette.tint, in: appearance, over: surface)
+      #expect(Self.contrast(symbol, background) >= 4.5)
     }
   }
 

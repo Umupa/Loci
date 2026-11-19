@@ -48,8 +48,8 @@ struct LatestButton: View {
           Image(systemName: Symbols.latest)
         }
       }
-      .font(.system(size: 12, weight: .semibold))
-      .foregroundStyle(Palette.inkMuted)
+      .font(.system(size: 13, weight: .semibold))
+      .foregroundStyle(busy ? Palette.accentInk : Palette.inkMuted)
       .frame(width: Self.size, height: Self.size)
       .background(Circle().fill(Palette.surface).shadow(color: .black.opacity(0.1), radius: 6, y: 3))
       .overlay(Circle().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))

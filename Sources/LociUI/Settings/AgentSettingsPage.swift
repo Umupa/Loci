@@ -77,36 +77,43 @@ struct AgentSettingsPage: View {
   }
 }
 
-/// One agent: its mark, name and version; a check on the one Loci runs on, a green dot on the
-/// others that are installed. One that is missing is greyed out.
+/// One agent's mark, name, version and status. Installed agents can be selected.
 private struct AgentRow: View {
   let installation: AgentInstallation
   let isDefault: Bool
   let choose: () -> Void
 
   var body: some View {
-    Button(action: choose) {
-      SettingsRow {
-        AgentMark(provider: installation.provider, faded: !isInstalled)
-        Text(verbatim: Agents.name(of: installation.provider))
-          .foregroundStyle(isInstalled ? Palette.ink : Palette.inkMuted)
-        if let version {
-          Text(verbatim: version).font(.system(size: 11).monospaced()).foregroundStyle(Palette.inkFaint)
-        }
-      } trailing: {
-        if isDefault {
-          Image(systemName: Symbols.done).font(.system(size: 12, weight: .bold)).foregroundStyle(Palette.accent)
-        } else if isInstalled {
-          Circle().fill(Palette.ready).frame(width: 7, height: 7)
-            .background(Circle().fill(Palette.ready.opacity(0.18)).frame(width: 13, height: 13))
-            .accessibilityLabel(Text(.loci("agents.installed")))
-        }
+    Group {
+      if isInstalled {
+        Button(action: choose) { row.contentShape(Rectangle()) }
+          .buttonStyle(.plain)
+      } else {
+        row
+          .accessibilityElement(children: .combine)
+          .accessibilityValue(Text(.loci("agents.notInstalled")))
       }
-      .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
-    .disabled(!isInstalled)
     .accessibilityAddTraits(isDefault ? .isSelected : [])
+  }
+
+  private var row: some View {
+    SettingsRow {
+      AgentMark(provider: installation.provider)
+      Text(verbatim: Agents.name(of: installation.provider))
+        .foregroundStyle(isInstalled ? Palette.ink : Palette.inkMuted)
+      if let version {
+        Text(verbatim: version).font(.system(size: 11).monospaced()).foregroundStyle(Palette.inkMuted)
+      }
+    } trailing: {
+      if isDefault {
+        Image(systemName: Symbols.done).font(.system(size: 12, weight: .bold)).foregroundStyle(Palette.accentInk)
+      } else if isInstalled {
+        Circle().fill(Palette.ready).frame(width: 7, height: 7)
+          .background(Circle().fill(Palette.ready.opacity(0.18)).frame(width: 13, height: 13))
+          .accessibilityLabel(Text(.loci("agents.installed")))
+      }
+    }
   }
 
   private var isInstalled: Bool {

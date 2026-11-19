@@ -10,8 +10,7 @@ enum Palette {
   static let canvas = Color(nsColor: Tones.canvas)
   /// The panel beside the text, and code blocks.
   static let well = Color(nsColor: Tones.well)
-  /// Under the sidebar's glass: warm at the top, cooling toward the bottom, as the design's wallpaper shows
-  /// through it.
+  /// The warm surface under the sidebar's glass.
   static let sidebarWash = LinearGradient(
     stops: [
       .init(color: Color(nsColor: Tones.sidebarTop), location: 0.15),
@@ -23,8 +22,10 @@ enum Palette {
   static let surface = Color(nsColor: Tones.surface)
   static let ink = Color(nsColor: Tones.ink)
   static let inkMuted = Color(nsColor: Tones.inkMuted)
-  /// Muted text in the sidebar, a little darker in light so it stays readable where the sidebar is grayest.
+  /// Neutral symbols and text in the sidebar.
   static let sidebarInkMuted = Color(nsColor: Tones.sidebarInkMuted)
+  static let sidebarSectionInk = Color(dark: 0xA89A89, light: 0x5D5A56)
+  static let sidebarSelectedInk = Color(dark: 0xFFB84D, light: 0x784409)
   /// Section labels, dates and glyphs; never for text that must be read.
   static let inkFaint = Color(nsColor: Tones.inkFaint)
   /// Hairlines between things and around cards.
@@ -93,6 +94,8 @@ enum Palette {
     (ink, Color(nsColor: Tones.sidebarBottom), "ink on the sidebar's bottom"),
     (sidebarInkMuted, Color(nsColor: Tones.sidebarTop), "muted on the sidebar's top"),
     (sidebarInkMuted, Color(nsColor: Tones.sidebarBottom), "muted on the sidebar's bottom"),
+    (sidebarSectionInk, Color(nsColor: Tones.sidebarTop), "section on the sidebar's top"),
+    (sidebarSectionInk, Color(nsColor: Tones.sidebarBottom), "section on the sidebar's bottom"),
     (ink, tint, "selected text"), (ink, selection, "text selected in the reader"), (ink, mark, "highlighted text"),
     (inkMuted, canvas, "muted on canvas"), (inkMuted, surface, "muted on surface"),
     (accentInk, canvas, "amber text on canvas"), (accentInk, surface, "amber text on surface"),
@@ -107,10 +110,10 @@ enum Tones {
   static let canvas = NSColor(dark: 0x121110, light: 0xFCFBF8)
   static let well = NSColor(dark: 0x191715, light: 0xF6F3EE)
   static let surface = NSColor(dark: 0x1E1C19, light: 0xFFFFFF)
-  static let sidebarTop = NSColor(dark: 0x2F2419, light: 0xF5ECDE)
-  static let sidebarMiddle = NSColor(dark: 0x201B17, light: 0xE7DCCF)
-  static let sidebarBottom = NSColor(dark: 0x1A1817, light: 0xD6D2CF)
-  static let sidebarInkMuted = NSColor(dark: 0x9A968F, light: 0x5D5A56)
+  static let sidebarTop = NSColor(dark: 0x302925, light: 0xF5ECDE)
+  static let sidebarMiddle = NSColor(dark: 0x2C2520, light: 0xE7DCCF)
+  static let sidebarBottom = NSColor(dark: 0x251F1B, light: 0xD6D2CF)
+  static let sidebarInkMuted = NSColor(dark: 0xBCB2A5, light: 0x5D5A56)
   static let ink = NSColor(dark: 0xF2EEE6, light: 0x1D1B18)
   static let inkMuted = NSColor(dark: 0x9A968F, light: 0x6E6B66)
   static let inkFaint = NSColor(dark: 0x5E5C59, light: 0xACAAA7)

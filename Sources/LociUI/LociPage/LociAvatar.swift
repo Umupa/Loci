@@ -1,13 +1,12 @@
-import AppKit
 import SwiftUI
 
 /// Loci's face in a circle, the same face everywhere.
 struct LociAvatar: View {
-  /// How much of the drawing a circle this size shows.
+  /// Whether the circle draws its own ring.
   enum Framing {
-    /// Head and shoulders cropped close, with a light ring, for the sidebar and beside messages.
+    /// A ring for the sidebar and beside messages.
     case face
-    /// The whole drawing, for Loci's own page, which frames it itself.
+    /// Loci's own page frames the portrait itself.
     case portrait
   }
 
@@ -29,29 +28,8 @@ struct LociAvatar: View {
   }
 
   @ViewBuilder private var art: some View {
-    switch face {
-    case .picture(let picture):
+    if let picture = face.image {
       Image(nsImage: picture).resizable().scaledToFill()
-    case .drawn:
-      if let drawing = LociFace.drawing {
-        let frame = Self.frame(of: framing, in: size)
-        Image(nsImage: drawing)
-          .resizable()
-          .frame(width: frame.width, height: frame.height)
-          .offset(x: frame.minX, y: frame.minY)
-          .frame(width: size, height: size, alignment: .topLeading)
-      }
     }
-  }
-
-  /// Where the whole drawing goes so that the part `framing` shows fills a circle `size` across.
-  static func frame(of framing: Framing, in size: CGFloat) -> CGRect {
-    let shown =
-      framing == .face
-      ? LociFace.faceCrop : CGRect(x: 0, y: 0, width: LociFace.drawingSide, height: LociFace.drawingSide)
-    let scale = size / shown.width
-    return CGRect(
-      x: -shown.minX * scale, y: -shown.minY * scale, width: LociFace.drawingSide * scale,
-      height: LociFace.drawingSide * scale)
   }
 }

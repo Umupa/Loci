@@ -76,7 +76,7 @@ private struct SidebarLoci: View {
   }
 }
 
-/// One row of the sidebar: an amber symbol and a title.
+/// A destination whose symbol takes the accent when selected.
 private struct SidebarRow: View {
   let selected: Bool
   let title: Text
@@ -89,7 +89,7 @@ private struct SidebarRow: View {
       HStack(spacing: 10) {
         Image(systemName: symbol)
           .font(.system(size: 14))
-          .foregroundStyle(Palette.accent)
+          .foregroundStyle(selected ? Palette.sidebarSelectedInk : Palette.sidebarInkMuted)
           .frame(width: 17, height: 17)
         title.lineLimit(1).fontWeight(selected ? .medium : .regular)
         Spacer(minLength: 0)
@@ -117,7 +117,7 @@ struct SidebarLabel: View {
   var body: some View {
     text
       .font(.system(size: 11.5, weight: .medium))
-      .foregroundStyle(Palette.sidebarInkMuted)
+      .foregroundStyle(Palette.sidebarSectionInk)
       .padding(.top, 14)
       .padding(.horizontal, 10)
       .padding(.bottom, 5)

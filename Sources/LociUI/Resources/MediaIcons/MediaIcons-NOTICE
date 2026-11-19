@@ -1,0 +1,10 @@
+Media component icons
+
+- yt-dlp: the largest image from the project's release icon, devscripts/logo.ico.
+  https://github.com/yt-dlp/yt-dlp/blob/2d596f4882a2d6e6414836bccd9fd3fb1e1534a2/devscripts/logo.ico
+  See LICENSE-yt-dlp.
+- FFmpeg: the largest image from the project site's favicon.
+  https://ffmpeg.org/favicon.ico
+
+The ICO images are stored as PNG with their original colors and transparency.
+Brand marks identify their products and remain their owners' trademarks.

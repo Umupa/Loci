@@ -4,8 +4,6 @@ import SwiftUI
 struct SettingsPage<Content: View>: View {
   let symbol: String
   let title: LocalizedStringResource
-  /// The tile's colors, top to bottom.
-  var tile: (Color, Color) = (Color(nsColor: NSColor(rgb: 0x5C5A57)), Color(nsColor: NSColor(rgb: 0x2E2C2A)))
   /// Wider for a page with a table in it.
   var width = Size.settingsWidth
   @ViewBuilder let content: Content
@@ -16,13 +14,10 @@ struct SettingsPage<Content: View>: View {
         HStack(spacing: Spacing.s) {
           Image(systemName: symbol)
             .font(.system(size: 18, weight: .medium))
-            .foregroundStyle(.white)
-            .frame(width: 38, height: 38)
-            .background(
-              RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(LinearGradient(colors: [tile.0, tile.1], startPoint: .top, endPoint: .bottom))
-            )
-            .shadow(color: .black.opacity(0.18), radius: 1.5, y: 1)
+            .foregroundStyle(Palette.inkMuted)
+            .frame(width: Size.settingsTile, height: Size.settingsTile)
+            .background(Palette.fill, in: .rect(cornerRadius: 10))
+            .accessibilityHidden(true)
           Text(title).font(.system(size: 20, weight: .bold)).foregroundStyle(Palette.ink)
         }
         content

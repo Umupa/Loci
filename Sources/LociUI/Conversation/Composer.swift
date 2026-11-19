@@ -35,7 +35,7 @@ struct Composer: View {
       field
       HStack(spacing: 6) {
         if let attach {
-          PlusButton(action: attach)
+          AttachButton(action: attach)
         }
         RuntimeMenu(namesAgent: style == .talk)
         Spacer(minLength: Spacing.xxs)
@@ -59,7 +59,11 @@ struct Composer: View {
       Button {
         self.draft = nil
       } label: {
-        Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)).foregroundStyle(Palette.inkFaint)
+        Image(systemName: Symbols.cancel)
+          .font(.system(size: 11, weight: .medium))
+          .foregroundStyle(Palette.inkMuted)
+          .frame(width: 20, height: 20)
+          .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
       .accessibilityLabel(Text(.loci("conversation.removePassage")))
@@ -94,9 +98,11 @@ struct Composer: View {
 
   @ViewBuilder private var sendOrStop: some View {
     if busy {
-      RoundButton(symbol: Symbols.stop, label: .loci("conversation.stop"), action: halt).disabled(stopping)
+      RoundButton(symbol: Symbols.stop, glyphSize: 11, label: .loci("conversation.stop"), action: halt)
+        .disabled(stopping)
     } else {
-      RoundButton(symbol: Symbols.send, label: .loci("conversation.send"), action: submit).disabled(trimmed.isEmpty)
+      RoundButton(symbol: Symbols.send, glyphSize: 14, label: .loci("conversation.send"), action: submit)
+        .disabled(trimmed.isEmpty)
     }
   }
 
@@ -175,6 +181,7 @@ enum ComposerKey: Equatable {
 /// The amber circle that sends, or stops Loci while it works.
 private struct RoundButton: View {
   let symbol: String
+  let glyphSize: CGFloat
   let label: LocalizedStringResource
   let action: () -> Void
   @Environment(\.isEnabled) private var enabled
@@ -182,11 +189,10 @@ private struct RoundButton: View {
   var body: some View {
     Button(action: action) {
       Image(systemName: symbol)
-        .font(.system(size: 13, weight: .bold))
-        .foregroundStyle(Palette.onAccent)
+        .font(.system(size: glyphSize, weight: .semibold))
+        .foregroundStyle(enabled ? Palette.onAccent : Palette.inkMuted)
         .frame(width: Size.sendButton, height: Size.sendButton)
-        .background(Circle().fill(Palette.accent))
-        .opacity(enabled ? 1 : 0.35)
+        .background(enabled ? Palette.accent : Palette.fillStrong, in: .circle)
     }
     .buttonStyle(SendPressStyle())
     .accessibilityLabel(Text(label))
@@ -203,14 +209,14 @@ private struct SendPressStyle: ButtonStyle {
 }
 
 /// Adds a file, as dropping one does.
-private struct PlusButton: View {
+private struct AttachButton: View {
   let action: () -> Void
   @State private var hovering = false
 
   var body: some View {
     Button(action: action) {
-      Image(systemName: Symbols.add)
-        .font(.system(size: 13, weight: .medium))
+      Image(systemName: Symbols.attach)
+        .font(.system(size: 14, weight: .medium))
         .foregroundStyle(Palette.inkMuted)
         .frame(width: Size.iconButton, height: Size.iconButton)
         .background(Circle().fill(hovering ? Palette.fill : .clear))

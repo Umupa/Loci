@@ -68,7 +68,7 @@ struct AnswerActions: View {
 struct SavedChip: View {
   var body: some View {
     HStack(spacing: 6) {
-      Image(systemName: Symbols.done).font(.system(size: 10, weight: .bold)).foregroundStyle(Palette.accent)
+      Image(systemName: Symbols.done).font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.accentInk)
       Text(.loci("conversation.saved")).font(.system(size: 11.5)).foregroundStyle(Palette.inkMuted)
     }
     .frame(height: 24)

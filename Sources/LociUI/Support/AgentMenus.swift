@@ -27,7 +27,7 @@ struct RuntimeMenu: View {
           Label {
             Text(verbatim: Agents.name(of: provider))
           } icon: {
-            AgentMark.image(provider, in: scheme).map { Image(nsImage: $0) }
+            AgentMark.image(provider, in: scheme).map { Image(nsImage: $0).renderingMode(.original) }
           }
           .tag(provider)
         }

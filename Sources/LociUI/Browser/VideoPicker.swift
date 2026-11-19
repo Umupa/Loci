@@ -160,15 +160,16 @@ struct BrowserStart: View {
             go(site.address)
           } label: {
             VStack(spacing: Spacing.xs) {
-              RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(LinearGradient(colors: [site.top, site.bottom], startPoint: .top, endPoint: .bottom))
-                .overlay(site.mark.font(.system(size: 24, weight: .medium)).foregroundStyle(.white))
-                .overlay(
-                  RoundedRectangle(cornerRadius: 15, style: .continuous).strokeBorder(
-                    .black.opacity(0.12), lineWidth: Size.hairline)
-                )
-                .shadow(color: .black.opacity(0.12), radius: 6, y: 4)
+              let tile = RoundedRectangle(cornerRadius: 15, style: .continuous)
+              Image(systemName: site.symbol)
+                .font(.system(size: 24, weight: .medium))
+                .foregroundStyle(site.ink)
                 .frame(width: Size.siteTile, height: Size.siteTile)
+                .background(Palette.surface, in: tile)
+                .overlay(
+                  tile.strokeBorder(Palette.lineStrong, lineWidth: Size.hairline)
+                )
+                .accessibilityHidden(true)
               Text(site.name).font(.system(size: 12)).foregroundStyle(Palette.inkMuted)
             }
           }
@@ -185,22 +186,20 @@ struct BrowserStart: View {
 private struct StartSite {
   let name: LocalizedStringResource
   let address: String
-  let mark: Image
-  let top: Color
-  let bottom: Color
+  let symbol: String
+  var ink = Palette.inkMuted
 
   static let all = [
     StartSite(
-      name: .loci("site.youtube"), address: "https://www.youtube.com", mark: Image(systemName: "play.rectangle"),
-      top: Color(nsColor: NSColor(rgb: 0xF0503F)), bottom: Color(nsColor: NSColor(rgb: 0xC9271B))),
+      name: .loci("site.youtube"), address: "https://www.youtube.com", symbol: "play.rectangle.fill",
+      ink: Color(dark: 0xFF7973, light: 0xCA211F)),
     StartSite(
-      name: .loci("site.bilibili"), address: "https://www.bilibili.com", mark: Image(systemName: "tv"),
-      top: Color(nsColor: NSColor(rgb: 0x3FB4E8)), bottom: Color(nsColor: NSColor(rgb: 0x1C8CC4))),
+      name: .loci("site.bilibili"), address: "https://www.bilibili.com", symbol: "tv",
+      ink: Color(dark: 0x7DCAEB, light: 0x16749F)),
     StartSite(
-      name: .loci("site.xiaoyuzhou"), address: "https://www.xiaoyuzhoufm.com", mark: Image(systemName: "circle.circle"),
-      top: Color(nsColor: NSColor(rgb: 0x3A3A3C)), bottom: Color(nsColor: NSColor(rgb: 0x121214))),
+      name: .loci("site.xiaoyuzhou"), address: "https://www.xiaoyuzhoufm.com", symbol: "circle.circle"),
     StartSite(
-      name: .loci("site.arxiv"), address: "https://arxiv.org", mark: Image(systemName: "character"),
-      top: Color(nsColor: NSColor(rgb: 0xC24A35)), bottom: Color(nsColor: NSColor(rgb: 0x8E2B1D))),
+      name: .loci("site.arxiv"), address: "https://arxiv.org", symbol: "text.book.closed",
+      ink: Color(dark: 0xE49283, light: 0xA83C2F)),
   ]
 }

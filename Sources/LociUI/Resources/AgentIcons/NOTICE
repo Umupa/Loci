@@ -1,14 +1,21 @@
 Agent icons
 
-agent-claude-code.svg, agent-codex.svg, agent-grok.svg, agent-antigravity.svg,
-agent-cursor.svg, agent-hermes.svg and agent-opencode.svg are from LobeHub icons,
-https://github.com/lobehub/lobe-icons/tree/master/packages/static-svg/icons
-(MIT, LICENSE in this folder), by way of Better Icons for Herdr, which simplified
-the SVG wrapper and gave it a 2px margin; paths and colors are unchanged.
-agent-claude-code.svg is claude-color.svg, agent-codex.svg is openai.svg,
-agent-hermes.svg is hermesagent.svg, agent-antigravity.svg is antigravity-color.svg;
-the others use the agent's own name.
-
-agent-pi.svg, agent-omp.svg and agent-fx.svg are original artwork for Loci.
+- Antigravity: the full-color icon from https://antigravity.google/press/ (resampled to 144 px).
+- Claude Code: Claude Spark - Clay from https://www.anthropic.com/press-kit .
+- Codex: OpenAI Blossom, black and white PNGs from the OpenAI brand archive.
+  https://openai.com/brand/ and https://cdn.openai.com/brand/openai-logos.zip
+- Cursor: CUBE_2D_LIGHT.svg and CUBE_2D_DARK.svg from https://cursor.com/brand .
+- fx: the site icon from https://fx.sh/favicon.png .
+- Hermes Agent: the unplated 48 px light and dark app icons from
+  https://github.com/NousResearch/hermes-agent/tree/95a1d228c54e3a088892b38503c5c7796a98455e/apps/desktop/assets/appx
+  (MIT, LICENSE-Hermes-Agent).
+- Oh My Pi: https://github.com/can1357/oh-my-pi/blob/57771ae562b9345e0579bceb2d68d585e3e6927e/assets/icon.svg
+  (MIT, LICENSE-Oh-My-Pi).
+- OpenCode: the light and dark square logos from https://opencode.ai/brand .
+- Pi: the badge from https://pi.dev/press-kit . Its two source CSS fills are
+  written as separate assets so the native menu can select the appearance.
+- Grok: monochrome mark from LobeHub icons, by way of Better Icons for Herdr.
+  https://github.com/lobehub/lobe-icons/tree/master/packages/static-svg/icons
+  (MIT, LICENSE). Loci selects a neutral foreground for the current appearance.
 
 Brand marks identify their products and remain their owners' trademarks.

@@ -1038,6 +1038,23 @@
         }
       }
     },
+    "agents.notInstalled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not installed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未安装"
+          }
+        }
+      }
+    },
     "effort.off": {
       "extractionState": "manual",
       "localizations": {

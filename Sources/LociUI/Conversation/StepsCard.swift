@@ -112,8 +112,8 @@ private struct StepLine<Label: View>: View {
       }
       if opens {
         Image(systemName: Symbols.fold)
-          .font(.system(size: 8, weight: .semibold))
-          .foregroundStyle(Palette.inkFaint)
+          .font(.system(size: 9, weight: .semibold))
+          .foregroundStyle(Palette.inkMuted)
           .rotationEffect(.degrees(open ? 90 : 0))
       }
     }
@@ -162,8 +162,8 @@ private struct ToolRun: View {
   @ViewBuilder private var icon: some View {
     let failed = tools.contains { $0.state == .failed }
     Image(systemName: failed ? Symbols.problem : Symbols.tools)
-      .font(.system(size: 11))
-      .foregroundStyle(failed ? Palette.accentInk : Palette.inkFaint)
+      .font(.system(size: 11, weight: .medium))
+      .foregroundStyle(failed ? Palette.accentInk : Palette.inkMuted)
   }
 
   @ViewBuilder private var label: some View {
@@ -234,8 +234,8 @@ private struct StepRow: View {
       SparkleMark(spinning: step.isGoing)
     case .tool(let tool):
       Image(systemName: tool.state == .failed ? Symbols.problem : Self.symbol(ToolTitle(tool), tool.kind))
-        .font(.system(size: 11))
-        .foregroundStyle(tool.state == .failed ? Palette.accentInk : Palette.inkFaint)
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(tool.state == .failed ? Palette.accentInk : Palette.inkMuted)
     }
   }
 
@@ -287,9 +287,9 @@ struct SparkleMark: View {
 
   var body: some View {
     TimelineView(.animation(paused: !spinning)) { timeline in
-      Image(systemName: "sparkle")
+      Image(systemName: Symbols.thinking)
         .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(Palette.accent)
+        .foregroundStyle(spinning ? Palette.accentInk : Palette.inkMuted)
         .rotationEffect(.degrees(spinning ? timeline.date.timeIntervalSinceReferenceDate * 120 : 0))
     }
   }

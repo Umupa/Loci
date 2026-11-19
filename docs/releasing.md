@@ -6,7 +6,7 @@
 
 | 文件 | 是什么 |
 |---|---|
-| `output/Loci Dev.app` | `script/bundle` 组装的应用包，`script/run` 和 `script/release` 共用 |
+| `output/Loci Dev.app` | `script/bundle` 组装的应用包，包含 `script/resources/Loci.icns`；`script/run` 和 `script/release` 共用 |
 | `output/Loci-Dev-<version>.dmg` | 发布产物：应用加一个 `/Applications` 链接，Apple silicon 与 Intel 通用 |
 | `output/Loci-Dev-<version>.dmg.sha256` | 上面那个文件的校验和 |
 
@@ -122,5 +122,4 @@ script/measure-launch --app "output/Loci Dev.app"  # 量已经打好的包
 ## 还没做
 
 - 自动更新（Sparkle）和正式版 Loci 渠道：β2。
-- 应用图标：现在 `script/bundle` 不带 `.icns`，Finder 和 Dock 里是系统默认的样子。
 - 公证的 App Store Connect API key 路径：现在只认 Apple ID 加 App 专用密码。

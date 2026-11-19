@@ -17,7 +17,7 @@ struct CopyButton: View {
       }
     } label: {
       Image(systemName: copied ? Symbols.done : Symbols.copy)
-        .font(.system(size: 11, weight: .medium))
+        .font(.system(size: 12, weight: .medium))
         .foregroundStyle(copied ? Palette.accentInk : Palette.inkMuted)
         .contentTransition(.symbolEffect(.replace))
         .frame(width: 24, height: 24)

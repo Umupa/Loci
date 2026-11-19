@@ -5,20 +5,20 @@ enum Symbols {
   static let library = "books.vertical"
   static let problem = "exclamationmark.triangle.fill"
   static let send = "arrow.up"
-  static let link = "link"
+  static let attach = "paperclip"
   static let settings = "gearshape"
   static let agents = "terminal"
   static let fold = "chevron.right"
   static let popup = "chevron.up.chevron.down"
-  static let highlight = "pencil.tip"
+  static let highlight = "highlighter"
   static let thought = "text.bubble"
   static let ask = "bubble.left"
   static let sidebar = "sidebar.left"
   static let panel = "sidebar.right"
   static let stop = "stop.fill"
   static let done = "checkmark"
-  static let browser = "safari"
-  static let media = "play.square.stack"
+  static let browser = web
+  static let media = "slider.horizontal.3"
   static let play = "play.fill"
   static let pause = "pause.fill"
   static let back5 = "gobackward.5"
@@ -26,7 +26,7 @@ enum Symbols {
   static let fullScreen = "arrow.up.left.and.arrow.down.right"
   static let subtitles = "captions.bubble"
   static let external = "arrow.up.forward.square"
-  static let backToPlaying = "arrow.up"
+  static let backToPlaying = "play.circle"
   static let download = "arrow.down.to.line"
   static let add = "plus"
   static let camera = "camera"
@@ -38,12 +38,12 @@ enum Symbols {
   static let more = "ellipsis"
   static let cancel = "xmark"
   static let recognizing = "waveform"
-  static let thoughtSmall = "text.bubble"
   static let copy = "doc.on.doc"
   static let latest = "arrow.down"
-  static let tools = "square.stack.3d.up"
+  static let thinking = "sparkle"
+  static let tools = "list.bullet"
   static let web = "globe"
-  static let remote = "dot.radiowaves.left.and.right"
+  static let remote = "display.2"
 
   static func machine(_ model: MachineModel) -> String {
     switch model {
@@ -57,7 +57,7 @@ enum Symbols {
 
   static func tool(_ kind: ToolActivity.Kind) -> String {
     switch kind {
-    case .read: "doc.text.magnifyingglass"
+    case .read: "doc.text"
     case .edit: "pencil"
     case .create: "doc.badge.plus"
     case .delete: "trash"
@@ -70,9 +70,9 @@ enum Symbols {
   static func kind(_ kind: ItemKind) -> String {
     switch kind {
     case .article: "doc.text"
-    case .paper: "doc.richtext"
+    case .paper: "book.closed"
     case .video: "play.rectangle"
-    case .audio: "mic"
+    case .audio: "headphones"
     case .repository: "chevron.left.forwardslash.chevron.right"
     }
   }

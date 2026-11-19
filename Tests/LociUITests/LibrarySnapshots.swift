@@ -120,6 +120,14 @@ struct LibrarySnapshots {
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
+  func aTranscriptScrolledAwayFromPlaybackOffersToReturn(appearance: Snapshot.Appearance) async throws {
+    let library = try SampleLibrary()
+    try await Self.shoot(
+      "video-back-to-playing", library, at: Self.reading(library.video.id), appearance: appearance,
+      standIns: StandIns(moment: MediaMoment(scrolledAway: true)))
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
   func podcast(appearance: Snapshot.Appearance) async throws {
     let library = try SampleLibrary()
     try await Self.shoot(

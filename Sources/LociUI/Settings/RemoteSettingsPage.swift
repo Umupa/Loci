@@ -6,11 +6,7 @@ struct RemoteSettingsPage: View {
   @Environment(\.machineChoice) private var choice
 
   var body: some View {
-    SettingsPage(
-      symbol: Symbols.remote, title: .loci("settings.remote"),
-      tile: (Color(nsColor: NSColor(rgb: 0x59606B)), Color(nsColor: NSColor(rgb: 0x2F343B))),
-      width: Size.wideSettingsWidth
-    ) {
+    SettingsPage(symbol: Symbols.remote, title: .loci("settings.remote"), width: Size.wideSettingsWidth) {
       if let choice, !choice.roster.paired.isEmpty {
         VStack(alignment: .trailing, spacing: 6) {
           SettingsGroup(title: nil, inset: 50) {

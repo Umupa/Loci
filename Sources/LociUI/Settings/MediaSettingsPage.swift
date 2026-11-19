@@ -8,11 +8,7 @@ struct MediaSettingsPage: View {
   @State private var feed: Feed<MediaSetup>?
 
   var body: some View {
-    SettingsPage(
-      symbol: Symbols.media, title: .loci("settings.media"),
-      tile: (Color(nsColor: NSColor(rgb: 0xF0B455)), Color(nsColor: NSColor(rgb: 0xD08414))),
-      width: Size.wideSettingsWidth
-    ) {
+    SettingsPage(symbol: Symbols.media, title: .loci("settings.media"), width: Size.wideSettingsWidth) {
       Group {
         if let setup = feed?.value {
           VStack(alignment: .leading, spacing: 6) {
@@ -74,7 +70,7 @@ private struct ComponentRow: View {
         tile
         HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
           Text(verbatim: status.component.name)
-          detail.font(Typography.mono).foregroundStyle(Palette.inkFaint)
+          detail.font(Typography.mono).foregroundStyle(Palette.inkMuted)
         }
         .lineLimit(1)
       }
@@ -121,26 +117,31 @@ private struct ComponentRow: View {
   }
 
   private var tile: some View {
-    let look: (String, UInt32, UInt32) =
-      switch status.component {
-      case .ytDlp: (Symbols.download, 0xE25B4A, 0xB73526)
-      case .ffmpeg: ("film", 0x4FA05A, 0x2C7038)
-      case .quickJS: ("curlybraces", 0xE9B23C, 0xC48A12)
+    RoundedRectangle(cornerRadius: 7)
+      .fill(Palette.fill)
+      .overlay {
+        if let mark = MarkArt.component(status.component) {
+          Image(nsImage: mark)
+            .renderingMode(.original)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 24, height: 24)
+        } else {
+          Image(systemName: fallback)
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(Palette.inkMuted)
+        }
       }
-    return Image(systemName: look.0)
-      .font(.system(size: 14, weight: .semibold))
-      .foregroundStyle(.white)
       .frame(width: Size.componentTile, height: Size.componentTile)
-      .background(
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
-          .fill(
-            LinearGradient(
-              colors: [Color(nsColor: NSColor(rgb: look.1)), Color(nsColor: NSColor(rgb: look.2))], startPoint: .top,
-              endPoint: .bottom))
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(
-          .black.opacity(0.14), lineWidth: Size.hairline))
+      .accessibilityHidden(true)
+  }
+
+  private var fallback: String {
+    switch status.component {
+    case .ytDlp: Symbols.download
+    case .ffmpeg: "film"
+    case .quickJS: "curlybraces"
+    }
   }
 }
 
