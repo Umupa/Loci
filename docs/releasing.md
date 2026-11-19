@@ -1,6 +1,6 @@
 # 版本与发布
 
-从一次提交到一个发布出去的 Loci Dev：版本号、提交规则、CI、定版本、签名公证和发布流水线。这一版只发 **Loci Dev** 渠道（`com.loci.native.dev`）；正式版 Loci 与自动更新在 β2（见 [roadmap.md](roadmap.md)）。
+从一次提交到一个发布出去的 Loci Dev：版本号、提交规则、CI、定版本、签名和发布流水线。这一版只发 **Loci Dev** 渠道（`com.loci.native.dev`）；正式版 Loci 与自动更新在 β2（见 [roadmap.md](roadmap.md)）。
 
 ## 产物
 
@@ -10,9 +10,19 @@
 | `output/Loci-Dev-<version>.dmg` | 发布产物：应用加一个 `/Applications` 链接，Apple silicon 与 Intel 通用 |
 | `output/Loci-Dev-<version>.dmg.sha256` | 上面那个文件的校验和 |
 
-签名和公证走 Developer ID：`codesign --options runtime --timestamp` 签应用，`notarytool` 公证，`stapler` 把票据钉在文件上。**两次往返**：先公证应用（装进 zip 提交），再公证 dmg。钉过票据的文件离线也能通过 Gatekeeper 的检查。
+## 签名
 
-没有证书时（本机没有 Developer ID，或 PR 里跑的 CI）不失败：用 ad-hoc 签名，跳过公证，dmg 照样打出来，macOS 第一次打开时会要求确认。这是脚本里的一条分支，不是另一个脚本；[ci.yml](../.github/workflows/ci.yml) 的 `Dmg` 作业专门跑这条分支。
+每个版本都用同一个身份签名。签名不变，macOS 才会保留装好的那一份已经拿到的权限（文件夹、通知、钥匙串）。
+
+| 身份 | 怎么签 | 打开时 |
+|---|---|---|
+| 自签名的「Loci Signing」（现在用的） | `codesign --options runtime`，不公证 | 第一次打开要在「系统设置 › 隐私与安全性」里点「仍要打开」，发布说明里会写 |
+| Developer ID Application（需要 Apple Developer Program 会员） | `codesign --options runtime --timestamp`，`notarytool` 公证应用和 dmg，`stapler` 把票据钉上 | 双击就能打开 |
+| 都没有（PR 的 CI） | ad hoc | 只用来确认打包没坏 |
+
+`script/release` 按这个顺序自己选。以后换成 Developer ID，只需要换 secrets，脚本和流水线都不用改；但签名变了，已经装好的用户要重新授权一次。
+
+[ci.yml](../.github/workflows/ci.yml) 的 `Dmg` 作业跑 ad hoc 这条分支，打包坏了在合并前就能看到。
 
 ## 版本号
 
@@ -52,20 +62,20 @@
 
    1. 确认 tag 在 main 上，用 `script/changelog` 取出这一版的 CHANGELOG 段落作为发布说明；没有这一段就失败。
    2. `script/check`。
-   3. 检查 secrets：tag 构建必须签名并公证，缺一个 secret 就失败，不会把 ad-hoc 签名的包发给别人。
-   4. 把 `MACOS_SIGNING_IDENTITY` 里的 `.p12` 导入一个临时钥匙串，取出其中的 Developer ID Application 身份。
-   5. `script/release`：通用构建、签名、公证、写 dmg 和校验和。
+   3. 检查 secrets：tag 构建必须签名，缺签名的 secret 就失败，不会把 ad hoc 签名的包发给别人。
+   4. 把 `MACOS_SIGNING_IDENTITY` 里的 `.p12` 导入一个临时钥匙串：有 Developer ID 就用它；否则信任其中的「Loci Signing」并用它。
+   5. `script/release`：通用构建、签名、Developer ID 时公证、写 dmg 和校验和。
    6. `script/measure-launch`：记录 release 构建的冷启动，**只记录，不卡发布**。
    7. 建 GitHub release，附上 dmg 和校验和；带 `-` 的版本是 pre-release。重跑只替换文件，不会重复建 release。
 
-`gh workflow run release` 是试 secrets 用的：构建、签名、公证都和 tag 一样，但不发版，dmg 留成 workflow artifact。
+`gh workflow run release` 是试 secrets 用的：构建和签名都和 tag 一样，但不发版，dmg 留成 workflow artifact。
 
 发出去的版本有问题时不删 tag、不改已发布的 CHANGELOG 段落，修好后发下一个版本。
 
 ## 在本机
 
 ```sh
-script/release                                   # 有 Developer ID 和公证凭据就签名并公证
+script/release                                   # 用本机的 Developer ID 或「Loci Signing」签名；Developer ID 加公证凭据时公证
 LOCI_ARCHS="arm64 x86_64" script/release         # 通用包（默认只打本机架构）
 LOCI_VERSION=1.0.0-alpha.3 LOCI_BUILD=42 script/release
 ```
@@ -74,7 +84,7 @@ LOCI_VERSION=1.0.0-alpha.3 LOCI_BUILD=42 script/release
 
 | 环境变量 | 作用 |
 |---|---|
-| `LOCI_SIGN_IDENTITY` | 用哪个 codesign 身份；默认取本机第一个 `Developer ID Application` |
+| `LOCI_SIGN_IDENTITY` | 用哪个 codesign 身份；默认取本机第一个 `Developer ID Application`，没有就用「Loci Signing」 |
 | `LOCI_NOTARY_PROFILE` | `xcrun notarytool store-credentials` 存的钥匙串 profile |
 | `APPLE_ID`、`APPLE_TEAM_ID`、`APPLE_APP_PASSWORD` | 或者直接给 Apple ID 的公证凭据 |
 | `LOCI_VERSION`、`LOCI_BUILD` | 包里的 `CFBundleShortVersionString`、`CFBundleVersion`（默认 `1.0.0-alpha` 和 `1`） |
@@ -87,17 +97,16 @@ xcrun notarytool store-credentials loci-notary
 LOCI_NOTARY_PROFILE=loci-notary script/release
 ```
 
-## secrets 怎么准备
+## secrets
 
-一次性的，在有证书的 Mac 上：
+| secret | 是什么 | 必须 |
+|---|---|---|
+| `MACOS_SIGNING_IDENTITY` | 签名身份的 `.p12`，base64 | tag 必须 |
+| `MACOS_SIGNING_PASSWORD` | `.p12` 的密码 | tag 必须 |
+| `LOCI_RELAY_URL`、`LOCI_RELAY_KEY` | 远程访问用的中继和注册密钥；没有就没有远程访问 | 应该有 |
+| `MACOS_NOTARY_APPLE_ID`、`MACOS_NOTARY_TEAM_ID`、`MACOS_NOTARY_PASSWORD` | Apple ID、Team ID、App 专用密码 | 只在用 Developer ID 时 |
 
-1. 从 Apple Developer 导出 **Developer ID Application** 证书，连同私钥和证书链，存成 `.p12`（用钥匙串访问导出；`openssl pkcs12` 生成的要用 `-legacy`，不然 `security import` 读不了）。
-2. `base64 -i DeveloperID.p12 | pbcopy`，然后 `gh secret set MACOS_SIGNING_IDENTITY`。
-3. `.p12` 的密码：`gh secret set MACOS_SIGNING_PASSWORD`。
-4. 公证凭据是 Apple ID、Team ID 和 App 专用密码（在 appleid.apple.com 生成）：
-   `gh secret set MACOS_NOTARY_APPLE_ID`、`gh secret set MACOS_NOTARY_TEAM_ID`、`gh secret set MACOS_NOTARY_PASSWORD`。
-
-`MACOS_SIGNING_IDENTITY` 和 `MACOS_SIGNING_PASSWORD` 沿用 Tauri 版的名字；公证的三个是这个版本新加的。
+签名的两个沿用 Tauri 版：「Loci Signing」由 Tauri 版的 `scripts/setup-release.sh` 生成（`git show tauri:scripts/setup-release.sh`），本机钥匙串里也有一份。换成 Developer ID 时，从钥匙串访问把证书连同私钥导出成 `.p12`（`openssl pkcs12` 生成的要用 `-legacy`），`base64 -i id.p12 | gh secret set MACOS_SIGNING_IDENTITY`，再设密码和三个公证 secret。
 
 ## 冷启动
 

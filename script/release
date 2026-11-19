@@ -1,15 +1,18 @@
 #!/bin/sh
-# Builds a release Loci Dev.app, signs it with a Developer ID, notarizes it and
-# writes output/Loci-Dev-<version>.dmg and its checksum. Prints the dmg's path;
-# everything else goes to stderr, so `dmg="$(script/release)"` picks it up.
+# Builds a release Loci Dev.app, signs it, notarizes it when the identity is a
+# Developer ID, and writes output/Loci-Dev-<version>.dmg and its checksum.
+# Prints the dmg's path; everything else goes to stderr, so
+# `dmg="$(script/release)"` picks it up.
 #
-# On a Mac without the identity, and in CI without the secrets, it signs ad hoc
-# and skips notarization instead of failing: the dmg is still built, and macOS
-# asks to confirm its first open.
+# Every version is signed with the same identity, so macOS keeps the
+# permissions an installed copy was given: a Developer ID Application identity
+# if there is one, else the self-signed "Loci Signing". Without either (a pull
+# request's CI) it signs ad hoc instead of failing. Only a Developer ID build is
+# notarized; the others ask the person to confirm their first open.
 #
 # Environment:
-#   LOCI_SIGN_IDENTITY   the codesign identity to sign with
-#                        (default: this Mac's "Developer ID Application")
+#   LOCI_SIGN_IDENTITY   the codesign identity to sign with (default: this Mac's
+#                        "Developer ID Application", else "Loci Signing")
 #   LOCI_NOTARY_PROFILE  a `xcrun notarytool store-credentials` profile, or
 #   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD  one Apple ID's notary credentials
 #   LOCI_VERSION         CFBundleShortVersionString (default: 1.0.0-alpha)
@@ -24,10 +27,14 @@ build="${LOCI_BUILD:-1}"
 arches=""
 for arch in ${LOCI_ARCHS:-}; do arches="$arches --arch $arch"; done
 
-identity="${LOCI_SIGN_IDENTITY:-$(
-  security find-identity -v -p codesigning |
-    sed -n 's/.*"\(Developer ID Application[^"]*\)".*/\1/p' | head -1
-)}"
+identities="$(security find-identity -v -p codesigning)"
+identity="${LOCI_SIGN_IDENTITY:-$(printf '%s\n' "$identities" |
+  sed -n 's/.*"\(Developer ID Application[^"]*\)".*/\1/p' | head -1)}"
+if [ -z "$identity" ] && printf '%s' "$identities" | grep -q '"Loci Signing"'; then
+  identity="Loci Signing"
+fi
+notarizable=""
+case "$identity" in "Developer ID Application"*) notarizable=yes ;; esac
 credentials=""
 if [ -n "${LOCI_NOTARY_PROFILE:-}" ]; then
   credentials="--keychain-profile $LOCI_NOTARY_PROFILE"
@@ -40,22 +47,29 @@ app="$(script/bundle --configuration release --version "$version" --build "$buil
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-if [ -n "$identity" ]; then
+if [ -n "$notarizable" ]; then
   echo "release: signing with \"$identity\"." >&2
-  codesign --force --options runtime --timestamp --sign "$identity" "$app"
+  set -- --options runtime --timestamp --sign "$identity"
+elif [ -n "$identity" ]; then
+  echo "release: signing with \"$identity\", which Apple does not notarize; macOS asks to confirm the first open." >&2
+  set -- --options runtime --timestamp=none --sign "$identity"
 else
-  echo "release: no Developer ID Application identity on this Mac, so the build is signed ad hoc." >&2
-  echo "release: it is not notarized, and macOS asks to confirm its first open." >&2
-  codesign --force --sign - "$app"
+  echo "release: no signing identity on this Mac, so the build is signed ad hoc and is not notarized." >&2
+  set -- --sign -
 fi
+# Nested code first: a bundle's signature covers the signatures inside it.
+for nested in "$app"/Contents/Frameworks/*; do
+  if [ -e "$nested" ]; then codesign --force "$@" "$nested"; fi
+done
+codesign --force "$@" "$app"
 codesign --verify --strict "$app"
 
-if [ -n "$identity" ] && [ -n "$credentials" ]; then
+if [ -n "$notarizable" ] && [ -n "$credentials" ]; then
   echo "release: notarizing the app (the first of two round trips, a few minutes)." >&2
   ditto -c -k --keepParent "$app" "$work/app.zip"
   xcrun notarytool submit "$work/app.zip" $credentials --wait --progress >&2
   xcrun stapler staple "$app" >&2
-elif [ -n "$identity" ]; then
+elif [ -n "$notarizable" ]; then
   echo "release: no notary credentials here, so the build is signed but not notarized." >&2
 fi
 
@@ -67,7 +81,7 @@ dmg="output/Loci-Dev-$version.dmg"
 rm -f "$dmg"
 hdiutil create -quiet -volname "Loci Dev $version" -srcfolder "$stage" -ov -format UDZO "$dmg"
 
-if [ -n "$identity" ]; then
+if [ -n "$notarizable" ]; then
   codesign --force --timestamp --sign "$identity" "$dmg"
   if [ -n "$credentials" ]; then
     echo "release: notarizing the dmg (the second round trip, a few minutes)." >&2

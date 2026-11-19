@@ -1,9 +1,10 @@
 name: Release
 
 # A tag v<x.y.z> made by script/cut-release runs the gate, builds Loci Dev.app
-# for Apple silicon and Intel, signs it with the Developer ID in the
-# MACOS_SIGNING_IDENTITY secret, notarizes it, and attaches the dmg to that
-# tag's release, with the version's CHANGELOG.md section as its notes. `gh workflow run release` does the
+# for Apple silicon and Intel, signs it with the identity in the
+# MACOS_SIGNING_IDENTITY secret (notarized when that is a Developer ID), and
+# attaches the dmg to that tag's release, with the version's CHANGELOG.md
+# section as its notes. `gh workflow run release` does the
 # same without releasing anything, to try the secrets; the dmg is kept as a
 # workflow artifact. How the pieces fit: docs/releasing.md.
 on:
@@ -46,32 +47,31 @@ jobs:
       - name: Check
         run: script/check
 
-      # A tag ships to people, so it is signed and notarized or it is not
-      # released. A run started by hand is how the secrets are tried, and signs
-      # ad hoc when there are none.
-      - name: Check that a tag has the secrets to sign and notarize
+      # A tag ships to people, so it is signed with the identity every version
+      # shares, or it is not released: macOS keeps the permissions an installed
+      # copy was given only while the signature stays the same. A Developer ID
+      # identity with the three notary secrets is also notarized; the
+      # self-signed "Loci Signing" is not. A run started by hand tries the
+      # secrets and signs ad hoc when there are none.
+      - name: Check that a tag has the secrets to sign
         env:
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
           MACOS_SIGNING_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
-          MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
-          MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
-          MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
         run: |
           if [[ "$GITHUB_REF_TYPE" != tag ]]; then
             echo "No tag: this run builds and signs a dmg to try the secrets, and releases nothing."
             exit 0
           fi
           missing=()
-          for name in MACOS_SIGNING_IDENTITY MACOS_SIGNING_PASSWORD \
-            MACOS_NOTARY_APPLE_ID MACOS_NOTARY_TEAM_ID MACOS_NOTARY_PASSWORD; do
+          for name in MACOS_SIGNING_IDENTITY MACOS_SIGNING_PASSWORD; do
             if [[ -z "${!name}" ]]; then missing+=("$name"); fi
           done
           if [[ ${#missing[@]} -gt 0 ]]; then
-            echo "::error::A tag build must be signed and notarized, and these secrets are missing: ${missing[*]}. See docs/releasing.md."
+            echo "::error::A tag build must be signed, and these secrets are missing: ${missing[*]}. See docs/releasing.md."
             exit 1
           fi
 
-      - name: Import the Developer ID identity
+      - name: Import the signing identity
         env:
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
           MACOS_SIGNING_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
@@ -90,16 +90,22 @@ jobs:
           rm "$RUNNER_TEMP/loci.p12"
           security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
           security list-keychains -d user -s "$keychain" login.keychain-db
+          echo "KEYCHAIN=$keychain" >> "$GITHUB_ENV"
           identity="$(security find-identity -v -p codesigning "$keychain" |
             sed -n 's/.*"\(Developer ID Application[^"]*\)".*/\1/p' | head -1)"
           if [[ -z "$identity" ]]; then
-            echo "::error::MACOS_SIGNING_IDENTITY holds no Developer ID Application identity. Export the .p12 with its private key and certificate. See docs/releasing.md."
-            exit 1
+            # A self-signed certificate signs code once it is trusted for it.
+            security find-certificate -c "Loci Signing" -p "$keychain" > "$RUNNER_TEMP/loci.pem" || {
+              echo "::error::MACOS_SIGNING_IDENTITY holds neither a Developer ID Application identity nor \"Loci Signing\". See docs/releasing.md."
+              exit 1
+            }
+            sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/loci.pem"
+            security find-identity -v -p codesigning "$keychain" | grep -q '"Loci Signing"'
+            identity="Loci Signing"
           fi
           echo "LOCI_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
-          echo "KEYCHAIN=$keychain" >> "$GITHUB_ENV"
 
-      - name: Build, sign and notarize
+      - name: Build and sign, and notarize with a Developer ID
         env:
           LOCI_ARCHS: arm64 x86_64
           LOCI_BUILD: ${{ github.run_number }}
@@ -113,6 +119,9 @@ jobs:
             export LOCI_VERSION="${GITHUB_REF_NAME#v}"
           fi
           dmg="$(script/release)"
+          if xcrun stapler validate "$dmg" > /dev/null 2>&1; then
+            echo "NOTARIZED=yes" >> "$GITHUB_ENV"
+          fi
           echo "DMG=$dmg" >> "$GITHUB_ENV"
           echo "DMG_SHA256=$dmg.sha256" >> "$GITHUB_ENV"
           ls -l "$dmg" "$dmg.sha256"
@@ -152,12 +161,16 @@ jobs:
         run: |
           notes="$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/changes.md" > "$notes"
-          cat >> "$notes" <<NOTES
-
-          ---
-
-          Loci Dev needs macOS 26 or later. Download the dmg, open it, and drag **Loci Dev** into Applications. It is signed with a Developer ID and notarized by Apple, so macOS opens it without asking.
-          NOTES
+          {
+            echo
+            echo "---"
+            echo
+            echo "Loci Dev needs macOS 26 or later. Download the dmg, open it, and drag **Loci Dev** into Applications."
+            if [[ -z "${NOTARIZED:-}" ]]; then
+              echo
+              echo "Loci Dev is not notarized by Apple. The first time you open it, macOS says it cannot check it for malicious software: open **System Settings → Privacy & Security** and choose **Open Anyway**, or run \`xattr -dr com.apple.quarantine \"/Applications/Loci Dev.app\"\`."
+            fi
+          } >> "$notes"
           # An alpha tag is a pre-release; a rerun replaces the dmg it uploaded before.
           prerelease=""
           case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
