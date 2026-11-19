@@ -51,7 +51,7 @@ final class Launch {
     else { return nil }
     return MachinesService.onThisMac(
       relay: address, registrationKey: key, local: host,
-      support: URL.applicationSupportDirectory.appending(path: DataFolder.developmentName))
+      support: URL.applicationSupportDirectory.appending(path: DataFolder.name))
   }
 
   func rebuild() {

@@ -42,7 +42,7 @@ These are out of scope:
 
 `loci` in a terminal can drive a running Loci: create and change mentors, send them messages, write to their libraries and open things in the reader ([docs/cli.md](docs/cli.md)). This access is **on by default**. It is guarded by a token in Loci's data folder that only your user account can read. Settings → General → Command line turns it off (removing the token) and rotates the token.
 
-Anything that runs as you can read that token, including an agent in Full access mode, just as it can read Loci's database. Turn command-line access off if you do not use it. Each Loci build (the installed app, Loci Dev, a QA build) has its own token, so a token for one does not open another.
+Anything that runs as you can read that token, including an agent in Full access mode, just as it can read Loci's database. Turn command-line access off if you do not use it. Each Loci build (the installed app, a build from `script/run`, a QA build) has its own token, so a token for one does not open another.
 
 ## Where to read more
 

@@ -6,8 +6,8 @@ import Testing
 struct DataFolderTests {
   static let home = URL(filePath: "/Users/someone")
 
-  @Test func aDevelopmentBuildKeepsItsDataApartFromTheOlderApp() {
-    #expect(DataFolder.choose(environment: [:], home: Self.home) == .use(root: Self.home.appending(path: "Loci Dev")))
+  @Test func theBetaKeepsItsDataApartFromTheOlderApp() {
+    #expect(DataFolder.choose(environment: [:], home: Self.home) == .use(root: Self.home.appending(path: "Loci-Beta")))
   }
 
   @Test func theEnvironmentCanPointElsewhere() {

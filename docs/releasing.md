@@ -1,6 +1,6 @@
 # 版本与发布
 
-从一次提交到一个发布出去的 Loci (Beta)：版本号、提交规则、CI、定版本、签名和发布流水线。应用叫 **Loci (Beta)**，bundle id 是 `com.loci.native.dev`，数据在 `~/Loci Dev`；这两个不随名字改，改了 macOS 会当成另一个应用，已给的权限和数据都接不上。
+从一次提交到一个发布出去的 Loci (Beta)：版本号、提交规则、CI、定版本、签名和发布流水线。应用叫 **Loci (Beta)**，bundle id 是 `com.loci.native.dev`，不随名字改，改了 macOS 会当成另一个应用，已给的权限都接不上。数据在 `~/Loci-Beta`。
 
 ## 产物
 

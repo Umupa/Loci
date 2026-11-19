@@ -41,7 +41,7 @@ script/check   # format, build, tests and architecture rules: the one gate
 script/run     # build and open Loci (Beta)
 ```
 
-`script/run --root <folder>` runs against a separate data folder instead of `~/Loci Dev`.
+`script/run --root <folder>` runs against a separate data folder instead of `~/Loci-Beta`.
 
 ## Read more
 
