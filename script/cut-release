@@ -1,0 +1,47 @@
+#!/bin/sh
+# Cuts a version on main: names the Unreleased section of CHANGELOG.md after it,
+# runs the gate, commits and tags. Pushing the tag is left to you, because that
+# is what publishes it: the release workflow signs, notarizes and releases it.
+#   script/cut-release 1.0.0-alpha.1
+set -eu
+cd "$(dirname "$0")/.."
+
+fail() {
+  echo "cut-release: $1" >&2
+  exit 1
+}
+
+version="${1:?usage: script/cut-release <version>, such as 1.0.0-alpha.1}"
+tag="v$version"
+printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$' ||
+  fail "$version is not a version. Use 1.0.0-alpha.N while Loci Dev is in alpha, then -beta.N, -rc.N, 1.0.0."
+
+[ "$(git branch --show-current)" = main ] || fail "versions are cut on main."
+[ -z "$(git status --porcelain)" ] || fail "commit or stash your changes first; a version is exactly one commit."
+git fetch --quiet --tags origin main
+[ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] ||
+  fail "main and origin/main differ. Pull or push first, so the tag lands on what CI has checked."
+if git rev-parse --quiet --verify "refs/tags/$tag" >/dev/null; then fail "$tag already exists."; fi
+
+unreleased="$(awk '/^## Unreleased$/ { inside = 1; next } inside && /^## / { exit } inside { print }' CHANGELOG.md)"
+[ -n "$(printf '%s' "$unreleased" | tr -d '[:space:]')" ] ||
+  fail "nothing is under ## Unreleased in CHANGELOG.md, so there is nothing to release."
+grep -q "$version" docs/roadmap.md ||
+  fail "docs/roadmap.md does not name $version. Move the version into 已完成 with $version in its 发布 column, commit, and run this again."
+
+day="$(date +%F)"
+awk -v version="$version" -v day="$day" '
+  $0 == "## Unreleased" && !done { print; print ""; print "## " version " — " day; done = 1; next }
+  { print }
+' CHANGELOG.md >CHANGELOG.md.new
+mv CHANGELOG.md.new CHANGELOG.md
+
+if ! script/check; then
+  git checkout -- CHANGELOG.md
+  fail "the gate failed, so nothing was committed."
+fi
+
+git commit --quiet -m "chore: release $version" CHANGELOG.md
+git tag -a "$tag" -m "Loci Dev $version"
+echo "cut-release: committed and tagged $tag. Publish it with:" >&2
+echo "  git push origin main $tag" >&2

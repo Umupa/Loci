@@ -1,8 +1,9 @@
 name: Release
 
-# A tag v<x.y.z> builds Loci Dev.app for Apple silicon and Intel, signs it with
-# the Developer ID in the MACOS_SIGNING_IDENTITY secret, notarizes it, and
-# attaches the dmg to that tag's release. `gh workflow run release` does the
+# A tag v<x.y.z> made by script/cut-release runs the gate, builds Loci Dev.app
+# for Apple silicon and Intel, signs it with the Developer ID in the
+# MACOS_SIGNING_IDENTITY secret, notarizes it, and attaches the dmg to that
+# tag's release, with the version's CHANGELOG.md section as its notes. `gh workflow run release` does the
 # same without releasing anything, to try the secrets; the dmg is kept as a
 # workflow artifact. How the pieces fit: docs/releasing.md.
 on:
@@ -24,9 +25,26 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Use the newest Xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+
+      # A tag is cut by script/cut-release: on main, with its own CHANGELOG.md
+      # section. Those notes are what the release says.
+      - name: Check that the tag was cut from main, and read its notes
+        if: github.ref_type == 'tag'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME is not on main. Cut versions with script/cut-release on main. See docs/releasing.md."
+            exit 1
+          fi
+          script/changelog "$version" > "$RUNNER_TEMP/changes.md"
+
+      - name: Check
+        run: script/check
 
       # A tag ships to people, so it is signed and notarized or it is not
       # released. A run started by hand is how the secrets are tried, and signs
@@ -99,7 +117,7 @@ jobs:
           echo "DMG_SHA256=$dmg.sha256" >> "$GITHUB_ENV"
           ls -l "$dmg" "$dmg.sha256"
 
-      # α1-S10's budget is 500 ms. This records what the release build does and
+      # The cold-start budget is 500 ms (α1-S10). This records what the release build does and
       # never stops a release: a runner without a window session reports nothing.
       - name: Measure the cold start of the release build
         run: |
@@ -133,10 +151,12 @@ jobs:
           DMG_SHA256: ${{ env.DMG_SHA256 }}
         run: |
           notes="$RUNNER_TEMP/notes.md"
-          cat > "$notes" <<NOTES
-          Loci Dev: the native app, still in alpha. It needs macOS 26 or later.
+          cat "$RUNNER_TEMP/changes.md" > "$notes"
+          cat >> "$notes" <<NOTES
 
-          Download the dmg, open it, and drag **Loci Dev** into Applications. It is signed with a Developer ID and notarized by Apple, so macOS opens it without asking.
+          ---
+
+          Loci Dev needs macOS 26 or later. Download the dmg, open it, and drag **Loci Dev** into Applications. It is signed with a Developer ID and notarized by Apple, so macOS opens it without asking.
           NOTES
           # An alpha tag is a pre-release; a rerun replaces the dmg it uploaded before.
           prerelease=""

@@ -15,6 +15,29 @@ permissions:
   contents: read
 
 jobs:
+  commits:
+    name: Commits
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # The commits this push or pull request adds: Conventional Commits, and a
+      # CHANGELOG.md line for every feat and fix. Locally `script/check` checks
+      # the commits not yet pushed.
+      - name: Check the commit messages
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]]; then
+            echo "No earlier commit to compare with; nothing to check."
+            exit 0
+          fi
+          script/check-commits "$BASE..$HEAD"
+
   check:
     name: Check
     runs-on: macos-26

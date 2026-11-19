@@ -1,0 +1,39 @@
+#!/bin/sh
+# Checks the messages of the commits in a range: Conventional Commits, and a
+# line in CHANGELOG.md for every feat and fix, because those are the changes a
+# user can see.
+#   script/check-commits origin/main..HEAD
+# With no range it checks the commits not yet pushed, and nothing when the
+# branch has no upstream.
+set -eu
+cd "$(dirname "$0")/.."
+
+range="${1:-}"
+if [ -z "$range" ]; then
+  git rev-parse --quiet --verify '@{upstream}' >/dev/null 2>&1 || exit 0
+  range='@{upstream}..HEAD'
+fi
+
+failed=0
+for commit in $(git rev-list --no-merges "$range"); do
+  subject="$(git log -1 --format=%s "$commit")"
+  short="$(git rev-parse --short "$commit")"
+  if ! printf '%s' "$subject" | grep -Eq '^(feat|fix|perf|refactor|test|docs|build|ci|chore|style|revert)(\([a-z0-9-]+\))?!?: [a-z]'; then
+    echo "$short \"$subject\"" >&2
+    echo "  → Write \`<type>: <imperative, lower case>\`, such as \`fix: keep the sidebar when the library is empty\`." >&2
+    echo "    Types: feat fix perf refactor test docs build ci chore style revert." >&2
+    failed=1
+    continue
+  fi
+  case "$subject" in
+  feat* | fix*)
+    if ! git diff-tree --no-commit-id --name-only -r "$commit" | grep -qx CHANGELOG.md; then
+      echo "$short \"$subject\"" >&2
+      echo "  → feat and fix are what a user sees, so the same commit adds or edits a line under Unreleased in CHANGELOG.md." >&2
+      echo "    If no user can see it, it is refactor, test, build or chore." >&2
+      failed=1
+    fi
+    ;;
+  esac
+done
+exit "$failed"

@@ -22,3 +22,4 @@ step() {
 step format swift format lint --strict --recursive --parallel Package.swift Sources Tests
 step build swift build --build-tests
 step test swift test --skip-build
+step commits script/check-commits
