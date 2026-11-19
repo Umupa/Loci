@@ -47,35 +47,3 @@ struct EventPill<Cover: View>: View {
     .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
   }
 }
-
-/// Three dots rising in turn in Loci's bubble while it has not said anything yet.
-struct TypingDots: View {
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-  var body: some View {
-    TimelineView(.animation(paused: reduceMotion)) { timeline in
-      let time = timeline.date.timeIntervalSinceReferenceDate
-      HStack(spacing: Spacing.xxs) {
-        ForEach(0..<3, id: \.self) { dot in
-          let lift = Self.lift(at: time - Double(dot) * 0.15)
-          Circle()
-            .fill(Palette.inkFaint)
-            .frame(width: 6, height: 6)
-            .opacity(0.5 + 0.5 * lift)
-            .offset(y: -3 * lift)
-        }
-      }
-      .padding(.vertical, 5)
-      .padding(.horizontal, 2)
-    }
-    .accessibilityHidden(true)
-  }
-
-  /// How high a dot is, from 0 to 1: up and back in the first 60% of each 1.2-second beat, then still.
-  static func lift(at time: Double) -> Double {
-    let beat = (time / 1.2).truncatingRemainder(dividingBy: 1)
-    let phase = beat < 0 ? beat + 1 : beat
-    guard phase < 0.6 else { return 0 }
-    return phase < 0.3 ? phase / 0.3 : (0.6 - phase) / 0.3
-  }
-}
