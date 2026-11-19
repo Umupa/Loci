@@ -29,7 +29,8 @@ struct ConversationScreen: View {
 /// Everything said with Loci as a chat, newest at the bottom, with the input field floating over its foot.
 ///
 /// Each row is its own view keyed by its message and part, so a reply that grows while it streams redraws
-/// only its last bubble.
+/// only its last bubble. What was said before the running turn is laid out once, not again as the reply
+/// grows.
 struct ConversationView: View {
   let conversation: Conversation?
   @Binding var draft: PassageDraft?
@@ -48,9 +49,11 @@ struct ConversationView: View {
   @State private var position = ScrollPosition(edge: .bottom)
   @State private var scrolling = false
   @State private var pointedAnswer: EntityID?
+  @State private var settled = Remembered(TalkRow.settled)
 
   var body: some View {
-    ScrollView {
+    let rows = self.rows
+    return ScrollView {
       LazyVStack(alignment: .leading, spacing: 0) {
         ForEach(rows) { row in
           view(of: row).arriving()
@@ -107,24 +110,15 @@ struct ConversationView: View {
 
   /// Questions the person has asked; one more means the conversation goes to its end to show the answer.
   private var questions: Int {
-    entries.count { if case .asked = $0 { true } else { false } }
-  }
-
-  private var entries: [ConversationEntry] {
-    ConversationEntry.layout(
-      (conversation?.entries ?? []) + (conversation?.turn?.messages ?? []).map { .message($0) },
-      live: conversation?.turn != nil)
+    let said = (conversation?.entries ?? []).count {
+      if case .message(let message) = $0, case .prompt = message.body { true } else { false }
+    }
+    return said + (conversation?.turn == nil ? 0 : 1)
   }
 
   private var rows: [TalkRow] {
-    TalkRow.rows(entries, waiting: waiting)
-  }
-
-  /// Loci is at work but has shown nothing of it yet.
-  private var waiting: Bool {
-    guard let turn = conversation?.turn else { return false }
-    if case .prompt = turn.messages.last?.body { return true }
-    return false
+    let turn = conversation?.turn
+    return settled(SaidSoFar(conversation?.entries ?? [], turn: turn)) + TalkRow.live(turn)
   }
 
   @ViewBuilder private func view(of row: TalkRow) -> some View {
