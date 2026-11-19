@@ -62,7 +62,7 @@ else
   set -- --sign -
 fi
 # Nested code first: a bundle's signature covers the signatures inside it.
-for nested in "$app"/Contents/Frameworks/*; do
+for nested in "$app"/Contents/Frameworks/* "$app"/Contents/Helpers/*; do
   if [ -e "$nested" ]; then codesign --force "$@" "$nested"; fi
 done
 codesign --force "$@" "$app"
