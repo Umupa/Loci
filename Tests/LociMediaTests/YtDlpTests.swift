@@ -56,7 +56,7 @@ struct YtDlpTests {
   }
 
   @Test func aVideoDownloadsAsCompatible1080pMergedIntoMP4() {
-    let arguments = YtDlp.downloadArguments(Self.link, audio: false, folder: Self.folder)
+    let arguments = YtDlp.downloadArguments(.link(Self.link), audio: false, folder: Self.folder)
 
     #expect(arguments.contains("vcodec:h264,res:1080,acodec:m4a"))
     #expect(arguments.contains("--merge-output-format"))
@@ -66,10 +66,39 @@ struct YtDlpTests {
   }
 
   @Test func anEpisodeDownloadsOnlyItsSoundAsM4A() {
-    let arguments = YtDlp.downloadArguments(Self.link, audio: true, folder: Self.folder)
+    let arguments = YtDlp.downloadArguments(.link(Self.link), audio: true, folder: Self.folder)
 
     #expect(arguments.starts(with: ["-f", "ba[ext=m4a]/ba/b", "-x", "--audio-format", "m4a"]))
     #expect(!arguments.contains("--merge-output-format"))
+  }
+
+  @Test func aDownloadUsesWhatResolvingReadInsteadOfReadingThePageAgain() async throws {
+    let runner = ScriptedRunner { _ in ([], ProgramResult(status: 0, output: "/w/media.mp4\n")) }
+    let info = Self.folder.appending(path: "info.json")
+
+    _ = try await Self.ytDlp(runner).download(Self.link, info: info, audio: false, into: Self.folder) { _ in }
+
+    let arguments = try #require(runner.calls.first?.arguments)
+    #expect(arguments.suffix(2) == ["--load-info-json", info.path(percentEncoded: false)])
+    #expect(!arguments.contains(Self.link.absoluteString))
+  }
+
+  @Test func whenWhatResolvingReadHasExpiredTheLinkIsReadAfresh() async throws {
+    let runner = ScriptedRunner { call in
+      call.arguments.contains("--load-info-json")
+        ? (
+          [], ProgramResult(status: 1, output: "", diagnostics: "ERROR: unable to download video data: HTTP Error 403")
+        )
+        : ([], ProgramResult(status: 0, output: "/w/media.mp4\n"))
+    }
+
+    let file = try await Self.ytDlp(runner).download(
+      Self.link, info: Self.folder.appending(path: "info.json"), audio: false, into: Self.folder
+    ) { _ in }
+
+    #expect(file == URL(filePath: "/w/media.mp4"))
+    #expect(runner.calls.count == 2)
+    #expect(runner.calls.last?.arguments.last == Self.link.absoluteString)
   }
 
   @Test func theDownloadSaysWhereTheFileIsAndHowFarItGot() async throws {

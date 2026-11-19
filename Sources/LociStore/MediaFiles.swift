@@ -54,6 +54,11 @@ extension Store {
     return file
   }
 
+  /// A file in the work folder; `nil` when it is not there.
+  public func workFile(named name: String, of item: EntityID) throws -> URL? {
+    try existing(workFolder(of: item).appending(path: name))
+  }
+
   /// A text file in the work folder, such as subtitles yt-dlp saved there; `nil` when it is not there.
   public func workText(named name: String, of item: EntityID) throws -> String? {
     try existing(workFolder(of: item).appending(path: name)).map(readText)
