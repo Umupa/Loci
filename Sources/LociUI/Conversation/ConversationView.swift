@@ -55,15 +55,9 @@ struct ConversationView: View {
     let turn = conversation?.turn
     let said = settled(SaidSoFar(conversation?.entries ?? [], turn: turn))
     let live = TalkRow.live(turn)
-    let (runs, recent) = RowRun.split(said)
     return ScrollView {
       LazyVStack(alignment: .leading, spacing: 0) {
-        ForEach(runs) { run in
-          VStack(alignment: .leading, spacing: 0) {
-            ForEach(run.rows) { row in view(of: row) }
-          }
-        }
-        ForEach(recent + live) { row in
+        ForEach(said + live) { row in
           view(of: row).arriving()
         }
       }
