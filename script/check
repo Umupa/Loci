@@ -2,30 +2,14 @@
 # The delivery gate. --fast runs the checks for routine CI. On a
 # failure it prints what failed and how to fix it.
 set -eu
-case "$#:${1:-}" in
-  0:) ;;
-  1:--fast)
-    set -- --skip '^LociUITests\.([^./]+Snapshots/|LongConversationTests/aLongConversationKeepsShowingItsMessagesWhileQuestionsFollowOneAnother)'
-    ;;
-  *) echo "usage: script/check [--fast]" >&2; exit 2 ;;
-esac
 cd "$(dirname "$0")/.."
 . script/toolchain
-mkdir -p output
-
-step() {
-  name=$1
-  shift
-  log="output/check-$name.log"
-  if "$@" >"$log" 2>&1; then
-    echo "ok    $name"
-  else
-    echo "FAIL  $name"
-    grep -E -A3 'recorded an issue|error:|warning:' "$log" || cat "$log"
-    echo "full log: $log"
-    exit 1
-  fi
-}
+. script/steps
+case "$#:${1:-}" in
+  0:) ;;
+  1:--fast) set -- --skip "$slow_tests" ;;
+  *) echo "usage: script/check [--fast]" >&2; exit 2 ;;
+esac
 
 step format swift format lint --strict --recursive --parallel Package.swift Sources Tests
 step build swift build --build-tests

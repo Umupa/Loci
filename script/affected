@@ -1,0 +1,38 @@
+#!/bin/sh
+# Prints, one per line, the test targets and executables a change can break:
+# those built on a changed module or test target, and ArchitectureTests, which
+# reads every source and document. A change only to the documents prints
+# ArchitectureTests alone; a change anywhere else, such as Package.swift, a
+# script or a workflow, prints them all.
+#   script/affected            what differs from the upstream, committed or not
+#   script/affected <range>    what a range of commits changes, such as main...HEAD
+set -eu
+cd "$(dirname "$0")/.."
+. script/toolchain
+
+if [ $# -gt 0 ]; then
+  changed="$(git diff --name-only "$1")"
+else
+  base="$(git merge-base HEAD '@{upstream}' 2>/dev/null || git rev-parse HEAD)"
+  changed="$(git diff --name-only "$base"; git ls-files --others --exclude-standard)"
+fi
+
+modules=""
+everything=false
+for path in $changed; do
+  case "$path" in
+  Sources/*/* | Tests/*/*) modules="$modules $(printf '%s' "$path" | cut -d/ -f2)" ;;
+  docs/* | *.md | LICENSE | .gitignore | .github/ISSUE_TEMPLATE/*) ;;
+  *) everything=true ;;
+  esac
+done
+
+swift package dump-package | jq -r --argjson everything "$everything" --arg modules "$modules" '
+  def closure($deps; $name): [$name] + ([$deps[$name][]? | closure($deps; .)] | add // []);
+  ($modules | split(" ") | map(select(. != ""))) as $changed
+  | (.targets | map({key: .name, value: [.dependencies[] | (.byName // .target // empty)[0]]}) | from_entries) as $deps
+  | .targets[]
+  | select(.type == "test" or .type == "executable")
+  | .name
+  | select($everything or . == "ArchitectureTests" or (closure($deps; .) as $built | any($changed[]; . as $m | $built | index($m))))
+'

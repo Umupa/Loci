@@ -47,23 +47,69 @@ jobs:
     name: Check
     runs-on: xcode-27
     timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Use the newest Xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
 
+      # A push or pull request that only changes the documents (script/affected names
+      # ArchitectureTests alone) runs those rules and builds nothing else. The nightly
+      # run skips a commit a full check has already passed: an earlier nightly, a run
+      # started by hand, or a release.
+      - name: Choose the check
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          case "$EVENT" in
+          schedule)
+            checked="$(
+              gh run list --workflow ci.yml --event schedule --status success -L 1 --json headSha --jq '.[].headSha'
+              gh run list --workflow ci.yml --event workflow_dispatch --status success -L 1 --json headSha --jq '.[].headSha'
+              gh run list --workflow release.yml --event push --status success -L 1 --json headSha --jq '.[].headSha'
+            )"
+            if grep -qx "$GITHUB_SHA" <<<"$checked"; then scope=none; else scope=full; fi
+            ;;
+          workflow_dispatch) scope=full ;;
+          *)
+            if [[ -n "$BASE" && ! "$BASE" =~ ^0+$ ]] && [[ "$(script/affected "$BASE...$HEAD")" == ArchitectureTests ]]; then
+              scope=documents
+            else
+              scope=fast
+            fi
+            ;;
+          esac
+          echo "scope=$scope" >> "$GITHUB_OUTPUT"
+          echo "Check: $scope" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: ./.github/actions/packages
+        if: steps.scope.outputs.scope != 'none'
+
       - name: Show the toolchain
+        if: steps.scope.outputs.scope != 'none'
         run: |
           xcodebuild -version
           swift --version
 
+      - name: Document check
+        if: steps.scope.outputs.scope == 'documents'
+        run: script/test ArchitectureTests
+
       - name: Fast check
-        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        if: steps.scope.outputs.scope == 'fast'
         run: script/check --fast
 
       - name: Full check
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: steps.scope.outputs.scope == 'full'
         run: script/check
 
       - name: Keep the log and snapshots

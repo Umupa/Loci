@@ -1,12 +1,13 @@
 name: Release
 
-# A tag v<x.y.z> made by script/cut-release runs the gate, builds Loci (Beta).app
-# for Apple silicon and Intel, signs it with the identity in the
-# MACOS_SIGNING_IDENTITY secret (notarized when that is a Developer ID), and
-# attaches the dmg to that tag's release, with the version's CHANGELOG.md
-# section as its notes. `gh workflow run release` does the
-# same without releasing anything, to try the secrets; the dmg is kept as a
-# workflow artifact. How the pieces fit: docs/releasing.md.
+# A tag v<x.y.z> made by script/cut-release runs the gate and, side by side on
+# the same commit, builds Loci (Beta).app for Apple silicon and Intel, signs it
+# with the identity in the MACOS_SIGNING_IDENTITY secret (notarized when that is
+# a Developer ID), and makes the dmg. Only when both pass does Publish attach the
+# dmg to that tag's release, with the version's CHANGELOG.md section as its
+# notes. `gh workflow run release` does the same without releasing anything, to
+# try the secrets; the dmg is kept as a workflow artifact. How the pieces fit:
+# docs/releasing.md.
 on:
   push:
     tags: ["v*"]
@@ -17,13 +18,38 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
-    name: Release
+  check:
+    name: Check
     runs-on: xcode-27
-    timeout-minutes: 90
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Use the newest Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+
+      - uses: ./.github/actions/packages
+
+      - name: Check
+        run: script/check
+
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: check
+          path: |
+            output/check-*.log
+            output/snapshots
+          if-no-files-found: ignore
+
+  package:
+    name: Package
+    runs-on: xcode-27
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
@@ -31,6 +57,8 @@ jobs:
 
       - name: Use the newest Xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+
+      - uses: ./.github/actions/packages
 
       # A tag is cut by script/cut-release: on main, with its own CHANGELOG.md
       # section. Those notes are what the release says.
@@ -42,10 +70,8 @@ jobs:
             echo "::error::$GITHUB_REF_NAME is not on main. Cut versions with script/cut-release on main. See docs/releasing.md."
             exit 1
           fi
-          script/changelog "$version" > "$RUNNER_TEMP/changes.md"
-
-      - name: Check
-        run: script/check
+          mkdir -p output
+          script/changelog "$version" > output/changes.md
 
       # A tag ships to people, so it is signed with the identity every version
       # shares, or it is not released: macOS keeps the permissions an installed
@@ -119,10 +145,8 @@ jobs:
           fi
           dmg="$(script/release)"
           if xcrun stapler validate "$dmg" > /dev/null 2>&1; then
-            echo "NOTARIZED=yes" >> "$GITHUB_ENV"
+            echo yes > output/notarized
           fi
-          echo "DMG=$dmg" >> "$GITHUB_ENV"
-          echo "DMG_SHA256=$dmg.sha256" >> "$GITHUB_ENV"
           ls -l "$dmg" "$dmg.sha256"
 
       # The cold-start budget is 500 ms (α1-S10). This records what the release build does and
@@ -140,7 +164,9 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Keep the dmg and the measurement
+      # What Publish attaches, as it was signed here: Publish checks the dmg against
+      # this checksum before it releases anything.
+      - name: Keep the dmg, its notes and the measurement
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -148,38 +174,60 @@ jobs:
           path: |
             output/*.dmg
             output/*.sha256
-            output/check-*.log
+            output/changes.md
+            output/notarized
             output/launch.txt
           if-no-files-found: ignore
 
+      - name: Remove the keychain
+        if: always()
+        run: if [[ -n "${KEYCHAIN:-}" ]]; then security delete-keychain "$KEYCHAIN"; fi
+
+  publish:
+    name: Publish
+    needs: [check, package]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+
       - name: Publish the release
-        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
-          DMG: ${{ env.DMG }}
-          DMG_SHA256: ${{ env.DMG_SHA256 }}
+          GH_REPO: ${{ github.repository }}
+        working-directory: release
         run: |
+          dmgs=(*.dmg)
+          if [[ ${#dmgs[@]} -ne 1 || ! -f "${dmgs[0]}" || ! -f "${dmgs[0]}.sha256" || ! -f changes.md ]]; then
+            echo "::error::Package left no single dmg with its checksum and notes."
+            exit 1
+          fi
+          dmg="${dmgs[0]}"
+          sha256sum --check "$dmg.sha256"
           notes="$RUNNER_TEMP/notes.md"
-          cat "$RUNNER_TEMP/changes.md" > "$notes"
+          cat changes.md > "$notes"
           {
             echo
             echo "---"
             echo
             echo "Loci needs macOS 26 or later. Download the dmg, open it, and drag **Loci (Beta)** into Applications."
-            if [[ -z "${NOTARIZED:-}" ]]; then
+            if [[ ! -f notarized ]]; then
               echo
               echo "Loci is not notarized by Apple. The first time you open it, macOS says it cannot check it for malicious software: open **System Settings → Privacy & Security** and choose **Open Anyway**, or run \`xattr -dr com.apple.quarantine \"/Applications/Loci (Beta).app\"\`."
             fi
           } >> "$notes"
           # A rerun replaces the dmg it uploaded before.
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$DMG" "$DMG_SHA256" --clobber
+            gh release upload "$GITHUB_REF_NAME" "$dmg" "$dmg.sha256" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$DMG" "$DMG_SHA256" \
+            gh release create "$GITHUB_REF_NAME" "$dmg" "$dmg.sha256" \
+              --verify-tag \
               --title "Loci (Beta) $GITHUB_REF_NAME" --notes-file "$notes"
           fi
           gh release view "$GITHUB_REF_NAME" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Remove the keychain
-        if: always()
-        run: if [[ -n "${KEYCHAIN:-}" ]]; then security delete-keychain "$KEYCHAIN"; fi

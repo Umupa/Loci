@@ -1,0 +1,31 @@
+# Sourced by script/check and script/test. `step <name> <command>...` runs one
+# step with its output in output/check-<name>.log and says how long it took. On
+# a failure it prints the failing tests with their issues, or the compiler's and
+# linter's diagnostics, then the log's path, and stops.
+mkdir -p output
+
+# The suites script/check --fast and script/test skip: the snapshots and the long conversation.
+slow_tests='^LociUITests\.([^./]+Snapshots/|LongConversationTests/aLongConversationKeepsShowingItsMessagesWhileQuestionsFollowOneAnother)'
+
+step() {
+  name=$1
+  shift
+  log="output/check-$name.log"
+  started=$(date +%s)
+  if "$@" >"$log" 2>&1; then
+    printf 'ok    %-8s %4ss\n' "$name" "$(($(date +%s) - started))"
+    return
+  fi
+  printf 'FAIL  %-8s %4ss\n' "$name" "$(($(date +%s) - started))"
+  summary="$(sed "s/$(printf '\033')\[[0-9;]*m//g" "$log" | awk '
+    /^✘ Test .* recorded an issue/ { print; detail = 1; next }
+    detail && /^↳/ { print; next }
+    { detail = 0 }
+    /^✘ Test [^ ]+ failed after/ { print }
+    /^[^ ]+:[0-9]+(:[0-9]+)?: (error|warning):/ && !seen[$0]++ { print }
+    /^error: / && !/ failed with a nonzero exit code/ { print }
+  ' | cut -c1-400 | head -60)"
+  if [ -n "$summary" ]; then printf '%s\n' "$summary"; else tail -40 "$log"; fi
+  echo "full log: $log"
+  exit 1
+}

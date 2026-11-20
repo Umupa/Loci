@@ -1,0 +1,14 @@
+name: Packages
+description: >
+  Restores SwiftPM's shared cache of package clones and binary artifacts, keyed on
+  Package.resolved, so a build copies the pinned packages and whisper.framework
+  instead of fetching them. Compiled output is not cached: a checkout gives every
+  source a new date, so it would be rebuilt anyway.
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v4
+      with:
+        path: ~/Library/Caches/org.swift.swiftpm
+        key: swiftpm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+        restore-keys: swiftpm-${{ runner.os }}-

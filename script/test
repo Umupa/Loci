@@ -1,0 +1,58 @@
+#!/bin/sh
+# The loop between edits: builds only the test targets and executables a change
+# needs, runs those tests, and says which step, test and log failed. It always
+# builds first, so the tests never run stale code. script/check stays the gate.
+#   script/test               the tests script/affected names for what changed, without the
+#                             slow suites script/check --fast skips
+#   script/test <filter>...   swift test filters, each starting with its test target,
+#                             such as 'LociUITests\.(ChatTests|TalkRowsTests)/'
+set -eu
+cd "$(dirname "$0")/.."
+. script/toolchain
+. script/steps
+
+products=""
+if [ $# -eq 0 ]; then
+  products="$(script/affected)"
+  tests="$(printf '%s\n' $products | grep 'Tests$' | paste -sd '|' -)"
+  set -- --filter "^($tests)\\." --skip "$slow_tests"
+  echo "tests: $tests"
+else
+  for filter; do
+    target="$(printf '%s' "$filter" | sed -nE 's/^\^?([A-Za-z]+Tests)([.\\/].*)?$/\1/p')"
+    if [ -z "$target" ] || [ ! -d "Tests/$target" ]; then
+      echo "script/test: start each filter with its test target, such as 'LociUITests\\.ChatTests/'. Targets: $(ls Tests | paste -sd ' ' -)" >&2
+      exit 2
+    fi
+    products="$products $target"
+  done
+  for filter; do set -- "$@" --filter "$filter"; shift; done
+fi
+
+build() {
+  bin="$(swift build --show-bin-path)"
+  # swift test --skip-build opens every test bundle, so a clone builds them all once.
+  for target in $(ls Tests); do
+    if [ ! -d "$bin/$target.xctest" ]; then
+      swift build --build-tests
+      return
+    fi
+  done
+  for product in $(printf '%s\n' $products | sort -u); do
+    swift build --product "$product"
+  done
+}
+
+ran() {
+  swift test --skip-build "$@" || return
+  count="$(sed -nE 's/^✔ Test run with ([0-9]+) tests? .*/\1/p' "$log" | awk '{ s += $1 } END { print s + 0 }')"
+  if [ "${count:-0}" -eq 0 ]; then
+    echo "error: no test matched $*"
+    return 1
+  fi
+  echo "ran $count tests"
+}
+
+step build build
+step test ran "$@"
+sed -n 's/^ran \([0-9]*\) tests$/\1 tests passed/p' output/check-test.log
