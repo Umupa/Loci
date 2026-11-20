@@ -152,6 +152,8 @@ final class BrowserSession {
     let watcher = PageWatcher(session: self)
     let made = WKWebViewConfiguration()
     made.websiteDataStore = .default()
+    let version = ProcessInfo.processInfo.operatingSystemVersion
+    made.applicationNameForUserAgent = "Version/\(version.majorVersion).\(version.minorVersion) Safari/605.1.15"
     made.userContentController.addUserScript(
       WKUserScript(source: PageScript.source, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
     made.userContentController.add(watcher, name: PageScript.channel)

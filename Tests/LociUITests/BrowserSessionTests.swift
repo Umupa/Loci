@@ -59,6 +59,21 @@ struct BrowserSessionTests {
     #expect(session.current === session.tabs[1])
   }
 
+  @Test func pagesAndTheirPopUpsSeeASafariCompatibleBrowserVersion() async throws {
+    let session = BrowserSession()
+    let view = session.webView(for: session.current)
+    view.loadHTMLString("<title>Browser compatibility</title>", baseURL: nil)
+    try await eventually("the page to load") { view.title == "Browser compatibility" }
+
+    let userAgent = try #require(try await view.evaluateJavaScript("navigator.userAgent") as? String)
+    let version = ProcessInfo.processInfo.operatingSystemVersion
+    #expect(userAgent.contains("Version/\(version.majorVersion).\(version.minorVersion) Safari/"))
+
+    let popUpAgent = try await view.evaluateJavaScript("window.open('about:blank')?.navigator.userAgent") as? String
+    #expect(popUpAgent == userAgent)
+    #expect(session.tabs.count == 2)
+  }
+
   @Test func closingATabShowsTheOneBeforeIt() {
     let session = BrowserSession()
     session.open(Self.video)
