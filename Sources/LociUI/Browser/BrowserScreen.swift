@@ -9,6 +9,7 @@ struct BrowserScreen: View {
   @Environment(\.host) private var host
   let session: BrowserSession
   @Environment(\.standIns) private var standIns
+  @Environment(\.takeIn) private var takeIn
   let opened: (WindowState) -> Void
   let failed: (HostError) -> Void
   @State private var items: Feed<[Item]>?
@@ -40,7 +41,7 @@ struct BrowserScreen: View {
       if picking, case .videos(let videos) = offer {
         VideoPicker(videos: videos, library: items?.value ?? []) { chosen in
           picking = false
-          Task { await add(chosen) }
+          Task { await takeVideos(chosen) }
         }
         .changesData()
         .padding(.top, session.tabs.count > 1 ? 50 + Size.tabHeight : 50)
@@ -82,33 +83,39 @@ struct BrowserScreen: View {
     switch offer {
     case .inLibrary(let item):
       opened(WindowState(place: .library(nil), pages: [.item(item)]))
-    case .video, .add:
+    case .video:
+      guard let address = tab.address else { return }
+      Task { await takeVideos([address]) }
+    case .add:
       guard let address = tab.address else { return }
       let page = tab
-      Task {
-        let html = offer == .add ? await page.articleHTML(at: address) : nil
-        await add([address], articleHTML: html, open: true)
-      }
+      Task { await addArticle(address, html: await page.articleHTML(at: address)) }
     case .videos:
       withAnimation(Motion.quick) { picking.toggle() }
     }
   }
 
-  /// Hands the browser's sign-in to the host, then adds each link. One link opens; several stay in the list.
-  private func add(_ links: [URL], articleHTML: String? = nil, open: Bool = false) async {
-    if let first = links.first {
-      let cookies = await session.cookies(for: first)
-      if !cookies.isEmpty { _ = try? await host.run(HandOverBrowserCookies(cookies)) }
+  /// Hands the browser's sign-in to the host, so the import panel reads the videos as the reader sees them,
+  /// then lets them wait in the panel.
+  private func takeVideos(_ links: [URL]) async {
+    guard let first = links.first else { return }
+    await handOverSignIn(for: first)
+    takeIn?.videos(links)
+  }
+
+  /// Adds the article as the page shows it, staying on the page; the button then shows it in the library.
+  private func addArticle(_ address: URL, html: String?) async {
+    await handOverSignIn(for: address)
+    do throws(HostError) {
+      _ = try await host.run(AddLink(url: address, articleHTML: html))
+    } catch {
+      failed(error)
     }
-    var last: Item?
-    for link in links {
-      do throws(HostError) {
-        last = try await host.run(AddLink(url: link, articleHTML: articleHTML))
-      } catch {
-        failed(error)
-      }
-    }
-    if open, let last { opened(WindowState(place: .library(nil), pages: [.item(last.id)])) }
+  }
+
+  private func handOverSignIn(for link: URL) async {
+    let cookies = await session.cookies(for: link)
+    if !cookies.isEmpty { _ = try? await host.run(HandOverBrowserCookies(cookies)) }
   }
 }
 

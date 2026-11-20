@@ -15,6 +15,17 @@ import Testing
     #expect(!MediaLayout(width: 1028, panelShown: false, panelOver: false).besideStage)
   }
 
+  /// A video kept as audio only keeps its cover up instead of a black picture, here and from another Mac.
+  @MainActor @Test func aVideoKeptAsSoundOnlyShowsItsCover() throws {
+    #expect(!PlayerSource.file(LocalFile(URL(filePath: "/Loci/library/talk/media.m4a"))).showsPicture)
+    #expect(PlayerSource.file(LocalFile(URL(filePath: "/Loci/library/talk/media.mp4"))).showsPicture)
+    let info = MediaFileInfo(byteCount: 100, fileExtension: "m4a")
+    let ranged = try #require(RangedMedia(item: EntityID(), info: info, host: FakeHost(try Sample(problems: false))))
+    #expect(!PlayerSource.ranges(ranged).showsPicture)
+    let sound = OnlineStream(url: URL(string: "https://media.example.com/a.m4a")!, audioOnly: true)
+    #expect(!PlayerSource.online(sound).showsPicture)
+  }
+
   @Test func theClockShowsMinutesAndSecondsAndHoursOnceThereAreAny() {
     #expect(MediaTime.text(.seconds(680)) == "11:20")
     #expect(MediaTime.text(.seconds(3825)) == "1:03:45")
@@ -45,13 +56,16 @@ import Testing
   }
 
   @Test func eachSubtitleModeShowsItsLines() {
-    #expect(SubtitleMode.original.lines(of: "Hi", translated: "你好") == ["Hi"])
-    #expect(SubtitleMode.both.lines(of: "Hi", translated: "你好") == ["Hi", "你好"])
-    #expect(SubtitleMode.translation.lines(of: "Hi", translated: "你好") == ["你好"])
+    let below = SubtitleStyle.BilingualOrder.originalAbove
+    #expect(SubtitleMode.original.lines(of: "Hi", translated: "你好", order: below).map(\.text) == ["Hi"])
+    #expect(SubtitleMode.both.lines(of: "Hi", translated: "你好", order: below).map(\.text) == ["Hi", "你好"])
+    #expect(SubtitleMode.translation.lines(of: "Hi", translated: "你好", order: below).map(\.text) == ["你好"])
   }
 
   @Test func withoutATranslationEveryModeShowsTheOriginal() {
-    for mode in SubtitleMode.allCases { #expect(mode.lines(of: "Hi", translated: nil) == ["Hi"]) }
+    for mode in SubtitleMode.allCases {
+      #expect(mode.lines(of: "Hi", translated: nil, order: .translationAbove).map(\.text) == ["Hi"])
+    }
   }
 
   @Test func aTranslationThatDoesNotFitIsNotShown() throws {
@@ -59,7 +73,7 @@ import Testing
     let short = try Translation(language: "zh-Hans", lines: ["一", "二"])
     let readable = ReadableTranscript(transcript: transcript, translations: [short], language: "zh-Hans")
     #expect(readable.translation == nil)
-    #expect(readable.lines(0, mode: .both) == ["s0"])
+    #expect(readable.lines(0, mode: .both, order: .originalAbove).map(\.text) == ["s0"])
   }
 
   @Test func theTranslationIntoTheReadersLanguageIsChosen() throws {
@@ -67,7 +81,7 @@ import Testing
     let french = try Translation(language: "fr", lines: ["un", "deux"])
     let chinese = try Translation(language: "zh-Hans", lines: ["一", "二"])
     let readable = ReadableTranscript(transcript: transcript, translations: [french, chinese], language: "zh-Hans")
-    #expect(readable.lines(1, mode: .both) == ["s1", "二"])
+    #expect(readable.lines(1, mode: .both, order: .originalAbove).map(\.text) == ["s1", "二"])
   }
 
   @Test func theSentencePlayingIsTheLastToHaveStarted() throws {
@@ -100,18 +114,18 @@ import Testing
     let outline = try Outline(
       chapters: [
         Outline.Chapter(start: .zero, title: "Intro"), Outline.Chapter(start: .seconds(25), title: "Filter"),
-      ], highlights: [])
+      ])
     let timeline = Timeline(length: .seconds(100), outline: outline)
     #expect(timeline.cuts == [0.25])
     #expect(timeline.chapter(at: .seconds(30))?.title == "Filter")
     #expect(timeline.chapter(at: .seconds(3))?.title == "Intro")
   }
 
-  @Test func highlightsSitInProportionToTheLength() throws {
-    let highlight = try Outline.Highlight(
-      span: TimeSpan(start: .seconds(50), end: .seconds(60)), title: "Why", reason: "Because")
-    let timeline = Timeline(length: .seconds(200), outline: try Outline(chapters: [], highlights: [highlight]))
-    #expect(timeline.highlights == [0.25...0.3])
+  @Test func keyPointsSitInProportionToTheLength() throws {
+    let point = try KeyPoint(
+      place: .time(try TimeSpan(start: .seconds(50), end: .seconds(60))), title: "Why", reason: "Because")
+    let timeline = Timeline(length: .seconds(200), outline: nil, keyPoints: [point])
+    #expect(timeline.keyPoints == [0.25...0.3])
   }
 
   @Test func aShareOfTheBarIsAMomentInTheMedia() {

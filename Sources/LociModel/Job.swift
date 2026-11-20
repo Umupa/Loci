@@ -1,14 +1,35 @@
-/// Where the work of making one item readable stands. Each stage leaves a file behind, so a job stopped
+/// Where the work of making one item readable stands. Each stage leaves a file behind, so a job paused
 /// part way picks up after the last finished stage.
 public struct Job: Hashable, Codable, Sendable {
   public let item: EntityID
   public let stage: Stage
   public let state: State
+  /// Every stage the item goes through, in order, `stage` among them; empty when the host did not say.
+  public let stages: [Stage]
 
-  public init(item: EntityID, stage: Stage, state: State) {
+  public init(item: EntityID, stage: Stage, state: State, stages: [Stage] = []) {
     self.item = item
     self.stage = stage
     self.state = state
+    self.stages = stages
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case item, stage, state, stages
+  }
+
+  /// A job from a Mac that did not send its stages has none.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      item: try container.decode(EntityID.self, forKey: .item), stage: try container.decode(Stage.self, forKey: .stage),
+      state: try container.decode(State.self, forKey: .state),
+      stages: try container.decodeIfPresent([Stage].self, forKey: .stages) ?? [])
+  }
+
+  /// The same job in another state.
+  public func with(_ state: State) -> Job {
+    Job(item: item, stage: stage, state: state, stages: stages)
   }
 
   /// In the order they run. Articles stop after `extract`; video and audio skip it.
@@ -20,20 +41,33 @@ public struct Job: Hashable, Codable, Sendable {
     case download
     case transcribe
     case translate
-    /// Finds chapters and highlights.
+    /// Finds chapters; key points are picked when the reader asks.
     case outline
   }
 
   public enum State: Hashable, Codable, Sendable {
     case queued
-    /// `nil` when how far along cannot be told.
-    case running(progress: Fraction?)
+    /// `nil` when how far along cannot be told; `amount` only for work measured in bytes.
+    case running(progress: Fraction?, amount: Amount? = nil)
     /// Carries on by itself once the need is met.
     case waiting(Need)
     case failed(Failure)
-    /// Stopped by the reader; what was made so far is kept, and retrying carries on from there.
-    case stopped
+    /// Paused by the reader; what was made so far is kept, and it carries on from there when resumed, also
+    /// after the app quits. `progress` is how far the stage had got when it was paused.
+    case paused(progress: Fraction?)
     case done
+  }
+
+  /// How many bytes of a download have arrived, of how many.
+  public struct Amount: Hashable, Codable, Sendable {
+    public let done: Int64
+    /// `nil` while the size is not known.
+    public let total: Int64?
+
+    public init(done: Int64, total: Int64?) {
+      self.done = done
+      self.total = total
+    }
   }
 
   public enum Need: Hashable, Codable, Sendable {
@@ -41,7 +75,7 @@ public struct Job: Hashable, Codable, Sendable {
     case speechModel(SpeechModel)
     /// The site wants a signed-in visitor; sign in from the built-in browser.
     case login(site: String)
-    /// No agent CLI is available to translate or outline.
+    /// No agent CLI is available to translate or find chapters.
     case agent
   }
 

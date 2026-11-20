@@ -10,26 +10,51 @@ struct FakeSite: Sendable {
   var site: String? = "Channel"
   var duration: Double? = 120
   var audio = false
-  /// WebVTT for the site's own subtitles, in English.
+  /// WebVTT for the site's own subtitles, in every language of `subtitleLanguages`.
   var subtitles: String?
+  var subtitleLanguages = ["en"]
+  /// Offers 1080p and 720p pictures and a sound track of known sizes besides the one playable format.
+  var sized = false
   var chapters: [(Double, String)] = []
   /// What yt-dlp writes to standard error instead of resolving.
   var refusal: String?
+  /// When the address to play from stops working, in seconds since 1970.
+  var expires: Int = 4_102_444_800
 
   var json: String {
     let format: [String: Any] = [
-      "format_id": "18", "url": "https://media.example.com/play.mp4?expire=4102444800", "ext": "mp4",
+      "format_id": "18", "url": "https://media.example.com/play.mp4?expire=\(expires)", "ext": "mp4",
       "vcodec": audio ? "none" : "avc1.42001E", "acodec": "mp4a.40.2", "protocol": "https", "height": 360,
     ]
     var info: [String: Any] = [
       "title": title, "timestamp": 1_794_825_900, "thumbnail": "https://img.example.com/cover.jpg",
       "chapters": chapters.map { ["start_time": $0.0, "title": $0.1] as [String: Any] },
-      "subtitles": subtitles == nil ? [:] : ["en": [["ext": "vtt"]]], "formats": [format],
+      "subtitles": subtitles == nil
+        ? [:] : Dictionary(uniqueKeysWithValues: subtitleLanguages.map { ($0, [["ext": "vtt"]]) }),
+      "formats": [format] + (sized ? Self.sizedFormats : []),
     ]
     if let site { info["channel"] = site }
     if let duration { info["duration"] = duration }
     let data = (try? JSONSerialization.data(withJSONObject: info)) ?? Data()
     return String(decoding: data, as: UTF8.self)
+  }
+
+  /// 400 MB at 1080p and 180 MB at 720p without sound, and 15 MB of sound.
+  static var sizedFormats: [[String: Any]] {
+    [
+      [
+        "format_id": "137", "url": "https://media.example.com/1080.mp4", "ext": "mp4", "vcodec": "avc1.640028",
+        "acodec": "none", "protocol": "https", "height": 1080, "filesize": 400_000_000,
+      ],
+      [
+        "format_id": "136", "url": "https://media.example.com/720.mp4", "ext": "mp4", "vcodec": "avc1.4d401f",
+        "acodec": "none", "protocol": "https", "height": 720, "filesize_approx": 180_000_000,
+      ],
+      [
+        "format_id": "140", "url": "https://media.example.com/a.m4a", "ext": "m4a", "vcodec": "none",
+        "acodec": "mp4a.40.2", "protocol": "https", "filesize": 15_000_000,
+      ],
+    ]
   }
 }
 
@@ -153,7 +178,7 @@ final class FakeTranscriber: Transcribing {
   private let script: [Heard]
   /// Stops after this many pieces and waits until stopped.
   private let pauseAfter: Int?
-  private let starts = Mutex<[Duration]>([])
+  private let starts = Mutex<[(start: Duration, media: URL, language: String?)]>([])
   private let running = Mutex<(now: Int, most: Int)>((0, 0))
   let gate = Latch(open: true)
 
@@ -162,11 +187,16 @@ final class FakeTranscriber: Transcribing {
     self.pauseAfter = pauseAfter
   }
 
-  var startedFrom: [Duration] { starts.withLock { $0 } }
+  var startedFrom: [Duration] { starts.withLock { $0.map(\.start) } }
+  /// The files recognition was asked to hear, in order.
+  var heardFiles: [URL] { starts.withLock { $0.map(\.media) } }
+  var heardLanguages: [String?] { starts.withLock { $0.map(\.language) } }
   var mostAtOnce: Int { running.withLock { $0.most } }
 
-  func transcribe(_ media: URL, model: URL, from start: Duration) -> AsyncThrowingStream<Heard, any Error> {
-    starts.withLock { $0.append(start) }
+  func transcribe(_ media: URL, model: URL, language: String?, from start: Duration)
+    -> AsyncThrowingStream<Heard, any Error>
+  {
+    starts.withLock { $0.append((start, media, language)) }
     let (stream, continuation) = AsyncThrowingStream.makeStream(of: Heard.self, throwing: (any Error).self)
     let script = script.filter { heard in
       if case .words(let words) = heard { return (words.first?.start ?? .zero) >= start }
@@ -205,29 +235,50 @@ final class FakeTranscriber: Transcribing {
   }
 }
 
-/// Translates by numbering lines and outlines with one highlight, recording what it was asked.
+/// Translates by numbering lines, outlines with one chapter and picks the first sentences or passages as key
+/// points, recording what it was asked.
 final class FakeTranscriptAgent: TranscriptAgent {
   private let asked = Mutex<[String]>([])
+  private let readers = Mutex<[KeyPointReader]>([])
 
   var requests: [String] { asked.withLock { $0 } }
+  var keyPointReaders: [KeyPointReader] { readers.withLock { $0 } }
 
-  func translate(_ transcript: Transcript, into language: String) async throws(HostError) -> Translation {
-    asked.withLock { $0.append("translate \(language)") }
-    return try Self.attempt {
-      try Translation(language: language, lines: transcript.segments.map { "[\(language)] \($0.text)" })
+  func translate(lines: [String], into language: String) async throws(HostError) -> [String] {
+    let batch = asked.withLock { asked in
+      asked.append("translate \(language) \(lines.count)")
+      return asked.count { $0.hasPrefix("translate") }
     }
+    if let after = batchesBeforeFailing.withLock({ $0 }), batch > after { throw .invalidRequest("the agent gave up") }
+    return lines.map { "[\(language)] \($0)" }
   }
 
   func outline(_ transcript: Transcript, title: String) async throws(HostError) -> Outline {
     asked.withLock { $0.append("outline \(title)") }
+    return try Self.attempt { try Outline(chapters: [try .init(start: .zero, title: "Agent chapter")]) }
+  }
+
+  func keyPoints(of source: KeyPointSource, count: KeyPointCount, for reader: KeyPointReader)
+    async throws(HostError) -> [KeyPoint]
+  {
+    asked.withLock { $0.append("keyPoints \(count.rawValue)") }
+    readers.withLock { $0.append(reader) }
+    if let failure = failing.withLock({ $0 }) { throw .invalidRequest(failure) }
     return try Self.attempt {
-      try Outline(
-        chapters: [try .init(start: .zero, title: "Agent chapter")],
-        highlights: [
-          try .init(
-            span: try TimeSpan(start: .zero, end: transcript.segments.first?.end ?? .seconds(1)), title: "Start",
-            reason: "It sets up the rest")
-        ])
+      switch source {
+      case .transcript(let transcript, _):
+        try transcript.segments.prefix(count.range.lowerBound).map { segment in
+          try KeyPoint(
+            place: .time(try TimeSpan(start: segment.start, end: segment.end)), title: segment.text,
+            reason: "You asked about this")
+        }
+      case .article(let passages, _):
+        try passages.prefix(count.range.lowerBound).enumerated().map { index, passage in
+          try KeyPoint(
+            place: .passage(try .init(number: index + 1, text: passage)), title: "Passage \(index + 1)",
+            reason: "You asked about this")
+        }
+      }
     }
   }
 
@@ -237,12 +288,19 @@ final class FakeTranscriptAgent: TranscriptAgent {
     return passages.map { "[\(language)] \($0)" }
   }
 
-  /// Makes passage translations fail with `reason`, or succeed again with `nil`.
+  /// Makes passage translations and key points fail with `reason`, or succeed again with `nil`.
   func fail(_ reason: String?) {
     failing.withLock { $0 = reason }
   }
 
   private let failing = Mutex<String?>(nil)
+
+  /// Makes every batch of transcript lines after the first `count` fail, or none with `nil`.
+  func failBatches(after count: Int?) {
+    batchesBeforeFailing.withLock { $0 = count }
+  }
+
+  private let batchesBeforeFailing = Mutex<Int?>(nil)
 
   private static func attempt<Value>(_ body: () throws -> Value) throws(HostError) -> Value {
     do {

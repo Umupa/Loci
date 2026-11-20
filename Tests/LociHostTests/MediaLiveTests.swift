@@ -114,7 +114,7 @@ struct MediaLiveTests {
       #expect(await job(host, item.id, within: .seconds(60), where: isRunning(.download)) != nil)
       let playing = try await host.run(ReadPlayback(item: item.id))
       Timings.note("Xiaoyuzhou: playable (\(Self.describe(playing)))", since: started)
-      _ = try await host.run(CancelJob(item: item.id))
+      _ = try await host.run(PauseJob(item: item.id))
     }
   }
 

@@ -3,8 +3,10 @@ import LociModel
 
 /// Recognizes speech on this Mac. The app's version runs whisper.cpp; tests hear what they script.
 public protocol Transcribing: Sendable {
-  /// What is said in `media` from `start` on, in order, as it is recognized. Ending the stream stops the work.
-  func transcribe(_ media: URL, model: URL, from start: Duration) -> AsyncThrowingStream<Heard, any Error>
+  /// What is said in `media` from `start` on, in order, as it is recognized, hearing it as `language` (a BCP 47
+  /// tag) or telling the language when that is `nil`. Ending the stream stops the work.
+  func transcribe(_ media: URL, model: URL, language: String?, from start: Duration)
+    -> AsyncThrowingStream<Heard, any Error>
 }
 
 /// One piece of news from recognition.

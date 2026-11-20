@@ -77,6 +77,28 @@ struct TranslatedTextTests {
     #expect((text.plain as NSString).substring(with: found) == "Shared")
   }
 
+  @Test func withTheTranslationAboveEachPassageFollowsItsTranslation() {
+    let text = ReadingText(
+      markdown: Self.markdown,
+      translation: ShownTranslation(passages: Self.translation.passages, mode: .both, order: .translationAbove))
+    #expect(text.plain.contains("规模化下的长尾\nThe Tail at Scale\n"))
+    #expect(text.plain.contains("响应快的系统用起来更流畅。\nSystems that respond quickly feel more fluid."))
+  }
+
+  @Test func withTheTranslationAboveAQuoteStillFindsTheOriginal() throws {
+    let original = Self.text(nil)
+    let text = ReadingText(
+      markdown: Self.markdown,
+      translation: ShownTranslation(passages: Self.translation.passages, mode: .both, order: .translationAbove))
+    for words in ["respond quickly", "Shared"] {
+      let quote = try #require(original.quote(Self.range(of: words, in: original)))
+      let found = try #require(text.range(of: quote.quote))
+      #expect((text.plain as NSString).substring(with: found) == words)
+    }
+    let passage = try #require(text.quote(Self.range(of: "流畅", in: text)))
+    #expect(passage.excerpt == "Systems that respond quickly feel more fluid.")
+  }
+
   private static func range(of words: String, in text: ReadingText) -> NSRange {
     (text.plain as NSString).range(of: words)
   }

@@ -13,9 +13,11 @@ struct MachineWindow: View {
   @State private var health: Feed<Health>?
   @State private var status: Feed<LociStatus>?
   @State private var avatar: Feed<Avatar?>?
+  @State private var saving: Feed<SavingBatch?>?
   @State private var dialogs = Dialogs()
   @State private var focusRequest = 0
   @State private var covers = Covers()
+  @State private var deletions = Deletions()
   @State private var browser: BrowserSession
   @AppStorage(PaneWidth.sidebar.key) private var sidebarWidth = Double(PaneWidth.sidebar.ideal)
   @AppStorage("sidebarShown") private var sidebarPreferred = true
@@ -33,6 +35,16 @@ struct MachineWindow: View {
 
   var body: some View {
     layout
+      .overlay {
+        if let pending = dialogs.intake {
+          ImportSheet(pending: pending, close: { dialogs.intake = nil }, opened: { window = $0 })
+            .id(pending)
+            .transition(.opacity)
+        }
+      }
+      .animation(Motion.standard, value: dialogs.intake)
+      .overlay { if (saving?.value ?? nil) != nil { WindowGlow() } }
+      .animation(.easeInOut(duration: 0.6), value: (saving?.value ?? nil) != nil)
       .background(WindowButtons(inset: Size.windowButtons))
       .background(WindowKeys(whileTyping: true, handle: key))
       .toolbar(removing: .title)
@@ -43,6 +55,7 @@ struct MachineWindow: View {
       .subscribing(HealthReport(), into: $health)
       .subscribing(LociWorking(), into: $status)
       .subscribing(LociModel.LociAvatar(), into: $avatar)
+      .subscribing(SavingNow(), into: $saving)
       .onAppear(perform: restore)
       .onChange(of: window) { memory.remember(window) }
       .onChange(of: itemIDs) { _, items in
@@ -54,9 +67,11 @@ struct MachineWindow: View {
       .focusedSceneValue(\.navigator, navigator)
       .dialogs($dialogs, host: host)
       .environment(\.covers, covers)
+      .environment(\.deletions, deletions)
       .environment(\.browser, browser)
       .environment(\.lociFace, face)
       .environment(\.showFailure, ShowFailure { dialogs.failure = $0 })
+      .takingIn(takeIn)
       .lociAppearance()
   }
 
@@ -180,11 +195,8 @@ struct MachineWindow: View {
   @ViewBuilder private var placeView: some View {
     switch window.place {
     case .talk:
-      TalkScreen(
-        focusRequest: focusRequest, attach: { dialogs.importing = true }, opened: { window = $0 },
-        failed: { dialogs.failure = $0 }
-      )
-      .onAppear(perform: talkShown)
+      TalkScreen(focusRequest: focusRequest, attach: { dialogs.importing = true })
+        .onAppear(perform: talkShown)
     case .loci:
       LociScreen()
     case .library(let kind):
@@ -251,18 +263,15 @@ struct MachineWindow: View {
     return true
   }
 
-  /// Adds the link on the pasteboard and opens it. Whether there was one.
+  /// Takes in the link on the pasteboard, staying on the page. Whether there was one.
   private func pasteLink() -> Bool {
     guard let url = PastedLink.on(.general) else { return false }
-    Task {
-      do throws(HostError) {
-        let item = try await host.run(AddLink(url: url))
-        window = WindowState(place: .library(nil), pages: [.item(item.id)])
-      } catch {
-        dialogs.failure = error
-      }
-    }
+    takeIn.link(url)
     return true
+  }
+
+  private var takeIn: TakeIn {
+    TakeIn(host: host, ask: { dialogs.intake = $0 }, failed: { dialogs.failure = $0 })
   }
 
   /// The items there are, once the list has arrived.

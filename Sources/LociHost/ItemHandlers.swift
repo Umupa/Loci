@@ -78,7 +78,8 @@ extension LocalHost {
     let renamed = try attempt {
       try Item(
         id: item.id, kind: item.kind, title: title, authors: item.authors, source: item.source,
-        language: item.language, contentHash: item.contentHash, site: item.site, published: item.published)
+        language: item.language, contentHash: item.contentHash, site: item.site, published: item.published,
+        why: item.why)
     }
     try attempt { try store.retitle(renamed, from: item.title) }
     await follow([.item(item.id)])

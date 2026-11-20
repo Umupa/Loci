@@ -70,23 +70,32 @@ public struct YtDlp: Sendable {
     return folder.appending(path: "subs.\(language).vtt")
   }
 
-  /// Downloads into `folder` as `media.mp4`, or `media.m4a` for something to listen to, picking up any part
-  /// already there. Returns the finished file. With the JSON `resolve` read, the page is not read again; when
-  /// the addresses in it no longer work, the link is read afresh.
+  /// Downloads into `folder` as `media.mp4` with a picture at most `height` tall, or `media.m4a` for something
+  /// to listen to, picking up any part already there. Returns the finished file. With the JSON `resolve` read,
+  /// the page is not read again; when the addresses in it no longer work, the link is read afresh, still keeping
+  /// the part. The part is thrown away only when the site will not carry it on.
   public func download(
-    _ url: URL, info: URL? = nil, audio: Bool, into folder: URL, progress: @escaping @Sendable (Fraction?) -> Void
+    _ url: URL, info: URL? = nil, audio: Bool, height: Int = 1080, into folder: URL,
+    progress: @escaping @Sendable (Fraction?, Job.Amount?) -> Void
   ) async throws(MediaError) -> URL {
     let tracker = DownloadProgress(audio: audio, report: progress)
     let result: ProgramResult
     do {
       result = try await run(
-        Self.downloadArguments(info.map(Source.info) ?? .link(url), audio: audio, folder: folder),
+        Self.downloadArguments(info.map(Source.info) ?? .link(url), audio: audio, height: height, folder: folder),
         line: { line in tracker.hear(line) })
     } catch {
       let refused = error.reason.lowercased().contains("unable to download video data: http error 403")
       guard !Task.isCancelled, info != nil || refused else { throw error }
-      let args = Self.downloadArguments(.link(url), audio: audio, folder: folder, checkFormats: refused)
-      result = try await run(args, line: { line in tracker.hear(line) })
+      do {
+        let args = Self.downloadArguments(
+          .link(url), audio: audio, height: height, folder: folder, checkFormats: refused)
+        result = try await run(args, line: { line in tracker.hear(line) })
+      } catch  where !Task.isCancelled && Self.partRefused(error) {
+        let args = Self.downloadArguments(
+          .link(url), audio: audio, height: height, folder: folder, checkFormats: true, afresh: true)
+        result = try await run(args, line: { line in tracker.hear(line) })
+      }
     }
     let path = result.output.split(whereSeparator: \.isNewline).map(String.init).last { $0.hasPrefix("/") }
     guard let path else { throw MediaError(.other, reason: "yt-dlp finished without saying where the file is") }
@@ -99,12 +108,20 @@ public struct YtDlp: Sendable {
     case info(URL)
   }
 
-  static func downloadArguments(_ source: Source, audio: Bool, folder: URL, checkFormats: Bool = false) -> [String] {
+  /// The site will not send the rest of the part already downloaded.
+  static func partRefused(_ error: MediaError) -> Bool {
+    let reason = error.reason.lowercased()
+    return reason.contains("http error 416") || reason.contains("requested range not satisfiable")
+  }
+
+  static func downloadArguments(
+    _ source: Source, audio: Bool, height: Int = 1080, folder: URL, checkFormats: Bool = false, afresh: Bool = false
+  ) -> [String] {
     let format =
       audio
       ? ["-f", "ba[ext=m4a]/ba/b", "-x", "--audio-format", "m4a"]
       : [
-        "-f", "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b", "-S", "vcodec:h264,res:1080,acodec:m4a",
+        "-f", "bv*[height<=\(height)]+ba/b[height<=\(height)]/bv*+ba/b", "-S", "vcodec:h264,res:\(height),acodec:m4a",
         "--merge-output-format", "mp4",
       ]
     let from =
@@ -112,7 +129,7 @@ public struct YtDlp: Sendable {
       case .link(let url): [url.absoluteString]
       case .info(let file): ["--load-info-json", file.path(percentEncoded: false)]
       }
-    let resume = checkFormats ? ["--check-formats", "--no-continue"] : ["--continue"]
+    let resume = (checkFormats ? ["--check-formats"] : []) + [afresh ? "--no-continue" : "--continue"]
     return format + resume + [
       "--no-playlist", "-P", folder.path(percentEncoded: false), "-o", "media.%(ext)s",
       "--print", "after_move:filepath", "--no-simulate", "--progress", "--newline",

@@ -92,7 +92,7 @@ struct FetchingItem: View {
 }
 
 /// The line under an article's title: its authors, then site and date in a fixed-width face, then a link to the
-/// original.
+/// original; below it, why the reader took it in, in the serif's italic.
 enum Byline {
   static func of(_ item: Item) -> NSAttributedString? {
     let line = NSMutableAttributedString()
@@ -129,6 +129,13 @@ enum Byline {
       let link = NSMutableAttributedString(attachment: attachment)
       link.addAttribute(.link, value: source, range: link.fullRange)
       line.append(link)
+    }
+    if let why = item.why {
+      let serif = NSFont.serif(ofSize: 14.5)
+      let italic = NSFont(descriptor: serif.fontDescriptor.withSymbolicTraits(.italic), size: 14.5) ?? serif
+      line.append(
+        NSAttributedString(
+          string: (line.length > 0 ? "\n" : "") + why, attributes: [.font: italic, .foregroundColor: Tones.inkMuted]))
     }
     return line.length > 0 ? line : nil
   }

@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import LociModel
 import SwiftUI
+import Synchronization
 import Testing
 
 @testable import LociUI
@@ -17,48 +18,84 @@ struct LibrarySnapshots {
   static func shoot(
     _ name: String, _ library: SampleLibrary, at place: WindowState, appearance: Snapshot.Appearance,
     recognizing: Bool = false, working: Bool = false, avatar: Avatar? = nil, standIns: StandIns? = nil,
-    browser: BrowserSession = BrowserSession(), english: Bool = false, size: CGSize = window,
+    browser: BrowserSession = BrowserSession(), english: Bool = false, size: CGSize = window, panel: Bool = true,
+    machine: MachineChoice? = nil, keyPoints: SampleKeyPoints = .picked, defaults: UserDefaults? = nil,
     until ready: (@MainActor (NSWindow) -> Bool)? = nil
   ) async throws {
     let view = MachineWindow(memory: WindowMemory(recall: { place }, remember: { _ in }), browser: browser)
       .lociHost(
         FakeHost(
-          try Sample(problems: false), library: library, recognizing: recognizing, working: working, avatar: avatar)
+          try Sample(problems: false), library: library, recognizing: recognizing, working: working, avatar: avatar,
+          keyPoints: keyPoints)
       )
       .environment(\.standIns, standIns)
+      .defaultAppStorage(defaults ?? Self.defaults(panel: panel))
+      .environment(\.machineChoice, machine)
     let file = try await Snapshot.render(
       view, named: name, size: size, appearance: appearance, locale: Locale(identifier: english ? "en" : "zh-Hans"),
       settle: .milliseconds(1500), until: ready, steady: ready != nil)
     #expect(try Data(contentsOf: file).count > 10_000)
   }
 
+  /// Settings of their own, so what one picture leaves behind is not the next one's: the item panel open or
+  /// closed as asked, everything else as it starts.
+  static func defaults(panel: Bool) -> UserDefaults {
+    let name = "loci-snapshot-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name) ?? .standard
+    defaults.set(panel, forKey: PanelMemory.key)
+    return defaults
+  }
+
   static func reading(_ item: EntityID) -> WindowState {
     WindowState(place: .library(nil), pages: [.item(item)])
   }
 
+  /// I-S7, I-S8: the gallery with work going, paused, waiting for the reader and queued, and the task dock.
   @Test(arguments: Snapshot.Appearance.allCases)
-  func shelfAndList(appearance: Snapshot.Appearance) async throws {
+  func gallery(appearance: Snapshot.Appearance) async throws {
     try await Self.shoot(
-      "library-b", try SampleLibrary(), at: WindowState(place: .library(nil)), appearance: appearance)
+      "library-gallery", try SampleLibrary().withGalleryWork(), at: WindowState(place: .library(nil)),
+      appearance: appearance, standIns: StandIns(pointedCard: try SampleLibrary().uring))
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
-  func shelfAndListInEnglish(appearance: Snapshot.Appearance) async throws {
+  func galleryInEnglish(appearance: Snapshot.Appearance) async throws {
     try await Self.shoot(
-      "library-b-en", try SampleLibrary(), at: WindowState(place: .library(nil)), appearance: appearance, english: true)
+      "library-gallery-en", try SampleLibrary().withGalleryWork(), at: WindowState(place: .library(nil)),
+      appearance: appearance, standIns: StandIns(), english: true)
   }
 
-  /// A-S7, A-S9, A-S10: two rows chosen, one title being renamed, and the notice after a deletion.
+  /// I-S8: the dock opened into the list of tasks.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func taskDockOpen(appearance: Snapshot.Appearance) async throws {
+    try await Self.shoot(
+      "task-dock-open", try SampleLibrary().withGalleryWork(), at: WindowState(place: .library(nil)),
+      appearance: appearance, standIns: StandIns(pointedCard: try SampleLibrary().uring, taskDockOpen: true))
+  }
+
+  /// I-S10: Loci saving a batch lights the window's edges and the dock counts the batch.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func lociSaving(appearance: Snapshot.Appearance) async throws {
+    var library = try SampleLibrary().withGalleryWork()
+    library.saving = SavingBatch(items: library.jobs.prefix(5).map(\.item), finished: 2)
+    try await Self.shoot(
+      "library-loci-saving", library, at: WindowState(place: .library(nil)), appearance: appearance,
+      standIns: StandIns())
+  }
+
+  /// A-S7, A-S9, A-S10: two cards chosen, one title being renamed, and the notice after a deletion.
   @Test(arguments: Snapshot.Appearance.allCases)
   func choosingRenamingAndUndoing(appearance: Snapshot.Appearance) async throws {
     let library = try SampleLibrary()
-    let rows = library.items.filter { $0.id != library.video.id }
+    let cards = library.items.filter { $0.id != library.video.id }
     let actions = ItemActions(rename: { _ in }, changeCover: { _ in }, delete: { _ in })
+    let card = CardActions(pause: { _ in }, resume: { _ in }, cancel: { _ in }, fix: { _, _ in })
     let view = ZStack(alignment: .bottom) {
       ScrollView {
-        LibraryList(
-          items: rows, jobs: [:], progress: Progress(), chosen: [rows[1].id, rows[2].id], renaming: rows[4].id,
-          click: { _ in }, act: { _, _ in }, actions: actions, acted: { [$0] }, renamed: { _, _ in }
+        LibraryGallery(
+          items: cards, jobs: [:], progress: Progress(), chosen: [cards[1].id, cards[2].id], renaming: cards[4].id,
+          click: { _ in }, actions: card, menu: { ItemMenu(item: $0, acted: [$0.id], actions: actions) },
+          renamed: { _, _ in }
         )
         .padding(28)
       }
@@ -276,11 +313,12 @@ struct LibrarySnapshots {
       standIns: StandIns(webPage: Self.webPage("video", appearance)), browser: browser)
   }
 
-  /// L-S14.
+  /// L-S14, O-S7, O-S8: storage at the top of the media settings.
   @Test(arguments: Snapshot.Appearance.allCases)
   func mediaSettings(appearance: Snapshot.Appearance) async throws {
     try await Self.shoot(
-      "settings-media", try SampleLibrary(), at: WindowState(place: .settings(.media)), appearance: appearance)
+      "settings-media", try SampleLibrary().withStorage(), at: WindowState(place: .settings(.media)),
+      appearance: appearance)
   }
 
   static func webPage(_ name: String, _ appearance: Snapshot.Appearance) -> NSImage? {
@@ -368,5 +406,118 @@ extension SampleLibrary {
       position: .item(gone.id, .time(try TimeSpan(start: .zero))), finished: false,
       updatedAt: Timestamp(millisecondsSince1970: 1_763_337_700_000))
     return library
+  }
+}
+
+extension LibrarySnapshots {
+  /// I-S12: an item's page opens with the panel folded away until the button at the top right opens it.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func thePanelStartsClosed(appearance: Snapshot.Appearance) async throws {
+    let library = try SampleLibrary()
+    try await Self.shoot(
+      "video-panel-closed", library, at: Self.reading(library.video.id), appearance: appearance,
+      standIns: StandIns(moment: MediaMoment()), panel: false)
+  }
+
+  /// I-S11: a video still downloading shows its preparation in place of the player.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func preparing(appearance: Snapshot.Appearance) async throws {
+    let library = try SampleLibrary().withGalleryWork()
+    try await Self.shoot(
+      "preparing", library, at: Self.reading(try library.uring), appearance: appearance,
+      standIns: StandIns(moment: MediaMoment(playing: false)), panel: false)
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func preparingPaused(appearance: Snapshot.Appearance) async throws {
+    var library = try SampleLibrary().withGalleryWork()
+    let uring = try library.uring
+    library.jobs = library.jobs.map { $0.item == uring ? $0.with(.paused(progress: Fraction(0.62))) : $0 }
+    try await Self.shoot(
+      "preparing-paused", library, at: Self.reading(uring), appearance: appearance,
+      standIns: StandIns(moment: MediaMoment(playing: false)), panel: false)
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func preparingNeedsASignIn(appearance: Snapshot.Appearance) async throws {
+    let library = try SampleLibrary().withGalleryWork()
+    try await Self.shoot(
+      "preparing-needs", library, at: Self.reading(try library.named("图解 eBPF")), appearance: appearance,
+      standIns: StandIns(moment: MediaMoment(playing: false)), panel: false)
+  }
+}
+
+extension LibrarySnapshots {
+  /// O-S4: another Mac's video that it only watches online says so where the player would be.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func anotherMacsOnlineVideo(appearance: Snapshot.Appearance) async throws {
+    var library = try SampleLibrary()
+    library.videoSaved = false
+    let machine = MachineChoice(
+      roster: Roster(this: FakeMachines.thisMac, paired: []), shown: FakeMachines.studio, link: .connected,
+      menuOpen: false, openMenu: {}, addMac: {}, remove: { _ in }, acceptInvite: { _ in })
+    try await Self.shoot(
+      "video-remote-online", library, at: Self.reading(library.video.id), appearance: appearance,
+      standIns: StandIns(moment: MediaMoment(playing: false)), machine: machine)
+  }
+}
+
+extension LibrarySnapshots {
+  /// I-S8: scrolled to the end, the last row of the gallery sits clear above the task dock.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func galleryScrolledToTheEnd(appearance: Snapshot.Appearance) async throws {
+    try await Self.shoot(
+      "library-gallery-end", try SampleLibrary().withGalleryWork(), at: WindowState(place: .library(nil)),
+      appearance: appearance, standIns: StandIns(galleryAtEnd: true))
+  }
+}
+
+extension LibrarySnapshots {
+  /// The gallery, its glass buttons and the task dock cast their soft shadows as shapes, not with `shadow(_:)`:
+  /// no layer behind them carries a wide shadow Core Animation must blur off screen. A dozen such shadows made
+  /// every picture of the window take seconds and starved the tests running beside it. A button's one-point
+  /// shadow costs next to nothing and is allowed.
+  @Test func theGalleryAndTheDockCastNoShadowThatNeedsABlurPass() async throws {
+    let library = try SampleLibrary().withGalleryWork()
+    let jobs = Dictionary(library.jobs.map { ($0.item, $0) }, uniquingKeysWith: { first, _ in first })
+    let card = CardActions(pause: { _ in }, resume: { _ in }, cancel: { _ in }, fix: { _, _ in })
+    let actions = ItemActions(rename: { _ in }, changeCover: { _ in }, delete: { _ in })
+    let view = ZStack(alignment: .bottom) {
+      ScrollView {
+        LibraryGallery(
+          items: library.items, jobs: jobs, progress: Progress(), chosen: [], renaming: nil, click: { _ in },
+          actions: card, menu: { ItemMenu(item: $0, acted: [$0.id], actions: actions) }, renamed: { _, _ in }
+        )
+        .padding(28)
+      }
+      TaskDock(
+        jobs: library.jobs,
+        items: Dictionary(library.items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }),
+        saving: nil, actions: DockActions(card: card, stopSaving: {})
+      )
+      .padding(.bottom, 20)
+    }
+    .background(Palette.canvas)
+    .environment(\.covers, Covers())
+    .environment(\.standIns, StandIns(pointedCard: try library.uring, taskDockOpen: true))
+    let host = FakeHost(try Sample(problems: false), library: library)
+    let quiet = Quiet(host.activity)
+    let shadowed = Mutex<[String]>([])
+
+    try await Snapshot.render(
+      view.lociHost(host), named: "library-gallery-layers", size: Self.window, appearance: .light
+    ) { window in
+      guard quiet.settled(), let root = window.contentView?.layer else { return false }
+      shadowed.withLock { $0 = Self.shadowedLayers(under: root) }
+      return true
+    }
+
+    #expect(shadowed.withLock { $0 } == [])
+  }
+
+  static func shadowedLayers(under layer: CALayer) -> [String] {
+    let wide = layer.shadowOpacity > 0 && layer.shadowColor != nil && layer.shadowRadius > 2
+    let own = wide ? ["\(type(of: layer)) \(layer.frame) radius \(layer.shadowRadius)"] : []
+    return own + (layer.sublayers ?? []).flatMap { shadowedLayers(under: $0) }
   }
 }

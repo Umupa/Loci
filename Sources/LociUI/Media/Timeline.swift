@@ -5,19 +5,19 @@ struct Timeline: Equatable {
   let length: Duration
   /// Where each chapter after the first begins; the bar is cut there.
   let cuts: [Double]
-  /// The stretches Loci picked out, drawn in amber with a diamond at their start.
-  let highlights: [ClosedRange<Double>]
+  /// The key points, drawn in amber.
+  let keyPoints: [ClosedRange<Double>]
   let chapters: [Outline.Chapter]
 
-  init(length: Duration, outline: Outline?) {
+  init(length: Duration, outline: Outline?, keyPoints: [KeyPoint] = []) {
     self.length = length
     let chapters = outline?.chapters ?? []
     self.chapters = chapters
     let share = { (time: Duration) in Self.share(time, of: length) }
     cuts = chapters.map(\.start).filter { $0 > .zero && $0 < length }.map(share)
-    highlights = (outline?.highlights ?? []).compactMap { highlight in
-      let start = share(highlight.span.start)
-      let end = share(highlight.span.end ?? highlight.span.start)
+    self.keyPoints = keyPoints.compactMap(\.span).compactMap { span in
+      let start = share(span.start)
+      let end = share(span.end ?? span.start)
       return start < 1 ? start...max(start, end) : nil
     }
   }

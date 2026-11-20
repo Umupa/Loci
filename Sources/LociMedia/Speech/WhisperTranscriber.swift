@@ -10,13 +10,15 @@ public struct WhisperTranscriber: Transcribing {
 
   public init() {}
 
-  public func transcribe(_ media: URL, model: URL, from start: Duration) -> AsyncThrowingStream<Heard, any Error> {
+  public func transcribe(_ media: URL, model: URL, language: String?, from start: Duration)
+    -> AsyncThrowingStream<Heard, any Error>
+  {
     let (stream, continuation) = AsyncThrowingStream.makeStream(of: Heard.self, throwing: (any Error).self)
     let listener = Listener(continuation: continuation)
     continuation.onTermination = { _ in listener.stopped.store(true, ordering: .relaxed) }
     let thread = Thread {
       do {
-        try Self.recognize(media, model: model, from: start, listener: listener)
+        try Self.recognize(media, model: model, language: language, from: start, listener: listener)
         continuation.finish()
       } catch {
         continuation.finish(throwing: error)
@@ -27,9 +29,9 @@ public struct WhisperTranscriber: Transcribing {
     return stream
   }
 
-  private static func recognize(_ media: URL, model: URL, from start: Duration, listener: Listener)
-    throws(TranscribeError)
-  {
+  private static func recognize(
+    _ media: URL, model: URL, language spoken: String?, from start: Duration, listener: Listener
+  ) throws(TranscribeError) {
     let audio = try AudioSamples(media)
     let total = audio.duration
     listener.total.store(total.roundedMillisecondsValue, ordering: .relaxed)
@@ -39,7 +41,8 @@ public struct WhisperTranscriber: Transcribing {
       throw TranscribeError(reason: "the speech model could not be loaded; download it again")
     }
     defer { whisper_free(context) }
-    var language: UnsafeMutablePointer<CChar>? = strdup("auto")
+    let named = spoken.map { String($0.split(separator: "-").first ?? "").lowercased() }
+    var language: UnsafeMutablePointer<CChar>? = strdup(named ?? "auto")
     defer { free(language) }
     var offset = start
     while offset < total, !listener.stopped.load(ordering: .relaxed) {
@@ -75,7 +78,7 @@ public struct WhisperTranscriber: Transcribing {
       }
       if listener.stopped.load(ordering: .relaxed) { return }
       guard status == 0 else { throw TranscribeError(reason: "speech recognition failed (\(status))") }
-      if offset == start, let detected = whisper_lang_str(whisper_full_lang_id(context)) {
+      if offset == start, named == nil, let detected = whisper_lang_str(whisper_full_lang_id(context)) {
         let tag = String(cString: detected)
         listener.continuation.yield(.language(tag))
         free(language)

@@ -81,6 +81,22 @@ enum Palette {
   /// Menus and bars that float over the page.
   static let floating = Color(nsColor: Tones.floating)
 
+  /// A finished stage on the stage ruler.
+  static let accentLine = Color(nsColor: Tones.accentLine)
+  /// Work that failed.
+  static let failure = Color(nsColor: Tones.failure)
+  /// The paper an article or paper without a picture is set on, the same in both appearances.
+  static let paper = Color(nsColor: NSColor(rgb: 0xF6F1E7))
+  static let paperFoot = Color(nsColor: NSColor(rgb: 0xEDE5D6))
+  static let paperInk = Color(nsColor: NSColor(rgb: 0x2B2621))
+
+  /// The light that flows around work under way, and around the window while Loci saves.
+  enum Glow {
+    static let amber = Color(nsColor: NSColor(rgb: 0xE9A23B))
+    static let coral = Color(nsColor: NSColor(rgb: 0xFF7B5C))
+    static let gold = Color(nsColor: NSColor(rgb: 0xFFD27A))
+  }
+
   /// Code, colored by what each word is. Code sits on `well`.
   enum Code {
     static let keyword = Color(nsColor: Tones.codeKeyword)
@@ -136,6 +152,8 @@ enum Tones {
   static let thumb = NSColor(dark: 0x5A544D, light: 0xFFFFFF)
   static let ring = NSColor(dark: 0xFFF5E6, light: 0xFFFFFF, alpha: (dark: 0.14, light: 0.9))
   static let coverBackdrop = NSColor(dark: 0x2A2420, light: 0x2A2420)
+  static let accentLine = NSColor(dark: 0xEBA53A, light: 0xD98E1F, alpha: (dark: 0.6, light: 0.55))
+  static let failure = NSColor(dark: 0xEE7A60, light: 0xC9503A)
   static let coverPlaceholder = NSColor(dark: 0x2A2420, light: 0xEFEAE2)
   static let menuFace = NSColor(dark: 0x2C2824, light: 0xFDFBF8)
   static let scrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.32, light: 0.10))

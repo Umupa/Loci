@@ -1,4 +1,5 @@
 import AppKit
+import LociModel
 import SwiftUI
 
 /// What a snapshot draws in place of things that do not render off screen — a web page, a video's frames —
@@ -14,6 +15,12 @@ struct StandIns {
   /// Words of the reading text selected, with the bar over them.
   var selection: String?
   var conversationAt: Date?
+  /// The pointer rests on this card in the gallery.
+  var pointedCard: EntityID?
+  /// The task dock is opened into its list.
+  var taskDockOpen = false
+  /// The gallery is scrolled to its end.
+  var galleryAtEnd = false
 }
 
 /// A reader of a video or audio item caught part way through.
@@ -25,6 +32,11 @@ struct MediaMoment {
   var scrolledAway = false
   var subtitleMenuOpen = false
   var panel: MediaTab?
+  var onlyKeyPoints = false
+  /// The panel is folded away.
+  var panelFolded = false
+  /// How subtitles look is open in the panel.
+  var styling = false
 }
 
 extension EnvironmentValues {

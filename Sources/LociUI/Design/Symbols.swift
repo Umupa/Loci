@@ -25,6 +25,8 @@ enum Symbols {
   static let forward5 = "goforward.5"
   static let fullScreen = "arrow.up.left.and.arrow.down.right"
   static let subtitles = "captions.bubble"
+  static let keyPoints = "sparkles"
+  static let subtitleStyle = "textformat.size"
   static let external = "arrow.up.forward.square"
   static let backToPlaying = "play.circle"
   static let download = "arrow.down.to.line"
@@ -52,6 +54,9 @@ enum Symbols {
   static let tools = "hammer"
   static let web = "globe"
   static let remote = "display.2"
+  static let disk = "internaldrive"
+  static let online = "dot.radiowaves.left.and.right"
+  static let why = "quote.opening"
 
   static func machine(_ model: MachineModel) -> String {
     switch model {

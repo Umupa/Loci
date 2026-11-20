@@ -23,7 +23,7 @@ enum JobLine: Equatable {
     /// Shows the original page, where the site says why it will not give the item.
     case openSource
     case retry
-    /// Stopped by the reader; carries on from what was made.
+    /// Paused by the reader; carries on from what was made.
     case resume
   }
 
@@ -37,7 +37,7 @@ enum JobLine: Equatable {
       self = .none
     case .queued:
       self = .working(.queued, nil)
-    case .running(let progress):
+    case .running(let progress, _):
       self = .working(Self.activity(job.stage), progress)
     case .waiting(let need):
       switch need {
@@ -55,7 +55,7 @@ enum JobLine: Equatable {
         case .retry, nil: .retry
         }
       self = .action(fix, Problem(stage: job.stage, cause: failure.cause, reason: failure.reason))
-    case .stopped:
+    case .paused:
       self = .action(.resume, nil)
     }
   }

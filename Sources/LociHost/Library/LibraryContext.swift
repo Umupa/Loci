@@ -10,6 +10,7 @@ struct LibraryContext: Sendable {
   let environment: HostEnvironment
   let equipment: Equipment
   let streams: StreamCache
+  let probes: Probes
   /// Brings the database up to date and tells the subscriptions.
   let notify: @Sendable (Set<ContentChange>) async -> Void
 
@@ -26,6 +27,12 @@ struct LibraryContext: Sendable {
   var runtime: Runtime { settings.runtime ?? environment.defaultRuntime }
 
   var speechModel: SpeechModel { settings.speechModel ?? .recommended }
+
+  /// The agent that writes translations, chapters and key points on `runtime`; `nil` follows what Loci runs
+  /// on. `nil` when there is no agent to run.
+  func transcriptAgent(_ runtime: Runtime?) -> (any TranscriptAgent)? {
+    media.transcriptAgent.map { $0(runtime ?? self.runtime) }
+  }
 }
 
 /// Addresses to play items from while they download, as the site last gave them.
@@ -64,14 +71,23 @@ func stored<Value>(_ body: () throws -> Value) throws(StageStop) -> Value {
 }
 
 extension Job.Stage {
-  /// The stages an item goes through, in order.
-  static func all(for item: Item) -> [Job.Stage] {
+  /// The stages an item goes through, in order. A video or episode taken in with a choice is recognized
+  /// before its media downloads, and goes without the stages the choice leaves out; one taken in before
+  /// choices were kept downloads first.
+  static func all(for item: Item, choice: ImportChoice?) -> [Job.Stage] {
     switch item.kind {
-    case .article, .paper: [.extract]
+    case .article, .paper: return [.extract]
+    case .repository: return []
     case .video, .audio:
-      item.source == nil
-        ? [.transcribe, .translate, .outline] : [.resolve, .download, .transcribe, .translate, .outline]
-    case .repository: []
+      guard let choice else {
+        return item.source == nil
+          ? [.transcribe, .translate, .outline] : [.resolve, .download, .transcribe, .translate, .outline]
+      }
+      var stages: [Job.Stage] = item.source == nil ? [] : [.resolve]
+      if choice.recognition != nil { stages.append(.transcribe) }
+      if item.source != nil, choice.keeping == .local { stages.append(.download) }
+      if choice.translation != nil { stages.append(.translate) }
+      return stages + [.outline]
     }
   }
 }

@@ -43,7 +43,7 @@ enum JobSteps {
     let within: Double =
       switch job.state {
       case .done: 1
-      case .running(let progress?): progress.value
+      case .running(let progress?, _): progress.value
       default: 0
       }
     return (Double(index) + within) / Double(steps.count)

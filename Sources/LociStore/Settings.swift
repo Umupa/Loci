@@ -8,13 +8,17 @@ public struct HostSettings: Hashable, Sendable {
   /// The Whisper model recognition uses; `nil` until one is chosen.
   public var speechModel: SpeechModel?
   public var browserLogin: BrowserLogin = .none
+  /// The last way something was taken in; `nil` until the first.
+  public var importChoice: ImportChoice?
+  /// What key points were picked with last; `nil` until they first are.
+  public var keyPointChoice: KeyPointChoice?
 
   public init() {}
 }
 
 extension HostSettings: Codable {
   private enum CodingKeys: String, CodingKey {
-    case runtime, speechModel, browserLogin
+    case runtime, speechModel, browserLogin, importChoice, keyPointChoice
   }
 
   /// A setting that cannot be read is left unchosen rather than losing the others.
@@ -23,6 +27,8 @@ extension HostSettings: Codable {
     runtime = try? container.decodeIfPresent(Runtime.self, forKey: .runtime)
     speechModel = try? container.decodeIfPresent(SpeechModel.self, forKey: .speechModel)
     browserLogin = (try? container.decodeIfPresent(BrowserLogin.self, forKey: .browserLogin)) ?? BrowserLogin.none
+    importChoice = try? container.decodeIfPresent(ImportChoice.self, forKey: .importChoice)
+    keyPointChoice = try? container.decodeIfPresent(KeyPointChoice.self, forKey: .keyPointChoice)
   }
 
   public func encode(to encoder: any Encoder) throws {
@@ -30,6 +36,8 @@ extension HostSettings: Codable {
     try container.encodeIfPresent(runtime, forKey: .runtime)
     try container.encodeIfPresent(speechModel, forKey: .speechModel)
     if browserLogin != .none { try container.encode(browserLogin, forKey: .browserLogin) }
+    try container.encodeIfPresent(importChoice, forKey: .importChoice)
+    try container.encodeIfPresent(keyPointChoice, forKey: .keyPointChoice)
   }
 }
 

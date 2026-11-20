@@ -145,6 +145,16 @@ actor Equipment {
     }
   }
 
+  /// The models on the disk, with what each takes.
+  func modelSpace() -> [ModelSpace] {
+    SpeechModel.allCases.compactMap { model in
+      guard let file = modelFile(model),
+        let size = try? file.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileSizeKey])
+      else { return nil }
+      return ModelSpace(model: model, bytes: Int64(size.totalFileAllocatedSize ?? size.fileSize ?? 0))
+    }
+  }
+
   func delete(_ model: SpeechModel) async throws {
     try support.deleteModel(model.fileName)
     modelWork[model] = nil

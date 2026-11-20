@@ -19,8 +19,57 @@ struct LibraryWorkTests {
       let page = try await host.run(ReadMediaPage(item: item.id))
       #expect(page.translations.map(\.language) == ["ja"])
       #expect(page.translations.first?.lines.first == "[ja] The scheduler filters nodes.")
-      #expect(world.agent.requests == ["translate ja", "outline Scheduling"])
+      #expect(world.agent.requests == ["translate ja 3", "outline Scheduling"])
     }
+  }
+
+  /// O-S5: a long transcript is translated a batch at a time.
+  @Test func aTranscriptIsTranslatedAndSavedBatchByBatch() async throws {
+    try await withMediaHost(transcriber: FakeTranscriber(spoken), readerLanguage: "ja") { host, world in
+      world.programs.site(Links.youtube, FakeSite(title: "Long talk", subtitles: Self.subtitles(130)))
+
+      let item = try await host.run(AddLink(url: Links.url(Links.youtube)))
+
+      #expect(await job(host, item.id, where: isDone) != nil)
+      #expect(
+        world.agent.requests.filter { $0.hasPrefix("translate") } == [
+          "translate ja 60", "translate ja 60", "translate ja 10",
+        ])
+      #expect(try await host.run(ReadMediaPage(item: item.id)).translations.first?.lines.count == 130)
+    }
+  }
+
+  /// O-S5: a translation that stopped part way carries on from the first sentence not yet translated.
+  @Test func resumingATranslationTranslatesOnlyWhatIsLeft() async throws {
+    try await withMediaHost(transcriber: FakeTranscriber(spoken), readerLanguage: "ja") { host, world in
+      world.programs.site(Links.youtube, FakeSite(title: "Long talk", subtitles: Self.subtitles(130)))
+      world.agent.failBatches(after: 1)
+
+      let item = try await host.run(AddLink(url: Links.url(Links.youtube)))
+      let failed =
+        await job(host, item.id, where: { if case .failed = $0?.state { true } else { false } }) ?? nil
+      #expect(failed?.stage == .translate)
+      world.agent.failBatches(after: nil)
+      _ = try await host.run(RetryJob(item: item.id))
+
+      #expect(await job(host, item.id, where: isDone) != nil)
+      #expect(
+        world.agent.requests.filter { $0.hasPrefix("translate") } == [
+          "translate ja 60", "translate ja 60", "translate ja 60", "translate ja 10",
+        ])
+      let lines = try await host.run(ReadMediaPage(item: item.id)).translations.first?.lines
+      #expect(lines?.count == 130)
+      #expect(lines?.last == "[ja] Sentence 129.")
+    }
+  }
+
+  static func subtitles(_ count: Int) -> String {
+    "WEBVTT\n\n"
+      + (0..<count).map { index in
+        let start = String(format: "00:%02d:%02d.000", index / 60, index % 60)
+        let end = String(format: "00:%02d:%02d.900", index / 60, index % 60)
+        return "\(start) --> \(end)\nSentence \(index).\n"
+      }.joined(separator: "\n")
   }
 
   @Test func aTranscriptAlreadyInTheReadersLanguageIsNotTranslated() async throws {

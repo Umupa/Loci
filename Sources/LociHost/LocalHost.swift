@@ -108,6 +108,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   public func close() async {
     await library.queue.close()
     await library.translator.close()
+    await library.picker.close()
     await discardSetAside()
     await loci.close()
     await hub.stop()

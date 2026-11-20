@@ -36,6 +36,21 @@ struct ItemConversationTests {
     }
   }
 
+  /// I-S4: the conversation on an item is told why the person took it in.
+  @Test func theFirstMessageOnAnItemSaysWhyItWasTakenIn() async throws {
+    try await withHost { host, place, world in
+      let item = try await article(host)
+      try place.store.save(
+        try Item(id: item.id, kind: item.kind, title: item.title, why: "To compare it with what we run at work."))
+
+      _ = try await host.run(SendMessage(to: .item(item.id), text: "Why?"))
+      _ = try #require(await settled(host, .item(item.id)))
+
+      let first = try #require(world.agent.prompts.first)
+      #expect(first.contains("Why they took it in, in their words: To compare it with what we run at work."))
+    }
+  }
+
   @Test func askingAboutAPassageSavesTheAnswerInItsHighlight() async throws {
     try await withHost(agent: FakeAgent { _ in .reply("A worker is a process.") }) { host, place, world in
       let item = try await article(host)

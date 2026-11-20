@@ -10,6 +10,39 @@ extension LocalHost {
 
   func addLink(_ command: AddLink, by saver: Saver) async throws(HostError) -> Item {
     let url = command.url
+    let probe = await library.context.probes.take(url)
+    let item = try attempt { try Self.item(at: url, probed: probe?.info, id: environment.newID(), why: command.why) }
+    try attempt { try store.addPending(item) }
+    do throws(HostError) {
+      try attempt {
+        if item.kind == .article, let html = command.articleHTML, html.utf8.count <= AddLink.maximumArticleBytes {
+          _ = try store.saveWork(Data(html.utf8), named: JobRun.articleHTML, of: item.id)
+        }
+        if let probe {
+          _ = try store.saveWork(probe.json, named: JobRun.info, of: item.id)
+          if let cover = probe.cover { try store.saveCover(cover.data, extension: cover.fileExtension, of: item.id) }
+        }
+        if item.isMedia { try store.saveImportChoice(choosing(command.choice), of: item.id) }
+      }
+    } catch {
+      try? store.deleteItem(item.id)
+      throw error
+    }
+    await follow([.item(item.id)])
+    if let first = Job.Stage.all(for: item, choice: library.context.choice(of: item.id)).first {
+      await library.queue.begin(item.id, at: first)
+    }
+    await saved(item.id, by: saver)
+    return item
+  }
+
+  /// The item a link starts as: what was probed behind it, or what its address tells.
+  private static func item(at url: URL, probed info: MediaInfo?, id: EntityID, why: String?) throws -> Item {
+    if let info {
+      return try Item(
+        id: id, kind: info.isAudio ? .audio(duration: info.duration) : .video(duration: info.duration),
+        title: info.title, source: url, site: info.site, published: info.published.map(Timestamp.init), why: why)
+    }
     let kind: Item.Kind =
       switch LinkKind(url) {
       case .video: .video(duration: nil)
@@ -17,20 +50,14 @@ extension LocalHost {
       case .paper: .paper
       case .article: .article
       }
-    let item = try attempt { try Item(id: environment.newID(), kind: kind, title: LinkTitle.of(url), source: url) }
-    try attempt { try store.addPending(item) }
-    if kind == .article, let html = command.articleHTML, html.utf8.count <= AddLink.maximumArticleBytes {
-      do throws(HostError) {
-        _ = try attempt { try store.saveWork(Data(html.utf8), named: JobRun.articleHTML, of: item.id) }
-      } catch {
-        try? store.deleteItem(item.id)
-        throw error
-      }
-    }
-    await follow([.item(item.id)])
-    if let first = Job.Stage.all(for: item).first { await library.queue.begin(item.id, at: first) }
-    await saved(item.id, by: saver)
-    return item
+    return try Item(id: id, kind: kind, title: LinkTitle.of(url), source: url, why: why)
+  }
+
+  /// The choice given, kept as the next default; the last one when none is given.
+  private func choosing(_ given: ImportChoice?) throws -> ImportChoice {
+    guard let given else { return library.context.lastChoice }
+    try store.changeSettings { $0.importChoice = given }
+    return given
   }
 
   public func importMediaFile(_ command: ImportMediaFile) async throws(HostError) -> Item {
@@ -52,16 +79,21 @@ extension LocalHost {
       }
     }
     let title = file.deletingPathExtension().lastPathComponent
-    let item = try attempt { try Item(id: environment.newID(), kind: kind, title: title.isEmpty ? "Untitled" : title) }
+    let item = try attempt {
+      try Item(id: environment.newID(), kind: kind, title: title.isEmpty ? "Untitled" : title, why: command.why)
+    }
     try attempt { try store.addPending(item) }
     do {
       try store.importMedia(file, as: command.mode, of: item.id)
+      try store.saveImportChoice(choosing(command.choice), of: item.id)
     } catch {
       try? store.deleteItem(item.id)
       throw HostError(error)
     }
     await follow([.item(item.id)])
-    await library.queue.begin(item.id, at: .transcribe)
+    if let first = Job.Stage.all(for: item, choice: library.context.choice(of: item.id)).first {
+      await library.queue.begin(item.id, at: first)
+    }
     await saved(item.id, by: saver)
     return item
   }
@@ -75,9 +107,20 @@ extension LocalHost {
     }
   }
 
-  public func cancelJob(_ item: EntityID) async throws(HostError) -> Done {
-    await library.queue.cancel(item)
+  public func pauseJob(_ item: EntityID) async throws(HostError) -> Done {
+    await library.queue.pause(item)
     return Done()
+  }
+
+  public func savingBatch() async -> SavingBatch? {
+    await library.queue.savingBatch
+  }
+
+  public func stopSaving() async throws(HostError) -> Int {
+    let waiting = await library.queue.notStarted
+    guard !waiting.isEmpty else { return 0 }
+    _ = try await deleteItems(DeleteItems(waiting))
+    return waiting.count
   }
 
   public func jobs() async throws(HostError) -> [Job] {

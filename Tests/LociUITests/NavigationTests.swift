@@ -34,12 +34,13 @@ struct NavigationTests {
     #expect(WindowState(restoring: remembered) == WindowState(place: .talk))
   }
 
-  @Test func aWindowOnADeletedItemGoesBackToTheMainConversation() throws {
+  /// I-S5, I-S7: cancelling an item from its own page lands back in the library it was opened from.
+  @Test func aWindowOnADeletedItemGoesBackToWhereItWasOpenedFrom() throws {
     let sample = try Sample()
     let item = WindowState(place: .library(nil), pages: [.item(sample.borg.id)])
 
     #expect(item.keeping(items: Set(sample.items.map(\.id))) == item)
-    #expect(item.keeping(items: []) == WindowState(place: .talk))
+    #expect(item.keeping(items: []) == WindowState(place: .library(nil)))
     #expect(WindowState(place: .library(.video)).keeping(items: []) == WindowState(place: .library(.video)))
   }
 

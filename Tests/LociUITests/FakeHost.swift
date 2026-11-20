@@ -16,13 +16,20 @@ final class FakeHost: LociModel.Host, CommandHandler {
   let avatar: Avatar?
   /// Counts what is asked and answered, so a test can wait for the view's data.
   let activity: Activity
+  /// The last way something was taken in; `nil` gives the first default.
+  let lastChoice: ImportChoice?
+  /// How far the library's key points have got.
+  let keyPoints: SampleKeyPoints
 
   init(
     _ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false, working: Bool = false,
-    avatar: Avatar? = nil, activity: Activity = Activity()
+    avatar: Avatar? = nil, activity: Activity = Activity(), lastChoice: ImportChoice? = nil,
+    keyPoints: SampleKeyPoints = .picked
   ) {
+    self.lastChoice = lastChoice
     self.sample = sample
     self.library = library
+    self.keyPoints = keyPoints
     self.recognizing = recognizing
     self.working = working
     self.avatar = avatar
@@ -85,4 +92,9 @@ final class FakeHost: LociModel.Host, CommandHandler {
   func deleteNote(_ command: DeleteNote) async throws(HostError) -> Done { Done() }
 
   func health() async -> Health { sample.health }
+}
+
+/// The key points of the sample library: not asked for, being picked, or picked.
+enum SampleKeyPoints {
+  case none, picking, picked
 }

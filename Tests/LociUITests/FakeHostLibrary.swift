@@ -3,6 +3,18 @@ import LociModel
 
 /// The library's commands, answered with nothing in progress and nothing installed.
 extension FakeHost {
+  /// A link in the library is that item; one of the sample links is read at once; any other is never read.
+  func probeLink(_ command: ProbeLink) async throws(HostError) -> LinkPreview {
+    if let saved = (library?.items ?? []).first(where: { $0.source == command.url }) { return .saved(saved) }
+    if let media = ImportSamples.previews[command.url] { return .media(media) }
+    try? await Task.sleep(for: .seconds(600))
+    throw .notFound(command.url.absoluteString)
+  }
+
+  func importChoice() async throws(HostError) -> ImportChoice {
+    lastChoice ?? .first(readerLanguage: "zh-Hans", speechModel: .largeV3Turbo)
+  }
+
   func addLink(_ command: AddLink) async throws(HostError) -> Item { sample.items[0] }
   func importMediaFile(_ command: ImportMediaFile) async throws(HostError) -> Item { sample.items[0] }
 
@@ -10,8 +22,27 @@ extension FakeHost {
     Job(item: item, stage: .resolve, state: .queued)
   }
 
-  func cancelJob(_ item: EntityID) async throws(HostError) -> Done { Done() }
+  func savingBatch() async -> SavingBatch? { library?.saving }
+  func stopSaving() async throws(HostError) -> Int { 0 }
+  func storage() async throws(HostError) -> StorageReport {
+    library?.storage ?? StorageReport(capacity: nil, available: nil, items: [], speechModels: [])
+  }
+  func freeMediaSpace(_ item: EntityID) async throws(HostError) -> Done { Done() }
+  func saveMediaLocally(_ item: EntityID) async throws(HostError) -> Job {
+    Job(item: item, stage: .download, state: .queued)
+  }
+  func pauseJob(_ item: EntityID) async throws(HostError) -> Done { Done() }
   func translateArticle(_ item: EntityID) async throws(HostError) -> Done { Done() }
+  func pickKeyPoints(_ command: PickKeyPoints) async throws(HostError) -> Done { Done() }
+
+  func keyPointsPage(_ item: EntityID) async throws(HostError) -> KeyPointsPage {
+    let choice = KeyPointChoice(runtime: Runtime(provider: .codex, model: "gpt-5.2"), count: .some)
+    switch keyPoints {
+    case .none: return KeyPointsPage(keyPoints: nil, picking: nil, choice: choice)
+    case .picking: return KeyPointsPage(keyPoints: nil, picking: .running, choice: choice)
+    case .picked: return KeyPointsPage(keyPoints: try? library?.keyPoints(of: item), picking: nil, choice: choice)
+    }
+  }
   func jobs() async throws(HostError) -> [Job] { (library?.jobs ?? []) + (recognizing ? [recognition] : []) }
 
   func job(of item: EntityID) async throws(HostError) -> Job? {

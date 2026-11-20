@@ -1,13 +1,13 @@
 import LociModel
 import SwiftUI
 
-/// The pages of the panel beside a video, a podcast or an article.
+/// The pages of the panel beside a video or a podcast.
 enum MediaTab: Hashable {
-  case transcript, conversation, highlights
+  case transcript, keyPoints, conversation, highlights
 }
 
-/// A video or audio item: the player on the left, and beside it the transcript, the conversation with Loci
-/// reading along, and the highlights. Space plays and pauses, ← → jump five seconds, < > change speed.
+/// A video or audio item: the player on the left, and beside it the transcript, the key points, the
+/// conversation with Loci reading along, and the highlights; or how subtitles look, while that is open. Space plays and pauses, ← → jump five seconds, < > change speed.
 struct MediaScreen: View {
   @Environment(\.host) private var host
   @Environment(\.standIns) private var standIns
@@ -15,20 +15,28 @@ struct MediaScreen: View {
   @Environment(\.openPlace) private var openPlace
   @Environment(\.browser) private var browser
   @Environment(\.showFailure) private var showFailure
+  @Environment(\.machineChoice) private var machineChoice
+  @Environment(\.deletions) private var deletions
+  @Environment(\.undoManager) private var undoManager
   let item: Item
   let initialTime: Duration?
   @State private var player: Player
   @State private var media: Feed<MediaPage>?
   @State private var job: Feed<Job?>?
   @State private var notes: Feed<[Note]>?
+  @State private var keyPoints: Feed<KeyPointsPage>?
   @State private var tab = MediaTab.transcript
   @AppStorage(SubtitleMode.key) private var subtitles = SubtitleMode.both
+  @AppStorage(SubtitleStyle.key) private var style = SubtitleStyle.standard
+  @State private var styling = false
+  @State private var onlyKeyPoints = false
+  @State private var frames = KeyPointFrames()
   @AppStorage("subtitlesShown") private var subtitlesShown = true
   @State private var menuOpen = false
   @State private var follow = TranscriptFollow()
   @State private var chosen: ClosedRange<Int>?
   @State private var draft: PassageDraft?
-  @State private var panelShown = true
+  @AppStorage(PanelMemory.key) private var panelShown = PanelMemory.shownAtFirst
   /// Opened over the stage in a window too narrow to have it beside.
   @State private var panelOver = false
   @State private var width: CGFloat = 0
@@ -94,31 +102,56 @@ struct MediaScreen: View {
     .subscribing(ItemMedia(item: item.id), into: $media)
     .subscribing(ItemJob(item: item.id), into: $job)
     .subscribing(NotesOn(content: .item(item.id)), into: $notes)
+    .subscribing(ItemKeyPoints(item: item.id), into: $keyPoints)
     .task(id: item.id) { await open() }
     .task(id: playable) { await load() }
+    .task(id: [points.compactMap(\.span?.start), [player.soundOnly ? .zero : .seconds(1)]]) { await drawFrames() }
+    .onChange(of: playback) { player.only = onlyKeyPoints ? playback : nil }
+    .onChange(of: onlyKeyPoints) { _, only in
+      player.only = only ? playback : nil
+      if only, case .jump(let start) = playback.step(at: player.time) { player.seek(to: start) }
+    }
     .onDisappear { player.close() }
   }
 
   @ViewBuilder private var stage: some View {
     let model = StageModel(
-      item: item, player: player, timeline: Timeline(length: length, outline: media?.value?.outline),
-      transcript: readable, subtitles: $subtitles, subtitlesShown: $subtitlesShown, menuOpen: $menuOpen)
-    VStack(spacing: 0) {
-      if let playbackJob {
-        JobDetail(line: JobLine(playbackJob), act: act).padding(.top, Spacing.m)
-      } else if player.availability == .failed {
-        Text(.loci("player.failed")).font(Typography.bodyEmphasis).padding(.top, Spacing.m)
+      item: item, player: player,
+      timeline: Timeline(length: length, outline: media?.value?.outline, keyPoints: points), transcript: readable,
+      subtitles: $subtitles, subtitlesShown: $subtitlesShown, menuOpen: $menuOpen, style: $style,
+      onlyKeyPoints: points.isEmpty ? nil : $onlyKeyPoints, styling: styling,
+      openStyle: { withAnimation(Motion.fold) { styleSubtitles() } })
+    if let preparing = PreparingStage.job(job?.value ?? nil, playable: player.canPlay) {
+      PreparingStage(
+        item: item, job: preparing,
+        actions: .on(host, fixes: fixes, failed: showFailure, deletions: deletions, undoManager: undoManager))
+    } else if onlyThere {
+      OnlyThereStage(item: item)
+    } else {
+      VStack(spacing: 0) {
+        if player.availability == .failed {
+          Text(.loci("player.failed")).font(Typography.bodyEmphasis).padding(.top, Spacing.m)
+        }
+        if case .audio = item.kind {
+          if subtitlesShown, let readable {
+            PodcastLyrics(model: model, transcript: readable).transition(.opacity)
+          } else {
+            PodcastStage(model: model).transition(.opacity)
+          }
+        } else {
+          VideoStage(model: model)
+        }
       }
-      if case .audio = item.kind { PodcastStage(model: model) } else { VideoStage(model: model) }
     }
   }
 
-  private var playbackJob: Job? {
-    guard readable != nil || tab != .transcript || (!layout.besideStage && !layout.overStage),
-      !player.canPlay, let job = job?.value ?? nil, job.stage == .resolve || job.stage == .download,
-      case .action = JobLine(job)
-    else { return nil }
-    return job
+  /// O-S4: another Mac's item that is not saved there plays only on that Mac.
+  private var onlyThere: Bool {
+    machineChoice?.link != nil && media?.value?.downloaded == false
+  }
+
+  private var fixes: JobFixes {
+    JobFixes(host: host, openPlace: openPlace, browser: browser, failed: showFailure, changesAllowed: changesAllowed)
   }
 
   private var length: Duration {
@@ -134,36 +167,77 @@ struct MediaScreen: View {
 
   private var panel: some View {
     VStack(spacing: 0) {
-      CompanionHeader(tab: $tab, tabs: tabs) {
-        withAnimation(Motion.fold) {
-          panelShown = false
-          panelOver = false
+      if styling {
+        SubtitleStylePanel(style: $style, mode: $subtitles) {
+          withAnimation(Motion.fold) { styling = false }
         }
-      }
-      Group {
-        switch tab {
-        case .transcript: transcriptPage
-        case .conversation:
-          ConversationScreen(ref: .item(item.id), draft: $draft, revealPassage: reveal)
-        case .highlights: highlightsPage
+      } else {
+        CompanionHeader(tab: $tab, tabs: tabs) {
+          withAnimation(Motion.fold) {
+            panelShown = false
+            panelOver = false
+          }
         }
+        Group {
+          switch tab {
+          case .transcript: transcriptPage
+          case .keyPoints:
+            KeyPointsPanel(
+              item: item.id, media: item, page: keyPoints?.value, current: currentKeyPoint, frames: frames,
+              open: { if let span = $0.span { play(from: span.start) } })
+          case .conversation:
+            ConversationScreen(ref: .item(item.id), draft: $draft, revealPassage: reveal)
+          case .highlights:
+            MediaNotesPage(
+              item: item.id, notes: notes?.value ?? [], segments: readable?.segments ?? [], play: player.seek,
+              ask: { ask($0.locator, excerpt: $0.excerpt ?? "") })
+          }
+        }
+        .frame(maxHeight: .infinity)
       }
-      .frame(maxHeight: .infinity)
     }
     .background(Palette.canvas)
     .overlay(alignment: .leading) { Rectangle().fill(Palette.lineStrong).frame(width: Size.hairline) }
   }
 
   private let tabs: [(value: MediaTab, title: LocalizedStringResource)] = [
-    (.transcript, .loci("panel.transcript")), (.conversation, .loci("panel.conversation")),
-    (.highlights, .loci("panel.highlights")),
+    (.transcript, .loci("panel.transcript")), (.keyPoints, .loci("panel.keyPoints")),
+    (.conversation, .loci("panel.conversation")), (.highlights, .loci("panel.highlights")),
   ]
+
+  private var points: [KeyPoint] { keyPoints?.value?.keyPoints?.points ?? [] }
+
+  private var playback: KeyPointPlayback { KeyPointPlayback(points) }
+
+  /// The key point playing and how far through it.
+  private var currentKeyPoint: (index: Int, progress: Double?)? {
+    guard let index = playback.playing(at: player.time) else { return nil }
+    let span = playback.spans[index]
+    let length = Double((span.upperBound - span.lowerBound).roundedMilliseconds)
+    return (index, Double((player.time - span.lowerBound).roundedMilliseconds) / max(length, 1))
+  }
+
+  private func play(from start: Duration) {
+    player.seek(to: start)
+    player.play()
+    follow.resume()
+  }
+
+  private func styleSubtitles() {
+    styling.toggle()
+    if styling { openPanel() }
+  }
+
+  private func drawFrames() async {
+    guard case .video = item.kind, !player.soundOnly, let asset = player.engine.currentItem?.asset else { return }
+    await frames.draw(points.compactMap(\.span?.start), from: asset)
+  }
 
   @ViewBuilder private var transcriptPage: some View {
     if let readable {
       TranscriptView(
-        transcript: readable, chapters: media?.value?.outline?.chapters ?? [], highlights: highlightSpans,
-        notes: notes?.value ?? [], mode: subtitlesShown ? subtitles : .both,
+        transcript: readable, chapters: media?.value?.outline?.chapters ?? [], keyPoints: playback.spans,
+        notes: notes?.value ?? [], mode: subtitlesShown ? subtitles : .both, order: style.order,
         playing: TranscriptFollow.playing(in: readable.segments, at: player.time),
         speakers: speaksInTurns(readable.transcript), growing: recognizing != nil, follow: $follow, chosen: $chosen,
         actions: passageActions(readable), play: { player.seek(to: readable.segments[$0].start) }
@@ -178,46 +252,15 @@ struct MediaScreen: View {
   }
 
   private func act(_ fix: JobLine.Fix) {
-    JobFixes(
-      host: host, openPlace: openPlace, browser: browser, failed: showFailure, changesAllowed: changesAllowed
-    ).apply(fix, to: item)
-  }
-
-  private var highlightsPage: some View {
-    let segments = readable?.segments ?? []
-    let placed = (notes?.value ?? [])
-      .sorted { ($0.locator.time?.start ?? .zero) < ($1.locator.time?.start ?? .zero) }
-      .map { note in
-        let index = note.locator.time.flatMap { TranscriptFollow.playing(in: segments, at: $0.start) } ?? 0
-        return PlacedNote(note: note, range: NSRange(location: index, length: 1))
-      }
-    return ScrollView {
-      LazyVStack(alignment: .leading, spacing: Spacing.xs) {
-        ForEach(placed) { note in
-          NoteCard(
-            content: .item(item.id), placed: note, chosen: nil,
-            ask: { ask(note.note.locator, excerpt: note.note.excerpt ?? "") }
-          ) {
-            if let time = note.note.locator.time { player.seek(to: time.start) }
-          }
-        }
-      }
-      .padding(.horizontal, Spacing.s)
-      .padding(.bottom, 20)
-    }
-    .scrollIndicators(.never)
+    fixes.apply(fix, to: item)
   }
 
   /// The share of speech recognized so far, while recognition runs.
   private var recognizing: Fraction? {
-    guard let job = job?.value ?? nil, job.stage == .transcribe, case .running(let progress) = job.state else {
+    guard let job = job?.value ?? nil, job.stage == .transcribe, case .running(let progress, _) = job.state else {
       return nil
     }
     return progress ?? Fraction(0)
-  }
-
-  private var highlightSpans: [ClosedRange<Duration>] {
-    (media?.value?.outline?.highlights ?? []).map { $0.span.start...($0.span.end ?? $0.span.start) }
   }
 
   /// A podcast whose speakers were told apart reads as turns of talk.
@@ -309,7 +352,7 @@ struct MediaScreen: View {
   /// Plays once the host can say where from: at once for a downloaded file, after the link is resolved for
   /// a stream.
   private func load() async {
-    guard standIns == nil, let playback = try? await host.run(ReadPlayback(item: item.id)),
+    guard standIns == nil, !onlyThere, let playback = try? await host.run(ReadPlayback(item: item.id)),
       let source = await PlayerSource.of(playback, item: item.id, on: host)
     else { return }
     player.load(source)
@@ -326,56 +369,14 @@ struct MediaScreen: View {
     if moment.playing { player.showPlaying() }
     chosen = moment.chosen
     menuOpen = moment.subtitleMenuOpen
+    onlyKeyPoints = moment.onlyKeyPoints
+    if moment.panelFolded { panelShown = false }
+    styling = moment.styling
     if let panel = moment.panel { tab = panel }
     guard moment.scrolledAway else { return }
     Task {
       try? await Task.sleep(for: .milliseconds(600))
       follow.scrolledByHand()
     }
-  }
-}
-
-/// Where the transcript will be, before there is one.
-private struct TranscriptPending: View {
-  let job: Job?
-  let act: (JobLine.Fix) -> Void
-
-  var body: some View {
-    Group {
-      if case .none = JobLine(job) {
-        Image(systemName: Symbols.recognizing).font(.system(size: 22, weight: .light)).foregroundStyle(Palette.inkFaint)
-      } else {
-        JobDetail(line: JobLine(job), act: act)
-      }
-    }
-    .padding(Spacing.l)
-  }
-}
-
-/// Over the foot of the transcript while speech is recognized: how far along.
-private struct RecognitionCard: View {
-  let progress: Fraction
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: Spacing.xs) {
-      HStack(spacing: 7) {
-        Image(systemName: Symbols.recognizing).font(.system(size: 12, weight: .medium)).foregroundStyle(Palette.accent)
-        Text(
-          joining: Text(.loci("job.recognizing")), Text(verbatim: " \(Int((progress.value * 100).rounded()))%"))
-      }
-      .font(.system(size: 12, weight: .medium).monospaced())
-      .foregroundStyle(Palette.inkMuted)
-      GeometryReader { frame in Meter(share: progress.value, width: frame.size.width) }.frame(height: Size.meterHeight)
-    }
-    .padding(.horizontal, 14)
-    .padding(.top, 11)
-    .padding(.bottom, 13)
-    .background(
-      RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(Palette.floating)
-        .shadow(color: .black.opacity(0.1), radius: 12, y: 8)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(
-        Palette.lineStrong, lineWidth: Size.hairline))
   }
 }

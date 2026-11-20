@@ -2,9 +2,9 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// The library: the link field, what is being watched on a shelf of large covers, and every item in a list
-/// below with the work on it. Pasting or dropping a link adds it too. Items are renamed in place, given a new
-/// cover, and deleted with a notice that brings them back.
+/// The library: the link field over a gallery of every item, and floating at its foot the task dock while
+/// there is work. Pasting or dropping a link adds it too. Items are renamed in place, given a new cover, and
+/// deleted with a notice that brings them back; cancelling an item's work deletes it the same way.
 struct LibraryScreen: View {
   @Environment(\.host) private var host
   @Environment(\.changesAllowed) private var changesAllowed
@@ -13,26 +13,20 @@ struct LibraryScreen: View {
   @Environment(\.covers) private var covers
   @Environment(\.choosePicture) private var choosePicture
   @Environment(\.undoManager) private var undoManager
+  @Environment(\.takeIn) private var takeIn
+  @Environment(\.deletions) private var deletions
+  @Environment(\.standIns) private var standIns
   let kind: ItemKind?
   let chooseFiles: () -> Void
   let opened: (WindowState) -> Void
   let failed: (HostError) -> Void
   @State private var feed: Feed<[Item]>?
   @State private var jobs: Feed<[Job]>?
-  /// Read once before the list shows, so the shelf does not push the list down after it appears.
-  @State private var progress: Progress?
+  @State private var saving: Feed<SavingBatch?>?
+  @State private var storage: Feed<StorageReport>?
+  @State private var progress = Progress()
   @State private var selection = LibrarySelection()
   @State private var renaming: EntityID?
-  @State private var deletion: Deletion?
-  @State private var undoTarget = UndoTarget()
-
-  /// The latest deletion, while it can still be undone from the notice.
-  struct Deletion: Equatable {
-    let id = UUID()
-    let count: Int
-  }
-
-  final class UndoTarget {}
 
   var body: some View {
     let items = shown
@@ -40,39 +34,51 @@ struct LibraryScreen: View {
       VStack(alignment: .leading, spacing: 0) {
         LinkField(kind: kind, add: add, chooseFiles: chooseFiles)
           .padding(.bottom, 26)
-        if !items.isEmpty, let progress {
-          LibraryList(
+        if !items.isEmpty {
+          LibraryGallery(
             items: items, jobs: jobsByItem, progress: progress, chosen: selection.chosen, renaming: renaming,
-            click: { click($0, in: items, progress: progress) }, act: act, actions: actions,
-            acted: selection.acted(on:), renamed: rename)
+            click: { click($0, in: items) }, actions: cardActions,
+            menu: { menu(for: $0) }, renamed: rename)
         }
       }
       .padding(.horizontal, 28)
       .padding(.top, 22)
-      .padding(.bottom, 60)
+      .padding(.bottom, 28)
     }
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      Color.clear.frame(height: TaskDock.arrange(jobs?.value ?? []) == nil ? 0 : TaskDock.room)
+    }
+    .defaultScrollAnchor(standIns?.galleryAtEnd == true ? .bottom : .top)
     .scrollIndicators(.automatic)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Palette.canvas)
     .overlay(alignment: .bottom) {
-      if let deletion {
-        DeletedNotice(count: deletion.count, undo: undo)
-          .padding(.bottom, 24)
-          .transition(.move(edge: .bottom).combined(with: .opacity))
+      VStack(spacing: 10) {
+        if let deletion = deletions?.latest {
+          DeletedNotice(count: deletion.count) { deletions?.undo() }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+        TaskDock(
+          jobs: jobs?.value ?? [],
+          items: Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }),
+          saving: saving?.value ?? nil, actions: DockActions(card: cardActions, stopSaving: stopSaving))
       }
+      .padding(.bottom, 20)
     }
-    .animation(Motion.standard, value: deletion)
+    .animation(Motion.standard, value: deletions?.latest)
     .background(WindowKeys(handle: key))
     .navigationTitle(kind.map { Text(Messages.name(of: $0)) } ?? Text(.loci("sidebar.library")))
-    .acceptingDrops(opened: opened, failed: failed)
+    .acceptingDrops()
     .subscribing(AllItems(), into: $feed)
     .subscribing(AllJobs(), into: $jobs)
+    .subscribing(SavingNow(), into: $saving)
+    .subscribing(StorageUse(), into: $storage)
     .task(id: feed?.value?.map(\.id)) { await readProgress() }
     .onChange(of: items.map(\.id)) { selection.keep(items.map(\.id)) }
-    .task(id: deletion) {
-      guard deletion != nil else { return }
+    .task(id: deletions?.latest) {
+      guard let deletion = deletions?.latest else { return }
       try? await Task.sleep(for: .seconds(6))
-      if !Task.isCancelled { deletion = nil }
+      if !Task.isCancelled { deletions?.settle(deletion) }
     }
   }
 
@@ -89,13 +95,30 @@ struct LibraryScreen: View {
   private var actions: ItemActions {
     ItemActions(
       rename: { renaming = $0.id }, changeCover: changeCover, delete: delete,
-      stop: { item in Task { _ = try? await host.run(CancelJob(item: item.id)) } })
+      freeSpace: { item in run { () async throws(HostError) in _ = try await host.run(FreeMediaSpace(item: item.id)) }
+      },
+      saveLocally: { item in
+        run { () async throws(HostError) in _ = try await host.run(SaveMediaLocally(item: item.id)) }
+      })
   }
 
-  private func click(_ item: EntityID, in items: [Item], progress: Progress) {
-    let order = LibraryList.order(of: items, progress: progress).map(\.id)
+  /// Freeing space or saving again is offered while no work is going on.
+  private func menu(for item: Item) -> ItemMenu {
+    let quiet = !CardState(jobsByItem[item.id]).isBusy
+    let space = quiet ? storage?.value?.items.first { $0.item == item.id } : nil
+    return ItemMenu(item: item, acted: selection.acted(on: item.id), actions: actions, space: space)
+  }
+
+  private var cardActions: CardActions {
+    CardActions(
+      pause: { item in run { () async throws(HostError) in _ = try await host.run(PauseJob(item: item.id)) } },
+      resume: { item in run { () async throws(HostError) in _ = try await host.run(RetryJob(item: item.id)) } },
+      cancel: { delete([$0.id]) }, fix: act)
+  }
+
+  private func click(_ item: EntityID, in items: [Item]) {
     let click = LibrarySelection.Click(event: NSApp.currentEvent)
-    if selection.click(item, click, in: order) {
+    if selection.click(item, click, in: items.map(\.id)) {
       opened(WindowState(place: .library(kind), pages: [.item(item)]))
     }
   }
@@ -114,8 +137,7 @@ struct LibraryScreen: View {
     return false
   }
 
-  /// Waits for the list itself: read before it arrives, the progress would be empty, the list would show at once
-  /// and the shelf would push it down a moment later.
+  /// How far into each item the reader is, for the line along the foot of its cover.
   private func readProgress() async {
     guard let feed else { return }
     var states: [EntityID: ReadingState] = [:]
@@ -133,10 +155,7 @@ struct LibraryScreen: View {
   }
 
   private func add(_ link: URL) {
-    run { () async throws(HostError) in
-      let item = try await host.run(AddLink(url: link))
-      opened(WindowState(place: .library(kind), pages: [.item(item.id)]))
-    }
+    takeIn?.link(link)
   }
 
   private func rename(_ item: Item, to title: String?) {
@@ -156,20 +175,23 @@ struct LibraryScreen: View {
   private func delete(_ items: [EntityID]) {
     run { () async throws(HostError) in
       _ = try await host.run(DeleteItems(items))
-      selection.clear()
-      deletion = Deletion(count: items.count)
-      undoManager?.removeAllActions(withTarget: undoTarget)
-      undoManager?.registerUndo(withTarget: undoTarget) { _ in
-        MainActor.assumeIsolated { undo() }
-      }
-      undoManager?.setActionName(String(localized: .loci("item.delete")))
+      deleted(items.count)
     }
   }
 
-  private func undo() {
-    undoManager?.removeAllActions(withTarget: undoTarget)
-    deletion = nil
-    run { () async throws(HostError) in _ = try await host.run(RestoreDeleted()) }
+  /// Loci's batch stops: what had not started goes, with the notice that brings it back.
+  private func stopSaving() {
+    run { () async throws(HostError) in
+      let count = try await host.run(StopSaving())
+      if count > 0 { deleted(count) }
+    }
+  }
+
+  private func deleted(_ count: Int) {
+    selection.clear()
+    deletions?.happened(count, undoManager: undoManager) {
+      run { () async throws(HostError) in _ = try await host.run(RestoreDeleted()) }
+    }
   }
 
   private func run(_ work: @escaping @MainActor () async throws(HostError) -> Void) {

@@ -5,10 +5,17 @@ import LociStore
 
 /// Resolving a link and downloading what is behind it.
 extension JobRun {
-  /// Reads the title, cover, chapters and the site's own subtitles, and remembers where to play from.
+  /// Reads the title, cover, chapters and the site's own subtitles, and remembers where to play from. What
+  /// the import panel read a moment ago is used rather than reading the page again.
   func resolve(_ item: Item) async throws(StageStop) {
     guard let source = item.source else { return }
     let tool = try await context.ytDlp(needing: [.ytDlp])
+    let probed = try stored { try context.store.workFile(named: Self.info, of: item.id) }
+      .flatMap { try? Data(contentsOf: $0) }
+    if let probed, let info = try? MediaInfo(json: probed) {
+      try await adopt(info, json: probed, of: item, using: tool)
+      return
+    }
     let (info, json): (MediaInfo, Data)
     do {
       (info, json) = try await tool.resolve(source)
@@ -33,6 +40,9 @@ extension JobRun {
       return false
     }
     guard let recognized else { return false }
+    if context.choice(of: item.id) == nil {
+      try stored { try context.store.saveImportChoice(context.lastChoice, of: item.id) }
+    }
     try await adopt(recognized.info, json: recognized.json, of: item, using: tool)
     return true
   }
@@ -46,34 +56,39 @@ extension JobRun {
       try Item(
         id: item.id, kind: info.isAudio ? .audio(duration: info.duration) : kind(of: item, duration: info.duration),
         title: info.title, authors: item.authors, source: source, language: item.language,
-        contentHash: item.contentHash, site: info.site ?? item.site, published: info.published.map(Timestamp.init))
+        contentHash: item.contentHash, site: info.site ?? item.site, published: info.published.map(Timestamp.init),
+        why: item.why)
     }
     await saveCover(from: info.thumbnail)
     try stored { try context.store.retitle(resolved, from: item.title) }
     await context.notify([.item(item.id)])
     if !info.chapters.isEmpty, try stored({ try context.store.outline(of: item.id) }) == nil {
-      try stored { try context.store.save(try Outline(chapters: info.chapters, highlights: []), of: item.id) }
+      try stored { try context.store.save(try Outline(chapters: info.chapters), of: item.id) }
     }
-    if let language = info.subtitleLanguage, try stored({ try context.store.transcript(of: item.id) }) == nil {
+    let choice = context.choice(of: item.id)
+    guard choice?.siteSubtitles ?? true else { return }
+    let preferred = choice?.subtitleLanguage.flatMap { info.subtitleLanguages.contains($0) ? $0 : nil }
+    if let language = preferred ?? info.subtitleLanguage,
+      try stored({ try context.store.transcript(of: item.id) }) == nil
+    {
       await saveSubtitles(language, using: tool)
     }
   }
 
-  /// Downloads the media in the background while it plays online, picking up a part already downloaded.
+  /// Downloads the media at the chosen quality in the background while it plays online, picking up a part
+  /// already downloaded. Sound fetched for recognition is kept as it is when only sound is wanted.
   func download(_ item: Item) async throws(StageStop) {
     guard try stored({ try context.store.mediaFile(of: item.id) }) == nil, let source = item.source else { return }
-    let tool = try await context.ytDlp(needing: [.ytDlp, .ffmpeg])
-    let folder = try stored { try context.store.workFolder(of: item.id) }
-    let read = try stored { try context.store.workFile(named: Self.info, of: item.id) }
-    let audio: Bool = if case .audio = item.kind { true } else { false }
-    let report = progress(.download)
-    let fetch = context
-    let file = try await inTurn(queue.gates.downloads, at: .download) { () async throws(StageStop) -> URL in
-      do throws(MediaError) {
-        return try await tool.download(source, info: read, audio: audio, into: folder, progress: report)
-      } catch {
-        throw await fetch.stop(error, at: source)
-      }
+    let quality = context.choice(of: item.id)?.quality ?? .hd1080
+    let audio: Bool = if case .audio = item.kind { true } else { quality == .audio }
+    let heard = try stored { try context.store.workFile(named: Self.sound, of: item.id) }
+    let file: URL
+    if audio, let heard {
+      file = heard
+    } else {
+      let tool = try await context.ytDlp(needing: [.ytDlp, .ffmpeg])
+      file = try await fetch(
+        source, audio: audio, height: quality.height ?? 1080, using: tool, at: .download, report: downloadProgress())
     }
     let media = try stored { try context.store.adoptMedia(file, of: item.id) }
     try stored { try context.store.clearWork(of: item.id) }
@@ -83,9 +98,27 @@ extension JobRun {
       try Item(
         id: item.id, kind: kind(of: item, duration: duration), title: item.title, authors: item.authors,
         source: item.source, language: item.language, contentHash: item.contentHash, site: item.site,
-        published: item.published)
+        published: item.published, why: item.why)
     }
     try stored { try context.store.save(timed) }
+  }
+
+  /// Downloads into the work folder in turn with other downloads, from what was read behind the link.
+  func fetch(
+    _ source: URL, audio: Bool, height: Int = 1080, using tool: YtDlp, at stage: Job.Stage,
+    report: @escaping @Sendable (Fraction?, Job.Amount?) -> Void
+  ) async throws(StageStop) -> URL {
+    let folder = try stored { try context.store.workFolder(of: item) }
+    let read = try stored { try context.store.workFile(named: Self.info, of: item) }
+    let context = context
+    return try await inTurn(queue.gates.downloads, at: stage) { () async throws(StageStop) -> URL in
+      do throws(MediaError) {
+        return try await tool.download(
+          source, info: read, audio: audio, height: height, into: folder, progress: report)
+      } catch {
+        throw await context.stop(error, at: source)
+      }
+    }
   }
 
   private func kind(of item: Item, duration: Duration?) -> Item.Kind {
@@ -96,12 +129,10 @@ extension JobRun {
   /// Saved before the resolved item is announced: the window reads an item's cover once per version of the
   /// item, and the cover's arrival alone does not change the item. A cover that cannot be had is left out.
   private func saveCover(from thumbnail: URL?) async {
-    guard let thumbnail, (try? context.store.coverFile(of: item)) == nil,
-      let (data, response) = try? await context.media.network.data(for: URLRequest(url: thumbnail))
-    else { return }
-    let fromType = response.mimeType.flatMap { $0.hasPrefix("image/") ? String($0.dropFirst(6)) : nil }
-    let fileExtension = (fromType ?? thumbnail.pathExtension).replacingOccurrences(of: "jpeg", with: "jpg")
-    try? context.store.saveCover(data, extension: fileExtension.isEmpty ? "jpg" : fileExtension, of: item)
+    guard (try? context.store.coverFile(of: item)) == nil, let cover = await context.cover(at: thumbnail) else {
+      return
+    }
+    try? context.store.saveCover(cover.data, extension: cover.fileExtension, of: item)
   }
 
   /// Subtitles that cannot be had are left to recognition.
@@ -121,6 +152,8 @@ extension JobRun {
 
   /// What yt-dlp read behind the link, kept in the work folder until the download is done.
   static let info = "info.json"
+  /// The sound fetched to recognize speech in, before or instead of the media.
+  static let sound = "media.m4a"
 
   /// A BCP 47 tag from a site's language code, which may carry extras such as `en-orig`.
   static func tag(_ code: String) -> String? {
@@ -130,6 +163,13 @@ extension JobRun {
 }
 
 extension Item {
+  var isMedia: Bool {
+    switch kind {
+    case .video, .audio: true
+    case .article, .paper, .repository: false
+    }
+  }
+
   var duration: Duration? {
     switch kind {
     case .video(let duration), .audio(let duration): duration

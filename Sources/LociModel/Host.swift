@@ -101,11 +101,17 @@ public protocol CommandHandler: Sendable {
   func runtime() async throws(HostError) -> Runtime
   func setRuntime(_ command: SetRuntime) async throws(HostError) -> Runtime
   func dataLocation() async -> HostPath
+  func probeLink(_ command: ProbeLink) async throws(HostError) -> LinkPreview
+  func importChoice() async throws(HostError) -> ImportChoice
   func addLink(_ command: AddLink) async throws(HostError) -> Item
   func importMediaFile(_ command: ImportMediaFile) async throws(HostError) -> Item
   func retryJob(_ item: EntityID) async throws(HostError) -> Job
-  func cancelJob(_ item: EntityID) async throws(HostError) -> Done
+  func pauseJob(_ item: EntityID) async throws(HostError) -> Done
+  func savingBatch() async -> SavingBatch?
+  func stopSaving() async throws(HostError) -> Int
   func translateArticle(_ item: EntityID) async throws(HostError) -> Done
+  func pickKeyPoints(_ command: PickKeyPoints) async throws(HostError) -> Done
+  func keyPointsPage(_ item: EntityID) async throws(HostError) -> KeyPointsPage
   func jobs() async throws(HostError) -> [Job]
   func job(of item: EntityID) async throws(HostError) -> Job?
   func mediaPage(_ item: EntityID) async throws(HostError) -> MediaPage
@@ -121,6 +127,9 @@ public protocol CommandHandler: Sendable {
   func downloadSpeechModel(_ model: SpeechModel) async throws(HostError) -> Done
   func deleteSpeechModel(_ model: SpeechModel) async throws(HostError) -> Done
   func setSpeechModel(_ model: SpeechModel) async throws(HostError) -> MediaSetup
+  func storage() async throws(HostError) -> StorageReport
+  func freeMediaSpace(_ item: EntityID) async throws(HostError) -> Done
+  func saveMediaLocally(_ item: EntityID) async throws(HostError) -> Job
   func setBrowserLogin(_ login: BrowserLogin) async throws(HostError) -> MediaSetup
   func handOverBrowserCookies(_ cookies: [BrowserCookie]) async throws(HostError) -> Done
 }

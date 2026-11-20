@@ -5,26 +5,30 @@ public enum Wire {
     .writes(SendMessage.self), .writes(StopTurn.self), .writes(StartOver.self),
     .reads(ReadRuntime.self), .writes(SetRuntime.self), .reads(DetectAgents.self), .reads(AgentModels.self),
     .writes(SaveSoul.self), .writes(Forget.self), .writes(SetAvatar.self, lane: .data), .writes(ResetAvatar.self),
-    .writes(AddTextItem.self), .writes(AddLink.self), .writes(ImportMediaFile.self), .writes(DeleteItems.self),
+    .writes(AddTextItem.self), .reads(ProbeLink.self), .reads(ReadImportChoice.self), .writes(AddLink.self),
+    .writes(ImportMediaFile.self), .writes(DeleteItems.self),
     .writes(RestoreDeleted.self), .writes(RenameItem.self), .writes(SetCover.self),
     .reads(ListItems.self), .reads(ReadItemText.self), .reads(Search.self),
     .reads(ReadReadingState.self), .writes(SaveReadingPosition.self), .writes(MarkRead.self),
     .writes(AddNote.self), .writes(SetNoteThought.self), .writes(DeleteNote.self),
     .reads(DataLocation.self),
-    .writes(RetryJob.self), .writes(CancelJob.self), .reads(ListJobs.self), .writes(TranslateArticle.self),
+    .writes(RetryJob.self), .writes(PauseJob.self), .writes(StopSaving.self), .reads(ListJobs.self),
+    .writes(TranslateArticle.self),
     .reads(ReadMediaPage.self), .reads(ReadPlayback.self), .reads(ReadMediaSetup.self),
     .reads(DetectComponents.self), .writes(InstallComponent.self),
     .writes(DownloadSpeechModel.self), .writes(DeleteSpeechModel.self), .writes(SetSpeechModel.self),
-    .writes(SetBrowserLogin.self), .writes(HandOverBrowserCookies.self),
+    .writes(SetBrowserLogin.self), .writes(HandOverBrowserCookies.self), .writes(FreeMediaSpace.self),
+    .writes(SaveMediaLocally.self),
     .reads(ReadCover.self, lane: .data), .reads(ReadItemPDF.self, lane: .data),
     .reads(ReadItemImage.self, lane: .data), .streams(ReadMediaFileInfo.self, lane: .data),
     .streams(ReadMediaBytes.self, lane: .data),
+    .writes(PickKeyPoints.self),
   ]
 
   public static let subscriptions: [any Subscription.Type] = [
     OneConversation.self, LociWorking.self, CurrentRuntime.self, LociHome.self, OneDiary.self, LociAvatar.self,
-    AllItems.self, OneItem.self, NotesOn.self, AllJobs.self, ItemJob.self, ItemMedia.self, MediaSettings.self,
-    HealthReport.self,
+    AllItems.self, OneItem.self, NotesOn.self, AllJobs.self, ItemJob.self, SavingNow.self, ItemMedia.self,
+    MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self,
   ]
 
   /// The route of a command type, or `nil` when it is not registered.

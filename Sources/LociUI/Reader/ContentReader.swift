@@ -23,13 +23,17 @@ struct ContentReader: View {
   let language: ArticleLanguage?
   let openingQuote: TextQuote?
   @AppStorage(SubtitleMode.key) private var mode = SubtitleMode.both
+  @AppStorage(SubtitleStyle.key) private var style = SubtitleStyle.standard
+  @State private var keyPoints: Feed<KeyPointsPage>?
+  @State private var onlyKeyPoints = false
+  @State private var revealedKey: (number: Int, serial: Int)?
   @State private var text: ReadingText?
   @State private var start: TextQuote?
   @State private var notes: Feed<[Note]>?
   @State private var reveal: Reveal?
   @State private var tab = PanelTab.conversation
   @State private var chosen: ChosenNote?
-  @State private var panelShown = true
+  @AppStorage(PanelMemory.key) private var panelShown = PanelMemory.shownAtFirst
   @State private var available = CGFloat.infinity
   @AppStorage private var panelWidth: Double
   @AppStorage(ReadingWidth.key) private var readingWidth = ReadingWidth.comfortable
@@ -62,7 +66,8 @@ struct ContentReader: View {
       reader
       if panelShown {
         ReaderPanel(
-          item: item, notes: placedNotes, tab: $tab, draft: $draft, chosen: chosen, reveal: show,
+          item: item, notes: placedNotes, keyPoints: keyPoints?.value, openKeyPoint: open, tab: $tab, draft: $draft,
+          chosen: chosen, reveal: show,
           revealPassage: show, ask: { placed in ask(placed.note.locator, excerpt: placed.note.excerpt) },
           collapse: { withAnimation(Motion.fold) { panelShown = false } }
         )
@@ -87,6 +92,8 @@ struct ContentReader: View {
     }
     .task(id: content) {
       if standIns?.moment?.panel == .highlights { tab = .highlights }
+      if standIns?.moment?.panel == .keyPoints { tab = .keyPoints }
+      if standIns?.moment?.onlyKeyPoints == true { onlyKeyPoints = true }
       let saved = (try? await host.run(ReadReadingState(content: content)))?.position?.quote
       let loaded = setText()
       if text == nil, let openingQuote, let range = loaded.range(of: openingQuote) {
@@ -115,31 +122,55 @@ struct ContentReader: View {
     }
     .onChange(of: notes) { remark() }
     .subscribing(NotesOn(content: content), into: $notes)
+    .subscribing(ItemKeyPoints(item: item), into: $keyPoints)
   }
 
+  private var points: [KeyPoint] { keyPoints?.value?.keyPoints?.points ?? [] }
+
   @ViewBuilder private var reader: some View {
-    if let text {
+    if onlyKeyPoints, !points.isEmpty {
+      KeyPassagesReader(title: title, markdown: markdown, points: points, revealed: revealedKey)
+        .overlay(alignment: .topTrailing) { corner }
+    } else if let text {
       Reader(
         text: text, start: start, width: readingWidth, marks: marks, reveal: reveal, selected: standIns?.selection,
         events: events, passageBar: passageBar
       )
       .onDisappear { passageBar.close() }
-      .overlay(alignment: .topTrailing) {
-        if let language {
-          TranslateButton(language: language, mode: $mode) {
-            Task { _ = try? await host.run(TranslateArticle(item: item)) }
-          }
-          .padding(.top, Spacing.xs)
-          .padding(.trailing, panelShown ? Spacing.s : Spacing.s * 2 + Size.iconButton)
-        }
-      }
+      .overlay(alignment: .topTrailing) { corner }
     } else {
       Palette.canvas
     }
   }
 
+  /// The top corner over the text: playing only the key points, and translating.
+  private var corner: some View {
+    HStack(spacing: Spacing.xs) {
+      if !points.isEmpty { OnlyKeyPointsPill(on: $onlyKeyPoints) }
+      if let language, !onlyKeyPoints {
+        TranslateButton(language: language, mode: $mode) {
+          Task { _ = try? await host.run(TranslateArticle(item: item)) }
+        }
+      }
+    }
+    .padding(.top, Spacing.xs)
+    .padding(.trailing, panelShown ? Spacing.s : Spacing.s * 2 + Size.iconButton)
+  }
+
   private var shownTranslation: ShownTranslation? {
-    language?.shown(mode)
+    language?.shown(mode, order: style.order)
+  }
+
+  /// Brings a key passage into view and flashes it.
+  private func open(_ point: KeyPoint) {
+    guard let passage = point.passage else { return }
+    if onlyKeyPoints {
+      let number = (points.firstIndex(of: point) ?? 0) + 1
+      revealedKey = (number, (revealedKey?.serial ?? 0) + 1)
+    } else if let text {
+      let original = text.map.isIdentity ? text.plain : text.map.original
+      if let range = KeyPassageLayout.range(of: passage.text, in: original) { show(text.map.shown(range)) }
+    }
   }
 
   private func setText() -> ReadingText {

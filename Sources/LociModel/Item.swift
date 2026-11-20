@@ -15,10 +15,12 @@ public struct Item: Hashable, Sendable {
   /// The site, channel or show it comes from, as it names itself.
   public let site: String?
   public let published: Timestamp?
+  /// Why the reader took it in, in one sentence of their own; blank is none.
+  public let why: String?
 
   public init(
     id: EntityID, kind: Kind, title: String, authors: [String] = [], source: URL? = nil, language: String? = nil,
-    contentHash: ContentHash? = nil, site: String? = nil, published: Timestamp? = nil
+    contentHash: ContentHash? = nil, site: String? = nil, published: Timestamp? = nil, why: String? = nil
   ) throws {
     if let source, !source.isWebLink { throw ModelError("source is not an http or https link: \(source)") }
     if let language, language.wholeMatch(of: /[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*/) == nil {
@@ -33,6 +35,8 @@ public struct Item: Hashable, Sendable {
     self.contentHash = contentHash
     self.site = try site.requiringText("site")
     self.published = published
+    let reason = why?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    self.why = reason.isEmpty ? nil : reason
   }
 
   /// What sort of material an item is. Each kind has its own reader and its own way of pointing inside it.
@@ -49,7 +53,7 @@ public struct Item: Hashable, Sendable {
 
 extension Item: Codable {
   private enum CodingKeys: String, CodingKey {
-    case id, kind, title, authors, source, language, contentHash, duration, commit, site, published
+    case id, kind, title, authors, source, language, contentHash, duration, commit, site, published, why
   }
 
   private enum KindName: String, Codable {
@@ -89,11 +93,12 @@ extension Item: Codable {
     let contentHash = try container.decodeIfPresent(ContentHash.self, forKey: .contentHash)
     let site = try container.decodeIfPresent(String.self, forKey: .site)
     let published = try container.decodeIfPresent(Timestamp.self, forKey: .published)
+    let why = try container.decodeIfPresent(String.self, forKey: .why)
     let id = try container.decode(EntityID.self, forKey: .id)
     self = try decoder.validated {
       try Item(
         id: id, kind: kind, title: title, authors: authors, source: source, language: language,
-        contentHash: contentHash, site: site, published: published)
+        contentHash: contentHash, site: site, published: published, why: why)
     }
   }
 
@@ -122,6 +127,7 @@ extension Item: Codable {
     try container.encodeIfPresent(contentHash, forKey: .contentHash)
     try container.encodeIfPresent(site, forKey: .site)
     try container.encodeIfPresent(published, forKey: .published)
+    try container.encodeIfPresent(why, forKey: .why)
   }
 }
 

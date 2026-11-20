@@ -39,8 +39,10 @@ struct ChangeMap {
     switch rest.count {
     case 1:
       let stem = (rest[0] as NSString).deletingPathExtension
-      return [Store.itemFile, Store.contentFile, Store.pdfFile, Store.transcriptFile, Store.outlineFile].contains(
-        rest[0])
+      return [
+        Store.itemFile, Store.contentFile, Store.pdfFile, Store.transcriptFile, Store.outlineFile,
+        Store.keyPointsFile,
+      ].contains(rest[0])
         || [Store.mediaName, Store.coverName].contains(stem)
     case 2: return rest[0] == Store.translationsFolder || rest[0] == Store.imagesFolder
     default: return false

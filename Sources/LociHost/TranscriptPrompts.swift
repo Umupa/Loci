@@ -39,15 +39,10 @@ enum TranscriptPrompts {
     return """
       Below is the transcript of "\(title)", one sentence per line with its start and end in seconds.\(part)
 
-      1. Split it into chapters where the topic changes: each starts at a sentence's start time, between \
-      \(from) and \(to), in time order, with a short title.
-      2. Pick the highlights: the few stretches most worth hearing for an engineer learning the subject, each \
-      from a sentence's start to a later sentence's end, with a short title and one sentence on why it is worth \
-      hearing.
+      Split it into chapters where the topic changes: each starts at a sentence's start time, between \
+      \(from) and \(to), in time order, with a short title in the transcript's own language.
 
-      Write titles and reasons in the transcript's own language. Return only one JSON object, no prose around \
-      it: {"chapters": [{"start": 0.0, "title": "…"}], "highlights": [{"start": 0.0, "end": 0.0, "title": "…", \
-      "reason": "…"}]}
+      Return only one JSON object, no prose around it: {"chapters": [{"start": 0.0, "title": "…"}]}
 
       The transcript:
       \(lines)
@@ -87,23 +82,16 @@ enum TranscriptAnswers {
     return lines
   }
 
-  /// Chapters in order within the piece, from `start` to `end`, and highlights within the whole `duration`.
-  static func outline(
-    in reply: String, from start: Duration, to end: Duration, duration: Duration
-  ) throws(TranscriptAnswerError) -> Outline {
+  /// Chapters in order within the piece, from `start` to `end`.
+  static func outline(in reply: String, from start: Duration, to end: Duration) throws(TranscriptAnswerError)
+    -> Outline
+  {
     struct Chapter: Decodable {
       let start: Double
       let title: String
     }
-    struct Highlight: Decodable {
-      let start: Double
-      let end: Double
-      let title: String
-      let reason: String
-    }
     struct Answer: Decodable {
       let chapters: [Chapter]
-      let highlights: [Highlight]
     }
     let answer = try decode(Answer.self, from: reply)
     let slack = Duration.seconds(1)
@@ -115,15 +103,7 @@ enum TranscriptAnswers {
         }
         return try Outline.Chapter(start: max(at, .zero), title: chapter.title)
       }
-      let highlights = try answer.highlights.map { highlight throws -> Outline.Highlight in
-        guard highlight.end <= duration.inSeconds + 1 else {
-          throw TranscriptAnswerError("a highlight ends at \(highlight.end)s, after the end")
-        }
-        return try Outline.Highlight(
-          span: try TimeSpan(start: time(highlight.start), end: time(highlight.end)), title: highlight.title,
-          reason: highlight.reason)
-      }
-      return try Outline(chapters: chapters, highlights: highlights)
+      return try Outline(chapters: chapters)
     } catch let error as TranscriptAnswerError {
       throw error
     } catch {
@@ -132,7 +112,7 @@ enum TranscriptAnswers {
   }
 
   /// The JSON object in a reply, which may have words or a code fence around it.
-  private static func decode<Value: Decodable>(_ type: Value.Type, from reply: String) throws(TranscriptAnswerError)
+  static func decode<Value: Decodable>(_ type: Value.Type, from reply: String) throws(TranscriptAnswerError)
     -> Value
   {
     guard let open = reply.firstIndex(of: "{"), let close = reply.lastIndex(of: "}"), open < close else {
@@ -145,7 +125,7 @@ enum TranscriptAnswers {
     }
   }
 
-  private static func time(_ seconds: Double) -> Duration {
+  static func time(_ seconds: Double) -> Duration {
     .milliseconds(Int((seconds * 1000).rounded()))
   }
 }

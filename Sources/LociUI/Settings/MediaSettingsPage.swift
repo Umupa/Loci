@@ -11,6 +11,7 @@ struct MediaSettingsPage: View {
     SettingsPage(symbol: Symbols.media, title: .loci("settings.media"), width: Size.wideSettingsWidth) {
       Group {
         if let setup = feed?.value {
+          StorageSection()
           VStack(alignment: .leading, spacing: 6) {
             SettingsGroup(title: .loci("media.components"), inset: 50) {
               ForEach(setup.components, id: \.component) { status in

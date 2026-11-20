@@ -6,6 +6,8 @@ import SwiftUI
 struct SpeechModels: View {
   @Environment(\.host) private var host
   let setup: MediaSetup
+  /// The model just replaced, while the reader is asked whether to delete it.
+  @State private var replaced: SpeechModel?
 
   var body: some View {
     SettingsGroup(title: .loci("media.speech"), inset: 40) {
@@ -20,6 +22,35 @@ struct SpeechModels: View {
       }
       .changesData()
     }
+    .confirmationDialog(
+      replaced.map { Text(.loci("media.deleteOld \($0.name) \($0.sizeText)")) } ?? Text(verbatim: ""),
+      isPresented: Binding(get: { replaced != nil }, set: { if !$0 { replaced = nil } }), presenting: replaced
+    ) { model in
+      Button(role: .destructive) {
+        run(DeleteSpeechModel(model))
+      } label: {
+        Text(.loci("media.delete"))
+      }
+      Button(role: .cancel) {
+      } label: {
+        Text(.loci("media.keepOld"))
+      }
+    }
+  }
+
+  /// O-S9: changing the model asks whether to delete the one it replaces.
+  private func choose(_ model: SpeechModel) {
+    run(SetSpeechModel(model))
+    replaced = Self.replaced(by: model, in: setup)
+  }
+
+  /// The model `chosen` takes over from, when it is a different one still on the disk.
+  static func replaced(by chosen: SpeechModel, in setup: MediaSetup) -> SpeechModel? {
+    let before = setup.speechModel
+    guard before != chosen, setup.speechModels.contains(where: { $0.model == before && $0.state == .ready }) else {
+      return nil
+    }
+    return before
   }
 
   private var header: some View {
@@ -37,7 +68,7 @@ struct SpeechModels: View {
     let here = status.state == .ready
     let chosen = status.model == setup.speechModel
     return columns(
-      Radio(on: chosen && here, enabled: here) { run(SetSpeechModel(status.model)) },
+      Radio(on: chosen && here, enabled: here) { choose(status.model) },
       HStack(spacing: Spacing.xs) {
         status.model.title.foregroundStyle(here ? Palette.ink : Palette.inkMuted)
         if status.model == .recommended {
@@ -65,20 +96,13 @@ struct SpeechModels: View {
       switch status.state {
       case .ready:
         Text(.loci("media.downloaded")).font(.system(size: 12)).foregroundStyle(Palette.inkFaint)
-        Menu {
-          Button(role: .destructive) {
+        if status.model != setup.speechModel {
+          IconButton(symbol: "trash", title: .loci("media.delete"), size: 22, symbolSize: 11) {
             run(DeleteSpeechModel(status.model))
-          } label: {
-            Text(.loci("media.delete"))
           }
-        } label: {
-          Image(systemName: Symbols.more).font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.inkMuted)
-            .frame(width: 22, height: 22)
+        } else {
+          Color.clear.frame(width: 22, height: 22)
         }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .fixedSize()
       case .transferring(.running(let share)):
         Meter(share: share?.value ?? 0, width: 52)
         Text(verbatim: share.map { "\(Int(($0.value * 100).rounded()))%" } ?? "").font(Typography.mono)

@@ -32,9 +32,13 @@ struct PodcastStage: View {
       if let show = model.item.site ?? model.item.authors.first {
         Text(verbatim: show).font(.system(size: 13)).foregroundStyle(Palette.inkMuted)
       }
-      Scrubber(timeline: model.timeline, time: model.player.time, seek: model.player.seek)
-        .frame(width: Size.podcastColumn)
-        .padding(.top, 22)
+      WhyLine(item: model.item, alignment: .center).frame(maxWidth: Size.podcastColumn).padding(.top, 8)
+      Scrubber(
+        timeline: model.timeline, time: model.player.time, onlyKeyPoints: model.onlyKeyPoints?.wrappedValue == true,
+        seek: model.player.seek
+      )
+      .frame(width: Size.podcastColumn)
+      .padding(.top, 22)
       HStack {
         Text(verbatim: MediaTime.text(model.player.time))
         Spacer()
@@ -67,6 +71,7 @@ struct PodcastStage: View {
         SubtitleChip(model: model, symbol: false).frame(minWidth: 64)
       }
       .padding(.top, Spacing.s)
+      if let only = model.onlyKeyPoints { OnlyKeyPointsPill(on: only).padding(.top, Spacing.s) }
     }
     .padding(.horizontal, 26)
     .padding(.top, 30)

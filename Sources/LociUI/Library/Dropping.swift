@@ -68,18 +68,15 @@ enum Dropped: Equatable, Sendable {
 }
 
 extension View {
-  /// A text, video or audio file or a link dropped anywhere on the view becomes an item, and the last one opens. While
+  /// A text, video or audio file or a link dropped anywhere on the view is taken in, staying on the page. While
   /// something is dragged over it the view is outlined in amber.
-  func acceptingDrops(opened: @escaping (WindowState) -> Void, failed: @escaping (HostError) -> Void) -> some View {
-    modifier(AcceptingDrops(opened: opened, failed: failed))
+  func acceptingDrops() -> some View {
+    modifier(AcceptingDrops())
   }
 }
 
 private struct AcceptingDrops: ViewModifier {
-  @Environment(\.host) private var host
-  @Environment(\.changesAllowed) private var changesAllowed
-  let opened: (WindowState) -> Void
-  let failed: (HostError) -> Void
+  @Environment(\.takeIn) private var takeIn
   @State private var targeted = false
 
   func body(content: Content) -> some View {
@@ -93,28 +90,10 @@ private struct AcceptingDrops: ViewModifier {
             .allowsHitTesting(false)
         }
       }
-      .onDrop(of: changesAllowed ? Dropped.types : [], isTargeted: $targeted) { providers in
+      .onDrop(of: takeIn == nil ? [] : Dropped.types, isTargeted: $targeted) { providers in
         let reading = Dropped.reading(providers)
-        Task { await add(await Dropped.collect(reading)) }
+        Task { @MainActor in takeIn?.dropped(await Dropped.collect(reading)) }
         return true
       }
-  }
-
-  private func add(_ dropped: [Dropped]) async {
-    var last: Item?
-    for each in dropped {
-      do throws(HostError) {
-        switch each {
-        case .link(let url): last = try await host.run(AddLink(url: url))
-        case .textFile(let file): last = try await host.run(AddTextItem(fileName: file.fileName, text: file.text))
-        case .mediaFile(let file):
-          let upload = try await host.upload(LocalFile(file))
-          last = try await host.run(ImportMediaFile(upload: upload, mode: .copy))
-        }
-      } catch {
-        failed(error)
-      }
-    }
-    if let last { opened(WindowState(place: .library(nil), pages: [.item(last.id)])) }
   }
 }

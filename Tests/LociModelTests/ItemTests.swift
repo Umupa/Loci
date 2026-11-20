@@ -20,6 +20,14 @@ struct ItemTests {
     }
   }
 
+  @Test func theReasonItWasTakenInSurvivesItemJSON() throws {
+    let item = try Item(id: Fixture.item, kind: .article, title: "Borg", why: " To compare with work. ")
+
+    #expect(item.why == "To compare with work.")
+    #expect(try Fixture.roundTrip(item).why == "To compare with work.")
+    #expect(try Item(id: Fixture.item, kind: .article, title: "Borg", why: "  ").why == nil)
+  }
+
   @Test func readsAFlatItemFile() throws {
     let item = try Fixture.decode(
       Item.self, #"{"id":"\#(Fixture.item)","kind":"video","duration":1234.5,"title":"Talk"}"#)
@@ -27,6 +35,7 @@ struct ItemTests {
     #expect(item.kind == .video(duration: .milliseconds(1_234_500)))
     #expect(item.authors.isEmpty)
     #expect(item.source == nil)
+    #expect(item.why == nil)
   }
 
   static let broken = [

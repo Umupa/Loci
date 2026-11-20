@@ -14,15 +14,6 @@ struct Progress: Equatable {
     guard let length = item.length, case .item(_, .time(let span)) = state.position else { return nil }
     return Timeline.share(span.start, of: length)
   }
-
-  /// The items being watched, heard or read now: started, not finished, latest first, at most three.
-  func shelf(of items: [Item]) -> [Item] {
-    let started = items.compactMap { item -> (Item, ReadingState)? in
-      guard let state = states[item.id], state.position != nil, !state.finished else { return nil }
-      return (item, state)
-    }
-    return started.sorted { $0.1.updatedAt > $1.1.updatedAt }.prefix(3).map(\.0)
-  }
 }
 
 extension Item {

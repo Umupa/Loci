@@ -11,6 +11,12 @@ struct StageModel {
   @Binding var subtitles: SubtitleMode
   @Binding var subtitlesShown: Bool
   @Binding var menuOpen: Bool
+  @Binding var style: SubtitleStyle
+  /// `nil` until there are key points to play alone.
+  let onlyKeyPoints: Binding<Bool>?
+  /// How subtitles look is open beside the stage.
+  let styling: Bool
+  let openStyle: () -> Void
 }
 
 /// A video's page: the picture, the progress bar, the controls, and the title with where it comes from.
@@ -22,9 +28,12 @@ struct VideoStage: View {
       let width = max(frame.size.width - 52, 0)
       VStack(alignment: .leading, spacing: 0) {
         picture.frame(width: width, height: width * 9 / 16)
-        Scrubber(timeline: model.timeline, time: model.player.time, seek: model.player.seek)
-          .padding(.horizontal, 2)
-          .padding(.top, Spacing.m)
+        Scrubber(
+          timeline: model.timeline, time: model.player.time, onlyKeyPoints: model.onlyKeyPoints?.wrappedValue == true,
+          seek: model.player.seek
+        )
+        .padding(.horizontal, 2)
+        .padding(.top, Spacing.m)
         controls(compact: width < Self.compactWidth).padding(.top, 6)
         Text(serif: model.item.title, Typography.mediaTitle)
           .foregroundStyle(Palette.ink)
@@ -33,6 +42,7 @@ struct VideoStage: View {
           .padding(.top, 18)
           .padding(.bottom, 7)
         ItemMeta(item: model.item).padding(.horizontal, 2)
+        WhyLine(item: model.item).padding(.horizontal, 2).padding(.top, 10)
       }
       .frame(width: width)
       .padding(.top, 30)
@@ -47,7 +57,9 @@ struct VideoStage: View {
         if !model.player.soundOnly { VideoSurface(player: model.player.engine) }
       }
       .overlay(alignment: .bottom) {
-        if model.subtitlesShown, let lines = currentLines { SubtitleOverlay(lines: lines) }
+        if model.subtitlesShown, let lines = currentLines {
+          SubtitleOverlay(lines: lines, style: model.style) { model.style.lift = $0 }
+        }
       }
       .clipShape(RoundedRectangle(cornerRadius: Radius.cover, style: .continuous))
       .overlay(
@@ -58,12 +70,12 @@ struct VideoStage: View {
       .shadow(color: .black.opacity(0.1), radius: 3, y: 2)
   }
 
-  private var currentLines: [String]? {
+  private var currentLines: [SubtitleLine]? {
     guard let transcript = model.transcript,
       let index = TranscriptFollow.playing(in: transcript.segments, at: model.player.time),
       transcript.segments[index].end >= model.player.time
     else { return nil }
-    return transcript.lines(index, mode: model.subtitles)
+    return transcript.lines(index, mode: model.subtitles, order: model.style.order)
   }
 
   /// Below this the picture is too narrow for every control; skipping, the chapter and the speed fold away
@@ -96,12 +108,49 @@ struct VideoStage: View {
           .padding(.leading, Spacing.xs)
       }
       Spacer(minLength: Spacing.xs)
+      if let only = model.onlyKeyPoints { OnlyKeyPointsPill(on: only, compact: compact) }
       if !compact { SpeedChip(player: model.player) }
       SubtitleChip(model: model, symbol: true, named: !compact)
+      RoundIconButton(
+        symbol: Symbols.subtitleStyle, title: .loci("caption.title"), symbolSize: 14, on: model.styling,
+        action: model.openStyle)
       RoundIconButton(symbol: Symbols.fullScreen, title: .loci("player.fullScreen"), symbolSize: 15) {
         NSApp.keyWindow?.toggleFullScreen(nil)
       }
     }
+  }
+}
+
+/// Plays only the key points, one after another; amber while on.
+struct OnlyKeyPointsPill: View {
+  @Binding var on: Bool
+  var compact = false
+  @State private var hovering = false
+
+  var body: some View {
+    Button {
+      withAnimation(Motion.quick) { on.toggle() }
+    } label: {
+      HStack(spacing: 6) {
+        Image(systemName: Symbols.keyPoints)
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(on ? Palette.accent : Palette.inkMuted)
+        if !compact { Text(.loci("keypoints.only")) }
+      }
+      .font(.system(size: 12, weight: .semibold))
+      .foregroundStyle(on ? Palette.accentInk : Palette.inkMuted)
+      .padding(.horizontal, 10)
+      .frame(height: 26)
+      .background(Capsule().fill(on ? Palette.tint : hovering ? Palette.fill : .clear))
+      .overlay(Capsule().strokeBorder(on ? Palette.accent.opacity(0.45) : Palette.lineStrong, lineWidth: 1))
+      .contentShape(Capsule())
+      .fixedSize()
+    }
+    .buttonStyle(PressStyle())
+    .onHover { hovering = $0 }
+    .help(Text(.loci("keypoints.only")))
+    .accessibilityLabel(Text(.loci("keypoints.only")))
+    .accessibilityAddTraits(on ? .isSelected : [])
   }
 }
 
@@ -212,33 +261,6 @@ private struct MenuEntry: View {
     }
     .buttonStyle(.plain)
     .onHover { hovering = $0 }
-  }
-}
-
-/// The sentence playing, over the foot of the picture, with its translation under it.
-struct SubtitleOverlay: View {
-  let lines: [String]
-
-  var body: some View {
-    GeometryReader { frame in
-      let unit = frame.size.width / 100
-      VStack(spacing: unit * 0.5) {
-        ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-          Text(verbatim: line)
-            .font(.system(size: unit * (index == 0 ? 2.3 : 2.1), weight: .medium))
-            .foregroundStyle(Color(nsColor: NSColor(rgb: 0xFFF8EE)).opacity(index == 0 ? 1 : 0.82))
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, unit * 1.2)
-            .padding(.vertical, unit * 0.3)
-            .background(
-              RoundedRectangle(cornerRadius: unit * 0.8).fill(Color(nsColor: NSColor(rgb: 0x0C0906)).opacity(0.62)))
-        }
-      }
-      .frame(width: frame.size.width * 0.86)
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-      .padding(.bottom, frame.size.height * 0.05)
-    }
-    .allowsHitTesting(false)
   }
 }
 

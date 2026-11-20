@@ -84,7 +84,8 @@ struct JobScenarioTests {
     #expect(again.startedFrom == [.milliseconds(2950)])
     let texts = try await second.run(ReadMediaPage(item: item.id)).transcript?.segments.map(\.text)
     #expect(texts == ["The scheduler filters nodes.", "Then it scores them.", "Finally it binds the pod."])
-    #expect(world.programs.calls(with: "--print").count == 1)
+    #expect(world.programs.calls(with: "-x").count == 1)
+    #expect(world.programs.calls(with: "--merge-output-format").count == 1)
     await second.close()
   }
 
@@ -109,6 +110,56 @@ struct JobScenarioTests {
     #expect(downloads.count == 2)
     #expect(downloads.allSatisfy { $0.arguments.contains("--continue") })
     await second.close()
+  }
+
+  /// I-S9: a paused download stays paused across a quit with how far it had got, and resuming picks up the part
+  /// already downloaded.
+  @Test func aPausedDownloadStaysPausedAfterQuittingAndResumesFromItsPart() async throws {
+    let world = MediaWorld()
+    defer { world.place.remove() }
+    try world.install()
+    try world.installModel()
+    world.programs.site(Links.youtube, FakeSite(title: "Me at the zoo", subtitles: zooSubtitles))
+    await world.programs.downloads.close()
+    let first = try await world.start()
+    let item = try await first.run(AddLink(url: Links.url(Links.youtube)))
+    let downloading = await job(first, item.id) { job in
+      if case .running(_?, _) = job?.state, job?.stage == .download { true } else { false }
+    }
+    #expect(downloading != nil)
+    _ = try await first.run(PauseJob(item: item.id))
+    await first.close()
+    await world.programs.downloads.open()
+
+    let second = try await world.start()
+
+    let paused = await job(second, item.id, where: isPaused) ?? nil
+    #expect(paused?.stage == .download)
+    guard case .paused(let progress?) = paused?.state else {
+      Issue.record("expected the share the download had got to, got \(String(describing: paused))")
+      return
+    }
+    #expect(progress.value > 0)
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(world.programs.calls(with: "--print").count == 1)
+    _ = try await second.run(RetryJob(item: item.id))
+    #expect(await job(second, item.id, where: isDone) != nil)
+    let downloads = world.programs.calls(with: "--print")
+    #expect(downloads.count == 2)
+    #expect(downloads.allSatisfy { $0.arguments.contains("--continue") })
+    await second.close()
+  }
+
+  /// A job tells which stages its item goes through, so the reader sees what is left.
+  @Test func aJobCarriesTheStagesItsItemGoesThrough() async throws {
+    try await withMediaHost(transcriber: FakeTranscriber(spoken)) { host, world in
+      world.programs.site(Links.bilibili, FakeSite(title: "Scheduling"))
+
+      let item = try await host.run(AddLink(url: Links.url(Links.bilibili)))
+
+      let waiting = await job(host, item.id, where: state(.waiting(.speechModel(.recommended)))) ?? nil
+      #expect(waiting?.stages == [.resolve, .transcribe, .download, .translate, .outline])
+    }
   }
 
   /// L-S11 and L-S16: a site that wants a signed-in visitor waits, and carries on once cookies arrive.
@@ -198,8 +249,8 @@ struct JobScenarioTests {
     }
   }
 
-  /// Stopping keeps what was made; retrying carries on from there.
-  @Test func aStoppedJobKeepsItsWorkAndRetryingCarriesOn() async throws {
+  /// I-S9: pausing keeps what was made; resuming carries on from there.
+  @Test func aPausedJobKeepsItsWorkAndResumingCarriesOn() async throws {
     let transcriber = FakeTranscriber(spoken, pauseAfter: 6)
     try await withMediaHost(transcriber: transcriber) { host, world in
       try world.installModel()
@@ -208,9 +259,9 @@ struct JobScenarioTests {
       let media = host.subscribe(ItemMedia(item: item.id))
       #expect(await value(media) { $0.transcript?.segments.count == 2 } != nil)
 
-      _ = try await host.run(CancelJob(item: item.id))
+      _ = try await host.run(PauseJob(item: item.id))
 
-      #expect(await job(host, item.id, where: state(.stopped)) != nil)
+      #expect(await job(host, item.id, where: isPaused) != nil)
       #expect(try await host.run(ReadMediaPage(item: item.id)).transcript?.segments.count == 2)
       #expect(try await host.run(RetryJob(item: item.id)).stage == .transcribe)
       #expect(await job(host, item.id, where: isDone) != nil)
@@ -229,4 +280,10 @@ struct JobScenarioTests {
       await #expect(throws: HostError.self) { try await host.run(RetryJob(item: item.id)) }
     }
   }
+}
+
+/// Whether the job is paused, however far it had got.
+@Sendable func isPaused(_ job: Job?) -> Bool {
+  if case .paused = job?.state { return true }
+  return false
 }

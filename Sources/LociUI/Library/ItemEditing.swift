@@ -7,16 +7,17 @@ struct ItemActions {
   let rename: (Item) -> Void
   let changeCover: (Item) -> Void
   let delete: ([EntityID]) -> Void
-  /// Stops work going on; `nil` when there is none.
-  var stop: ((Item) -> Void)?
+  var freeSpace: (Item) -> Void = { _ in }
+  var saveLocally: (Item) -> Void = { _ in }
 }
 
-/// The menu on a row or a cover. On one of several chosen items it only deletes them all.
+/// The menu on a card. On one of several chosen items it only deletes them all.
 struct ItemMenu: View {
   let item: Item
   let acted: [EntityID]
   let actions: ItemActions
-  let working: Bool
+  /// The item's media on the host, for a video or episode from a link with no work going on.
+  var space: ItemSpace?
 
   var body: some View {
     if acted.count > 1 {
@@ -26,14 +27,6 @@ struct ItemMenu: View {
         Text(.loci("item.deleteSome \(acted.count)"))
       }
     } else {
-      if working, let stop = actions.stop {
-        Button {
-          stop(item)
-        } label: {
-          Text(.loci("job.stop"))
-        }
-        Divider()
-      }
       Button {
         actions.rename(item)
       } label: {
@@ -43,6 +36,22 @@ struct ItemMenu: View {
         actions.changeCover(item)
       } label: {
         Text(.loci("item.changeCover"))
+      }
+      if let space, space.fromLink {
+        if let bytes = space.bytes {
+          let size = Bytes.text(bytes)
+          Button {
+            actions.freeSpace(item)
+          } label: {
+            Text(.loci("item.freeSpace \(size)"))
+          }
+        } else {
+          Button {
+            actions.saveLocally(item)
+          } label: {
+            Text(.loci("item.saveLocally"))
+          }
+        }
       }
       if let source = item.source {
         Button {

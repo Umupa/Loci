@@ -26,6 +26,9 @@ extension AgentContext {
       "This conversation is on an item in the library: the person reads it and asks you about it.",
       "",
       "The item: " + about.joined(separator: ", ") + ".",
+    ]
+    if let why = item.why { lines.append("Why they took it in, in their words: \(why)") }
+    lines += [
       text,
       "Answer from the item, and say when you go beyond it.",
       "The person's highlights on it are in `\(path(files.notes, from: folder))`, one JSON object per line.",

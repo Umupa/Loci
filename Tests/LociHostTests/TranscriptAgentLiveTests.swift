@@ -42,30 +42,37 @@ struct TranscriptAgentLiveTests {
     "And that is the whole loop: queue, filter, score, reserve, bind.",
   ]
 
-  @Test func aThirtySentenceTranscriptIsTranslatedAndOutlined() async throws {
+  @Test func aThirtySentenceTranscriptIsTranslatedOutlinedAndPicked() async throws {
     let transcript = try Transcript(
       language: "en", origin: .platform,
       segments: Self.sentences.enumerated().map { index, text in
         try Transcript.Segment(start: .seconds(index * 4), end: .seconds(index * 4 + 4), text: text)
       })
     let installed = InstalledAgents(tool: nil)
-    let writer = AgentTranscriptAgent(runtime: Runtime(provider: .pi), agents: { await installed.driver(for: $0) })
+    let writer = AgentTranscriptAgent(
+      runtime: Runtime(provider: .codex), agents: { await installed.driver(for: $0) })
     let clock = ContinuousClock()
 
     let started = clock.now
-    let translation = try await writer.translate(transcript, into: "zh-Hans")
+    let translation = try Translation(
+      language: "zh-Hans", lines: try await writer.translate(lines: transcript.segments.map(\.text), into: "zh-Hans"))
     let translated = clock.now - started
     let outline = try await writer.outline(transcript, title: "How the Kubernetes scheduler works")
     let outlined = clock.now - started - translated
+    let reader = KeyPointReader(
+      language: "zh-Hans", profile: "Works on AI infrastructure; learns how schedulers trade placement for speed.",
+      why: "For an interview about cluster scheduling")
+    let points = try await writer.keyPoints(
+      of: .transcript(transcript, title: "How the Kubernetes scheduler works"), count: .few, for: reader)
 
     #expect(translation.fits(transcript))
     #expect(!outline.chapters.isEmpty)
+    #expect(KeyPointCount.few.range.contains(points.count))
     let report = [
       "LIVE translation \(translated)", translation.lines.prefix(5).joined(separator: "\n"),
       "LIVE outline \(outlined)",
       outline.chapters.map { "chapter \($0.start) \($0.title)" }.joined(separator: "\n"),
-      outline.highlights.map { "highlight \($0.span.start)-\($0.span.end ?? .zero) \($0.title): \($0.reason)" }
-        .joined(separator: "\n"),
+      points.map { "key point \($0.span?.start ?? .zero) \($0.title): \($0.reason)" }.joined(separator: "\n"),
     ].joined(separator: "\n")
     Issue.record(Comment(rawValue: report), severity: .warning)
   }

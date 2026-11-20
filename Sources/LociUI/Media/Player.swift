@@ -1,5 +1,6 @@
 import AVFoundation
 import LociModel
+import UniformTypeIdentifiers
 
 /// Plays one video or audio item and keeps the clock the rest of the page follows.
 ///
@@ -33,6 +34,8 @@ final class Player {
   @ObservationIgnored var reachedEnd: () -> Void = {}
   /// Asks the host for a fresh address after the site's one stopped working.
   @ObservationIgnored var refresh: () async -> PlayerSource? = { nil }
+  /// Set while only the key points play; playback skips between them and stops after the last.
+  @ObservationIgnored var only: KeyPointPlayback?
   /// What reads the bytes of media on another Mac. The asset holds its reader weakly, so the player keeps it.
   @ObservationIgnored private var ranged: RangedMedia?
 
@@ -55,16 +58,16 @@ final class Player {
     switch source {
     case .file(let file):
       asset = AVURLAsset(url: file.url)
-      streamsPicture = true
+      streamsPicture = source.showsPicture
       canRefresh = false
     case .ranges(let media):
       ranged = media
       asset = media.asset()
-      streamsPicture = true
+      streamsPicture = source.showsPicture
       canRefresh = false
     case .online(let stream):
       asset = AVURLAsset(url: stream.url, options: ["AVURLAssetHTTPHeaderFieldsKey": stream.headers])
-      streamsPicture = !stream.audioOnly
+      streamsPicture = source.showsPicture
       canRefresh = !refreshing
     }
     availability = .ready
@@ -149,6 +152,13 @@ final class Player {
     guard moment.isNumeric, engine.currentItem != nil else { return }
     time = .milliseconds(Int(moment.seconds * 1000))
     if playing, abs((time - savedAt).components.seconds) >= 10 { save() }
+    if playing, let only {
+      switch only.step(at: time) {
+      case .stay: break
+      case .jump(let start): seek(to: start)
+      case .stop: pause()
+      }
+    }
     if let length, time >= length - .seconds(1), !finished {
       finished = true
       reachedEnd()
@@ -197,6 +207,20 @@ enum PlayerSource {
   case file(LocalFile)
   case ranges(RangedMedia)
   case online(OnlineStream)
+
+  /// Whether there is a picture to play over the cover: not for a file of sound alone, such as a video kept
+  /// as audio only, nor for a stream of its sound.
+  var showsPicture: Bool {
+    switch self {
+    case .file(let file): !Self.isSound(file.url.pathExtension)
+    case .ranges(let media): !Self.isSound(media.fileExtension)
+    case .online(let stream): !stream.audioOnly
+    }
+  }
+
+  static func isSound(_ fileExtension: String) -> Bool {
+    UTType(filenameExtension: fileExtension)?.conforms(to: .audio) == true
+  }
 
   /// `nil` when the host can say neither where the file is nor how big it is.
   @MainActor

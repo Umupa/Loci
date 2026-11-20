@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 /// The questions and notices a window can show, one value so the root view keeps them in one place.
 struct Dialogs {
   var importing = false
+  /// What waits in the import panel.
+  var intake: PendingImport?
   /// What went wrong. A change refused because the Mac is offline is not told: the window already says so.
   var failure: HostError? {
     didSet { if case .offline? = failure { failure = nil } }
@@ -53,13 +55,8 @@ private struct DialogsModifier: ViewModifier {
       let chosen = (try? result.get()) ?? []
       let media = chosen.filter(Dropped.isMedia)
       let files = chosen.filter { !media.contains($0) }.compactMap { try? TextFile(reading: $0) }
-      perform {
-        for file in files { _ = try await host.run(AddTextItem(fileName: file.fileName, text: file.text)) }
-        for file in media {
-          let upload = try await host.upload(LocalFile(file))
-          _ = try await host.run(ImportMediaFile(upload: upload, mode: .copy))
-        }
-      }
+      TakeIn(host: host, ask: { dialogs.intake = $0 }, failed: { dialogs.failure = $0 })
+        .files(media: media, text: files)
     }
   }
 

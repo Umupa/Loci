@@ -4,13 +4,17 @@ import SwiftUI
 
 /// The pages of the panel beside text.
 enum PanelTab: Hashable {
-  case conversation, highlights
+  case keyPoints, conversation, highlights
 }
 
-/// Beside an item: Loci reading along, with the conversation on the item, or every highlight left on it.
+/// Beside an item: its key points, Loci reading along with the conversation on the item, or every highlight
+/// left on it.
 struct ReaderPanel: View {
   let item: EntityID
   let notes: [PlacedNote]
+  let keyPoints: KeyPointsPage?
+  /// `nil` for what has no key points, such as a paper; the panel then has no page for them.
+  let openKeyPoint: ((KeyPoint) -> Void)?
   @Binding var tab: PanelTab
   @Binding var draft: PassageDraft?
   /// The highlight chosen last, and a serial that changes each time it is chosen again.
@@ -23,9 +27,11 @@ struct ReaderPanel: View {
   var body: some View {
     VStack(spacing: 0) {
       CompanionHeader(
-        tab: $tab, tabs: [(.conversation, .loci("panel.conversation")), (.highlights, .loci("panel.highlights"))],
+        tab: $tab, tabs: (openKeyPoint == nil ? [] : [(.keyPoints, .loci("panel.keyPoints"))]) + Self.tabs,
         collapse: collapse)
       switch tab {
+      case .keyPoints:
+        KeyPointsPanel(item: item, media: nil, page: keyPoints, current: nil, frames: nil) { openKeyPoint?($0) }
       case .conversation:
         ConversationScreen(ref: .item(item), draft: $draft, revealPassage: revealPassage)
       case .highlights:
@@ -37,6 +43,10 @@ struct ReaderPanel: View {
       Rectangle().fill(Palette.lineStrong).frame(width: Size.hairline)
     }
   }
+
+  private static let tabs: [(value: PanelTab, title: LocalizedStringResource)] = [
+    (.conversation, .loci("panel.conversation")), (.highlights, .loci("panel.highlights")),
+  ]
 
   private var highlights: some View {
     ScrollViewReader { proxy in

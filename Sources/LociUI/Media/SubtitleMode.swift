@@ -19,15 +19,24 @@ enum SubtitleMode: String, CaseIterable, Codable {
     }
   }
 
-  /// The lines one sentence shows, original first. Without a translation every mode shows the original.
-  func lines(of sentence: String, translated: String?) -> [String] {
-    guard let translated else { return [sentence] }
+  /// The lines one sentence shows, in `order` when both do. Without a translation every mode shows the
+  /// original.
+  func lines(of sentence: String, translated: String?, order: SubtitleStyle.BilingualOrder) -> [SubtitleLine] {
+    let original = SubtitleLine(text: sentence, translated: false)
+    guard let translated else { return [original] }
+    let translation = SubtitleLine(text: translated, translated: true)
     switch self {
-    case .original: return [sentence]
-    case .both: return [sentence, translated]
-    case .translation: return [translated]
+    case .original: return [original]
+    case .both: return order == .translationAbove ? [translation, original] : [original, translation]
+    case .translation: return [translation]
     }
   }
+}
+
+/// One line of a sentence as it shows: the original's words or the translation's.
+struct SubtitleLine: Equatable {
+  let text: String
+  let translated: Bool
 }
 
 /// A transcript with the translation it is read with, sentence by sentence.
@@ -53,7 +62,7 @@ struct ReadableTranscript: Equatable {
     return lines[index]
   }
 
-  func lines(_ index: Int, mode: SubtitleMode) -> [String] {
-    mode.lines(of: segments[index].text, translated: translated(index))
+  func lines(_ index: Int, mode: SubtitleMode, order: SubtitleStyle.BilingualOrder) -> [SubtitleLine] {
+    mode.lines(of: segments[index].text, translated: translated(index), order: order)
   }
 }

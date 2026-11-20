@@ -54,6 +54,12 @@ extension Store {
     return file
   }
 
+  /// Removes one file from the work folder, if it is there.
+  public func removeWork(named name: String, of item: EntityID) throws {
+    guard let file = try workFile(named: name, of: item) else { return }
+    try FileManager.default.removeItem(at: file)
+  }
+
   /// A file in the work folder; `nil` when it is not there.
   public func workFile(named name: String, of item: EntityID) throws -> URL? {
     try existing(workFolder(of: item).appending(path: name))
@@ -67,6 +73,30 @@ extension Store {
   /// The item's media, which may be a link to a file elsewhere; `nil` until it is downloaded or imported.
   public func mediaFile(of item: EntityID) throws -> URL? {
     named(Self.mediaName, in: try itemFolder(item))
+  }
+
+  /// How many bytes the item's media takes in its folder; `nil` without a file of its own there, as for one
+  /// played online or linked to where it is.
+  public func mediaBytes(of item: EntityID) throws -> Int64? {
+    guard let file = try mediaFile(of: item),
+      let values = try? file.resourceValues(forKeys: [.isSymbolicLinkKey, .totalFileAllocatedSizeKey, .fileSizeKey]),
+      values.isSymbolicLink != true
+    else { return nil }
+    return Int64(values.totalFileAllocatedSize ?? values.fileSize ?? 0)
+  }
+
+  /// Deletes the item's media file and any part of a download, leaving everything made from it.
+  public func deleteMedia(of item: EntityID) throws {
+    if let file = try mediaFile(of: item) { try FileManager.default.removeItem(at: file) }
+    try clearWork(of: item)
+  }
+
+  /// The size of the disk the data folder is on, and how much of it is free.
+  public func disk() -> (capacity: Int64?, available: Int64?) {
+    let values = try? root.resourceValues(forKeys: [
+      .volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey,
+    ])
+    return (values?.volumeTotalCapacity.map(Int64.init), values?.volumeAvailableCapacityForImportantUsage)
   }
 
   /// Moves a finished download in as `media.<extension>`, replacing any earlier one.

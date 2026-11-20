@@ -90,6 +90,7 @@ extension LocalHost {
   /// Tells of an item that went into the library. What the person saved is logged for the main
   /// conversation and for Loci; what Loci saved shows in the turn it was saved in, and Loci knows it already.
   func saved(_ item: EntityID, by saver: Saver) async {
+    if case .loci = saver { await library.queue.joinSaving(item) }
     switch saver {
     case .person: await happened(.saved(item))
     case .loci(let conversation?): await loci.saved(item, in: conversation)

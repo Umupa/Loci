@@ -1,17 +1,24 @@
 import Foundation
 
 /// Adds the material behind a link to the library and starts making it readable. The item is there at once,
-/// titled after the link until its real title is known; its job does the rest.
+/// titled after the link until its real title is known; its job does the rest. A link probed a moment ago
+/// with `ProbeLink` is not read again.
 public struct AddLink: Command {
   public static let name = "library.addLink"
   public static let maximumArticleBytes = 2 * 1024 * 1024
   public let url: URL
   /// The article already open in the built-in browser.
   public let articleHTML: String?
+  /// How a video or episode is taken in, and the next default; `nil` takes the last choice.
+  public let choice: ImportChoice?
+  /// Why the reader takes it in.
+  public let why: String?
 
-  public init(url: URL, articleHTML: String? = nil) {
+  public init(url: URL, articleHTML: String? = nil, choice: ImportChoice? = nil, why: String? = nil) {
     self.url = url
     self.articleHTML = articleHTML
+    self.choice = choice
+    self.why = why
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Item {
@@ -24,10 +31,16 @@ public struct ImportMediaFile: Command {
   public static let name = "library.importMedia"
   public let upload: Upload
   public let mode: ImportMode
+  /// How speech in it is recognized and translated, and the next default; `nil` takes the last choice.
+  public let choice: ImportChoice?
+  /// Why the reader takes it in.
+  public let why: String?
 
-  public init(upload: Upload, mode: ImportMode) {
+  public init(upload: Upload, mode: ImportMode, choice: ImportChoice? = nil, why: String? = nil) {
     self.upload = upload
     self.mode = mode
+    self.choice = choice
+    self.why = why
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Item {
@@ -35,7 +48,7 @@ public struct ImportMediaFile: Command {
   }
 }
 
-/// Starts an item's job again from what its files already hold: after a failure, after it was stopped, or
+/// Starts an item's job again from what its files already hold: after a failure, after it was paused, or
 /// to stop waiting and look again.
 public struct RetryJob: Command {
   public static let name = "library.retryJob"
@@ -50,9 +63,10 @@ public struct RetryJob: Command {
   }
 }
 
-/// Stops an item's job. What it made so far is kept, and `RetryJob` carries on from there.
-public struct CancelJob: Command {
-  public static let name = "library.cancelJob"
+/// Pauses an item's job. What it made so far is kept, a download's part among it, and `RetryJob` carries on
+/// from there.
+public struct PauseJob: Command {
+  public static let name = "library.pauseJob"
   public let item: EntityID
 
   public init(item: EntityID) {
@@ -60,7 +74,7 @@ public struct CancelJob: Command {
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
-    try await handler.cancelJob(item)
+    try await handler.pauseJob(item)
   }
 }
 

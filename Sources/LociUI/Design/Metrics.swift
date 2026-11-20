@@ -38,6 +38,11 @@ enum Radius {
   static let sidebarLoci: CGFloat = 12
   /// A sheet dropped over the window.
   static let sheet: CGFloat = 24
+  static let importSheet: CGFloat = 22
+  /// A cover in the gallery.
+  static let galleryCover: CGFloat = 11
+  /// The window's own corners, which the light around its edge follows.
+  static let window: CGFloat = 18
 }
 
 enum Size {
@@ -72,15 +77,10 @@ enum Size {
   static let readingTop: CGFloat = 34
   static let windowMinimum = CGSize(width: 720, height: 460)
 
-  /// The library's covers: a row of the ones being watched, over a list.
-  static let shelfHeight: CGFloat = 214
-  static let shelfGap: CGFloat = 16
-  /// The first cover on the shelf is this much wider than the other two.
-  static let shelfLead: CGFloat = 1.35
-  static let listThumbnail: CGFloat = 84
-  static let listStatus: CGFloat = 250
   /// What went wrong, told in full on an item's own page.
   static let jobDetail: CGFloat = 320
+  static let taskDock: CGFloat = 540
+  static let preparingWidth: CGFloat = 880
   static let meter: CGFloat = 96
   static let meterHeight: CGFloat = 4
   static let pushHeight: CGFloat = 22
@@ -89,7 +89,6 @@ enum Size {
   static let mediaPanel: CGFloat = 372
   static let scrubberHeight: CGFloat = 22
   static let knob: CGFloat = 12
-  static let diamond: CGFloat = 7
   static let controlButton: CGFloat = 32
   static let podcastCover: CGFloat = 300
   static let podcastColumn: CGFloat = 460
@@ -119,6 +118,8 @@ enum Size {
   static let machineGlyph: CGFloat = 54
   static let pairingCode: CGFloat = 44
   static let remoteSheetWidth: CGFloat = 400
+  static let importSheetWidth: CGFloat = 500
+  static let importCover = CGSize(width: 132, height: 82.5)
   /// From the top of the window to a sheet dropped over it.
   static let remoteSheetTop: CGFloat = 64
   /// Where the field of a conversation would be, while its Mac is offline.
@@ -143,6 +144,10 @@ enum Motion {
   static let flashFadeStep = Duration.milliseconds(50)
   /// A message, event or card arriving: it rises into place as it fades in.
   static let arrive = Animation.timingCurve(0.28, 0.67, 0.32, 1, duration: 0.45)
+  /// An item dropping into the gallery.
+  static let land = Animation.spring(response: 0.55, dampingFraction: 0.62)
+  /// The task dock opening into its list.
+  static let dock = Animation.spring(response: 0.35, dampingFraction: 0.72)
   /// How faint a breathing dot gets before it brightens again.
   static let breathLow = 0.3
   /// A rebuild finishing sooner than this is not shown at all, so nothing flickers.

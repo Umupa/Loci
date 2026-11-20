@@ -12,7 +12,7 @@ struct PaperScreen: View {
   @State private var notes: Feed<[Note]>?
   @State private var tab = PanelTab.conversation
   @State private var draft: PassageDraft?
-  @State private var panelShown = true
+  @AppStorage(PanelMemory.key) private var panelShown = PanelMemory.shownAtFirst
 
   var body: some View {
     HStack(spacing: 0) {
@@ -28,7 +28,8 @@ struct PaperScreen: View {
         ReaderPanel(
           item: page.item.id,
           notes: (notes?.value ?? []).map { PlacedNote(note: $0, range: NSRange(location: 0, length: 0)) },
-          tab: $tab, draft: $draft, chosen: nil, reveal: { _ in }, revealPassage: { _ in }, ask: { _ in },
+          keyPoints: nil, openKeyPoint: nil, tab: $tab, draft: $draft, chosen: nil, reveal: { _ in },
+          revealPassage: { _ in }, ask: { _ in },
           collapse: { withAnimation(Motion.fold) { panelShown = false } }
         )
         .frame(width: Size.mediaPanel)

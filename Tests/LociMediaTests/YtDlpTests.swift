@@ -65,6 +65,13 @@ struct YtDlpTests {
     #expect(!arguments.contains("-x"))
   }
 
+  @Test func aVideoDownloadsNoTallerThanTheHeightAsked() {
+    let arguments = YtDlp.downloadArguments(.link(Self.link), audio: false, height: 720, folder: Self.folder)
+
+    #expect(arguments.contains("bv*[height<=720]+ba/b[height<=720]/bv*+ba/b"))
+    #expect(arguments.contains("vcodec:h264,res:720,acodec:m4a"))
+  }
+
   @Test func anEpisodeDownloadsOnlyItsSoundAsM4A() {
     let arguments = YtDlp.downloadArguments(.link(Self.link), audio: true, folder: Self.folder)
 
@@ -76,7 +83,7 @@ struct YtDlpTests {
     let runner = ScriptedRunner { _ in ([], ProgramResult(status: 0, output: "/w/media.mp4\n")) }
     let info = Self.folder.appending(path: "info.json")
 
-    _ = try await Self.ytDlp(runner).download(Self.link, info: info, audio: false, into: Self.folder) { _ in }
+    _ = try await Self.ytDlp(runner).download(Self.link, info: info, audio: false, into: Self.folder) { _, _ in }
 
     let arguments = try #require(runner.calls.first?.arguments)
     #expect(arguments.suffix(2) == ["--load-info-json", info.path(percentEncoded: false)])
@@ -94,12 +101,44 @@ struct YtDlpTests {
 
     let file = try await Self.ytDlp(runner).download(
       Self.link, info: Self.folder.appending(path: "info.json"), audio: false, into: Self.folder
-    ) { _ in }
+    ) { _, _ in }
 
     #expect(file == URL(filePath: "/w/media.mp4"))
     #expect(runner.calls.count == 2)
     #expect(runner.calls.last?.arguments.last == Self.link.absoluteString)
     #expect(runner.calls.last?.arguments.contains("--check-formats") == true)
+  }
+
+  /// I-S9: a refused download is tried again from the link without throwing away the part already downloaded.
+  @Test func aRefusedDownloadRetriesWithoutThrowingAwayThePart() async throws {
+    let runner = ScriptedRunner { call in
+      call.arguments.contains("--check-formats")
+        ? ([], ProgramResult(status: 0, output: "/w/media.mp4\n"))
+        : (
+          [], ProgramResult(status: 1, output: "", diagnostics: "ERROR: unable to download video data: HTTP Error 403")
+        )
+    }
+
+    _ = try await Self.ytDlp(runner).download(Self.link, audio: false, into: Self.folder) { _, _ in }
+
+    #expect(runner.calls.allSatisfy { $0.arguments.contains("--continue") && !$0.arguments.contains("--no-continue") })
+  }
+
+  /// The part is thrown away only when the site will not carry it on.
+  @Test func aPartTheSiteWillNotCarryOnIsDownloadedAfresh() async throws {
+    let runner = ScriptedRunner { call in
+      if call.arguments.contains("--no-continue") { return ([], ProgramResult(status: 0, output: "/w/media.mp4\n")) }
+      let refusal =
+        call.arguments.contains("--check-formats")
+        ? "ERROR: unable to download video data: HTTP Error 416: Requested Range Not Satisfiable"
+        : "ERROR: unable to download video data: HTTP Error 403"
+      return ([], ProgramResult(status: 1, output: "", diagnostics: refusal))
+    }
+
+    let file = try await Self.ytDlp(runner).download(Self.link, audio: false, into: Self.folder) { _, _ in }
+
+    #expect(file == URL(filePath: "/w/media.mp4"))
+    #expect(runner.calls.map { $0.arguments.contains("--no-continue") } == [false, false, true])
   }
 
   @Test func whenThePreferredFormatIsRefusedItTriesOneThatCanBeDownloaded() async throws {
@@ -111,7 +150,7 @@ struct YtDlpTests {
         )
     }
 
-    let file = try await Self.ytDlp(runner).download(Self.link, audio: false, into: Self.folder) { _ in }
+    let file = try await Self.ytDlp(runner).download(Self.link, audio: false, into: Self.folder) { _, _ in }
 
     #expect(file == URL(filePath: "/w/media.mp4"))
     #expect(runner.calls.map { $0.arguments.contains("--check-formats") } == [false, true])
@@ -131,17 +170,21 @@ struct YtDlpTests {
     }
     let heard = Mutex<[Fraction?]>([])
 
-    let file = try await Self.ytDlp(runner).download(Self.link, audio: false, into: Self.folder) { share in
+    let amounts = Mutex<[Job.Amount?]>([])
+
+    let file = try await Self.ytDlp(runner).download(Self.link, audio: false, into: Self.folder) { share, amount in
       heard.withLock { $0.append(share) }
+      amounts.withLock { $0.append(amount) }
     }
 
     #expect(file == URL(filePath: "/w/media.mp4"))
     #expect(heard.withLock { $0 }.map { (($0?.value ?? -1) * 100).rounded() } == [45, 90, 95])
+    #expect(amounts.withLock { $0 }.last == Job.Amount(done: 105, total: 110))
   }
 
   @Test func progressWithoutASizeIsUnknownRatherThanZero() {
     let heard = Mutex<[Fraction?]>([])
-    let progress = DownloadProgress(audio: true) { share in heard.withLock { $0.append(share) } }
+    let progress = DownloadProgress(audio: true) { share, _ in heard.withLock { $0.append(share) } }
 
     progress.hear(#"[loci] {"filename": "a", "downloaded_bytes": 5}"#)
     progress.hear(#"[loci] {"filename": "a", "fragment_index": 3, "fragment_count": 4}"#)

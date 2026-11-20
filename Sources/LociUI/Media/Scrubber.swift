@@ -1,10 +1,11 @@
 import SwiftUI
 
-/// The progress bar under a player: what has played in ink, the stretches Loci picked out in amber with a
-/// diamond where each begins, a cut between chapters, and a knob to drag.
+/// The progress bar under a player: what has played in ink, the key points in amber, a cut between chapters,
+/// and a knob to drag. While only the key points play, everything but them fades.
 struct Scrubber: View {
   let timeline: Timeline
   let time: Duration
+  var onlyKeyPoints = false
   let seek: (Duration) -> Void
   @State private var dragging: Double?
 
@@ -13,27 +14,25 @@ struct Scrubber: View {
       let width = frame.size.width
       let played = dragging ?? timeline.share(time)
       ZStack(alignment: .topLeading) {
-        Capsule().fill(Palette.fillStrong).frame(height: 4).offset(y: 9)
-        UnevenRoundedRectangle(topLeadingRadius: 2, bottomLeadingRadius: 2)
-          .fill(Palette.ink.opacity(0.72))
-          .frame(width: width * played, height: 4)
-          .offset(y: 9)
-        ForEach(Array(timeline.highlights.enumerated()), id: \.offset) { _, span in
-          RoundedRectangle(cornerRadius: 1)
-            .fill(Palette.accent)
-            .frame(width: max(2, width * (span.upperBound - span.lowerBound)), height: 6)
-            .offset(x: width * span.lowerBound, y: 8)
+        Group {
+          Capsule().fill(Palette.fillStrong).frame(height: 4).offset(y: 9)
+          UnevenRoundedRectangle(topLeadingRadius: 2, bottomLeadingRadius: 2)
+            .fill(Palette.ink.opacity(0.72))
+            .frame(width: width * played, height: 4)
+            .offset(y: 9)
         }
+        .opacity(onlyKeyPoints ? 0.3 : 1)
         ForEach(Array(timeline.cuts.enumerated()), id: \.offset) { _, cut in
           Rectangle().fill(Palette.canvas).frame(width: 3, height: 6).offset(x: width * cut - 1.5, y: 8)
         }
-        ForEach(Array(timeline.highlights.enumerated()), id: \.offset) { _, span in
-          RoundedRectangle(cornerRadius: 1.5)
+        ForEach(Array(timeline.keyPoints.enumerated()), id: \.offset) { _, span in
+          RoundedRectangle(cornerRadius: 3, style: .continuous)
             .fill(Palette.accent)
-            .frame(width: Size.diamond, height: Size.diamond)
-            .overlay(RoundedRectangle(cornerRadius: 1.5).strokeBorder(Palette.canvas, lineWidth: 1.5).padding(-1.5))
-            .rotationEffect(.degrees(45))
-            .offset(x: width * span.lowerBound - Size.diamond / 2, y: 0)
+            .frame(width: max(4, width * (span.upperBound - span.lowerBound)), height: 8)
+            .background(
+              RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Palette.canvas).padding(-2)
+            )
+            .offset(x: width * span.lowerBound, y: 7)
         }
         Circle()
           .fill(.white)
@@ -65,6 +64,8 @@ struct RoundIconButton: View {
   let title: LocalizedStringResource
   var size: CGFloat = Size.controlButton
   var symbolSize: CGFloat = 17
+  /// Shows what it opens is open: amber on an amber wash.
+  var on = false
   let action: () -> Void
   @State private var hovering = false
 
@@ -72,9 +73,10 @@ struct RoundIconButton: View {
     Button(action: action) {
       Image(systemName: symbol)
         .font(.system(size: symbolSize, weight: .regular))
-        .foregroundStyle(Palette.ink)
+        .foregroundStyle(on ? Palette.accentInk : Palette.ink)
+        .environment(\.locale, Locale(identifier: "en"))
         .frame(width: size, height: size)
-        .background(Circle().fill(hovering ? Palette.fillStrong : .clear))
+        .background(Circle().fill(on ? Palette.tint : hovering ? Palette.fillStrong : .clear))
         .contentShape(Circle())
     }
     .buttonStyle(PressStyle())

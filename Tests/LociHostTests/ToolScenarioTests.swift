@@ -176,3 +176,60 @@ struct ToolScenarioTests {
     }
   }
 }
+
+/// I-S10: what Loci saves with `loci save` while earlier saves still have work going on is one batch.
+@Suite(.timeLimit(.minutes(1)))
+struct SavingBatchTests {
+  private func save(_ link: String, on host: LocalHost) async throws {
+    let body = try JSONEncoder().encode(AddLink(url: Links.url(link)))
+    await ToolGateway.answer(
+      LocalCall(conversation: .main, request: .command(name: AddLink.name, body: body)), on: host
+    ) { _ in }
+  }
+
+  @Test func itemsLociSavesOneAfterAnotherFormOneBatch() async throws {
+    try await withMediaHost(transcriber: FakeTranscriber(spoken)) { host, world in
+      try world.installModel()
+      world.programs.site(Links.youtube, FakeSite(title: "Me at the zoo", subtitles: zooSubtitles))
+      world.programs.site(Links.bilibili, FakeSite(title: "Scheduling"))
+      await world.programs.downloads.close()
+
+      try await save(Links.youtube, on: host)
+      try await save(Links.bilibili, on: host)
+
+      let batch = await value(host.subscribe(SavingNow())) { $0?.items.count == 2 }
+      #expect(batch??.finished == 0)
+      _ = try await host.run(AddLink(url: Links.url(Links.episode)))
+      #expect(await host.savingBatch()?.items.count == 2)
+      await world.programs.downloads.open()
+      #expect(await value(host.subscribe(SavingNow())) { $0 == nil } != nil)
+    }
+  }
+
+  @Test func stoppingTheBatchDeletesTheItemsNotYetStartedAndUndoingBringsThemBack() async throws {
+    try await withMediaHost(transcriber: FakeTranscriber(spoken)) { host, world in
+      try world.installModel()
+      world.programs.site(Links.youtube, FakeSite(title: "Me at the zoo", subtitles: zooSubtitles))
+      world.programs.site(Links.bilibili, FakeSite(title: "Scheduling"))
+      world.programs.site(Links.episode, FakeSite(title: "Episode", audio: true))
+      await world.programs.downloads.close()
+      try await save(Links.youtube, on: host)
+      try await save(Links.bilibili, on: host)
+      try await save(Links.episode, on: host)
+      let settled = await until(within: .seconds(20)) {
+        let jobs = (try? await host.run(ListJobs())) ?? []
+        return world.programs.calls(with: "--print").count == 2 && jobs.count { $0.state == .queued } == 1
+      }
+      #expect(settled)
+      let queued = try #require(try await host.run(ListJobs()).first { $0.state == .queued }?.item)
+
+      #expect(try await host.run(StopSaving()) == 1)
+
+      let items = try await host.run(ListItems())
+      #expect(items.count == 2)
+      #expect(!items.contains { $0.id == queued })
+      _ = try await host.run(RestoreDeleted())
+      #expect(try await host.run(ListItems()).count == 3)
+    }
+  }
+}

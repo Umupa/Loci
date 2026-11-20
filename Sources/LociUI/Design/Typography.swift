@@ -21,10 +21,10 @@ enum Typography {
   /// The words of a highlight on its card.
   static let highlightQuote = Serif.Face(size: 14)
 
-  /// An item's title in the library's list.
-  static let rowTitle = Serif.Face(size: 14, weight: .semibold)
-  /// An item's title over its cover on the shelf.
-  static let shelfTitle = Serif.Face(size: 17, weight: .semibold)
+  /// A card's title in the gallery.
+  static let cardTitle = Serif.Face(size: 15, weight: .semibold)
+  /// The title under a video still being prepared.
+  static let preparingTitle = Serif.Face(size: 26, weight: .semibold)
   /// The title under a player.
   static let mediaTitle = Serif.Face(size: 22, weight: .semibold)
   /// A chapter's name between the sentences of a transcript.

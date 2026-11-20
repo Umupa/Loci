@@ -7,8 +7,8 @@ struct ArticleLanguage: Equatable {
   let progress: TranslationProgress?
 
   /// The translation to set the text with in `mode`, once any of it has arrived.
-  func shown(_ mode: SubtitleMode) -> ShownTranslation? {
-    translation.map { ShownTranslation(passages: $0.bySource, mode: mode) }
+  func shown(_ mode: SubtitleMode, order: SubtitleStyle.BilingualOrder) -> ShownTranslation? {
+    translation.map { ShownTranslation(passages: $0.bySource, mode: mode, order: order) }
   }
 }
 

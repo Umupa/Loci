@@ -79,7 +79,7 @@ struct WindowMemoryTests {
     #expect(remembered.withLock { $0 } == [last])
   }
 
-  @Test func aRememberedItemThatWasDeletedOpensTheMainConversation() async throws {
+  @Test func aRememberedItemThatWasDeletedOpensThePlaceItWasOpenedFrom() async throws {
     let sample = try Sample()
     let gone = WindowState(place: .library(nil), pages: [.item(EntityID())])
     let remembered = Mutex<[WindowState]>([])
@@ -87,8 +87,8 @@ struct WindowMemoryTests {
 
     try await Snapshot.render(
       MachineWindow(memory: memory).lociHost(FakeHost(sample)), named: "reopened-deleted", appearance: .light,
-      until: { _ in remembered.withLock { $0.last } == WindowState() })
+      until: { _ in remembered.withLock { $0.last } == WindowState(place: .library(nil)) })
 
-    #expect(remembered.withLock { $0.last } == WindowState())
+    #expect(remembered.withLock { $0.last } == WindowState(place: .library(nil)))
   }
 }

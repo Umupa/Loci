@@ -68,6 +68,21 @@ struct MediaInfoTests {
     #expect(MediaInfo.subtitleLanguage(["danmaku"], language: nil, title: "x") == nil)
   }
 
+  @Test func eachQualityIsSizedAsTheDownloadWouldFetchIt() throws {
+    let info = try MediaInfo(json: try Fixture.data("youtube"))
+
+    #expect(info.sizes[.audio] == 309_288)
+    #expect(info.sizes[.hd720] == 309_288 + Int64(294.965 * 1000 / 8 * 19))
+    #expect(info.sizes[.hd1080] == info.sizes[.hd720])
+    #expect(info.subtitleLanguages == ["de", "en"])
+  }
+
+  @Test func anEpisodeHasOnlyASoundSize() throws {
+    let info = try MediaInfo(json: try Fixture.data("apple-podcasts"))
+
+    #expect(info.sizes.keys.allSatisfy { $0 == .audio })
+  }
+
   @Test func somethingThatIsNotYtDlpJSONIsAnError() {
     #expect(throws: MediaError.self) { try MediaInfo(json: Data("not json".utf8)) }
     #expect(throws: MediaError.self) { try MediaInfo(json: Data("{}".utf8)) }

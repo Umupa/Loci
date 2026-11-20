@@ -56,11 +56,11 @@ struct WindowState: Codable, Equatable {
     return (try? String(decoding: JSONEncoder().encode(remembered), as: UTF8.self)) ?? ""
   }
 
-  /// Goes back to the main conversation when the window points at an item that no longer exists, so a
-  /// remembered place never opens onto a blank page.
+  /// Drops the pages of items that no longer exist, so the window goes back to the place they were opened
+  /// from, such as the library an item was deleted from, and a remembered place never opens onto a blank page.
   func keeping(items: Set<EntityID>) -> WindowState {
-    let pagesExist = pages.allSatisfy { items.contains($0.itemID) }
-    return pagesExist ? self : WindowState()
+    let kept = pages.filter { items.contains($0.itemID) }
+    return kept == pages ? self : WindowState(place: place, pages: kept)
   }
 
   /// Where choosing Loci at the top of the sidebar goes: from the main conversation to Loci's page, and

@@ -18,6 +18,9 @@ final class RangedMedia: NSObject, AVAssetResourceLoaderDelegate {
   private let url: URL
   private var reading: [ObjectIdentifier: Task<Void, Never>] = [:]
 
+  /// The extension of the file on the other Mac, which says what is in it.
+  nonisolated var fileExtension: String { info.fileExtension }
+
   init?(item: EntityID, info: MediaFileInfo, host: any LociModel.Host) {
     var parts = URLComponents()
     parts.scheme = Self.scheme

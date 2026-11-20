@@ -13,7 +13,7 @@ struct LibraryCodingTests {
     #expect(try Self.roundTrips(AddLink(url: URL(string: "https://youtu.be/x")!)))
     #expect(try Self.roundTrips(ImportMediaFile(upload: Upload(id: Fixture.item), mode: .link)))
     #expect(try Self.roundTrips(RetryJob(item: Fixture.item)))
-    #expect(try Self.roundTrips(CancelJob(item: Fixture.item)))
+    #expect(try Self.roundTrips(PauseJob(item: Fixture.item)))
     #expect(try Self.roundTrips(ListJobs()))
     #expect(try Self.roundTrips(ReadPlayback(item: Fixture.item, refresh: true)))
     #expect(try Self.roundTrips(ReadCover(item: Fixture.item)))
@@ -46,7 +46,7 @@ struct LibraryCodingTests {
       language: "en", origin: .recognized(.base), segments: [try .init(start: .zero, end: .seconds(1), text: "Hi")])
     let page = MediaPage(
       transcript: transcript, translations: [try Translation(language: "zh-Hans", lines: ["你好"])],
-      outline: try Outline(chapters: [], highlights: []), hasCover: true, downloaded: false)
+      outline: try Outline(chapters: []), hasCover: true, downloaded: false)
     let setup = MediaSetup(
       components: [
         ComponentStatus(component: .ytDlp, installation: .system(path: "/opt/homebrew/bin/yt-dlp", version: nil))
@@ -66,7 +66,9 @@ struct LibraryCodingTests {
     #expect(try Self.roundTrips(MediaFileInfo(byteCount: 1 << 33, fileExtension: "mp4")))
     #expect(try Self.roundTrips(page))
     #expect(try Self.roundTrips(setup))
-    #expect(try Self.roundTrips(Feed<[Job]>.value([Job(item: Fixture.item, stage: .download, state: .stopped)])))
+    #expect(
+      try Self.roundTrips(
+        Feed<[Job]>.value([Job(item: Fixture.item, stage: .download, state: .paused(progress: Fraction(0.5)))])))
     #expect(try Self.roundTrips(Feed<Job?>.value(nil)))
     #expect(try Self.roundTrips(Optional(Data("jpeg".utf8))))
   }

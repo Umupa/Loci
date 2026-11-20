@@ -16,6 +16,19 @@ extension SpeechModel {
     }
   }
 
+  /// The same name as words to put into a sentence.
+  var name: String {
+    switch self {
+    case .largeV3TurboQuantized: String(localized: .loci("media.turboCompressed"))
+    case .tiny: "Tiny"
+    case .base: "Base"
+    case .small: "Small"
+    case .medium: "Medium"
+    case .largeV3Turbo: "Large v3 Turbo"
+    case .largeV3: "Large v3"
+    }
+  }
+
   /// `77.7 MB`, `1.53 GB`, in decimal units as the download reports them.
   var sizeText: String {
     Self.bytes(size)

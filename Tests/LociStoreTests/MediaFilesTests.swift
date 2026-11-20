@@ -51,7 +51,7 @@ struct MediaFilesTests {
     }
   }
 
-  @Test func transcriptsTranslationsAndOutlinesReadBackAsWritten() throws {
+  @Test func transcriptsTranslationsOutlinesAndKeyPointsReadBackAsWritten() throws {
     try withStore { store in
       let item = try Self.video()
       try store.addPending(item)
@@ -59,17 +59,20 @@ struct MediaFilesTests {
         language: "en", origin: .recognized(.base),
         segments: [try .init(start: .zero, end: .seconds(2), text: "All right, so here we are")])
       let translation = try Translation(language: "zh-Hans", lines: ["好，我们到了"])
-      let outline = try Outline(
-        chapters: [try .init(start: .zero, title: "Intro")],
-        highlights: [try .init(span: try TimeSpan(start: .zero, end: .seconds(2)), title: "开场", reason: "第一句")])
+      let outline = try Outline(chapters: [try .init(start: .zero, title: "Intro")])
+      let keyPoints = try KeyPoints(
+        points: [try KeyPoint(place: .time(try TimeSpan(start: .zero, end: .seconds(2))), title: "开场", reason: "第一句")],
+        choice: KeyPointChoice(runtime: Runtime(provider: .codex), count: .few))
 
       try store.save(transcript, of: item.id)
       try store.save(translation, of: item.id)
       try store.save(outline, of: item.id)
+      try store.save(keyPoints, of: item.id)
 
       #expect(try store.transcript(of: item.id) == transcript)
       #expect(try store.translations(of: item.id) == [translation])
       #expect(try store.outline(of: item.id) == outline)
+      #expect(try store.keyPoints(of: item.id) == keyPoints)
       #expect(
         FileManager.default.fileExists(
           atPath: try store.itemFolder(item.id).appending(path: "translations/zh-Hans.json").path))

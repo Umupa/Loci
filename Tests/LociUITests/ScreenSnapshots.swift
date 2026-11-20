@@ -30,7 +30,8 @@ struct ScreenSnapshots {
     let text = ReadingText(markdown: sample.text)
     let notes = PlacedNote.place(sample.notes, in: text)
     let panel = ReaderPanel(
-      item: sample.borg.id, notes: notes, tab: .constant(.highlights), draft: .constant(nil),
+      item: sample.borg.id, notes: notes, keyPoints: nil, openKeyPoint: { _ in }, tab: .constant(.highlights),
+      draft: .constant(nil),
       chosen: ChosenNote(note: notes[1].id, serial: 1), reveal: { _ in }, revealPassage: { _ in }, ask: { _ in },
       collapse: {}
     )

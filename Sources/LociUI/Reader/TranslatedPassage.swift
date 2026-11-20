@@ -6,8 +6,8 @@ extension MarkdownRenderer {
   /// How close a translation sits under its original when both are shown.
   static let besideGap: CGFloat = 6
 
-  /// Sets `text`, the passage `markup` written out, and its translation as the mode asks: beside it in the
-  /// interface face and a quieter color, or in its place in its own face.
+  /// Sets `text`, the passage `markup` written out, and its translation as the mode asks: under it in the
+  /// interface face and a quieter color, over it with the original quieter, or in its place in its own face.
   func passage(
     _ text: NSAttributedString, of markup: any Markup, in setting: Setting, before: CGFloat = 0,
     after: CGFloat? = nil
@@ -20,6 +20,15 @@ extension MarkdownRenderer {
     }
     let font = (text.length > 0 ? text.attribute(.font, at: 0, effectiveRange: nil) as? NSFont : nil) ?? body
     switch translation.mode {
+    case .both where translation.order == .translationAbove:
+      let source = NSRange(location: (tracker.original as NSString).length, length: text.length)
+      paragraph(
+        inline(of: translated, font: font), in: setting, before: before, after: Self.besideGap, as: .above(source))
+      var under = setting
+      under.marker = nil
+      let quiet = NSMutableAttributedString(attributedString: text)
+      quiet.addAttribute(.foregroundColor, value: Tones.inkMuted, range: quiet.fullRange)
+      paragraph(quiet, in: under, after: after)
     case .both:
       let source = paragraph(text, in: setting, before: before, after: Self.besideGap)
       var under = setting

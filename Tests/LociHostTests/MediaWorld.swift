@@ -2,6 +2,7 @@ import Foundation
 import LociHost
 import LociMedia
 import LociModel
+import Synchronization
 import Testing
 
 /// A temporary Loci folder with fake programs, network, recognition and agent for the library to use.
@@ -11,6 +12,8 @@ struct MediaWorld {
   let programs = FakePrograms()
   let network: FakeNetwork
   let agent = FakeTranscriptAgent()
+  /// What each agent was made to run on, in order.
+  let runtimes = RuntimeLog()
 
   init() {
     network = FakeNetwork(folder: place.root.appending(path: ".downloads"))
@@ -40,9 +43,14 @@ struct MediaWorld {
   func environment(
     transcriber: FakeTranscriber, agent: Bool = true, text: Bool = true, readerLanguage: String = "zh-Hans"
   ) -> HostEnvironment {
-    let writer: any TranscriptAgent = self.agent
+    let writer = self.agent
     var make: (@Sendable (Runtime) -> any TranscriptAgent)?
-    if agent { make = { _ in writer } }
+    if agent {
+      make = { [runtimes] runtime in
+        runtimes.add(runtime)
+        return writer
+      }
+    }
     let fetcher: (any TextFetching)? = text ? FakeTextFetcher() : nil
     let media = MediaEnvironment(
       support: support, runner: programs, network: network, transcriber: transcriber, searchPaths: [bin],
@@ -137,3 +145,14 @@ let spoken: [Heard] = [
   FakeTranscriber.words("Finally it binds the pod.", from: 4),
   .progress(Fraction(1)),
 ]
+
+/// The runtimes agents were made for.
+final class RuntimeLog: Sendable {
+  private let made = Mutex<[Runtime]>([])
+
+  var all: [Runtime] { made.withLock { $0 } }
+
+  func add(_ runtime: Runtime) {
+    made.withLock { $0.append(runtime) }
+  }
+}

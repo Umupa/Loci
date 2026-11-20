@@ -17,6 +17,10 @@ public struct MediaInfo: Hashable, Sendable {
   public let stream: OnlineStream?
   /// No format has a picture, so this is something to listen to.
   public let isAudio: Bool
+  /// Every language the site has its own subtitles in, as the site names them.
+  public let subtitleLanguages: [String]
+  /// About how many bytes a download at each quality takes; a quality the site does not offer is missing.
+  public let sizes: [ImportChoice.Quality: Int64]
 
   /// Reads the JSON `yt-dlp -J` prints for one video or episode.
   public init(json: Data) throws(MediaError) {
@@ -43,7 +47,9 @@ public struct MediaInfo: Hashable, Sendable {
     let formats = raw.formats ?? [raw.asFormat]
     isAudio = formats.allSatisfy { !$0.hasVideo }
     stream = Self.stream(from: formats)
-    subtitleLanguage = Self.subtitleLanguage(Array((raw.subtitles ?? [:]).keys), language: raw.language, title: title)
+    subtitleLanguages = Self.realSubtitles(Array((raw.subtitles ?? [:]).keys))
+    subtitleLanguage = Self.subtitleLanguage(subtitleLanguages, language: raw.language, title: title)
+    sizes = Self.sizes(of: formats, seconds: raw.duration)
   }
 
   private static func site(of raw: Raw) -> String? {
@@ -80,7 +86,7 @@ public struct MediaInfo: Hashable, Sendable {
   /// The subtitles in the spoken language: the one the site names, else the one the title is written in,
   /// else the only one there is.
   static func subtitleLanguage(_ offered: [String], language: String?, title: String) -> String? {
-    let real = offered.filter { !["live_chat", "danmaku", "comments"].contains($0) }.sorted()
+    let real = realSubtitles(offered)
     func primary(_ tag: String) -> String { String(tag.split(separator: "-").first ?? "").lowercased() }
     if let language, let match = real.first(where: { primary($0) == primary(language) }) { return match }
     if let written = NLLanguageRecognizer.dominantLanguage(for: title)?.rawValue,
@@ -89,6 +95,10 @@ public struct MediaInfo: Hashable, Sendable {
       return match
     }
     return real.count == 1 ? real.first : nil
+  }
+
+  static func realSubtitles(_ offered: [String]) -> [String] {
+    offered.filter { !["live_chat", "danmaku", "comments"].contains($0) }.sorted()
   }
 
   private static let decoder = {
@@ -117,6 +127,8 @@ public struct MediaInfo: Hashable, Sendable {
     let vcodec: String?
     let acodec: String?
     let httpHeaders: [String: String]?
+    let filesize: Double?
+    let filesizeApprox: Double?
 
     struct Chapter: Decodable {
       let startTime: Double?
@@ -137,6 +149,8 @@ public struct MediaInfo: Hashable, Sendable {
       let height: Int?
       let tbr: Double?
       let httpHeaders: [String: String]?
+      let filesize: Double?
+      let filesizeApprox: Double?
 
       var hasVideo: Bool {
         guard let vcodec else { return !Self.audioExtensions.contains(ext ?? "") }
@@ -163,7 +177,7 @@ public struct MediaInfo: Hashable, Sendable {
     var asFormat: Format {
       Format(
         formatId: nil, url: url, ext: ext, vcodec: vcodec, acodec: acodec, protocol: nil, height: nil, tbr: nil,
-        httpHeaders: httpHeaders)
+        httpHeaders: httpHeaders, filesize: filesize, filesizeApprox: filesizeApprox)
     }
   }
 }

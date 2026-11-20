@@ -7,7 +7,8 @@ import Testing
 
 /// L-S3, L-S4, L-S5, L-S13: links to videos and episodes become items that play, then read.
 struct MediaScenarioTests {
-  /// L-S3: the card is there at once, plays online once resolved, and plays from the file once downloaded.
+  /// L-S3, O-S2: the card is there at once, plays online once resolved while its sound is fetched to be
+  /// recognized, and plays from the file once downloaded.
   @Test func aPastedVideoLinkPlaysOnlineWhileItDownloads() async throws {
     try await withMediaHost(transcriber: FakeTranscriber(spoken)) { host, world in
       try world.installModel()
@@ -20,7 +21,7 @@ struct MediaScenarioTests {
       #expect(item.title == "youtube.com/watch?v=jNQXAC9IVRw")
       #expect(item.kind == .video(duration: nil))
       #expect(await value(items) { $0.map(\.id) == [item.id] } != nil)
-      #expect(await job(host, item.id, where: isRunning(.download)) != nil)
+      #expect(await job(host, item.id, where: isRunning(.transcribe)) != nil)
       let playing = try await host.run(ReadPlayback(item: item.id))
       guard case .online(let stream) = playing else {
         Issue.record("expected an online stream, got \(playing)")
@@ -83,7 +84,6 @@ struct MediaScenarioTests {
       #expect(page.transcript?.origin == .platform)
       #expect(page.transcript?.segments.count == 2)
       #expect(page.outline?.chapters.map(\.title) == ["Intro", "Trunks"])
-      #expect(page.outline?.highlights.map(\.title) == ["Start"])
       #expect(page.translations.map(\.language) == ["zh-Hans"])
       #expect(page.downloaded)
       #expect(transcriber.startedFrom.isEmpty)
@@ -104,7 +104,7 @@ struct MediaScenarioTests {
       #expect(growing?.transcript?.segments.map(\.text) == ["The scheduler filters nodes.", "Then it scores them."])
       #expect(growing?.transcript?.origin == .recognized(.recommended))
       let recognizing = await job(host, item.id) { job in
-        guard case .running(let share) = job?.state, job?.stage == .transcribe else { return false }
+        guard case .running(let share, _) = job?.state, job?.stage == .transcribe else { return false }
         return share == Fraction(0.8)
       }
       #expect(recognizing != nil)
@@ -208,5 +208,43 @@ enum Silence {
     append(UInt32(samples.count))
     data.append(samples)
     return data
+  }
+}
+
+/// O-S3: a video watched online keeps playing after the site's address for it runs out.
+struct OnlineStreamTests {
+  @Test func anExpiredAddressIsResolvedAgainBeforeItIsPlayed() async throws {
+    try await withMediaHost(transcriber: FakeTranscriber(spoken)) { host, world in
+      world.programs.site(Links.youtube, FakeSite(title: "Me at the zoo", subtitles: zooSubtitles, expires: 1_000))
+      await world.programs.downloads.close()
+      let item = try await host.run(AddLink(url: Links.url(Links.youtube)))
+      #expect(await job(host, item.id, where: isRunning(.download)) != nil)
+
+      let playback = try await host.run(ReadPlayback(item: item.id))
+
+      guard case .online(let stream) = playback else {
+        Issue.record("expected to play online, got \(playback)")
+        return
+      }
+      #expect(stream.url.absoluteString.contains("expire=1000"))
+      #expect(world.programs.calls(with: "-J").count == 2)
+      await world.programs.downloads.open()
+    }
+  }
+
+  @Test func askingToRefreshReadsTheLinkAgainEvenBeforeTheAddressRunsOut() async throws {
+    try await withMediaHost(transcriber: FakeTranscriber(spoken)) { host, world in
+      world.programs.site(Links.youtube, FakeSite(title: "Me at the zoo", subtitles: zooSubtitles))
+      await world.programs.downloads.close()
+      let item = try await host.run(AddLink(url: Links.url(Links.youtube)))
+      #expect(await job(host, item.id, where: isRunning(.download)) != nil)
+
+      _ = try await host.run(ReadPlayback(item: item.id))
+      #expect(world.programs.calls(with: "-J").count == 1)
+      _ = try await host.run(ReadPlayback(item: item.id, refresh: true))
+
+      #expect(world.programs.calls(with: "-J").count == 2)
+      await world.programs.downloads.open()
+    }
   }
 }

@@ -85,7 +85,9 @@ private struct Disconnected: ProgramRunner, Network, Transcribing {
     throw FetchError(reason: "no network here")
   }
 
-  func transcribe(_ media: URL, model: URL, from start: Duration) -> AsyncThrowingStream<Heard, any Error> {
+  func transcribe(_ media: URL, model: URL, language: String?, from start: Duration)
+    -> AsyncThrowingStream<Heard, any Error>
+  {
     AsyncThrowingStream { $0.finish(throwing: TranscribeError(reason: "no recognizer here")) }
   }
 }

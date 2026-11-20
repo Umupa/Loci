@@ -34,18 +34,20 @@ extension LibraryContext {
   }
 }
 
-/// The library's half of the host: the job queue and what its stages share.
+/// The library's half of the host: the job queue, what its stages share, and the agent work done on request.
 struct LibraryRuntime: Sendable {
   let context: LibraryContext
   let queue: JobQueue
   let translator: ArticleTranslator
+  let picker: KeyPointPicker
 
   init(store: Store, database: StoreDatabase, environment: HostEnvironment, follower: Follower) {
     let equipment = Equipment(environment: environment.media) { await follower.follow($0) }
     context = LibraryContext(
       store: store, database: database, environment: environment, equipment: equipment, streams: StreamCache(),
-      notify: { await follower.follow($0) })
+      probes: Probes(), notify: { await follower.follow($0) })
     queue = JobQueue(context: context)
     translator = ArticleTranslator(context: context, gate: queue.gates.agents)
+    picker = KeyPointPicker(context: context, gate: queue.gates.agents)
   }
 }

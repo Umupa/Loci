@@ -7,22 +7,29 @@ import SwiftUI
 @Observable
 final class Covers {
   private var images: [EntityID: NSImage] = [:]
+  private var washes: [EntityID: NSImage] = [:]
   private var asked: Set<Item> = []
 
   func image(of item: EntityID) -> NSImage? {
     images[item]
   }
 
+  /// The cover blurred into a wash of its colors, for behind a square cover in a wider frame.
+  func wash(of item: EntityID) -> NSImage? {
+    washes[item]
+  }
+
   /// Shows a cover just chosen at once, rather than waiting for the item to change.
   func replace(_ item: EntityID, with image: NSImage) {
     images[item] = image
+    washes[item] = CoverWash.of(image)
   }
 
   /// Reads the cover once per version of the item: a link's cover arrives after its title and length do.
   func load(_ item: Item, from host: any LociModel.Host) async {
     guard images[item.id] == nil, asked.insert(item).inserted else { return }
     guard let data = try? await host.run(ReadCover(item: item.id)), let image = NSImage(data: data) else { return }
-    images[item.id] = image
+    replace(item.id, with: image)
   }
 }
 
@@ -61,9 +68,10 @@ struct Cover: View {
         GeometryReader { frame in
           let side = frame.size.height * (1 - squareInset * 2)
           ZStack {
-            Image(nsImage: image).resizable().scaledToFill()
-              .frame(width: frame.size.width * 1.36, height: frame.size.height * 1.36)
-              .blur(radius: 16).saturation(1.3).brightness(-0.15)
+            if let wash = covers?.wash(of: item.id) {
+              Image(nsImage: wash).resizable().scaledToFill()
+                .frame(width: frame.size.width, height: frame.size.height)
+            }
             Image(nsImage: image).resizable().scaledToFill()
               .frame(width: side, height: side)
               .clipShape(RoundedRectangle(cornerRadius: squareCorner, style: .continuous))

@@ -67,10 +67,7 @@ struct MediaValuesTests {
 
   @Test func anOutlineSurvivesItsFile() throws {
     let outline = try Outline(
-      chapters: [Outline.Chapter(start: .zero, title: "Intro"), Outline.Chapter(start: .seconds(90), title: "Scores")],
-      highlights: [
-        Outline.Highlight(span: try TimeSpan(start: .seconds(95), end: .seconds(130)), title: "Why", reason: "Core")
-      ])
+      chapters: [Outline.Chapter(start: .zero, title: "Intro"), Outline.Chapter(start: .seconds(90), title: "Scores")])
 
     #expect(try Fixture.roundTrip(outline) == outline)
   }
@@ -78,14 +75,7 @@ struct MediaValuesTests {
   @Test func chaptersAreInTimeOrder() {
     #expect(throws: ModelError.self) {
       try Outline(
-        chapters: [Outline.Chapter(start: .seconds(9), title: "b"), Outline.Chapter(start: .seconds(1), title: "a")],
-        highlights: [])
-    }
-  }
-
-  @Test func aHighlightCoversAStretchOfTime() {
-    #expect(throws: ModelError.self) {
-      try Outline.Highlight(span: try TimeSpan(start: .seconds(1)), title: "x", reason: "y")
+        chapters: [Outline.Chapter(start: .seconds(9), title: "b"), Outline.Chapter(start: .seconds(1), title: "a")])
     }
   }
 
@@ -100,7 +90,7 @@ struct MediaValuesTests {
       .queued, .running(progress: nil), .running(progress: Fraction(0.42)), .waiting(.component(.ytDlp)),
       .waiting(.speechModel(.base)), .waiting(.login(site: "bilibili.com")), .waiting(.agent),
       .failed(Job.Failure(reason: "HTTP 403", remedy: .updateComponent(.ytDlp))), .failed(Job.Failure(reason: "x")),
-      .stopped, .done,
+      .paused(progress: nil), .paused(progress: Fraction(0.41)), .done,
     ]
     for state in states {
       let job = Job(item: Fixture.item, stage: .transcribe, state: state)

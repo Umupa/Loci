@@ -8,8 +8,14 @@ import LociModel
 /// the media settings.
 struct SampleLibrary: Sendable {
   var items: [Item]
-  let covers: [EntityID: String]
+  var covers: [EntityID: String]
   var jobs: [Job]
+  /// What Loci is saving, as the host tells it.
+  var saving: SavingBatch?
+  /// The video's file is on the Mac.
+  var videoSaved = true
+  /// What the media takes, as the host tells it.
+  var storage: StorageReport?
   var states: [EntityID: ReadingState]
   let video: Item
   let podcast: Item

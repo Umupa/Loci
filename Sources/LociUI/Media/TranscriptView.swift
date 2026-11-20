@@ -44,14 +44,15 @@ struct TranscriptLayout {
 }
 
 /// The transcript beside a player. The sentence playing is washed in amber and kept in view until the reader
-/// scrolls; sentences Loci picked out carry an amber bar; highlighted words are underlined. A click
+/// scrolls; sentences in a key point carry an amber bar; highlighted words are underlined. A click
 /// plays from a sentence; a drag across sentences chooses them for a highlight or a question.
 struct TranscriptView: View {
   let transcript: ReadableTranscript
   let chapters: [Outline.Chapter]
-  let highlights: [ClosedRange<Duration>]
+  let keyPoints: [Range<Duration>]
   let notes: [Note]
   let mode: SubtitleMode
+  let order: SubtitleStyle.BilingualOrder
   let playing: Int?
   /// Who speaks is shown over each change of speaker, and times go with the speakers instead of each sentence.
   var speakers = false
@@ -158,10 +159,10 @@ struct TranscriptView: View {
   private func sentence(_ index: Int) -> some View {
     let segment = transcript.segments[index]
     let now = index == playing
-    let picked = highlights.contains { $0.lowerBound <= segment.start && segment.start < $0.upperBound }
+    let picked = keyPoints.contains { $0.contains(segment.start) }
     let isChosen = chosen?.contains(index) == true
     let noted = notes.contains { $0.covers(segment) }
-    let lines = transcript.lines(index, mode: mode)
+    let lines = transcript.lines(index, mode: mode, order: order)
     let partial = growing && index == transcript.segments.count - 1
     return HStack(alignment: .top, spacing: Spacing.xxs) {
       if !speakers {
@@ -174,7 +175,7 @@ struct TranscriptView: View {
       VStack(alignment: .leading, spacing: 2) {
         ForEach(Array(lines.enumerated()), id: \.offset) { order, line in
           let first = order == 0
-          SentenceText(text: line, first: first, chosen: isChosen && first, noted: noted && first)
+          SentenceText(text: line.text, first: first, chosen: isChosen && first, noted: noted && first)
             .foregroundStyle(first && !partial ? Palette.ink : Palette.inkMuted)
         }
       }

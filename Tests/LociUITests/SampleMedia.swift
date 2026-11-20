@@ -113,13 +113,9 @@ extension SampleLibrary {
       ("0:00", "调度器做什么"), ("3:40", "调度队列"), ("11:02", "过滤与打分"), ("12:20", "调度周期的扩展"), ("19:30", "抢占"),
       ("27:50", "问答"),
     ].map { try Outline.Chapter(start: Self.time($0.0), title: $0.1) }
-    let highlights = try [("11:26", "11:52"), ("20:40", "21:30"), ("25:05", "25:40")].map {
-      try Outline.Highlight(
-        span: TimeSpan(start: Self.time($0.0), end: Self.time($0.1)), title: "取舍", reason: "调度器有意用最优换速度")
-    }
     return MediaPage(
       transcript: transcript, translations: recognizing ? [] : [translation],
-      outline: try Outline(chapters: chapters, highlights: highlights), hasCover: true, downloaded: true)
+      outline: try Outline(chapters: chapters), hasCover: true, downloaded: videoSaved)
   }
 
   func podcastPage() throws -> MediaPage {
@@ -132,14 +128,60 @@ extension SampleLibrary {
     let chapters = try [("0:00", "开场"), ("6:10", "推理的两段"), ("31:00", "批处理"), ("48:30", "硬件")].map {
       try Outline.Chapter(start: Self.time($0.0), title: $0.1)
     }
-    let highlights = try [("18:24", "18:40"), ("39:10", "40:30")].map {
-      try Outline.Highlight(
-        span: TimeSpan(start: Self.time($0.0), end: Self.time($0.1)), title: "带宽", reason: "解码受带宽限制")
-    }
     return MediaPage(
       transcript: try Transcript(language: "en", origin: .recognized(.largeV3TurboQuantized), segments: segments),
       translations: [try Translation(language: "zh-Hans", lines: lines.map(\.3))],
-      outline: try Outline(chapters: chapters, highlights: highlights), hasCover: true, downloaded: true)
+      outline: try Outline(chapters: chapters), hasCover: true, downloaded: true)
+  }
+
+  static let videoKeyPoints: [(String, String, String, String)] = [
+    ("1:10", "1:40", "调度器到底在解决什么", "开宗明义，和你在学的 AI Infra 调度是同一条主线"),
+    ("3:40", "4:52", "两个队列", "Pod 为什么会被放进另一个队列里等"),
+    ("11:02", "11:46", "过滤与打分", "调度的两个阶段，面试最常问的就是这里"),
+    ("12:13", "12:46", "不给五千个节点都打分", "有意用最优解换速度，你收它就是为了这一段"),
+    ("19:30", "20:24", "抢占", "放不下时谁让位，和你关心的 GPU 排队是一回事"),
+  ]
+
+  static let podcastKeyPoints: [(String, String, String, String)] = [
+    ("6:10", "7:20", "推理分两段", "预填充和解码的瓶颈完全不同，后面都建立在这上面"),
+    ("18:24", "18:41", "解码受带宽限制", "这一句讲清了为什么你总在看显存带宽"),
+    ("31:00", "32:10", "连续批处理", "多个请求共享一次权重读取，吞吐从这里来"),
+    ("39:10", "40:30", "分页注意力", "KV 缓存像内存分页一样管理，和你学的操作系统对上了"),
+  ]
+
+  static let articleKeyPoints: [(Int, String, String)] = [
+    (4, "一个 worker 一个连接池", "NGINX 的瓶颈来自架构，不是 bug"),
+    (7, "共享连接池", "Pingora 改的正是这一点，任何线程都能复用连接"),
+    (8, "省下七成 CPU", "数字说明换架构值不值，面试时能直接引用"),
+  ]
+
+  /// The key points of the video, the podcast or the article, as Loci picked them.
+  func keyPoints(of item: EntityID) throws -> KeyPoints? {
+    let choice = KeyPointChoice(runtime: Runtime(provider: .codex, model: "gpt-5.2"), count: .some)
+    func stretches(_ points: [(String, String, String, String)]) throws -> [KeyPoint] {
+      var last = Duration.zero
+      return try points.compactMap { point in
+        let start = Self.time(point.0)
+        guard start >= last else { return nil }
+        last = Self.time(point.1)
+        return try KeyPoint(
+          place: .time(try TimeSpan(start: start, end: last)), title: point.2, reason: point.3)
+      }
+    }
+    if item == video.id { return try KeyPoints(points: try stretches(Self.videoKeyPoints), choice: choice) }
+    if item == podcast.id { return try KeyPoints(points: try stretches(Self.podcastKeyPoints), choice: choice) }
+    guard item == article.id else { return nil }
+    let passages = articlePassages
+    return try KeyPoints(
+      points: try Self.articleKeyPoints.map { point in
+        try KeyPoint(
+          place: .passage(try .init(number: point.0, text: passages[point.0 - 1])), title: point.1, reason: point.2)
+      }, choice: choice)
+  }
+
+  /// The article's headings and paragraphs, cut as the host cuts them.
+  var articlePassages: [String] {
+    KeyPassageLayout.passages(of: "# \(article.title)\n\n" + Self.articleText)
   }
 
   static let articleText = """

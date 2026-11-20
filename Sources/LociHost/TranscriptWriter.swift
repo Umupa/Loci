@@ -4,57 +4,48 @@ import LociModel
 import LociStore
 
 /// The app's `TranscriptAgent`: one-off turns on Loci's runtime, without Loci's soul or memory, each in an
-/// empty folder so the agent sees only what it is sent. The transcript goes in pieces; each answer is JSON
-/// whose shape is checked, and a piece whose answer does not fit is asked once more before giving up.
+/// empty folder so the agent sees only what it is sent. Each answer is JSON whose shape is checked, and an
+/// answer that does not fit is asked for once more before giving up.
 public struct AgentTranscriptAgent: TranscriptAgent {
   private let runtime: Runtime
   private let agents: @Sendable (Provider) async -> (any AgentDriver)?
   private let folder: @Sendable () throws -> ScratchFolder
-  private let translationPiece: Int
-  private let outlinePiece: Int
+  let outlinePiece: Int
+  let passagePiece: Int
 
-  /// `translationPiece` and `outlinePiece` are how many segments go in one turn.
+  /// `outlinePiece` is how many segments go in one turn of outlining, `passagePiece` how many passages of an
+  /// article in one turn of picking key points.
   public init(
     runtime: Runtime, agents: @escaping @Sendable (Provider) async -> (any AgentDriver)?,
-    folder: @escaping @Sendable () throws -> ScratchFolder = { try ScratchFolder() }, translationPiece: Int = 60,
-    outlinePiece: Int = 200
+    folder: @escaping @Sendable () throws -> ScratchFolder = { try ScratchFolder() }, outlinePiece: Int = 200,
+    passagePiece: Int = 150
   ) {
     self.runtime = runtime
     self.agents = agents
     self.folder = folder
-    self.translationPiece = max(1, translationPiece)
     self.outlinePiece = max(1, outlinePiece)
+    self.passagePiece = max(1, passagePiece)
   }
 
-  public func translate(_ transcript: Transcript, into language: String) async throws(HostError) -> Translation {
-    var lines: [String] = []
-    let pieces = Self.pieces(of: transcript.segments, size: translationPiece)
-    for (number, piece) in pieces.enumerated() {
-      let prompt = TranscriptPrompts.translation(of: piece.map(\.text), into: language)
-      lines += try await answer(prompt, piece: number + 1, of: pieces.count) { reply throws(TranscriptAnswerError) in
-        try TranscriptAnswers.lines(in: reply, count: piece.count)
-      }
+  public func translate(lines: [String], into language: String) async throws(HostError) -> [String] {
+    try await answer(TranscriptPrompts.translation(of: lines, into: language), piece: 1, of: 1) {
+      reply throws(TranscriptAnswerError) in
+      try TranscriptAnswers.lines(in: reply, count: lines.count)
     }
-    return try attempt { try Translation(language: language, lines: lines) }
   }
 
   public func outline(_ transcript: Transcript, title: String) async throws(HostError) -> Outline {
-    let duration = transcript.segments.last?.end ?? .zero
     var chapters: [Outline.Chapter] = []
-    var highlights: [Outline.Highlight] = []
     let pieces = Self.pieces(of: transcript.segments, size: outlinePiece)
     for (number, piece) in pieces.enumerated() {
       let prompt = TranscriptPrompts.outline(of: piece, title: title, piece: number + 1, of: pieces.count)
       let found = try await answer(prompt, piece: number + 1, of: pieces.count) {
         reply throws(TranscriptAnswerError) in
-        try TranscriptAnswers.outline(
-          in: reply, from: piece.first?.start ?? .zero, to: piece.last?.end ?? .zero,
-          duration: duration)
+        try TranscriptAnswers.outline(in: reply, from: piece.first?.start ?? .zero, to: piece.last?.end ?? .zero)
       }
       for chapter in found.chapters where chapter.title != chapters.last?.title { chapters.append(chapter) }
-      highlights += found.highlights
     }
-    return try attempt { try Outline(chapters: chapters, highlights: highlights) }
+    return try attempt { try Outline(chapters: chapters) }
   }
 
   public func translate(passages: [String], into language: String) async throws(HostError) -> [String] {
@@ -69,7 +60,7 @@ public struct AgentTranscriptAgent: TranscriptAgent {
   }
 
   /// Asks for one piece, and once more when the answer does not fit.
-  private func answer<Value>(
+  func answer<Value>(
     _ prompt: String, piece: Int, of pieces: Int, reading: (String) throws(TranscriptAnswerError) -> Value
   ) async throws(HostError) -> Value {
     var problem = ""

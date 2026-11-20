@@ -2,14 +2,28 @@ import Foundation
 import LociModel
 import Synchronization
 
-/// Turns yt-dlp's progress lines into one share that only grows. A video arrives as picture then sound, two
-/// files in turn; the picture is most of the bytes, so it counts for nine tenths.
+/// Turns yt-dlp's progress lines into one share that only grows, and the bytes so far of all files. A video
+/// arrives as picture then sound, two files in turn; the picture is most of the bytes, so it counts for nine
+/// tenths.
 final class DownloadProgress: Sendable {
   private let audio: Bool
-  private let report: @Sendable (Fraction?) -> Void
-  private let state = Mutex<(files: [String], best: Double)>(([], 0))
+  private let report: @Sendable (Fraction?, Job.Amount?) -> Void
+  private let state = Mutex<State>(State())
 
-  init(audio: Bool, report: @escaping @Sendable (Fraction?) -> Void) {
+  private struct State {
+    var files: [String] = []
+    var best: Double = 0
+    var bytes: [String: (done: Int64, total: Int64?)] = [:]
+
+    var amount: Job.Amount? {
+      guard !bytes.isEmpty else { return nil }
+      let totals = bytes.values.map(\.total)
+      let total = totals.contains { $0 == nil } ? nil : totals.compactMap { $0 }.reduce(0, +)
+      return Job.Amount(done: bytes.values.map(\.done).reduce(0, +), total: total)
+    }
+  }
+
+  init(audio: Bool, report: @escaping @Sendable (Fraction?, Job.Amount?) -> Void) {
     self.audio = audio
     self.report = report
   }
@@ -27,17 +41,20 @@ final class DownloadProgress: Sendable {
       } else {
         nil
       }
-    let share: Double?? = state.withLock { state in
+    let heard: (share: Double?, amount: Job.Amount?)? = state.withLock { state in
       if let file = progress.filename, !state.files.contains(file) { state.files.append(file) }
-      guard let part else { return .some(nil) }
+      if let file = progress.filename, let done = progress.downloadedBytes {
+        state.bytes[file] = (Int64(done), total.map { Int64($0) })
+      }
+      guard let part else { return (nil, state.amount) }
       let index = max(state.files.count - 1, 0)
       let overall = audio ? part : (index == 0 ? part * 0.9 : 0.9 + part * 0.1)
-      guard overall >= state.best else { return .none }
+      guard overall >= state.best else { return nil }
       state.best = overall
-      return .some(overall)
+      return (overall, state.amount)
     }
-    guard let share else { return }
-    report(share.map(Fraction.init))
+    guard let heard else { return }
+    report(heard.share.map(Fraction.init), heard.amount)
   }
 
   private static let decoder = {

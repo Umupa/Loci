@@ -31,11 +31,11 @@ enum Words {
     "\(item.id)  \(item.title)\nIn the library now. Run `loci wait \(item.id)` before reading it."
   }
 
-  /// Whether a job has stopped moving by itself: finished, failed, stopped, or waiting for the person.
+  /// Whether a job has stopped moving by itself: finished, failed, paused, or waiting for the person.
   static func isSettled(_ state: Job.State) -> Bool {
     switch state {
     case .queued, .running: false
-    case .waiting, .failed, .stopped, .done: true
+    case .waiting, .failed, .paused, .done: true
     }
   }
 
@@ -48,11 +48,11 @@ enum Words {
     let stage = stage(job.stage)
     switch job.state {
     case .queued: return "queued to start \(stage)"
-    case .running(let progress?): return "\(stage), \(Int((progress.value * 100).rounded()))%"
-    case .running(nil): return stage
+    case .running(let progress?, _): return "\(stage), \(Int((progress.value * 100).rounded()))%"
+    case .running(nil, _): return stage
     case .waiting(let need): return "waiting while \(stage): \(Self.need(need))"
     case .failed(let failure): return "failed while \(stage): \(failure.reason)" + remedy(failure.remedy)
-    case .stopped: return "stopped while \(stage); the person can retry it in the library"
+    case .paused: return "paused while \(stage); the person can resume it in the library"
     case .done: return "done"
     }
   }
@@ -64,7 +64,7 @@ enum Words {
     case .download: "downloading"
     case .transcribe: "transcribing"
     case .translate: "translating"
-    case .outline: "finding chapters and highlights"
+    case .outline: "finding chapters"
     }
   }
 

@@ -119,6 +119,9 @@ enum Schema {
           );
           """)
     }
+    migrator.registerMigration("7 paused job") { db in
+      try db.execute(sql: #"UPDATE job SET state = '{"paused":{}}' WHERE state = '{"stopped":{}}'"#)
+    }
     return migrator
   }
 

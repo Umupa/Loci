@@ -6,6 +6,8 @@ struct ShownTranslation: Equatable {
   /// Translations by the Markdown of the passage they were made from.
   let passages: [String: String]
   let mode: SubtitleMode
+  /// Which goes on top when both show.
+  var order = SubtitleStyle.BilingualOrder.originalAbove
 }
 
 /// How the shown text lines up with the original when translations sit beside or in place of passages.
@@ -36,6 +38,8 @@ struct TranslationMap: Equatable {
     case hidden
     /// A translation shown after `source`.
     case beside(NSRange)
+    /// A translation shown before `source`, which comes next.
+    case above(NSRange)
     /// A translation shown in place of `source`, which is hidden.
     case instead(NSRange)
   }
@@ -117,6 +121,12 @@ struct TranslationMap: Equatable {
           Replacement(
             shown: shown, advance: length, replaced: NSRange(location: NSMaxRange(source) + 1, length: 0),
             source: source))
+        return source
+      case .above(let source):
+        output.append(line)
+        replacements.append(
+          Replacement(
+            shown: shown, advance: length, replaced: NSRange(location: source.location, length: 0), source: source))
         return source
       case .instead(let source):
         output.append(line)

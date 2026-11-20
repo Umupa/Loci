@@ -39,7 +39,7 @@ import Testing
     #expect(
       JobLine(Job(item: item, stage: .resolve, state: .failed(outdated)))
         == .action(.update(.ytDlp), JobLine.Problem(stage: .resolve, cause: nil, reason: "Sign in to confirm")))
-    #expect(JobLine(Job(item: item, stage: .resolve, state: .stopped)) == .action(.resume, nil))
+    #expect(JobLine(Job(item: item, stage: .resolve, state: .paused(progress: nil))) == .action(.resume, nil))
   }
 
   @Test func finishedWorkSaysNothing() {
@@ -83,29 +83,6 @@ import Testing
     }
     #expect(problem.summary.key == "job.failedTranslate")
     #expect(problem.explanation == nil)
-  }
-
-  @Test func theShelfHoldsWhatIsStartedAndUnfinishedLatestFirst() throws {
-    var progress = Progress()
-    progress.states[video.id] = try state(at: 600, updated: 10)
-    progress.states[podcast.id] = try state(at: 60, updated: 20)
-    progress.states[article.id] = ReadingState(position: nil, finished: true, updatedAt: stamp(30))
-    #expect(progress.shelf(of: [video, article, podcast]).map(\.id) == [podcast.id, video.id])
-  }
-
-  @Test func theShelfHoldsAtMostThree() throws {
-    var progress = Progress()
-    var items: [Item] = []
-    var entropy = Sample.Seeded()
-    for index in 0..<5 {
-      let item = try Item(
-        id: EntityID(at: Date(timeIntervalSince1970: 1_763_337_600 + Double(index)), entropy: &entropy),
-        kind: .video(duration: .seconds(100)), title: "v\(index)")
-      items.append(item)
-      progress.states[item.id] = ReadingState(
-        position: .item(item.id, .time(try TimeSpan(start: .seconds(1)))), finished: false, updatedAt: stamp(index))
-    }
-    #expect(progress.shelf(of: items).count == 3)
   }
 
   @Test func howMuchWasWatchedIsThePositionOverTheLength() throws {
