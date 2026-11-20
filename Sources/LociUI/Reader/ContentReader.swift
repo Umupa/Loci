@@ -21,6 +21,7 @@ struct ContentReader: View {
   let pane: PaneWidth
   /// The article's translation, when it is in another language than the reader's.
   let language: ArticleLanguage?
+  let openingQuote: TextQuote?
   @AppStorage(SubtitleMode.key) private var mode = SubtitleMode.both
   @State private var text: ReadingText?
   @State private var start: TextQuote?
@@ -39,9 +40,11 @@ struct ContentReader: View {
 
   init(
     item: EntityID, title: String?, markdown: String, byline: NSAttributedString? = nil,
-    images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel, language: ArticleLanguage? = nil
+    images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel, language: ArticleLanguage? = nil,
+    openingQuote: TextQuote? = nil
   ) {
     self.language = language
+    self.openingQuote = openingQuote
     self.byline = byline
     self.images = images
     self.serif = serif
@@ -84,8 +87,15 @@ struct ContentReader: View {
     }
     .task(id: content) {
       if standIns?.moment?.panel == .highlights { tab = .highlights }
-      start = (try? await host.run(ReadReadingState(content: content)))?.position?.quote
-      text = setText()
+      let saved = (try? await host.run(ReadReadingState(content: content)))?.position?.quote
+      let loaded = setText()
+      if text == nil, let openingQuote, let range = loaded.range(of: openingQuote) {
+        start = openingQuote
+        show(range)
+      } else {
+        start = saved
+      }
+      text = loaded
       remark()
     }
     .onChange(of: markdown) {
@@ -167,7 +177,7 @@ struct ContentReader: View {
       },
       openLink: { url in
         if let locator = Locator(url.absoluteString) {
-          openPage(Page(locator.content))
+          openPage.follow(locator, in: .item(item), reveal: show)
         } else if url.isWebLink {
           NSWorkspace.shared.open(url)
         }
@@ -224,6 +234,24 @@ struct OpenPage {
 
   func callAsFunction(_ page: Page) {
     action(page)
+  }
+
+  @MainActor func follow(_ locator: Locator, in conversation: ConversationRef, reveal: @MainActor (Locator) -> Void) {
+    let page = Page.passage(locator)
+    if conversation == .item(page.itemID) {
+      reveal(locator)
+    } else {
+      action(page)
+    }
+  }
+
+  @MainActor func follow(_ url: URL, in conversation: ConversationRef, reveal: @MainActor (Locator) -> Void)
+    -> OpenURLAction.Result
+  {
+    guard url.scheme?.lowercased() == "loci" else { return .systemAction }
+    guard let locator = Locator(url.absoluteString) else { return .discarded }
+    follow(locator, in: conversation, reveal: reveal)
+    return .handled
   }
 }
 

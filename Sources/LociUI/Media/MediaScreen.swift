@@ -16,6 +16,7 @@ struct MediaScreen: View {
   @Environment(\.browser) private var browser
   @Environment(\.showFailure) private var showFailure
   let item: Item
+  let initialTime: Duration?
   @State private var player: Player
   @State private var media: Feed<MediaPage>?
   @State private var job: Feed<Job?>?
@@ -32,10 +33,12 @@ struct MediaScreen: View {
   @State private var panelOver = false
   @State private var width: CGFloat = 0
   @State private var opened = false
+  @State private var followedPassage = false
   @FocusState private var focused: Bool
 
-  init(item: Item) {
+  init(item: Item, initialTime: Duration? = nil) {
     self.item = item
+    self.initialTime = initialTime
     _player = State(initialValue: Player(start: .zero, length: item.length))
   }
 
@@ -272,6 +275,7 @@ struct MediaScreen: View {
 
   private func reveal(_ locator: Locator) {
     guard let time = locator.time else { return }
+    followedPassage = true
     player.seek(to: time.start)
     follow.resume()
     tab = .transcript
@@ -283,7 +287,11 @@ struct MediaScreen: View {
     opened = true
     let id = item.id
     let host = host
-    if let state = try? await host.run(ReadReadingState(content: .item(id))), let time = state.position?.time {
+    if let initialTime {
+      player.seek(to: initialTime)
+    } else if let state = try? await host.run(ReadReadingState(content: .item(id))),
+      !followedPassage, let time = state.position?.time
+    {
       player.seek(to: time.start)
     }
     player.remember = { time in

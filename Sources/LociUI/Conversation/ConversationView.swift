@@ -5,16 +5,18 @@ import SwiftUI
 /// next message; `revealPassage` shows a quoted passage where it was read.
 struct ConversationScreen: View {
   @Environment(\.host) private var host
+  @Environment(\.openPage) private var openPage
   let ref: ConversationRef
   @Binding var draft: PassageDraft?
-  let revealPassage: @MainActor (Locator) -> Void
+  var revealPassage: @MainActor (Locator) -> Void = { _ in }
   var attach: (() -> Void)?
   var focusRequest = 0
   @State private var conversation: Feed<Conversation>?
 
   var body: some View {
     ConversationView(
-      conversation: conversation?.value, draft: $draft, revealPassage: revealPassage,
+      conversation: conversation?.value, draft: $draft,
+      revealPassage: { openPage.follow($0, in: ref, reveal: revealPassage) },
       send: { (text: String, passage: Passage?) async throws(HostError) -> Done in
         try await host.run(SendMessage(to: ref, text: text, passage: passage))
       },
@@ -23,6 +25,12 @@ struct ConversationScreen: View {
       scale: ref == .main ? .main : .companion, attach: attach, focusRequest: focusRequest
     )
     .id(ref)
+    .environment(
+      \.openURL,
+      OpenURLAction { url in
+        openPage.follow(url, in: ref, reveal: revealPassage)
+      }
+    )
     .subscribing(OneConversation(ref), into: $conversation)
   }
 }

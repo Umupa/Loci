@@ -5,22 +5,23 @@ import SwiftUI
 /// An item, read the way its kind is read: an article as text, a paper as its PDF, a video or podcast with
 /// its player.
 struct ItemScreen: View {
-  let item: EntityID
+  let destination: Page
   @State private var feed: Feed<ItemPage>?
 
   var body: some View {
     Group {
       if let page = feed?.value {
         switch page.item.kind {
-        case .video, .audio: MediaScreen(item: page.item).id(page.item.id)
+        case .video, .audio:
+          MediaScreen(item: page.item, initialTime: destination.locator?.time?.start).id(page.item.id)
         case .paper: PaperScreen(page: page)
-        case .article, .repository: ItemView(page: page)
+        case .article, .repository: ItemView(page: page, openingQuote: destination.locator?.quote)
         }
       } else {
         Palette.canvas
       }
     }
-    .subscribing(OneItem(item: item), into: $feed)
+    .subscribing(OneItem(item: destination.itemID), into: $feed)
   }
 }
 
@@ -28,6 +29,7 @@ struct ItemScreen: View {
 struct ItemView: View {
   @Environment(\.host) private var host
   let page: ItemPage
+  let openingQuote: TextQuote?
   @State private var images: [String: NSImage] = [:]
   @State private var job: Feed<Job?>?
 
@@ -37,7 +39,9 @@ struct ItemView: View {
         ContentReader(
           item: page.item.id, title: page.item.title, markdown: text, byline: Byline.of(page.item), images: images,
           serif: true, pane: .itemPanel,
-          language: page.translatable ? ArticleLanguage(translation: page.translation, progress: page.translating) : nil
+          language: page.translatable
+            ? ArticleLanguage(translation: page.translation, progress: page.translating) : nil,
+          openingQuote: openingQuote
         )
       } else {
         FetchingItem(item: page.item, job: job?.value ?? nil)

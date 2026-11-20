@@ -43,6 +43,51 @@ struct NavigationTests {
     #expect(WindowState(place: .library(.video)).keeping(items: []) == WindowState(place: .library(.video)))
   }
 
+  @MainActor
+  @Test(arguments: ["t=733.14,762.59", "quote=two%20words&pre=before&post=after"])
+  func aLinkInAConversationGoesToItsPassage(fragment: String) throws {
+    let item = EntityID()
+    let address = "loci://library/\(item)#\(fragment)"
+    let url = try #require(URL(string: address))
+    let locator = try #require(Locator(address))
+    var pages: [Page] = []
+    var revealed: [Locator] = []
+    let openPage = OpenPage { pages.append($0) }
+    let show: @MainActor (Locator) -> Void = { revealed.append($0) }
+
+    _ = openPage.follow(url, in: .item(item), reveal: show)
+    #expect(revealed == [locator])
+    #expect(pages.isEmpty)
+
+    _ = openPage.follow(url, in: .main, reveal: show)
+    _ = openPage.follow(url, in: .item(EntityID()), reveal: show)
+    #expect(revealed == [locator])
+    #expect(pages == [.passage(locator), .passage(locator)])
+    #expect(pages.last?.itemID == item)
+    #expect(pages.last?.locator == locator)
+  }
+
+  @MainActor
+  @Test func aBrokenPassageLinkLeavesTheConversationAndTheCurrentPassageAlone() throws {
+    let item = EntityID()
+    let url = try #require(URL(string: "loci://library/\(item)#t=invalid"))
+    let openPage = OpenPage { _ in Issue.record("Opened a page for a broken link") }
+
+    _ = openPage.follow(url, in: .item(item)) { _ in
+      Issue.record("Revealed a passage for a broken link")
+    }
+  }
+
+  @Test func aWindowRemembersTheItemAndLeavesItsPositionToTheReaderAfterRelaunch() throws {
+    let item = EntityID()
+    let locator = Locator.item(item, .time(try TimeSpan(start: .seconds(42))))
+    let window = WindowState(place: .talk, pages: [.passage(locator)])
+
+    #expect(window.keeping(items: [item]) == window)
+    #expect(window.keeping(items: []) == WindowState())
+    #expect(WindowState(restoring: window.text) == WindowState(place: .talk, pages: [.item(item)]))
+  }
+
   @Test func choosingLociFromTheMainConversationOpensItsPageAndFromAnywhereElseTheConversation() throws {
     let sample = try Sample()
 

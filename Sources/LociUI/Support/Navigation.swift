@@ -23,6 +23,18 @@ enum SettingsSection: String, Codable, Hashable, CaseIterable {
 /// A page opened on top of a place.
 enum Page: Codable, Hashable {
   case item(EntityID)
+  case passage(Locator)
+
+  var itemID: EntityID {
+    switch self {
+    case .item(let item), .passage(.item(let item, _)): item
+    }
+  }
+
+  var locator: Locator? {
+    if case .passage(let locator) = self { return locator }
+    return nil
+  }
 }
 
 /// Where a window is, as text the system can keep across launches.
@@ -40,17 +52,14 @@ struct WindowState: Codable, Equatable {
   }
 
   var text: String {
-    (try? String(decoding: JSONEncoder().encode(self), as: UTF8.self)) ?? ""
+    let remembered = WindowState(place: place, pages: pages.map { .item($0.itemID) })
+    return (try? String(decoding: JSONEncoder().encode(remembered), as: UTF8.self)) ?? ""
   }
 
   /// Goes back to the main conversation when the window points at an item that no longer exists, so a
   /// remembered place never opens onto a blank page.
   func keeping(items: Set<EntityID>) -> WindowState {
-    let pagesExist = pages.allSatisfy { page in
-      switch page {
-      case .item(let item): items.contains(item)
-      }
-    }
+    let pagesExist = pages.allSatisfy { items.contains($0.itemID) }
     return pagesExist ? self : WindowState()
   }
 

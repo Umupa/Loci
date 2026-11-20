@@ -66,8 +66,8 @@ struct MachineWindow: View {
       if sidebarShown { sidebar.transition(.move(edge: .leading).combined(with: .opacity)) }
       PageStack(pages: $window.pages) {
         placeView.environment(\.openPlace, openPlace)
-      } destination: {
-        pageView($0).environment(\.openPlace, openPlace)
+      } destination: { page in
+        ItemScreen(destination: page).environment(\.openPlace, openPlace)
       }
     }
     .onGeometryChange(for: CGFloat.self) {
@@ -201,12 +201,6 @@ struct MachineWindow: View {
       MediaSettingsPage()
     case .settings(.remote):
       RemoteSettingsPage()
-    }
-  }
-
-  @ViewBuilder private func pageView(_ page: Page) -> some View {
-    switch page {
-    case .item(let item): ItemScreen(item: item)
     }
   }
 
