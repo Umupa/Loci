@@ -8,6 +8,7 @@ enum Request: Hashable, Sendable {
   case save(URL)
   case importFile(path: String, title: String?)
   case wait(EntityID)
+  case panel(PanelRequest)
   case help
 
   /// The request in `arguments` (without the program's name), and whether to print the app's replies as
@@ -30,6 +31,7 @@ enum Request: Hashable, Sendable {
       }
       return (.save(url), json)
     case "import": return (try importing(words), json)
+    case "panel": return (.panel(try PanelRequest.parse(words)), json)
     case "help", "--help", "-h":
       return (.help, json)
     default:
@@ -58,6 +60,30 @@ enum Request: Hashable, Sendable {
       throw UsageError("--title is for .md files; a video or audio file is titled after its name")
     }
     return .importFile(path: words[0], title: title)
+  }
+}
+
+/// `loci panel …`: the panels Loci keeps beside the main conversation.
+enum PanelRequest: Hashable, Sendable {
+  /// Reads the panel's JSON from standard input.
+  case save(String)
+  case list
+  case show(String)
+
+  static let usage = "loci panel save <name> < panel.json | loci panel list | loci panel show <name>"
+
+  static func parse(_ words: [String]) throws(UsageError) -> PanelRequest {
+    switch (words.first, words.count) {
+    case ("list", 1): return .list
+    case ("save", 2): return .save(try name(words[1]))
+    case ("show", 2): return .show(words[1])
+    default: throw UsageError(usage)
+    }
+  }
+
+  private static func name(_ name: String) throws(UsageError) -> String {
+    if let problem = PanelCheck.problems(ofName: name).first { throw UsageError(problem.reason) }
+    return name
   }
 }
 

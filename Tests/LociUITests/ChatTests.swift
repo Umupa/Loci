@@ -131,20 +131,20 @@ struct ChatTests {
   }
 
   @Test func aNarrowWindowGivesTheSidebarsRoomToTheConversation() {
-    var fit = SidebarFit()
-    fit.fit(width: 890, reading: true)
+    var fit = PaneFit.sidebar
+    fit.fit(width: 890, crowded: true)
     #expect(!fit.shows(true))
 
-    fit.fit(width: 890, reading: false)
+    fit.fit(width: 890, crowded: false)
     #expect(fit.shows(true))
 
-    fit.fit(width: 1200, reading: true)
+    fit.fit(width: 1200, crowded: true)
     #expect(fit.shows(true))
   }
 
   @Test func theSidebarOpenedInANarrowWindowStaysUntilTheWindowWidens() {
-    var fit = SidebarFit()
-    fit.fit(width: 890, reading: true)
+    var fit = PaneFit.sidebar
+    fit.fit(width: 890, crowded: true)
 
     let preferred = fit.toggle(true)
     #expect(preferred && fit.shows(preferred))
@@ -152,7 +152,7 @@ struct ChatTests {
     let hidden = fit.toggle(preferred)
     #expect(hidden && !fit.shows(hidden))
 
-    fit.fit(width: 1200, reading: true)
+    fit.fit(width: 1200, crowded: true)
     #expect(fit.shows(hidden))
   }
 }

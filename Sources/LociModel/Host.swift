@@ -123,6 +123,7 @@ public protocol CommandHandler: Sendable {
   func itemImage(_ command: ReadItemImage) async throws(HostError) -> Data
   func linkPreview(of url: URL) async throws(HostError) -> LinkPreview
   func linkImage(of url: URL) async throws(HostError) -> Data?
+  func webPicture(at url: URL) async throws(HostError) -> Data?
   func mediaSetup() async throws(HostError) -> MediaSetup
   func detectComponents(again: Bool) async -> [ComponentStatus]
   func installComponent(_ component: Component) async throws(HostError) -> Done
@@ -134,4 +135,10 @@ public protocol CommandHandler: Sendable {
   func saveMediaLocally(_ item: EntityID) async throws(HostError) -> Job
   func setBrowserLogin(_ login: BrowserLogin) async throws(HostError) -> MediaSetup
   func handOverBrowserCookies(_ cookies: [BrowserCookie]) async throws(HostError) -> Done
+  func panelColumn() async throws(HostError) -> PanelColumn
+  func panels() async throws(HostError) -> [PanelEntry]
+  func savePanel(_ command: SavePanel) async throws(HostError) -> Done
+  func refreshPanel(_ command: RefreshPanel) async throws(HostError) -> Done
+  func movePanelToTop(_ command: MovePanelToTop) async throws(HostError) -> Done
+  func removePanel(_ command: RemovePanel) async throws(HostError) -> Done
 }

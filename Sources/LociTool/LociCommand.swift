@@ -26,7 +26,7 @@ enum LociCommand {
     }
     let line = SocketLine(
       socket: URL(filePath: socket),
-      conversation: environment[LocalCall.sessionVariable].flatMap(ConversationRef.init(tag:)))
+      session: environment[LocalCall.sessionVariable].flatMap(LocalSession.init(tag:)))
     let tool = Tool(line: line, folder: folder) { try String(contentsOf: $0, encoding: .utf8) }
     return await tool.run(parsed.request, json: parsed.json)
   }

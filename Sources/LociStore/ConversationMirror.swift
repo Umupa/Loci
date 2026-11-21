@@ -53,7 +53,7 @@ enum ConversationMirror {
       let quoted = prompt.passage.map { "> " + $0.excerpt.replacing("\n", with: "\n> ") + "\n\n" } ?? ""
       switch prompt.purpose {
       case .chat: return ("You", quoted + prompt.text)
-      case .review: return ("App", prompt.text)
+      case .review, .panel: return ("App", prompt.text)
       }
     case .reply(let text):
       return ("Loci", text)

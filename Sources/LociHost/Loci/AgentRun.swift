@@ -21,7 +21,7 @@ struct AgentContext: Sendable {
   }
 }
 
-/// One owner's turns, a conversation's or a day's review, over the agent sessions underneath.
+/// One owner's turns, a conversation's, a day's review or a panel's refresh, over the agent sessions underneath.
 ///
 /// One turn runs at a time. A turn's prompt is stored as soon as it is sent; the rest is kept in memory while
 /// the turn runs and stored together when it ends. A turn the app quit during is stored as stopped when the
@@ -29,6 +29,8 @@ struct AgentContext: Sendable {
 /// starts; the person sees one conversation either way.
 actor AgentRun {
   let owner: SessionOwner
+  /// What the `loci` command is told about the session it runs in.
+  let toolSession: LocalSession?
   let context: AgentContext
   private var stored: [Message]
   /// The session to go on with; `nil` when there is none, or the person started over.
@@ -48,8 +50,9 @@ actor AgentRun {
   /// shown a few words at a time.
   static let showEvery = Duration.milliseconds(50)
 
-  init(owner: SessionOwner, context: AgentContext) throws(HostError) {
+  init(owner: SessionOwner, session: LocalSession?, context: AgentContext) throws(HostError) {
     self.owner = owner
+    toolSession = session
     self.context = context
     var stored = try attempt { try context.database.messages(of: owner) }
     let session =
@@ -214,7 +217,7 @@ actor AgentRun {
     try TurnFailure.from { () throws(HostError) in try attempt { try store.writeInstructions(instructions) } }
     var configuration = SessionConfiguration(
       workingDirectory: store.agentFolder, model: runtime.model, effort: runtime.effort,
-      environment: owner.toolEnvironment)
+      environment: toolSession.map { [LocalCall.sessionVariable: $0.tag] } ?? [:])
     if reason == nil, let handle = session?.handle {
       configuration.resume = SessionHandle(provider: runtime.provider, value: handle)
     }
@@ -327,6 +330,8 @@ actor AgentRun {
         ended ? [.conversation(conversation), .turnEnded(conversation)] : [.conversation(conversation)])
     case .review:
       await context.follower.follow([.review])
+    case .panel:
+      break
     }
   }
 }
@@ -369,16 +374,6 @@ struct TurnFailure: Error {
       return try await body()
     } catch {
       throw TurnFailure(.failed(error.explanation))
-    }
-  }
-}
-
-extension SessionOwner {
-  /// What the `loci` command is told about the session it runs in: which conversation it is.
-  fileprivate var toolEnvironment: [String: String] {
-    switch self {
-    case .conversation(let conversation): [LocalCall.sessionVariable: conversation.tag]
-    case .review: [:]
     }
   }
 }

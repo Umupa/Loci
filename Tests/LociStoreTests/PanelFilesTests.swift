@@ -1,0 +1,126 @@
+import Foundation
+import LociModel
+import Testing
+
+@testable import LociStore
+
+/// `agent/panels/<name>.json` and what the app keeps beside them.
+struct PanelFilesTests {
+  static let panel = Panel(
+    name: "sandbox-radar", title: "沙箱雷达", sources: ["github.com"], follow: "盯着新版本",
+    refresh: PanelRefresh(every: .day, at: "10:00"), body: .rows([.sentence("**v0.8.0** 发布。")]))
+
+  @Test func aSavedPanelReadsBackUnderItsFilesName() throws {
+    try withStore { store in
+      try store.savePanel(Self.panel)
+      try FileManager.default.moveItem(
+        at: store.root.appending(path: "agent/panels/sandbox-radar.json"),
+        to: store.root.appending(path: "agent/panels/radar.json"))
+
+      let entries = store.panels()
+
+      #expect(entries.map(\.name) == ["radar"])
+      #expect(entries.first?.panel?.name == "radar" && entries.first?.panel?.title == "沙箱雷达")
+      #expect(entries.first?.problems == [])
+    }
+  }
+
+  @Test func aBrokenFileSaysWhatIsWrongWithIt() throws {
+    try withStore { store in
+      try store.writeFile("agent/panels/radar.json", #"{ "title": "", "follow": "x", "rows": [] }"#)
+      try store.writeFile("agent/panels/notes.txt", "not a panel")
+
+      #expect(
+        store.panels() == [
+          PanelEntry(
+            name: "radar", panel: nil,
+            problems: [PanelProblem("title", "is empty"), PanelProblem("rows", "has no rows")])
+        ])
+    }
+  }
+
+  @Test func aFileBrokenLaterStillShowsItsLastGoodPanelInAStoreOpenedAfresh() throws {
+    try withStore { store in
+      try store.savePanel(Self.panel)
+      _ = store.panels()
+      try store.writeFile("agent/panels/sandbox-radar.json", "{ broken")
+
+      let reopened = Store(root: store.root, discard: .permanently)
+
+      #expect(reopened.panels().map(\.panel) == [Self.panel])
+      #expect(reopened.panels().first?.problems == [PanelProblem("", "is not JSON")])
+    }
+  }
+
+  @Test func theLastGoodCopyIsKeptWhereLociDoesNotLook() throws {
+    try withStore { store in
+      try store.savePanel(Self.panel)
+      _ = store.panels()
+
+      let agentFiles = FileManager.default.subpaths(atPath: store.root.appending(path: "agent").path()) ?? []
+
+      #expect(agentFiles.filter { $0.hasSuffix(".json") } == ["panels/sandbox-radar.json"])
+    }
+  }
+
+  @Test func removingAPanelDeletesItsFileAndItsCopy() throws {
+    try withStore { store in
+      try store.savePanel(Self.panel)
+      _ = store.panels()
+
+      try store.removePanel(named: "sandbox-radar")
+      try store.writeFile("agent/panels/sandbox-radar.json", "{ broken")
+
+      #expect(store.panels().map(\.panel) == [nil])
+      #expect(throws: StoreError.self) { try store.removePanel(named: "other") }
+    }
+  }
+
+  @Test func aCopyWhoseFileIsGoneIsForgotten() throws {
+    try withStore { store in
+      try store.savePanel(Self.panel)
+      _ = store.panels()
+      try FileManager.default.removeItem(at: store.root.appending(path: "agent/panels/sandbox-radar.json"))
+
+      #expect(store.panels().isEmpty)
+      try store.writeFile("agent/panels/sandbox-radar.json", "{ broken")
+      #expect(store.panels().map(\.panel) == [nil])
+    }
+  }
+
+  @Test func theOrderAndRefreshTimesAreKeptOutsideThePanelFiles() throws {
+    try withStore { store in
+      #expect(store.panelState() == PanelState())
+
+      try store.changePanelState { state in
+        state.order = [.panel("sandbox-radar"), .reading]
+        state.refreshed["sandbox-radar"] = Fixture.instant
+      }
+
+      #expect(store.panelState().order == [.panel("sandbox-radar"), .reading])
+      #expect(store.panelState().refreshed == ["sandbox-radar": Fixture.instant])
+      #expect(store.panels().isEmpty)
+      try store.writeFile("panels.json", "{ broken")
+      #expect(store.panelState() == PanelState())
+    }
+  }
+
+  @Test func onlyContentWithAPositionAndNotFinishedIsReadPartwayNewestFirst() throws {
+    let database = try StoreDatabase.inMemory()
+    let (older, newer, finished, unplaced) = (Fixture.id(2), Fixture.id(3), Fixture.id(4), Fixture.id(5))
+    func at(_ minutes: Int64) -> Timestamp {
+      Timestamp(millisecondsSince1970: Fixture.instant.millisecondsSince1970 + minutes * 60_000)
+    }
+    func place(_ item: EntityID) throws -> Locator { .item(item, .time(try TimeSpan(start: .seconds(30)))) }
+    try database.save(ReadingState(position: try place(older), finished: false, updatedAt: at(1)), for: .item(older))
+    try database.save(ReadingState(position: try place(newer), finished: false, updatedAt: at(2)), for: .item(newer))
+    try database.save(
+      ReadingState(position: try place(finished), finished: true, updatedAt: at(3)), for: .item(finished))
+    try database.save(ReadingState(position: nil, finished: false, updatedAt: at(4)), for: .item(unplaced))
+
+    let partway = try database.readingPartway()
+
+    #expect(partway.map(\.content) == [.item(newer), .item(older)])
+    #expect(partway.first?.state.position == (try place(newer)))
+  }
+}

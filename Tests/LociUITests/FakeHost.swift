@@ -14,6 +14,8 @@ final class FakeHost: LociModel.Host, CommandHandler {
   let working: Bool
   /// The picture the person chose for Loci.
   let avatar: Avatar?
+  /// The panel column beside the main conversation; empty unless a test gives one.
+  let panels: PanelColumn
   /// Counts what is asked and answered, so a test can wait for the view's data.
   let activity: Activity
   /// The last way something was taken in; `nil` gives the first default.
@@ -23,8 +25,8 @@ final class FakeHost: LociModel.Host, CommandHandler {
 
   init(
     _ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false, working: Bool = false,
-    avatar: Avatar? = nil, activity: Activity = Activity(), lastChoice: ImportChoice? = nil,
-    keyPoints: SampleKeyPoints = .picked
+    avatar: Avatar? = nil, panels: PanelColumn = PanelColumn(slots: []), activity: Activity = Activity(),
+    lastChoice: ImportChoice? = nil, keyPoints: SampleKeyPoints = .picked
   ) {
     self.lastChoice = lastChoice
     self.sample = sample
@@ -33,6 +35,7 @@ final class FakeHost: LociModel.Host, CommandHandler {
     self.recognizing = recognizing
     self.working = working
     self.avatar = avatar
+    self.panels = panels
     self.activity = activity
   }
 

@@ -5,11 +5,13 @@ import LociStore
 import os
 
 /// Answers the `loci` command. Only the few commands and the one subscription it needs are open to it;
-/// everything else in the Host protocol is refused.
+/// everything else in the Host protocol is refused. A panel's refresh only looks: it may read and save its
+/// own panel, and nothing else.
 enum ToolGateway {
   /// The commands that only read, run as any caller runs them. The three that put an item into the
-  /// library, `AddLink`, `AddTextItem` and `ImportMediaFile`, are run as Loci's.
-  static let reading: [any Command.Type] = [Search.self, ListItems.self]
+  /// library, `AddLink`, `AddTextItem` and `ImportMediaFile`, are run as Loci's; `SavePanel` goes through
+  /// the panels, which know which refresh may still save.
+  static let reading: [any Command.Type] = [Search.self, ListItems.self, ListPanels.self]
   static let subscriptions: [any Subscription.Type] = [ItemJob.self]
 
   private static let log = Logger(subsystem: "com.loci.native.dev", category: "tool")
@@ -34,6 +36,8 @@ enum ToolGateway {
       try? await reply(await once { () async throws(HostError) in try await run(name, body, for: call, on: host) })
     case .follow(let name, let body):
       await follow(name, body, on: host, reply: reply)
+    case .upload where call.session.isRefresh:
+      try? await reply(.failed(.invalidRequest(onlyLooks("upload"))))
     case .upload(let path):
       try? await reply(
         await once { () async throws(HostError) in
@@ -51,8 +55,15 @@ enum ToolGateway {
   private static func run(_ name: String, _ body: Data, for call: LocalCall, on host: LocalHost)
     async throws(HostError) -> Data
   {
-    let saver = Saver.loci(call.conversation)
+    let saver = Saver.loci(call.session?.conversation)
     switch name {
+    case SavePanel.name:
+      try await host.panels.save(try WireCodec.decode(SavePanel.self, from: body).panel, from: call.session)
+      return try WireCodec.encode(Done())
+    case _ where reading.contains(where: { $0.name == name }):
+      return try await WireCodec.run(name, body: body, on: host)
+    case _ where call.session.isRefresh:
+      throw .invalidRequest(onlyLooks(name))
     case AddLink.name:
       return try WireCodec.encode(try await host.addLink(try WireCodec.decode(AddLink.self, from: body), by: saver))
     case AddTextItem.name:
@@ -61,8 +72,6 @@ enum ToolGateway {
     case ImportMediaFile.name:
       let command = try WireCodec.decode(ImportMediaFile.self, from: body)
       return try WireCodec.encode(try await host.importMediaFile(command, by: saver))
-    case _ where reading.contains(where: { $0.name == name }):
-      return try await WireCodec.run(name, body: body, on: host)
     default:
       throw .invalidRequest("loci cannot run \(name)")
     }
@@ -93,6 +102,10 @@ enum ToolGateway {
     }
   }
 
+  private static func onlyLooks(_ name: String) -> String {
+    "A panel's refresh only reads and saves its own panel; loci cannot run \(name) in it."
+  }
+
   private static func once(_ body: () async throws(HostError) -> Data) async -> LocalReply {
     do throws(HostError) {
       return .value(try await body())
@@ -108,5 +121,11 @@ enum ToolGateway {
     let shared = zip(from, to).prefix { $0 == $1 }.count
     let path = Array(repeating: "..", count: from.count - shared) + to.dropFirst(shared)
     return path.joined(separator: "/") + "/"
+  }
+}
+
+extension LocalSession? {
+  fileprivate var isRefresh: Bool {
+    if case .panelRefresh? = self { true } else { false }
   }
 }

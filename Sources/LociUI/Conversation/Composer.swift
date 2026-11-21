@@ -24,17 +24,67 @@ struct Composer: View {
   var focusRequest = 0
   /// Whether the person has typed anything, for what the conversation offers to send instead.
   var composing: Binding<Bool> = .constant(false)
+  /// Whether the composer asks for a new panel: what is sent then asks Loci to make one, and `made` hears what
+  /// was typed once it has been sent.
+  var making: Binding<Bool> = .constant(false)
+  var made: (String) -> Void = { _ in }
+  /// Words put in from outside, such as asking Loci to change a panel.
+  var fill: ComposerFill?
+  @Environment(\.locale) private var locale
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.standIns) private var standIns
+  @State private var example = 0
   @State private var text = ""
   @State private var selection: TextSelection?
   @State private var stopping = false
   @FocusState private var focused: Bool
 
   var body: some View {
+    HStack(alignment: .bottom, spacing: Spacing.xs) {
+      if making.wrappedValue {
+        NewPanelCancel { making.wrappedValue = false }
+          .transition(reduceMotion ? .identity : .opacity.combined(with: .scale(scale: 0.6)))
+      }
+      capsule
+        .overlay(alignment: .top) {
+          if making.wrappedValue {
+            Text(.loci("panels.new")).font(.system(size: 13)).foregroundStyle(Palette.ink.opacity(0.5))
+              .fixedSize()
+              .offset(y: -(Spacing.s + 16))
+              .transition(reduceMotion ? .identity : .opacity.combined(with: .offset(y: 6)))
+          }
+        }
+    }
+    .animation(reduceMotion ? nil : Motion.standard, value: making.wrappedValue)
+    .onChange(of: fill) {
+      guard let fill else { return }
+      text = fill.text
+      selection = TextSelection(insertionPoint: text.endIndex)
+      focused = true
+    }
+    .onChange(of: making.wrappedValue) { if making.wrappedValue { focused = true } }
+    .task(id: making.wrappedValue) {
+      example = 0
+      guard making.wrappedValue, standIns == nil else { return }
+      while !Task.isCancelled {
+        try? await Task.sleep(for: PanelExample.stay)
+        if Task.isCancelled { return }
+        withAnimation(reduceMotion ? nil : Motion.swap) { example += 1 }
+      }
+    }
+  }
+
+  private var capsule: some View {
     let shape = RoundedRectangle(cornerRadius: Radius.composer, style: .circular)
     let inset = (Size.composerHeight - Size.composerButton) / 2
-    VStack(alignment: .leading, spacing: 0) {
+    return VStack(alignment: .leading, spacing: 0) {
       if let draft { quoted(draft).padding(.top, 14).padding(.trailing, inset) }
       HStack(alignment: .bottom, spacing: 0) {
+        if making.wrappedValue, text.isEmpty {
+          SiteBadges(PanelExample.at(example).sources, ring: .clear)
+            .padding(.trailing, 10)
+            .padding(.bottom, (Size.composerHeight - Size.siteMark) / 2)
+        }
         field.padding(.vertical, (Size.composerHeight - Self.lineHeight) / 2)
         Group {
           RuntimeMenu(choosesAgent: style == .talk, attach: attach)
@@ -78,7 +128,12 @@ struct Composer: View {
 
   private var field: some View {
     TextField(text: $text, selection: $selection, axis: .vertical) {
-      Text(.loci(style == .talk ? "talk.prompt" : "companion.prompt"))
+      if !making.wrappedValue { Text(.loci(style == .talk ? "talk.prompt" : "companion.prompt")) }
+    }
+    .overlay(alignment: .leading) {
+      if making.wrappedValue, text.isEmpty {
+        PanelExamples(index: example).allowsHitTesting(false)
+      }
     }
     .textFieldStyle(.plain)
     .font(.system(size: 15))
@@ -119,7 +174,7 @@ struct Composer: View {
 
   private func submit() {
     guard !busy, !trimmed.isEmpty else { return }
-    if let startOver, ComposerKey.isStartOver(trimmed) {
+    if let startOver, !making.wrappedValue, ComposerKey.isStartOver(trimmed) {
       text = ""
       Task {
         do throws(HostError) {
@@ -130,16 +185,20 @@ struct Composer: View {
       }
       return
     }
-    let sent = trimmed
+    let typed = trimmed
     let asked = draft
+    let request = making.wrappedValue
     text = ""
     draft = nil
+    making.wrappedValue = false
     Task {
       do throws(HostError) {
-        _ = try await send(sent, asked?.passage)
+        _ = try await send(request ? NewPanel.request(typed, locale: locale) : typed, asked?.passage)
+        if request { made(typed) }
       } catch {
-        if text.isEmpty { text = sent }
+        if text.isEmpty { text = typed }
         if draft == nil { draft = asked }
+        if request { making.wrappedValue = true }
       }
     }
   }

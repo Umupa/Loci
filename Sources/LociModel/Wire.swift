@@ -21,15 +21,17 @@ public enum Wire {
     .writes(SaveMediaLocally.self),
     .reads(ReadCover.self, lane: .data), .reads(ReadItemPDF.self, lane: .data),
     .reads(ReadItemImage.self, lane: .data), .streams(ReadMediaFileInfo.self, lane: .data),
-    .reads(ReadLinkPreview.self), .reads(ReadLinkImage.self, lane: .data),
+    .reads(ReadLinkPreview.self), .reads(ReadLinkImage.self, lane: .data), .reads(ReadWebPicture.self, lane: .data),
     .streams(ReadMediaBytes.self, lane: .data),
     .writes(PickKeyPoints.self),
+    .reads(ListPanels.self), .writes(SavePanel.self), .writes(RefreshPanel.self), .writes(MovePanelToTop.self),
+    .writes(RemovePanel.self),
   ]
 
   public static let subscriptions: [any Subscription.Type] = [
     OneConversation.self, LociWorking.self, CurrentRuntime.self, LociHome.self, OneDiary.self, LociAvatar.self,
     AllItems.self, OneItem.self, NotesOn.self, AllJobs.self, ItemJob.self, SavingNow.self, ItemMedia.self,
-    MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self,
+    MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self, WatchPanelColumn.self,
   ]
 
   /// The route of a command type, or `nil` when it is not registered.

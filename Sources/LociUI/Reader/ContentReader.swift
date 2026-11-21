@@ -31,7 +31,7 @@ struct ContentReader: View {
   @State private var start: TextQuote?
   @State private var notes: Feed<[Note]>?
   @State private var reveal: Reveal?
-  @State private var tab = PanelTab.conversation
+  @State private var tab = SideTab.conversation
   @State private var chosen: ChosenNote?
   @AppStorage(PanelMemory.key) private var panelShown = PanelMemory.shownAtFirst
   @State private var available = CGFloat.infinity

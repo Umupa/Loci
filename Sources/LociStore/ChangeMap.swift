@@ -58,6 +58,7 @@ struct ChangeMap {
     case (Store.memoryFile, 0): .loci(.memory)
     case (Store.dayNotesFolder, _): .loci(.notes)
     case (Store.diaryFolder, _): .loci(.diary)
+    case (Store.panelsFolder, _): .loci(.panels)
     case (_, 0) where name.hasPrefix(Store.avatarName + "."): .loci(.avatar)
     default: nil
     }

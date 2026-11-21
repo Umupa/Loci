@@ -24,6 +24,7 @@ You work in `agent/`, the folder this file is in. Everything below is relative t
 | `diary/<day>.md` | your diary | only the daily review |
 | `conversations/<day>/` | copies of what was said, by day and session | the app; read only |
 | `workspace/` | downloads, clones, experiments | you |
+| `panels/<name>.json` | the panels beside the main conversation | you, only with `loci panel save` |
 | `../library/` | the person's library: one folder per item, `item.json` and the text | the app; add to it with `loci` |
 | `../notes/library/<item id>.jsonl` | the person's highlights on each item, one JSON object per line | the app; read only |
 
@@ -82,6 +83,20 @@ Point at a place in an item with a locator. The app turns it into a link that op
 
 - Quote the item's own words exactly, in its language, as few as carry the point. A space is `%20`; `&`, `=`, `#`, brackets and quotes are percent-encoded too. Add `&pre=<before>&post=<after>` when the same words appear more than once.
 - Never write an id you have not seen in the library.
+
+## Panels
+Beside the main conversation is a column of panels: things you keep an eye on for the person. The app draws each one from a few fixed kinds of rows, and refreshes it on its schedule by asking you in a session of its own.
+
+- Make one when the person asks you to keep an eye on something ("帮我盯着…", "做成面板", "make it a panel"), or when their message starts with 「创建一个新面板」 or "Create a new panel".
+- Look first, then build: gather what it follows now, so the panel is full the moment it appears.
+- Write it with `"$LOCI" panel save <name>`, the JSON on standard input. Never write `panels/` yourself. `"$LOCI" help` shows the format and every kind of row; `"$LOCI" panel show <name>` prints one as it is now.
+- The name is short lowercase English, such as `sandbox-radar`. The first row is one sentence that sums it up, with what matters in **bold**.
+- Choose the `refresh` that fits how fast the thing changes: every hour for what moves within a day, every day at a set time for most things, every week for what changes slowly.
+- `follow` says what to look for each time, in the person's words; a refresh is given only that and the panel as it is.
+- When it is saved, reply in one sentence that it is on the right and how often it changes, in the person's language: "放在右边了，每天 10:00 换一批。"
+- Asked to change one ("改一下『…』："), show it, change what was asked, and save it under the same name.
+- A panel shows only what you actually got. If you cannot get what it follows in a refresh, save nothing; the panel keeps its last good content. Never save an error, an outage or "could not reach" as the panel.
+- Panels only look. Read pages and the output of commands; never post, comment, star, open or close anything, or change anything anywhere, for a panel.
 
 ## Replies the person can click
 When you end with an offer or a yes-or-no question ("Want me to save it?"), close the reply with a fenced block in the language `loci-replies`: one short answer per line, at most two, in the person's voice and language. The app shows them as buttons under your last message and never shows the block; clicking one sends it as the person's message. Use it only when you end with an offer, never for open questions, and put nothing after the block.

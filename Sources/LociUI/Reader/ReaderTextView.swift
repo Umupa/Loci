@@ -167,6 +167,21 @@ final class ReaderTextView: NSTextView {
     return storage.offset(from: storage.documentRange.location, to: fragment.rangeInElement.location)
   }
 
+  /// The UTF-16 offset of the paragraph whose start is nearest a point's height: the paragraph there, or the
+  /// next one when more of it is above the point than below.
+  func nearestParagraph(at point: CGPoint) -> Int? {
+    guard let layoutManager = textLayoutManager, let storage = contentStorage else { return nil }
+    let inContainer = CGPoint(x: point.x - textContainerOrigin.x, y: max(0, point.y - textContainerOrigin.y))
+    guard var fragment = layoutManager.textLayoutFragment(for: inContainer) else { return nil }
+    let frame = fragment.layoutFragmentFrame
+    if inContainer.y - frame.minY > frame.maxY - inContainer.y,
+      let next = layoutManager.textLayoutFragment(for: CGPoint(x: inContainer.x, y: frame.maxY + 1))
+    {
+      fragment = next
+    }
+    return storage.offset(from: storage.documentRange.location, to: fragment.rangeInElement.location)
+  }
+
   /// Where the paragraph holding `offset` starts, in this view's coordinates, laying out the text before it.
   func top(of offset: Int) -> CGFloat? {
     guard let layoutManager = textLayoutManager, let storage = contentStorage,
@@ -176,6 +191,17 @@ final class ReaderTextView: NSTextView {
     layoutManager.ensureLayout(for: before)
     guard let fragment = layoutManager.textLayoutFragment(for: location) else { return nil }
     return fragment.layoutFragmentFrame.minY + textContainerOrigin.y
+  }
+
+  /// Whether the last line of the text lies within `rect`, laying out the whole text to be sure: while
+  /// the text is laid out from estimates, as after a jump or a new width, the view can end above the text.
+  func showsEnd(within rect: CGRect) -> Bool {
+    guard let layoutManager = textLayoutManager, let storage = contentStorage, !string.isEmpty,
+      let last = storage.location(storage.documentRange.endLocation, offsetBy: -1)
+    else { return false }
+    layoutManager.ensureLayout(for: storage.documentRange)
+    guard let fragment = layoutManager.textLayoutFragment(for: last) else { return false }
+    return fragment.layoutFragmentFrame.maxY + textContainerOrigin.y <= rect.maxY + 1
   }
 
   /// The rectangles that `range` covers, in this view's coordinates.

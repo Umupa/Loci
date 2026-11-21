@@ -62,7 +62,16 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   private weak var textView: ReaderTextView?
   private weak var scrollView: NSScrollView?
   private var current: ReadingText?
-  private var pendingStart: TextQuote?
+  /// The place the reader was opened at, or put back at, and keeps until the person moves it: each new
+  /// version of the text, as pictures arrive, and each new width, is set to show it again. While a place
+  /// is held, where the window happens to be is not remembered, so it cannot overwrite the place.
+  private var held: TextQuote?
+  /// Where the window's top was left when the held place was last shown; moving away from it is the person
+  /// moving.
+  private var heldTop: CGFloat?
+  private var aligning = false
+  /// How far the window may drift from where it was put before that counts as the person moving it.
+  private static let drift: CGFloat = 24
   private var reporting: Task<Void, Never>?
   private var endReported = false
   private var marks: [ReaderMark] = []
@@ -99,7 +108,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     self.textView = textView
     self.scrollView = scrollView
     textView.willResize = { [weak self] in self?.holdPlace() }
-    textView.resized = { [weak self] in self?.applyPendingStart() }
+    textView.resized = { [weak self] in self?.showHeld() }
     clip.scrolled = { [weak self] in self?.scrolled() }
     textView.selectionEnded = { [weak self] in self?.selectionEnded() }
     textView.windowChanged = { [weak self] window in
@@ -117,13 +126,15 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   func show(_ text: ReadingText, from start: TextQuote?) {
     guard let textView, current?.plain != text.plain else { return }
     passageBar.close()
-    let keep = current == nil ? start : topQuote()
+    let keep = current == nil ? start : held ?? topQuote()
+    aligning = true
     current = text
     textView.textStorage?.setAttributedString(text.string)
     textView.placeMarginMarks(marks)
     textView.layOutViewport()
-    pendingStart = keep
-    applyPendingStart()
+    aligning = false
+    held = keep
+    showHeld()
   }
 
   func measure(_ width: ReadingWidth) {
@@ -142,6 +153,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
       let top = textView.top(of: request.range.location)
     else { return }
     revealed = request.serial
+    release()
     textView.layOutViewport()
     let y = max(0, top - scrollView.contentSize.height / 3)
     scrollView.contentView.scroll(to: CGPoint(x: 0, y: y))
@@ -212,30 +224,56 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   }
 
   /// A new width lays the text out again from estimates, which would leave the reader somewhere else; the
-  /// paragraph at the top is kept there instead.
+  /// paragraph at the top is held there instead.
   private func holdPlace() {
-    guard current != nil, pendingStart == nil else { return }
-    pendingStart = topQuote()
+    guard current != nil, held == nil else { return }
+    held = topQuote()
   }
 
-  /// Scrolls to where the reader should open, once the column has a width to lay the text out in.
-  private func applyPendingStart() {
+  /// Shows the held place, once the column has a width to lay the text out in. A picture not yet in the text
+  /// is stood in for by the words after it until it arrives.
+  private func showHeld() {
     guard let textView, let scrollView, textView.frame.width > 0 else { return }
     defer {
       checkEnd()
       textView.placeMarginMarks(marks)
       selectWanted()
     }
-    guard let start = pendingStart else { return }
-    pendingStart = nil
-    guard let range = current?.range(of: start), let top = textView.top(of: range.location) else { return }
+    guard let held, let current else { return }
+    aligning = true
+    defer {
+      aligning = false
+      heldTop = scrollView.documentVisibleRect.minY
+    }
+    guard let range = current.range(of: held) ?? Self.after(picture: held).flatMap(current.range(of:)),
+      let top = textView.top(of: range.location)
+    else { return }
     textView.layOutViewport()
     scrollView.contentView.scroll(to: CGPoint(x: 0, y: max(0, top - ReadingStyle.inset.height)))
     scrollView.reflectScrolledClipView(scrollView.contentView)
     textView.layOutViewport()
   }
 
+  /// The words after a picture, standing in for it while the text shows its description instead.
+  private static func after(picture quote: TextQuote) -> TextQuote? {
+    guard quote.text == "\u{FFFC}", let after = quote.after?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+      return nil
+    }
+    return try? TextQuote(after)
+  }
+
+  /// The person moved the reader: from now on its place is wherever they leave it.
+  private func release() {
+    held = nil
+    heldTop = nil
+  }
+
   private func scrolled() {
+    if !aligning, held != nil, let heldTop, let scrollView,
+      abs(scrollView.documentVisibleRect.minY - heldTop) > Self.drift
+    {
+      release()
+    }
     passageBar.close()
     if let selected, selecting == nil {
       selecting = selected
@@ -248,6 +286,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
       textView?.placeMarginMarks(marks)
     }
     reporting?.cancel()
+    guard held == nil else { return }
     reporting = Task { [weak self, settle] in
       try? await Task.sleep(for: settle)
       guard !Task.isCancelled, let self, let quote = self.topQuote() else { return }
@@ -258,19 +297,21 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   private func checkEnd() {
     guard !endReported, let textView, let scrollView, !textView.string.isEmpty else { return }
     let visible = scrollView.documentVisibleRect
-    guard visible.maxY >= textView.frame.height - 1 else { return }
+    guard visible.maxY >= textView.frame.height - 1, textView.showsEnd(within: visible) else { return }
     endReported = true
     events.reachedEnd()
   }
 
-  /// A few words at the start of the paragraph at the top of the window, quoted with their context.
+  /// A few words at the start of the paragraph that starts nearest the top of the window, quoted with their
+  /// context: reopening there puts the reader back within half a paragraph of where they were.
   ///
   /// The top is taken a margin below the window's edge, where opening at a quote puts its paragraph.
   func topQuote() -> TextQuote? {
     guard let textView, let scrollView else { return nil }
     textView.layOutViewport()
     let visible = scrollView.documentVisibleRect
-    guard let offset = textView.offset(at: CGPoint(x: 0, y: visible.minY + ReadingStyle.inset.height + 1)) else {
+    guard let offset = textView.nearestParagraph(at: CGPoint(x: 0, y: visible.minY + ReadingStyle.inset.height + 1))
+    else {
       return nil
     }
     guard let current else { return nil }

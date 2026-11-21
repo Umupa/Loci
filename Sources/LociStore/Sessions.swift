@@ -6,6 +6,8 @@ import LociModel
 public enum SessionOwner: Hashable, Sendable {
   case conversation(ConversationRef)
   case review(Day)
+  /// Refreshing the panel by this name.
+  case panel(String)
 
   /// How the owner is written in the database and in the names of the conversation copies.
   var key: String {
@@ -13,6 +15,7 @@ public enum SessionOwner: Hashable, Sendable {
     case .conversation(.main): "main"
     case .conversation(.item(let item)): "library-\(item)"
     case .review(let day): "review-\(day)"
+    case .panel(let name): "panel-\(name)"
     }
   }
 
@@ -23,6 +26,8 @@ public enum SessionOwner: Hashable, Sendable {
       self = .conversation(.item(item))
     } else if key.hasPrefix("review-"), let day = Day(String(key.dropFirst(7))) {
       self = .review(day)
+    } else if key.hasPrefix("panel-"), key.count > 6 {
+      self = .panel(String(key.dropFirst(6)))
     } else {
       return nil
     }
@@ -141,13 +146,13 @@ extension StoreDatabase {
   /// What the person has said to Loci, in every conversation.
   public func talk() throws -> Talk {
     try queue.read { db in
-      let typed = "m.typed AND s.owner NOT LIKE 'review-%'"
+      let typed = "m.typed AND \(Self.conversational)"
       let first = try String.fetchOne(
         db, sql: "SELECT min(m.at) FROM message m JOIN session s ON s.id = m.session_id WHERE \(typed)")
       let latest = try String.fetchOne(
         db,
         sql: """
-          SELECT max(m.at) FROM message m JOIN session s ON s.id = m.session_id WHERE s.owner NOT LIKE 'review-%'
+          SELECT max(m.at) FROM message m JOIN session s ON s.id = m.session_id WHERE \(Self.conversational)
           """)
       let count = try Int.fetchOne(
         db, sql: "SELECT count(*) FROM message m JOIN session s ON s.id = m.session_id WHERE \(typed)")
@@ -170,11 +175,14 @@ extension StoreDatabase {
         db,
         sql: """
           SELECT count(*) FROM message m JOIN session s ON s.id = m.session_id
-          WHERE m.typed AND s.owner NOT LIKE 'review-%' AND m.at >= ? AND m.at < ?
+          WHERE m.typed AND \(Self.conversational) AND m.at >= ? AND m.at < ?
           """,
         arguments: [start.description, end.description]) ?? 0
     }
   }
+
+  /// Sessions of a conversation, not of the daily review or a panel's refresh.
+  private static let conversational = "s.owner NOT LIKE 'review-%' AND s.owner NOT LIKE 'panel-%'"
 
   private static func insert(_ session: SessionRecord, in db: Database) throws {
     try db.execute(

@@ -21,8 +21,8 @@ struct ToolScenarioTests {
     return await replies.all
   }
 
-  private func command<C: Command>(_ command: C, in conversation: ConversationRef? = .main) throws -> LocalCall {
-    LocalCall(conversation: conversation, request: .command(name: C.name, body: try JSONEncoder().encode(command)))
+  private func command<C: Command>(_ command: C, in session: LocalSession? = .conversation(.main)) throws -> LocalCall {
+    LocalCall(session: session, request: .command(name: C.name, body: try JSONEncoder().encode(command)))
   }
 
   private func item(_ replies: [LocalReply]) throws -> Item {
@@ -82,7 +82,7 @@ struct ToolScenarioTests {
       #expect(await working(host, .item(open.id)))
       let url = try #require(URL(string: "https://example.com/raft.pdf"))
 
-      let saved = try item(await answer(try command(AddLink(url: url), in: .item(open.id)), on: host))
+      let saved = try item(await answer(try command(AddLink(url: url), in: .conversation(.item(open.id))), on: host))
 
       await agent.sessions.first?.finish()
       let conversation = try #require(await settled(host, .item(open.id)))
@@ -111,7 +111,7 @@ struct ToolScenarioTests {
       let deleting = await answer(try command(DeleteItems([item.id])), on: host)
       let following = await answer(
         LocalCall(
-          conversation: nil, request: .follow(name: AllItems.name, body: try JSONEncoder().encode(AllItems()))),
+          session: nil, request: .follow(name: AllItems.name, body: try JSONEncoder().encode(AllItems()))),
         on: host)
 
       #expect(deleting == [.failed(.invalidRequest("loci cannot run \(DeleteItems.name)"))])
@@ -124,7 +124,7 @@ struct ToolScenarioTests {
     try await withHost { host, _, _ in
       let item = try await host.run(AddTextItem(fileName: "a.md", text: "# Borg\n"))
 
-      let replies = await answer(LocalCall(conversation: nil, request: .itemFolder(item.id)), on: host)
+      let replies = await answer(LocalCall(session: nil, request: .itemFolder(item.id)), on: host)
 
       let expected = try JSONEncoder().encode("../library/borg-\(item.id)/")
       #expect(replies == [.value(expected)])
@@ -143,7 +143,7 @@ struct ToolScenarioTests {
     let host = try await LocalHost.start(root: place.root, database: place.database, environment: environment)
     _ = try await host.run(AddTextItem(fileName: "a.md", text: "# 调度\n\n过滤与打分\n"))
     let call = LocalCall(
-      conversation: nil, request: .command(name: Search.name, body: try JSONEncoder().encode(Search(text: "调度"))))
+      session: nil, request: .command(name: Search.name, body: try JSONEncoder().encode(Search(text: "调度"))))
 
     var reply: LocalReply?
     for _ in 0..<100 where reply == nil {
@@ -175,6 +175,19 @@ struct ToolScenarioTests {
       #expect(Set(told) == ["main", "library/\(open.id)"])
     }
   }
+
+  @Test func lociSavesAndListsPanelsThroughTheGateway() async throws {
+    try await withHost { host, _, _ in
+      let saved = await answer(try command(SavePanel(PanelScenarioTests.radar), in: nil), on: host)
+      let listed = await answer(try command(ListPanels(), in: nil), on: host)
+
+      #expect(saved == [.value(try JSONEncoder().encode(Done()))])
+      guard case .value(let data) = try #require(listed.first) else { return }
+      #expect(try JSONDecoder().decode([PanelEntry].self, from: data).map(\.panel) == [PanelScenarioTests.radar])
+      #expect(try await host.panelColumn().slots == [.panel(PanelScenarioTests.radar)])
+    }
+  }
+
 }
 
 /// I-S10: what Loci saves with `loci save` while earlier saves still have work going on is one batch.
@@ -183,7 +196,7 @@ struct SavingBatchTests {
   private func save(_ link: String, on host: LocalHost) async throws {
     let body = try JSONEncoder().encode(AddLink(url: Links.url(link)))
     await ToolGateway.answer(
-      LocalCall(conversation: .main, request: .command(name: AddLink.name, body: body)), on: host
+      LocalCall(session: .conversation(.main), request: .command(name: AddLink.name, body: body)), on: host
     ) { _ in }
   }
 

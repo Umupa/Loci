@@ -8,9 +8,12 @@ struct Prompts: Sendable {
   let soul: String
   let rules: String
   let review: String
+  let panel: String
 
   static func bundled() throws(HostError) -> Prompts {
-    Prompts(soul: try resource("soul"), rules: try resource("rules"), review: try resource("review"))
+    Prompts(
+      soul: try resource("soul"), rules: try resource("rules"), review: try resource("review"),
+      panel: try resource("panel"))
   }
 
   private static func resource(_ name: String) throws(HostError) -> String {
@@ -38,6 +41,23 @@ struct Prompts: Sendable {
       .replacing("{{day}}", with: day.description)
       .replacing("{{earlier}}", with: earlier)
       .replacing("{{traitLimit}}", with: String(Soul.traitLimit))
+  }
+
+  /// What a panel's refresh is asked: what the panel follows, and the panel as it is now.
+  func panel(_ panel: Panel) throws(HostError) -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    let json: String
+    do {
+      json = String(decoding: try encoder.encode(panel), as: UTF8.self)
+    } catch {
+      throw .storage(String(describing: error))
+    }
+    return
+      self.panel
+      .replacing("{{name}}", with: panel.name)
+      .replacing("{{follow}}", with: panel.follow)
+      .replacing("{{json}}", with: json)
   }
 
   /// A question about a passage, with the passage quoted so Loci sees what the person sees.

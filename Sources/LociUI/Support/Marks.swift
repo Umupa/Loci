@@ -29,6 +29,13 @@ enum MarkArt {
     }
   }
 
+  /// A site's mark, drawn in one color to be tinted.
+  static func site(_ name: String) -> NSImage? {
+    guard let mark = image("site-" + name, extension: "svg") else { return nil }
+    mark.isTemplate = true
+    return mark
+  }
+
   private static func image(_ name: String, extension fileType: String) -> NSImage? {
     if let image = loaded[name] { return image }
     guard let url = Bundle.module.url(forResource: name, withExtension: fileType),

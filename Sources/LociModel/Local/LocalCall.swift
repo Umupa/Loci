@@ -7,15 +7,15 @@ public struct LocalCall: Hashable, Codable, Sendable {
   public static let socketVariable = "LOCI_SOCKET"
   /// The variable that holds the `loci` program's full path, for a PATH where `loci` is another program.
   public static let commandVariable = "LOCI"
-  /// The variable that tells the `loci` command which conversation its agent is in, as a note tag.
+  /// The variable that tells the `loci` command which session its agent is in, as `LocalSession.tag`.
   public static let sessionVariable = "LOCI_SESSION"
 
-  /// The conversation the agent that ran the command is in; `nil` outside one, such as the daily review.
-  public let conversation: ConversationRef?
+  /// The session the agent that ran the command is in; `nil` for any other, such as the daily review.
+  public let session: LocalSession?
   public let request: Request
 
-  public init(conversation: ConversationRef?, request: Request) {
-    self.conversation = conversation
+  public init(session: LocalSession?, request: Request) {
+    self.session = session
     self.request = request
   }
 
@@ -28,6 +28,39 @@ public struct LocalCall: Hashable, Codable, Sendable {
     case upload(path: String)
     /// Where an item's folder is, relative to Loci's `agent` folder. The reply is a `String`.
     case itemFolder(EntityID)
+  }
+}
+
+/// The Loci session a `loci` command runs in, which decides what the command may do.
+public enum LocalSession: Hashable, Codable, Sendable {
+  case conversation(ConversationRef)
+  /// One background refresh of a panel, by an id of its own: once the refresh is over or the panel is
+  /// removed, nothing it asks to save is kept.
+  case panelRefresh(EntityID)
+
+  static let refreshPrefix = "panel-refresh/"
+
+  /// A conversation's note tag, or `panel-refresh/<id>`.
+  public var tag: String {
+    switch self {
+    case .conversation(let conversation): conversation.tag
+    case .panelRefresh(let refresh): Self.refreshPrefix + refresh.description
+    }
+  }
+
+  public init?(tag: String) {
+    if tag.hasPrefix(Self.refreshPrefix) {
+      guard let refresh = EntityID(canonical: String(tag.dropFirst(Self.refreshPrefix.count))) else { return nil }
+      self = .panelRefresh(refresh)
+    } else {
+      guard let conversation = ConversationRef(tag: tag) else { return nil }
+      self = .conversation(conversation)
+    }
+  }
+
+  /// The conversation, when the session is one.
+  public var conversation: ConversationRef? {
+    if case .conversation(let conversation) = self { conversation } else { nil }
   }
 }
 

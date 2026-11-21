@@ -22,6 +22,7 @@ struct LibraryCodingTests {
     #expect(try Self.roundTrips(ReadMediaPage(item: Fixture.item)))
     #expect(try Self.roundTrips(ReadLinkPreview(url: URL(string: "https://github.com/e2b-dev/infra")!)))
     #expect(try Self.roundTrips(ReadLinkImage(url: URL(string: "https://github.com/e2b-dev/infra")!)))
+    #expect(try Self.roundTrips(ReadWebPicture(url: URL(string: "https://example.com/cover.jpg")!)))
     #expect(
       try Self.roundTrips(
         LinkPreview(

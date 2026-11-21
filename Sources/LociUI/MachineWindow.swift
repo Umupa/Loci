@@ -19,10 +19,13 @@ struct MachineWindow: View {
   @State private var covers = Covers()
   @State private var deletions = Deletions()
   @State private var linkPreviews = LinkPreviews()
+  @State private var panelPictures = PanelPictures()
+  @State private var panelColumn: Feed<PanelColumn>?
   @State private var browser: BrowserSession
   @AppStorage(PaneWidth.sidebar.key) private var sidebarWidth = Double(PaneWidth.sidebar.ideal)
   @AppStorage("sidebarShown") private var sidebarPreferred = true
-  @State private var fit = SidebarFit()
+  @AppStorage("panelColumnShown") private var panelColumnPreferred = true
+  @State private var fit = PaneFit.sidebar
   @State private var width = CGFloat.infinity
   private let talkShown: () -> Void
   private let memory: WindowMemory
@@ -54,6 +57,7 @@ struct MachineWindow: View {
       .frame(minWidth: Size.windowMinimum.width, minHeight: Size.windowMinimum.height)
       .subscribing(AllItems(), into: $items)
       .subscribing(HealthReport(), into: $health)
+      .subscribing(WatchPanelColumn(), into: $panelColumn)
       .subscribing(LociWorking(), into: $status)
       .subscribing(LociModel.LociAvatar(), into: $avatar)
       .subscribing(SavingNow(), into: $saving)
@@ -70,6 +74,7 @@ struct MachineWindow: View {
       .environment(\.covers, covers)
       .environment(\.deletions, deletions)
       .environment(\.linkPreviews, linkPreviews)
+      .environment(\.panelPictures, panelPictures)
       .environment(\.browser, browser)
       .environment(\.lociFace, face)
       .environment(\.showFailure, ShowFailure { dialogs.failure = $0 })
@@ -173,7 +178,7 @@ struct MachineWindow: View {
 
   private func refit() {
     var next = fit
-    next.fit(width: width, reading: reading)
+    next.fit(width: width, crowded: reading)
     guard next != fit else { return }
     withAnimation(Motion.fold) { fit = next }
   }
@@ -197,8 +202,11 @@ struct MachineWindow: View {
   @ViewBuilder private var placeView: some View {
     switch window.place {
     case .talk:
-      TalkScreen(focusRequest: focusRequest, attach: { dialogs.importing = true })
-        .onAppear(perform: talkShown)
+      TalkScreen(
+        focusRequest: focusRequest, attach: { dialogs.importing = true }, opened: { window = $0 },
+        failed: { dialogs.failure = $0 }, panels: panels, columnPreferred: $panelColumnPreferred
+      )
+      .onAppear(perform: talkShown)
     case .loci:
       LociScreen()
     case .library(let kind):
@@ -215,6 +223,25 @@ struct MachineWindow: View {
       MediaSettingsPage()
     case .settings(.remote):
       RemoteSettingsPage()
+    }
+  }
+
+  /// The panel column once the host has it, and the host's commands on it.
+  private var panels: Panels? {
+    panelColumn?.value.map { column in
+      Panels(
+        column: column, refresh: { panel in send(RefreshPanel(panel.name)) }, moveToTop: { send(MovePanelToTop($0)) },
+        remove: { panel in send(RemovePanel(panel.name)) })
+    }
+  }
+
+  private func send<C: Command>(_ command: C) {
+    Task {
+      do throws(HostError) {
+        _ = try await host.run(command)
+      } catch {
+        dialogs.failure = error
+      }
     }
   }
 

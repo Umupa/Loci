@@ -19,14 +19,15 @@ struct LibrarySnapshots {
     _ name: String, _ library: SampleLibrary, at place: WindowState, appearance: Snapshot.Appearance,
     recognizing: Bool = false, working: Bool = false, avatar: Avatar? = nil, standIns: StandIns? = nil,
     browser: BrowserSession = BrowserSession(), english: Bool = false, size: CGSize = window, panel: Bool = true,
-    machine: MachineChoice? = nil, keyPoints: SampleKeyPoints = .picked, defaults: UserDefaults? = nil,
+    machine: MachineChoice? = nil, keyPoints: SampleKeyPoints = .picked, panels: PanelColumn = PanelColumn(slots: []),
+    defaults: UserDefaults? = nil,
     until ready: (@MainActor (NSWindow) -> Bool)? = nil
   ) async throws {
     let view = MachineWindow(memory: WindowMemory(recall: { place }, remember: { _ in }), browser: browser)
       .lociHost(
         FakeHost(
           try Sample(problems: false), library: library, recognizing: recognizing, working: working, avatar: avatar,
-          keyPoints: keyPoints)
+          panels: panels, keyPoints: keyPoints)
       )
       .environment(\.standIns, standIns)
       .defaultAppStorage(defaults ?? Self.defaults(panel: panel))

@@ -19,15 +19,15 @@ extension LocalLine {
   }
 }
 
-/// The socket the app listens on, for a session in `conversation`.
+/// The socket the app listens on, for an agent in `session`.
 struct SocketLine: LocalLine {
   let socket: URL
-  let conversation: ConversationRef?
+  let session: LocalSession?
 
   func send(_ request: LocalCall.Request, until accepts: @escaping @Sendable (Data) -> Bool) async throws(Failure)
     -> Data
   {
-    let call = LocalCall(conversation: conversation, request: request)
+    let call = LocalCall(session: session, request: request)
     let reply: LocalReply
     do {
       reply = try await LocalSocket.call(call, at: socket) { reply in

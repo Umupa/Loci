@@ -10,7 +10,7 @@ struct PaperScreen: View {
   @State private var document: PDFDocument?
   @State private var job: Feed<Job?>?
   @State private var notes: Feed<[Note]>?
-  @State private var tab = PanelTab.conversation
+  @State private var tab = SideTab.conversation
   @State private var draft: PassageDraft?
   @AppStorage(PanelMemory.key) private var panelShown = PanelMemory.shownAtFirst
 

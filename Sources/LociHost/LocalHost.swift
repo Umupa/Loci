@@ -13,6 +13,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   let environment: HostEnvironment
   let hub: Hub
   let loci: LociAgent
+  let panels: PanelKeeper
   let library: LibraryRuntime
   /// Previews of the links Loci's replies show as cards.
   let links: LinkPreviewReader
@@ -25,10 +26,12 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     self.environment = environment
     let hub = Hub(health: Health(database: .rebuilding, readingStateLost: readingStateLost, fileProblems: []))
     self.hub = hub
-    loci = LociAgent(
-      context: AgentContext(
-        store: store, database: database, environment: environment,
-        follower: Follower(store: store, database: database, hub: hub), prompts: prompts))
+    let context = AgentContext(
+      store: store, database: database, environment: environment,
+      follower: Follower(store: store, database: database, hub: hub), prompts: prompts)
+    let loci = LociAgent(context: context)
+    self.loci = loci
+    panels = PanelKeeper(context: context) { await loci.isWorking }
     library = LibraryRuntime(
       store: store, database: database, environment: environment,
       follower: Follower(store: store, database: database, hub: hub))
@@ -95,7 +98,10 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     }
     let ticks = environment.ticks()
     let reviews = Task {
-      for await _ in ticks { await host.loci.considerReview() }
+      for await _ in ticks {
+        await host.loci.considerReview()
+        await host.panels.consider()
+      }
     }
     await host.hub.hold(work)
     await host.hub.hold(reviews)
@@ -114,6 +120,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     await library.translator.close()
     await library.picker.close()
     await discardSetAside()
+    await panels.close()
     await loci.close()
     await hub.stop()
   }

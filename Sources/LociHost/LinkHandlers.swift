@@ -9,4 +9,8 @@ extension LocalHost {
   public func linkImage(of url: URL) async throws(HostError) -> Data? {
     await links.image(of: url)
   }
+
+  public func webPicture(at url: URL) async throws(HostError) -> Data? {
+    await links.picture(at: url)
+  }
 }

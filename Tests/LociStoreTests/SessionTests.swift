@@ -82,12 +82,16 @@ struct SessionTests {
     #expect(try database.messages(of: .conversation(.main)).map(\.body) == [.reply("main")])
   }
 
-  @Test func talkCountsWhatThePersonTypedOutsideReviews() throws {
+  @Test func talkCountsWhatThePersonTypedOutsideReviewsAndPanelRefreshes() throws {
     let database = try StoreDatabase.inMemory()
     try database.start(Self.session(10))
     try database.start(Self.session(11, .conversation(.item(Fixture.id(2)))))
     try database.start(Self.session(12, .conversation(.item(Fixture.id(3)))))
     try database.start(Self.session(13, .review(Day("2026-11-18")!)))
+    try database.start(Self.session(14, .panel("sandbox-radar")))
+    try database.append(
+      [Self.message(34, .prompt(Prompt(text: "refresh", purpose: .panel("sandbox-radar"))), at: 30)],
+      to: Fixture.id(14))
     try database.append([Self.message(30, Self.hi, at: 5), Self.message(31, .reply("yo"))], to: Fixture.id(10))
     try database.append([Self.message(32, Self.hi, at: 9)], to: Fixture.id(11))
     try database.append(
@@ -143,6 +147,7 @@ struct SessionTests {
       try database.start(Self.session(10))
       let bodies: [Message.Body] = [
         .prompt(Prompt(text: "look back", purpose: .review(Day("2026-11-18")!))), .thinking("consider"),
+        .prompt(Prompt(text: "refresh", purpose: .panel("sandbox-radar"))),
         .reply("answer"), .notice("notice"),
         .tool(ToolActivity(id: "tool", name: "read", kind: .read, subject: "a.md", output: "text", state: .failed)),
         .prompt(

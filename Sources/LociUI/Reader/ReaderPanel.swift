@@ -2,8 +2,8 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// The pages of the panel beside text.
-enum PanelTab: Hashable {
+/// The pages of the side column beside text.
+enum SideTab: Hashable {
   case keyPoints, conversation, highlights
 }
 
@@ -15,7 +15,7 @@ struct ReaderPanel: View {
   let keyPoints: KeyPointsPage?
   /// `nil` for what has no key points, such as a paper; the panel then has no page for them.
   let openKeyPoint: ((KeyPoint) -> Void)?
-  @Binding var tab: PanelTab
+  @Binding var tab: SideTab
   @Binding var draft: PassageDraft?
   /// The highlight chosen last, and a serial that changes each time it is chosen again.
   let chosen: ChosenNote?
@@ -44,7 +44,7 @@ struct ReaderPanel: View {
     }
   }
 
-  private static let tabs: [(value: PanelTab, title: LocalizedStringResource)] = [
+  private static let tabs: [(value: SideTab, title: LocalizedStringResource)] = [
     (.conversation, .loci("panel.conversation")), (.highlights, .loci("panel.highlights")),
   ]
 

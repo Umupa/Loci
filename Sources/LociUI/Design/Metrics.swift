@@ -42,6 +42,9 @@ enum Radius {
   static let galleryCover: CGFloat = 11
   /// The window's own corners, which the light around its edge follows.
   static let window: CGFloat = 18
+  /// A panel beside the main conversation, and the blocks inside it.
+  static let panel: CGFloat = 26
+  static let panelBlock: CGFloat = 12
 }
 
 enum Size {
@@ -127,6 +130,15 @@ enum Size {
   static let remoteSheetTop: CGFloat = 64
   /// Where the field of a conversation would be, while its Mac is offline.
   static let offlineLine: CGFloat = 56
+
+  /// The column of panels beside the main conversation, and the tallest a panel is until it is opened out.
+  static let panelColumn: CGFloat = 420
+  static let panelTallest: CGFloat = 380
+  /// A site's small round mark before a panel's title.
+  static let siteMark: CGFloat = 22
+  /// The round button that folds the panel column away.
+  static let panelToggle: CGFloat = 44
+  static let panelCover: CGFloat = 40
 }
 
 /// How things move. Selection and hover change at once and use none of these.

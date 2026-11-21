@@ -11,6 +11,7 @@ struct ConversationScreen: View {
   var revealPassage: @MainActor (Locator) -> Void = { _ in }
   var attach: (() -> Void)?
   var focusRequest = 0
+  var panelRequest = PanelRequest()
   @State private var conversation: Feed<Conversation>?
 
   var body: some View {
@@ -22,7 +23,7 @@ struct ConversationScreen: View {
       },
       stop: { _ = try? await host.run(StopTurn(in: ref)) },
       startOver: { () async throws(HostError) -> Done in try await host.run(StartOver(in: ref)) },
-      scale: ref == .main ? .main : .companion, attach: attach, focusRequest: focusRequest
+      scale: ref == .main ? .main : .companion, attach: attach, focusRequest: focusRequest, panelRequest: panelRequest
     )
     .id(ref)
     .environment(
@@ -54,6 +55,7 @@ struct ConversationView: View {
   var attach: (() -> Void)?
   /// Changes each time the composer should take the keyboard.
   var focusRequest = 0
+  var panelRequest = PanelRequest()
   /// How long the reply being written waits, with no tool after it, before it shows.
   var replyHold = Motion.replyHold
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -119,11 +121,15 @@ struct ConversationView: View {
       withAnimation(reduceMotion ? nil : Motion.standard) { position.scrollTo(edge: .bottom) }
     }
     .scrollIndicators(.never)
+    .blur(radius: panelRequest.making.wrappedValue ? 16 : 0)
+    .opacity(panelRequest.making.wrappedValue ? 0.55 : 1)
+    .animation(reduceMotion ? nil : Motion.arrive, value: panelRequest.making.wrappedValue)
+    .onChange(of: conversation?.turn != nil, initial: true) { _, working in panelRequest.working(working) }
     .safeAreaInset(edge: .bottom, spacing: 0) {
       Composer(
         busy: conversation?.turn != nil, draft: $draft, send: send, stop: stop, startOver: startOver,
         style: scale == .main ? .talk : .companion, attach: scale == .main ? attach : nil, focusRequest: focusRequest,
-        composing: $composing
+        composing: $composing, making: panelRequest.making, made: panelRequest.made, fill: panelRequest.fill
       )
       .overlay(alignment: .top) {
         if follow.offersLatest {

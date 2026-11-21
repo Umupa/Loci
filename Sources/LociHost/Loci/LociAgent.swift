@@ -24,7 +24,7 @@ actor LociAgent {
       _ = try attempt { try context.store.item(item) }
     }
     if let run = runs[conversation] { return run }
-    let run = try AgentRun(owner: .conversation(conversation), context: context)
+    let run = try AgentRun(owner: .conversation(conversation), session: .conversation(conversation), context: context)
     runs[conversation] = run
     return run
   }
@@ -90,7 +90,7 @@ actor LociAgent {
     let outcome: ReviewOutcome
     do throws(HostError) {
       try attempt { try context.database.beginReview(of: day, at: now) }
-      let run = try AgentRun(owner: .review(day), context: context)
+      let run = try AgentRun(owner: .review(day), session: nil, context: context)
       reviewRun = run
       let text = context.prompts.review(of: day, since: previous.map { (day: $0.0, at: $0.1) })
       try await run.send(Prompt(text: text, purpose: .review(day)), saying: text)

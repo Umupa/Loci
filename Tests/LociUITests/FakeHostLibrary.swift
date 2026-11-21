@@ -73,7 +73,9 @@ extension FakeHost {
     throw .notFound("media of \(command.item)")
   }
 
-  func cover(of item: EntityID) async throws(HostError) -> Data? { library?.cover(of: item) }
+  func cover(of item: EntityID) async throws(HostError) -> Data? {
+    library?.cover(of: item) ?? SamplePanels.cover(of: item)
+  }
   func itemPDF(_ item: EntityID) async throws(HostError) -> Data { throw .notFound("content.pdf") }
 
   func itemImage(_ command: ReadItemImage) async throws(HostError) -> Data {
@@ -109,5 +111,10 @@ extension FakeHost {
 
   func linkImage(of url: URL) async throws(HostError) -> Data? {
     SampleLinks.image(of: url)
+  }
+
+  /// A sample picture, by the name in its address.
+  func webPicture(at url: URL) async throws(HostError) -> Data? {
+    SampleLibrary.picture(url.deletingPathExtension().lastPathComponent)
   }
 }

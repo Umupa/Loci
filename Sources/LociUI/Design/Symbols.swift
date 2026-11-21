@@ -46,6 +46,8 @@ enum Symbols {
   static let search = "magnifyingglass"
   static let more = "ellipsis"
   static let collapse = "arrow.down.right.and.arrow.up.left"
+  static let openOut = "arrow.up.left.and.arrow.down.right"
+  static let undo = "arrow.counterclockwise"
   static let cancel = "xmark"
   static let recognizing = "waveform"
   static let copy = "doc.on.doc"

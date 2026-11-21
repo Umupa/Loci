@@ -98,4 +98,36 @@ struct PageMetaTests {
     #expect(preview == LinkPreview(url: Self.repository, title: nil, site: "github.com", summary: nil, image: nil))
     #expect(await reader.image(of: Self.repository) == nil)
   }
+
+  @Test func aPictureIsReadByItsAddressOnce() async throws {
+    let picture = try #require(URL(string: "https://example.com/cover.jpg"))
+    let network = FakeNetwork(["https://example.com/cover.jpg": .image("JPEG", type: "image/jpeg")])
+    let reader = LinkPreviewReader(network: network)
+
+    let first = await reader.picture(at: picture)
+    let again = await reader.picture(at: picture)
+
+    #expect(first == Data("JPEG".utf8))
+    #expect(again == first)
+    #expect(network.requests == [picture])
+  }
+
+  @Test func onlyAnImageSmallEnoughIsAPicture() async throws {
+    let page = try #require(URL(string: "https://example.com/page"))
+    let large = try #require(URL(string: "https://example.com/large.png"))
+    let missing = try #require(URL(string: "https://example.com/missing.png"))
+    let local = URL(filePath: "/etc/hosts")
+    let network = FakeNetwork([
+      "https://example.com/page": .page("<html></html>"),
+      "https://example.com/large.png": .image(String(repeating: "x", count: LinkPreviewReader.largestPicture + 1)),
+      "https://example.com/missing.png": FakeNetwork.Answer(status: 404, type: "image/png", body: Data("PNG".utf8)),
+    ])
+    let reader = LinkPreviewReader(network: network)
+
+    #expect(await reader.picture(at: page) == nil)
+    #expect(await reader.picture(at: large) == nil)
+    #expect(await reader.picture(at: missing) == nil)
+    #expect(await reader.picture(at: local) == nil)
+    #expect(!network.requests.contains(local))
+  }
 }

@@ -106,6 +106,16 @@ enum Palette {
     static let gold = Color(nsColor: NSColor(rgb: 0xFFD27A))
   }
 
+  /// The colors sites mark themselves with, the same in light and dark as their marks are.
+  enum Site {
+    static let github = Color(nsColor: NSColor(rgb: 0x1F2328))
+    static let x = Color(nsColor: NSColor(rgb: 0x000000))
+    static let hackerNews = Color(nsColor: NSColor(rgb: 0xFF6600))
+    static let notion = Color(nsColor: NSColor(rgb: 0xFFFFFF))
+    static let notionInk = Color(nsColor: NSColor(rgb: 0x111111))
+    static let mark = Color(nsColor: NSColor(rgb: 0xFFFFFF))
+  }
+
   /// Code, colored by what each word is. Code sits on `well`.
   enum Code {
     static let keyword = Color(nsColor: Tones.codeKeyword)

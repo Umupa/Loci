@@ -11,14 +11,14 @@ import Testing
   }
 
   private static let call = LocalCall(
-    conversation: .main, request: .command(name: "search", body: Data("{}".utf8)))
+    session: .conversation(.main), request: .command(name: "search", body: Data("{}".utf8)))
 
   @Test func aCallGetsTheAnswerTheAppSends() async throws {
     let path = Self.path()
     defer { unlink(path.path) }
     let serving = Task {
       try await LocalSocket.serve(at: path) { call, reply in
-        try? await reply(.value((try? JSONEncoder().encode(call.conversation?.tag)) ?? Data()))
+        try? await reply(.value((try? JSONEncoder().encode(call.session?.tag)) ?? Data()))
       }
     }
     defer { serving.cancel() }

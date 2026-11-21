@@ -32,7 +32,7 @@ public struct LociHome: Subscription {
   public func isAffected(by changes: Set<ContentChange>) -> Bool {
     changes.contains { change in
       switch change {
-      case .loci(let file): file != .avatar
+      case .loci(let file): file != .avatar && file != .panels
       case .turnEnded, .item, .everything: true
       case .notes, .reading, .job, .media, .conversation, .review, .events, .runtime: false
       }

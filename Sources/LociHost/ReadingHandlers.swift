@@ -10,6 +10,7 @@ extension LocalHost {
     try attempt { try database.readingState(of: content) }
   }
 
+  /// Reading state lives only in the database, so no file change tells the subscriptions; this does.
   public func saveReadingPosition(_ command: SaveReadingPosition) async throws(HostError) -> Done {
     try attempt {
       let finished = try database.readingState(of: command.content)?.finished ?? false
@@ -17,6 +18,7 @@ extension LocalHost {
         ReadingState(position: command.position, finished: finished, updatedAt: environment.now()),
         for: command.content)
     }
+    await hub.refresh([.reading(command.content)])
     return Done()
   }
 

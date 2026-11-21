@@ -50,3 +50,18 @@ public struct ReadLinkImage: Command {
     try await handler.linkImage(of: url)
   }
 }
+
+/// A picture on the web read by its own address, such as a cover or a picture in a panel; `nil` when it is not an
+/// image, is too large, or cannot be fetched.
+public struct ReadWebPicture: Command {
+  public static let name = "link.picture"
+  public let url: URL
+
+  public init(url: URL) {
+    self.url = url
+  }
+
+  public func run(on handler: any CommandHandler) async throws(HostError) -> Data? {
+    try await handler.webPicture(at: url)
+  }
+}

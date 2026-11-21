@@ -37,4 +37,6 @@ public enum LociFile: String, Hashable, Codable, Sendable {
   /// Any day's `diary/<day>.md`.
   case diary
   case avatar
+  /// Any panel's `panels/<name>.json`, or which panel is being refreshed.
+  case panels
 }

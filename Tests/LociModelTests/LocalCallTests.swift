@@ -14,8 +14,22 @@ struct LocalCallTests {
     #expect(ConversationRef(tag: "library/x") == nil)
   }
 
+  @Test func aSessionIsNamedByItsTag() throws {
+    let refresh = Fixture.id(7)
+    #expect(LocalSession(tag: "main") == .conversation(.main))
+    #expect(LocalSession(tag: "library/\(Fixture.item)") == .conversation(.item(Fixture.item)))
+    #expect(LocalSession.panelRefresh(refresh).tag == "panel-refresh/\(refresh)")
+    #expect(LocalSession(tag: "panel-refresh/\(refresh)") == .panelRefresh(refresh))
+    #expect(LocalSession(tag: "panel-refresh/radar") == nil)
+    #expect(LocalSession(tag: "review") == nil)
+    #expect(LocalSession.panelRefresh(refresh).conversation == nil)
+  }
+
   @Test func aCallReadsBackAsItWasSent() throws {
-    let call = LocalCall(conversation: .item(Fixture.item), request: .itemFolder(Fixture.item))
+    let call = LocalCall(session: .conversation(.item(Fixture.item)), request: .itemFolder(Fixture.item))
+    #expect(
+      try HostCodingTests.roundTrips(
+        LocalCall(session: .panelRefresh(Fixture.id(7)), request: .itemFolder(Fixture.item))))
     let read = try JSONDecoder().decode(LocalCall.self, from: try JSONEncoder().encode(call))
     #expect(read == call)
   }

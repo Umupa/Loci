@@ -56,3 +56,24 @@ extension StoreDatabase {
     }
   }
 }
+
+extension StoreDatabase {
+  /// Content with a reading position that was not read to the end, most recently read first.
+  public func readingPartway() throws -> [(content: ContentRef, state: ReadingState)] {
+    try queue.read { db in
+      try Row.fetchAll(
+        db,
+        sql: """
+          SELECT content, position, updated_at FROM reading_state
+          WHERE position IS NOT NULL AND NOT finished ORDER BY updated_at DESC
+          """
+      ).compactMap { row in
+        let position: String = row["position"]
+        guard let content = ContentKey.content(row["content"]), let locator = Locator(position),
+          let at = Timestamp(row["updated_at"] as String)
+        else { return nil }
+        return (content, ReadingState(position: locator, finished: false, updatedAt: at))
+      }
+    }
+  }
+}

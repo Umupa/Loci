@@ -93,11 +93,13 @@ public enum PageMeta {
   }
 }
 
-/// Reads link previews and their pictures through the network, once per address while the app runs.
+/// Reads link previews, their pictures and pictures by address through the network, once per address while
+/// the app runs.
 public actor LinkPreviewReader {
   private let network: any Network
   private var previews: [URL: Task<LinkPreview, Never>] = [:]
   private var images: [URL: Task<Data?, Never>] = [:]
+  private var pictures: [URL: Task<Data?, Never>] = [:]
 
   public init(network: any Network) {
     self.network = network
@@ -125,6 +127,29 @@ public actor LinkPreviewReader {
     let task = Task { try? await network.data(for: Self.request(picture)).0 }
     images[picture] = task
     return await task.value
+  }
+
+  /// The most a picture read by its address may weigh.
+  public static let largestPicture = 8 * 1024 * 1024
+
+  /// A picture read by its address: only an `http` or `https` image no heavier than `largestPicture`. One that
+  /// was read is kept while the app runs; one that could not be is asked for again next time.
+  public func picture(at url: URL) async -> Data? {
+    guard url.isWebLink else { return nil }
+    if let known = pictures[url] { return await known.value }
+    let network = network
+    let task = Task { () -> Data? in
+      guard let (data, response) = try? await network.data(for: Self.request(url)),
+        (200..<300).contains(response.statusCode),
+        response.mimeType?.hasPrefix("image/") == true,
+        data.count <= Self.largestPicture
+      else { return nil }
+      return data
+    }
+    pictures[url] = task
+    let picture = await task.value
+    if picture == nil { pictures[url] = nil }
+    return picture
   }
 
   private static func request(_ url: URL) -> URLRequest {

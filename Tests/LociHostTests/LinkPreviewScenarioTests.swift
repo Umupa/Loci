@@ -19,4 +19,14 @@ struct LinkPreviewScenarioTests {
       #expect(world.network.requests == [link])
     }
   }
+
+  /// P-S3: a panel's cover or picture is read through the host by its own address.
+  @Test func aPanelsPictureIsFetchedThroughTheHostByItsAddress() async throws {
+    try await withMediaHost { host, world in
+      let picture = try #require(URL(string: "https://example.com/cover.jpg"))
+
+      #expect(try await host.run(ReadWebPicture(url: picture)) == Data("jpeg".utf8))
+      #expect(world.network.requests == [picture])
+    }
+  }
 }

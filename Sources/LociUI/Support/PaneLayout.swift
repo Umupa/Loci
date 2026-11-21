@@ -82,18 +82,26 @@ struct PaneResizer: View {
   }
 }
 
-/// Whether the sidebar shows. It shows as the person left it, except that in a narrow window a page with
-/// text and the panel beside it takes the sidebar's room, so the conversation stays wide enough to read.
+/// Whether a pane beside a conversation or a text shows. It shows as the person left it, except that in a
+/// window narrower than `narrow` a crowded page takes the pane's room, so what is read stays wide enough.
 /// Opened again there, it stays until the window changes between narrow and wide.
-struct SidebarFit: Equatable {
-  /// Narrower than this, a reading page takes the sidebar's room.
-  static let narrow: CGFloat = 1000
+struct PaneFit: Equatable {
+  let narrow: CGFloat
+
+  /// The sidebar steps aside for a page with text and the panel beside it.
+  static let sidebar = PaneFit(narrow: 1000)
+  /// The panel column steps aside for the main conversation, measured without the sidebar.
+  static let panelColumn = PaneFit(narrow: Size.talkColumn + Size.panelColumn + Spacing.xxl)
 
   private(set) var stepsAside = false
   private var keptOpen = false
 
-  mutating func fit(width: CGFloat, reading: Bool) {
-    let aside = reading && width < Self.narrow
+  init(narrow: CGFloat) {
+    self.narrow = narrow
+  }
+
+  mutating func fit(width: CGFloat, crowded: Bool = true) {
+    let aside = crowded && width < narrow
     guard aside != stepsAside else { return }
     stepsAside = aside
     keptOpen = false
@@ -103,7 +111,7 @@ struct SidebarFit: Equatable {
     preferred && (!stepsAside || keptOpen)
   }
 
-  /// The person's choice after they toggle the sidebar. Hiding it where it only stepped aside for now keeps
+  /// The person's choice after they toggle the pane. Hiding it where it only stepped aside for now keeps
   /// it wanted elsewhere.
   mutating func toggle(_ preferred: Bool) -> Bool {
     guard stepsAside else { return !preferred }

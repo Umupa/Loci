@@ -7,6 +7,8 @@ struct Tool: Sendable {
   /// Where a relative file path starts.
   let folder: URL
   let readText: @Sendable (URL) throws -> String
+  /// Everything on standard input, read when a command takes it.
+  var readInput: @Sendable () -> Data = { FileHandle.standardInput.readDataToEndOfFile() }
 
   struct Outcome: Hashable {
     let text: String
@@ -33,6 +35,7 @@ struct Tool: Sendable {
     case .save(let url): return saved(try await line.run(AddLink(url: url)), json: json)
     case .importFile(let path, let title): return try await importing(path, title: title, json: json)
     case .wait(let id): return try await wait(id, json: json)
+    case .panel(let request): return try await panel(request, json: json)
     }
   }
 
@@ -104,7 +107,7 @@ struct Tool: Sendable {
     }
   }
 
-  private static func text(_ data: Data) -> String {
+  static func text(_ data: Data) -> String {
     String(decoding: data, as: UTF8.self)
   }
 }

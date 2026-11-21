@@ -68,11 +68,13 @@ struct CapsulePicker<Value: Hashable>: View {
   }
 }
 
-/// A button that shrinks a little while pressed.
+/// A button that shrinks a little while pressed; a small round one, a little more.
 struct PressStyle: ButtonStyle {
+  var scale = Motion.pressScale
+
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
-      .scaleEffect(configuration.isPressed ? Motion.pressScale : 1)
+      .scaleEffect(configuration.isPressed ? scale : 1)
       .animation(Motion.quick, value: configuration.isPressed)
   }
 }
