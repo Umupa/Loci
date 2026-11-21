@@ -101,7 +101,7 @@ public protocol CommandHandler: Sendable {
   func runtime() async throws(HostError) -> Runtime
   func setRuntime(_ command: SetRuntime) async throws(HostError) -> Runtime
   func dataLocation() async -> HostPath
-  func probeLink(_ command: ProbeLink) async throws(HostError) -> LinkPreview
+  func probeLink(_ command: ProbeLink) async throws(HostError) -> LinkProbe
   func importChoice() async throws(HostError) -> ImportChoice
   func addLink(_ command: AddLink) async throws(HostError) -> Item
   func importMediaFile(_ command: ImportMediaFile) async throws(HostError) -> Item
@@ -121,6 +121,8 @@ public protocol CommandHandler: Sendable {
   func cover(of item: EntityID) async throws(HostError) -> Data?
   func itemPDF(_ item: EntityID) async throws(HostError) -> Data
   func itemImage(_ command: ReadItemImage) async throws(HostError) -> Data
+  func linkPreview(of url: URL) async throws(HostError) -> LinkPreview
+  func linkImage(of url: URL) async throws(HostError) -> Data?
   func mediaSetup() async throws(HostError) -> MediaSetup
   func detectComponents(again: Bool) async -> [ComponentStatus]
   func installComponent(_ component: Component) async throws(HostError) -> Done

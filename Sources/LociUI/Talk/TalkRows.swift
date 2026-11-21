@@ -9,10 +9,14 @@ struct TalkRow: Identifiable {
     /// A part of Loci's reply. `answer` is the whole answer, on the last part of one that is finished,
     /// where it is copied from.
     case said(String, answer: String?)
-    /// Loci is at work but has said nothing yet.
-    case working(since: Timestamp)
-    case steps([ConversationStep])
-    case aside(Message)
+    /// What Loci is doing while the next part of its reply is pending.
+    case doing(Doing)
+    /// Answers Loci offers at the end of the latest reply, for the person to send with one click.
+    case replies([String])
+    /// A turn that did not finish, said in one bubble from Loci.
+    case ended(TurnEnding)
+    /// Where the conversation started over.
+    case startedOver
     case saved
     /// The person read an item to the end.
     case finished(Item, at: Date)
@@ -22,6 +26,10 @@ struct TalkRow: Identifiable {
     case cards([Item])
     /// Items Loci put into the library one after another, by id: they may still be on their way, or gone.
     case savedItems([EntityID])
+    /// Something long Loci wrote out, as a card that opens.
+    case document(LociDocument)
+    /// Links Loci gave on lines of their own, as cards; more than one makes a stack.
+    case links([URL])
   }
 
   /// Which message a row comes from, and which part of it.
@@ -32,10 +40,6 @@ struct TalkRow: Identifiable {
 
   let id: ID
   let kind: Kind
-  /// For a bubble, where it sits in its run.
-  var position: BubblePosition?
-  /// For a bubble, whether it answers the other speaker.
-  var turn = false
   /// For a part of a reply, the reply it belongs to, so hovering any part offers to copy the answer.
   var reply: EntityID?
 
@@ -46,14 +50,14 @@ struct TalkRow: Identifiable {
   var speaker: Speaker? {
     switch kind {
     case .asked: .person
-    case .said: .loci
-    case .day, .working, .steps, .aside, .saved, .finished, .task, .cards, .savedItems: nil
+    case .said, .ended: .loci
+    case .day, .doing, .replies, .startedOver, .saved, .finished, .task, .cards, .savedItems, .document, .links: nil
     }
   }
 
-  /// The rows of a conversation: each reply split into bubbles, a date wherever a sitting begins, and the
-  /// work status while the next reply is pending. With `earlier`, they go on from it: it decides whether a
-  /// sitting begins and where the first bubble sits in its run.
+  /// The rows of a conversation: each reply split into bubbles, a date wherever a sitting begins, what Loci
+  /// is doing while the next part of its reply is pending, and the answers the latest reply offers. With
+  /// `earlier`, they go on from it: it decides whether a sitting begins.
   static func rows(_ entries: [ConversationEntry], turn: LiveTurn? = nil, after earlier: ConversationEntry? = nil)
     -> [TalkRow]
   {
@@ -67,20 +71,19 @@ struct TalkRow: Identifiable {
       case .asked(let message, let prompt):
         rows.append(TalkRow(id: ID(message: message.id, part: 0), kind: .asked(prompt)))
       case .reply(let message, let text, let streaming):
-        let parts = BubbleLayout.bubbles(in: ReplyText.settled(text, streaming: streaming))
-        if parts.isEmpty, streaming {
-          rows.append(
-            TalkRow(id: ID(message: message.id, part: 0), kind: .working(since: turn?.startedAt ?? message.at)))
+        let said = QuickReplies(text)
+        let parts = BubbleLayout.bubbles(in: ReplyText.settled(said.text, streaming: streaming))
+        let pieces = Self.rows(of: parts, in: message.id, answer: answers[message.id])
+        rows.append(contentsOf: pieces)
+        if turn == nil, index == entries.count - 1, !said.replies.isEmpty {
+          rows.append(TalkRow(id: ID(message: message.id, part: pieces.count), kind: .replies(said.replies)))
         }
-        for (part, words) in parts.enumerated() {
-          let answer = part == parts.count - 1 ? answers[message.id] : nil
-          rows.append(
-            TalkRow(id: ID(message: message.id, part: part), kind: .said(words, answer: answer), reply: message.id))
-        }
-      case .steps(let steps):
-        rows.append(TalkRow(id: ID(message: steps[0].id, part: 0), kind: .steps(steps)))
       case .aside(let message):
-        rows.append(TalkRow(id: ID(message: message.id, part: 0), kind: .aside(message)))
+        if case .ended(let ending) = message.body {
+          rows.append(TalkRow(id: ID(message: message.id, part: 0), kind: .ended(ending)))
+        } else {
+          rows.append(TalkRow(id: ID(message: message.id, part: 0), kind: .startedOver))
+        }
       case .saved(let message, _):
         rows.append(TalkRow(id: ID(message: message.id, part: 0), kind: .saved))
       case .savedItems(let messages):
@@ -90,26 +93,25 @@ struct TalkRow: Identifiable {
         rows.append(contentsOf: Self.rows(of: event))
       }
     }
-    rows = Self.joiningCards(rows)
-    if let turn, waitingForReply(turn) {
-      rows.append(TalkRow(id: ID(message: nil, part: 0), kind: .working(since: turn.startedAt)))
-    }
-    let lead: [Speaker?] = earlier.map { [$0.speaker] } ?? []
-    let speakers = lead + rows.map(\.speaker)
-    let positions = BubbleLayout.positions(speakers).dropFirst(lead.count)
-    let turns = BubbleLayout.turns(speakers).dropFirst(lead.count)
-    for (index, (position, turn)) in zip(rows.indices, zip(positions, turns)) {
-      rows[index].position = position
-      rows[index].turn = turn
+    rows = Self.joiningLinks(Self.joiningCards(rows))
+    if let turn, !Self.isSaying(turn, rows) {
+      rows.append(TalkRow(id: ID(message: nil, part: 0), kind: .doing(Doing(turn.messages))))
     }
     return rows
   }
 
-  private static func waitingForReply(_ turn: LiveTurn) -> Bool {
-    switch turn.messages.last?.body {
-    case nil, .prompt: true
-    case .tool(let tool): tool.state != .running
-    default: false
+  /// The rows to draw: without the replies Loci offers while the person is typing their own.
+  static func offered(_ rows: [TalkRow], composing: Bool) -> [TalkRow] {
+    guard composing else { return rows }
+    return rows.filter { if case .replies = $0.kind { false } else { true } }
+  }
+
+  /// Whether the turn's reply is what shows last, so there is nothing to say about what Loci is doing.
+  private static func isSaying(_ turn: LiveTurn, _ rows: [TalkRow]) -> Bool {
+    guard case .reply = turn.messages.last?.body else { return false }
+    switch rows.last?.kind {
+    case .said, .document, .links: return true
+    default: return false
     }
   }
 

@@ -18,6 +18,7 @@ struct MachineWindow: View {
   @State private var focusRequest = 0
   @State private var covers = Covers()
   @State private var deletions = Deletions()
+  @State private var linkPreviews = LinkPreviews()
   @State private var browser: BrowserSession
   @AppStorage(PaneWidth.sidebar.key) private var sidebarWidth = Double(PaneWidth.sidebar.ideal)
   @AppStorage("sidebarShown") private var sidebarPreferred = true
@@ -68,6 +69,7 @@ struct MachineWindow: View {
       .dialogs($dialogs, host: host)
       .environment(\.covers, covers)
       .environment(\.deletions, deletions)
+      .environment(\.linkPreviews, linkPreviews)
       .environment(\.browser, browser)
       .environment(\.lociFace, face)
       .environment(\.showFailure, ShowFailure { dialogs.failure = $0 })

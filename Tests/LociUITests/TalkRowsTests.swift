@@ -24,14 +24,17 @@ struct TalkRowsTests {
       case .day: "day"
       case .asked(let prompt): "asked " + prompt.text
       case .said(let words, _): "said " + words
-      case .working: "working"
-      case .steps: "steps"
-      case .aside: "aside"
+      case .doing(let doing): "doing \(doing)"
+      case .replies(let replies): "replies " + replies.joined(separator: " ")
+      case .ended: "ended"
+      case .startedOver: "startedOver"
       case .saved: "saved"
       case .finished(let item, _): "finished " + item.title
       case .task(let item, _): "task " + item.title
       case .cards(let items): "cards " + items.map(\.title).joined(separator: " ")
       case .savedItems(let items): "savedItems \(items.count)"
+      case .document(let document): "document " + (document.title ?? "")
+      case .links(let links): "links \(links.count)"
       }
     }
   }
@@ -40,8 +43,6 @@ struct TalkRowsTests {
     let rows = Self.rows([Self.asked(0, "看到哪了"), Self.message(1, .reply("都快十二点了\n\n看到哪了"))])
 
     #expect(Self.kinds(rows) == ["day", "asked 看到哪了", "said 都快十二点了", "said 看到哪了"])
-    #expect(rows.map(\.position) == [nil, .alone, .first, .last])
-    #expect(rows.map(\.turn) == [false, false, true, false])
   }
 
   @Test func aNewSittingAfterAnHourIsHeadedByItsTime() {
@@ -59,27 +60,49 @@ struct TalkRowsTests {
     #expect(rows.compactMap(\.reply) == [reply.id, reply.id])
   }
 
-  @Test func waitingForTheFirstSentenceShowsWorkOnTheOriginalClock() {
+  @Test func whileLociAnswersOneLineSaysWhatItIsDoingUntilTheReplyShows() {
     let question = Self.asked(10, "问")
-    let waiting = Self.rows([question], live: true)
-    let writing = Self.rows([question, Self.message(15, .reply("先说"))], live: true)
+    let search = ToolActivity(
+      id: "s", name: "webSearch", kind: .search, subject: "jailer", output: "", state: .running)
 
-    for rows in [waiting, writing] {
-      guard case .working(let since) = rows.last?.kind else {
-        Issue.record("The turn should show that work is in progress")
-        continue
-      }
-      #expect(since == question.at)
-      #expect(rows.last?.position == nil)
-    }
+    #expect(Self.kinds(Self.rows([question], live: true)).last == "doing thinking")
+    #expect(
+      Self.kinds(Self.rows([question, Self.message(11, .tool(search))], live: true)).last
+        == "doing searching(\"jailer\")")
+    #expect(Self.kinds(Self.rows([question, Self.message(15, .reply("先说"))], live: true)).last == "doing thinking")
+    #expect(Self.kinds(Self.rows([question, Self.message(15, .reply("先说。"))], live: true)).last == "said 先说。")
   }
 
-  @Test func afterAToolFinishesTheLiveTurnStillShowsThatWorkContinues() {
+  @Test func thinkingAndToolsNeverShowInTheConversation() {
     let tool = ToolActivity(id: "r", name: "read", kind: .read, subject: "a.md", output: "", state: .succeeded)
-    let messages = [Self.asked(10, "问"), Self.message(15, .tool(tool))]
+    let messages = [
+      Self.asked(10, "问"), Self.message(11, .thinking("想")), Self.message(15, .tool(tool)),
+      Self.message(16, .reply("好")),
+    ]
 
-    #expect(Self.kinds(Self.rows(messages, live: true)).suffix(2) == ["steps", "working"])
-    #expect(Self.kinds(Self.rows(messages)).last == "steps")
+    #expect(Self.kinds(Self.rows(messages)) == ["day", "asked 问", "said 好"])
+  }
+
+  @Test func aTurnThatDidNotFinishEndsInOneBubbleFromLoci() {
+    let rows = Self.rows([
+      Self.asked(0, "问"), Self.message(1, .notice("Reconnecting… 2/5")),
+      Self.message(2, .ended(.failed("exit status 1: panic at src/main.rs"))),
+    ])
+
+    #expect(Self.kinds(rows) == ["day", "asked 问", "ended"])
+    #expect(rows.last?.speaker == .loci)
+  }
+
+  @Test func repliesOfferedAtTheEndOfTheLatestAnswerShowUnderItWithoutTheirBlock() {
+    let offer = Self.message(1, .reply("要我存进去吗？\n\n```loci-replies\n好，存进去\n先不用\n```"))
+    let rows = Self.rows([Self.asked(0, "问"), offer])
+
+    #expect(Self.kinds(rows) == ["day", "asked 问", "said 要我存进去吗？", "replies 好，存进去 先不用"])
+    #expect(
+      Self.kinds(Self.rows([Self.asked(0, "问"), offer, Self.asked(2, "算了")])).contains { $0.hasPrefix("replies") }
+        == false)
+    #expect(
+      Self.kinds(Self.rows([Self.asked(0, "问"), offer], live: true)).contains { $0.hasPrefix("replies") } == false)
   }
 
   @Test func aStreamingReplyShowsOnlyFinishedSentences() {
@@ -104,7 +127,6 @@ struct TalkRowsTests {
     let rows = TalkRow.rows(ConversationEntry.layout(entries, live: false))
 
     #expect(Self.kinds(rows) == ["day", "said 看完去睡", "finished Pingora", "said 可以啊"])
-    #expect(rows.map(\.position) == [nil, .alone, nil, .alone])
   }
 
   @Test func itemsSavedOneAfterAnotherShareARowOfCardsAndWorkStillGoingIsATask() throws {
@@ -131,18 +153,44 @@ struct TalkRowsTests {
       Self.message(4, .savedItem(EntityID())), Self.message(5, .reply("存好了")),
     ])
 
-    #expect(Self.kinds(rows) == ["day", "asked 存下来", "steps", "savedItems 2", "said 存好了"])
+    #expect(Self.kinds(rows) == ["day", "asked 存下来", "savedItems 2", "said 存好了"])
   }
 
-  @Test func theToolLociIsStillRunningKeepsGoingAfterTheItemItSaved() {
-    let entries = ConversationEntry.layout(
-      [Self.tool(1, .running), Self.message(2, .savedItem(EntityID()))].map { .message($0) }, live: true)
+  @Test func whatLociSaysBetweenToolsGivesWayToItsLastReply() {
+    let tool = ToolActivity(id: "r", name: "read", kind: .read, subject: "a.md", output: "", state: .succeeded)
+    let messages = [
+      Self.asked(0, "问"), Self.message(1, .reply("我会用 read 技能先看看。")), Self.message(2, .tool(tool)),
+      Self.message(3, .reply("我再核对一下。")), Self.message(4, .tool(tool)), Self.message(5, .reply("结论是这样。")),
+    ]
 
-    guard case .steps(let steps) = entries.first else {
-      Issue.record("expected the steps first")
-      return
+    #expect(Self.kinds(Self.rows(messages)) == ["day", "asked 问", "said 结论是这样。"])
+    let working = Self.kinds(Self.rows(Array(messages.prefix(3)), live: true))
+    #expect(working.suffix(2).first == "asked 问")
+    #expect(working.last?.hasPrefix("doing") == true)
+  }
+
+  @Test func whileAReplyIsHeldBackOnlyWhatLociIsDoingShowsUntilItIsDue() {
+    let tool = ToolActivity(id: "r", name: "read", kind: .read, subject: "a.md", output: "", state: .succeeded)
+    let turn = LiveTurn(
+      startedAt: Timestamp(millisecondsSince1970: 0),
+      messages: [Self.asked(0, "问"), Self.message(1, .tool(tool)), Self.message(2, .reply("结论。"))])
+    func live(at second: TimeInterval) -> [String] {
+      Self.kinds(TalkRow.live(turn, hold: ReplyHold(now: Date(timeIntervalSince1970: second), wait: .seconds(1))))
     }
-    #expect(steps.map(\.isGoing) == [true])
-    #expect(steps[0].took == nil)
+
+    #expect(live(at: 2.5).last?.hasPrefix("doing") == true)
+    #expect(live(at: 3).last == "said 结论。")
+    #expect(ReplyHold.due(turn, wait: .seconds(1)) == Date(timeIntervalSince1970: 3))
+    #expect(
+      ReplyHold.due(LiveTurn(startedAt: turn.startedAt, messages: Array(turn.messages.prefix(2))), wait: .seconds(1))
+        == nil)
+  }
+
+  @Test func repliesGoAwayWhileThePersonIsTyping() {
+    let offer = Self.message(1, .reply("要吗？\n\n```loci-replies\n好\n```"))
+    let rows = Self.rows([Self.asked(0, "问"), offer])
+
+    #expect(Self.kinds(TalkRow.offered(rows, composing: false)).last == "replies 好")
+    #expect(Self.kinds(TalkRow.offered(rows, composing: true)).last == "said 要吗？")
   }
 }

@@ -1,7 +1,7 @@
 import LociModel
 import SwiftUI
 
-/// The work of making an item readable, as the steps of a task card. Reading what a link is and taking the
+/// The work of making an item readable, as the steps its card names. Reading what a link is and taking the
 /// text out of a page are one step to the person: fetching.
 enum JobSteps {
   enum Step: Equatable {
@@ -49,13 +49,4 @@ enum JobSteps {
     return (Double(index) + within) / Double(steps.count)
   }
 
-  /// Each step done, going on now, or still to come.
-  static func states(of job: Job, kind: Item.Kind) -> [(step: Step, state: TaskCard.StepState)] {
-    let steps = steps(for: kind)
-    let current = steps.firstIndex(of: Step(job.stage)) ?? 0
-    return steps.enumerated().map { index, step in
-      if index < current || index == current && job.state == .done { return (step, .done) }
-      return (step, index == current ? .now : .later)
-    }
-  }
 }

@@ -39,18 +39,9 @@ struct BubbleLayoutTests {
     #expect(BubbleLayout.bubbles(in: "先说结论\n\n```\nlet a") == ["先说结论", "```\nlet a"])
   }
 
-  @Test func onlyTheLastBubbleOfARunCarriesTheFace() {
-    let positions = BubbleLayout.positions([.person, .loci, .loci, .loci, .person, .loci])
-    #expect(positions == [.alone, .first, .middle, .last, .alone, .alone])
-    #expect(positions.map { $0?.showsFace } == [true, false, false, true, true, true])
-  }
-
-  @Test func anEventBetweenBubblesStartsANewRun() {
-    #expect(BubbleLayout.positions([.loci, .loci, nil, .loci]) == [.first, .last, nil, .alone])
-  }
-
-  @Test func aWiderGapOpensOnlyWhereTheSpeakerChanges() {
-    #expect(
-      BubbleLayout.turns([.person, .loci, .loci, nil, .loci, .person]) == [false, true, false, false, false, true])
+  @Test func aListAndATableWithABlankLineBetweenThemAreTwoBubbles() {
+    let list = "- 清洗\n- 整理"
+    let table = "| 项目 | 份量 |\n|---|---|\n| 面粉 | 500g |"
+    #expect(BubbleLayout.bubbles(in: "\(list)\n\n\(table)\n\n> 放凉再切。") == [list, table, "> 放凉再切。"])
   }
 }

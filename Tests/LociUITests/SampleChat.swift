@@ -18,8 +18,8 @@ extension Sample {
     .tool(ToolActivity(id: id, name: name, kind: kind, subject: subject, output: output, state: state))
   }
 
-  /// A finished answer with a formula and code after a run of tools, a line where it started over, and a
-  /// question being answered.
+  /// A finished answer with a formula and code after a run of tools, a line where it started over, and an
+  /// answer offering replies.
   func chat() throws -> Conversation {
     var entropy = Seeded()
     let messages: [(Double, Message.Body)] = [
@@ -48,28 +48,10 @@ extension Sample {
       (30, .prompt(Prompt(text: "那 lstrip 呢？", purpose: .chat))),
       (31, Self.tool("g", "commandExecution", .execute, "/bin/zsh -lc 'python3 -c \"print(1)\"'")),
       (32, Self.tool("h", "commandExecution", .execute, "/bin/zsh -lc 'false'", state: .failed)),
-      (33, .reply("lstrip 只从左边开始。")),
+      (33, .reply("lstrip 只从左边开始。要我把 rstrip 也对照着写一遍吗？\n\n```loci-replies\n好，写吧\n先不用\n```")),
     ]
     return Conversation(
       ref: .main, entries: messages.map { .message(Self.chatMessage($0.0, $0.1, &entropy)) }, turn: nil,
       context: ContextUsage(used: 30_000, window: 200_000))
-  }
-
-  /// Tools run one after another in a turn still going: one failed, the last still running.
-  func toolRun() -> [ConversationStep] {
-    var entropy = Seeded()
-    let bodies: [Message.Body] = [
-      Self.tool("a", "commandExecution", .execute, "/bin/zsh -lc 'ls -la'"),
-      Self.tool("b", "commandExecution", .read, "/tmp/w/notes.md"),
-      Self.tool("c", "fileChange", .edit, "/tmp/w/cleanup.py"),
-      Self.tool("d", "commandExecution", .execute, "/bin/zsh -lc 'python3 cleanup.py'", state: .failed),
-      Self.tool("e", "webSearch", .search, "python str.lstrip"),
-      Self.tool("f", "commandExecution", .execute, "/bin/zsh -lc 'pytest -q'", state: .running),
-    ]
-    let messages = bodies.enumerated().map { Self.chatMessage(Double($0.offset) * 2, $0.element, &entropy) }
-    guard case .steps(let steps) = ConversationEntry.layout(messages.map { .message($0) }, live: true).first else {
-      return []
-    }
-    return steps
   }
 }

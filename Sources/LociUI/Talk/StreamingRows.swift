@@ -19,23 +19,11 @@ extension TalkRow {
     return rows(ConversationEntry.layout(said.entries + asked, live: false))
   }
 
-  /// The rows of the running turn after its question, which go on from `settled`.
-  static func live(_ turn: LiveTurn?) -> [TalkRow] {
+  /// The rows of the running turn after its question, which go on from `settled`. The reply being written
+  /// shows once `hold` lets it.
+  static func live(_ turn: LiveTurn?, hold: ReplyHold) -> [TalkRow] {
     guard let turn, let question = turn.messages.first, case .prompt(let prompt) = question.body else { return [] }
     let answer = turn.messages.dropFirst().map(Conversation.Entry.message)
-    return rows(
-      ConversationEntry.layout(answer, live: true, turnStartedAt: turn.startedAt), turn: turn,
-      after: .asked(question, prompt))
-  }
-}
-
-extension ConversationEntry {
-  /// Who says the last bubble this entry draws.
-  var speaker: Speaker? {
-    switch self {
-    case .asked: .person
-    case .reply: .loci
-    case .aside, .steps, .saved, .savedItems, .event: nil
-    }
+    return rows(ConversationEntry.layout(answer, live: true, hold: hold), turn: turn, after: .asked(question, prompt))
   }
 }

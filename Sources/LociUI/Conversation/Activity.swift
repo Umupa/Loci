@@ -32,30 +32,3 @@ struct ActivityDots: View {
     }
   }
 }
-
-struct ActivityElapsed: View {
-  let since: Timestamp
-  @Environment(\.standIns) private var standIns
-
-  var body: some View {
-    Group {
-      if let now = standIns?.conversationAt {
-        label(at: now)
-      } else {
-        TimelineView(.periodic(from: .now, by: 1)) { label(at: $0.date) }
-      }
-    }
-    .font(.system(size: 11).monospaced())
-    .foregroundStyle(Palette.inkMuted)
-    .fixedSize()
-  }
-
-  private func label(at now: Date) -> Text {
-    let seconds = Self.wholeSeconds(since: since.date, at: now)
-    return Text(verbatim: StepsCard.duration(.seconds(seconds), fractional: false))
-  }
-
-  nonisolated static func wholeSeconds(since start: Date, at now: Date) -> Int {
-    Int(max(0, now.timeIntervalSince(start)))
-  }
-}

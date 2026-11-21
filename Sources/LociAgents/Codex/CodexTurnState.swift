@@ -4,14 +4,18 @@ struct CodexTurnState: Sendable {
   private var finished: Set<String> = []
   private var streamed: Set<String> = []
   private var outputs: [String: String] = [:]
+  /// Messages Codex marks as commentary: what it says about its work before more tools, never the reply.
+  private var commentary: Set<String> = []
   private var asking: [String: CodexDialog] = [:]
 
   mutating func receive(_ method: String, _ params: JSONValue) -> [AgentEvent] {
     switch method {
     case "item/agentMessage/delta", "item/reasoning/summaryTextDelta", "item/reasoning/textDelta":
-      if let item = params["itemId"]?.string { streamed.insert(item) }
+      let item = params["itemId"]?.string
+      if let item { streamed.insert(item) }
       guard let delta = params["delta"]?.string, !delta.isEmpty else { return [] }
-      return [method == "item/agentMessage/delta" ? .text(delta) : .thinking(delta)]
+      let reply = method == "item/agentMessage/delta" && !commentary.contains(item ?? "")
+      return [reply ? .text(delta) : .thinking(delta)]
     case "item/started", "item/completed":
       guard let item = params["item"] else { return [] }
       return receive(item, completed: method == "item/completed")
@@ -54,12 +58,14 @@ struct CodexTurnState: Sendable {
   private mutating func receive(_ item: JSONValue, completed: Bool) -> [AgentEvent] {
     guard let id = item["id"]?.string, let type = item["type"]?.string else { return [] }
     if type == "agentMessage" || type == "reasoning" {
+      if item["phase"]?.string == "commentary" { commentary.insert(id) }
       guard completed, streamed.insert(id).inserted else { return [] }
       let text =
         type == "agentMessage"
         ? item["text"]?.string ?? ""
         : (item["summary"]?.array ?? []).compactMap(\.string).joined(separator: "\n")
-      return text.isEmpty ? [] : [type == "agentMessage" ? .text(text) : .thinking(text)]
+      let reply = type == "agentMessage" && !commentary.contains(id)
+      return text.isEmpty ? [] : [reply ? .text(text) : .thinking(text)]
     }
     if type == "contextCompaction" { return completed ? [] : [.notice(.compacting)] }
     let kind: ToolCall.Kind

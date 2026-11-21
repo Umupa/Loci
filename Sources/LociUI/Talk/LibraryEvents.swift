@@ -1,52 +1,52 @@
 import LociModel
 import SwiftUI
 
-/// An item going into the library while its work runs or after it stopped: each step of the work, how far
-/// along, and why it stopped.
+/// An item going into the library while its work runs or after it stopped: its card, with the step going on
+/// and how far along, or why it stopped.
 struct SavingCard: View {
+  @Environment(\.openPage) private var openPage
   let item: Item
   let job: Job
-  let indent: CGFloat
 
   var body: some View {
-    TaskCard(
-      title: Text(joining: Text(.loci("talk.saving")), Text(verbatim: " · " + item.title)),
-      progress: JobSteps.progress(of: job, kind: item.kind),
-      steps: JobSteps.states(of: job, kind: item.kind).map { step in
-        (Text(step.step.name), step.state)
-      },
-      problem: problem, indent: indent)
+    let progress = JobSteps.progress(of: job, kind: item.kind)
+    Button {
+      openPage(.item(item.id))
+    } label: {
+      LibraryCard(item: item, line: line(progress), progress: problem == nil ? progress : nil)
+        .frame(width: CardShell<EmptyView>.width)
+    }
+    .buttonStyle(PressStyle())
+    .padding(.vertical, 6)
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func line(_ progress: Double) -> Text {
+    if let problem { return problem.foregroundStyle(Palette.accentInk) }
+    return Text(
+      joining: Text(JobSteps.Step(job.stage).name), Text(verbatim: " · "),
+      Text(progress, format: .percent.precision(.fractionLength(0))).monospacedDigit())
   }
 
   /// What stopped the work, in a few words.
   private var problem: Text? {
     switch JobLine(job) {
-    case .action(let fix, let problem): fix.why(problem)
+    case .action(let fix, let problem): fix.why(problem) ?? Text(.loci("conversation.stopped"))
     case .working, .none: nil
     }
   }
 }
 
-/// An item that went into the library, ready to open, as a card in the conversation.
-struct SavedItemCard: View {
-  @Environment(\.openPage) private var openPage
+/// An item the person read to the end, as its card: when they finished it under its title.
+struct FinishedCard: View {
   let item: Item
+  let at: Date
 
   var body: some View {
-    Button {
-      openPage(.item(item.id))
-    } label: {
-      ItemCard(title: item.title, source: item.site, duration: duration) {
-        Cover(item: item, corner: 0)
-      }
-    }
-    .buttonStyle(.plain)
-  }
-
-  private var duration: Text? {
-    switch item.kind {
-    case .video(let length?), .audio(let length?): Text(verbatim: MediaTime.text(length))
-    default: nil
+    LibraryCards(items: [item]) { _ in
+      Text(
+        joining: Text(.loci("talk.finished")), Text(verbatim: " · "),
+        Text(at, format: .dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)))
     }
   }
 }

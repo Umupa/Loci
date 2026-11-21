@@ -2,26 +2,50 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// Changes what Loci runs on from a chip under the input field: the agent, the model and thinking effort.
-/// It is one setting for the whole app.
+/// The plus button in the field at the foot of a conversation, opening a menu: adding a file, then what
+/// Loci runs on, the agent, the model and thinking effort, each a submenu. What Loci runs on is one setting
+/// for the whole app.
 struct RuntimeMenu: View {
   @Environment(\.host) private var host
   @Environment(\.colorScheme) private var scheme
-  /// Whether the chip names the agent too, or only the model.
-  let namesAgent: Bool
+  /// Whether the agent can be chosen here too, or only the model and thinking.
+  let choosesAgent: Bool
+  /// What adding a file does; without it the menu has no such item.
+  var attach: (() -> Void)?
   @State private var runtime: Feed<Runtime>?
   @State private var installations: [AgentInstallation] = []
   @State private var models: [String] = []
 
   var body: some View {
-    ZStack {
-      if let current = runtime?.value { menu(current).changesData() }
+    Menu {
+      if let attach {
+        Button(action: attach) { Text(.loci("talk.addFile")) }
+      }
+      if let current = runtime?.value {
+        if attach != nil { Divider() }
+        choices(current)
+      }
+    } label: {
+      Image(systemName: Symbols.add)
+        .font(.system(size: 17, weight: .regular))
+        .foregroundStyle(Palette.inkMuted)
     }
+    .menuStyle(.button)
+    .buttonStyle(RoundGlyphStyle())
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .accessibilityLabel(Text(.loci("talk.add")))
+    .changesData()
     .subscribing(CurrentRuntime(), into: $runtime)
+    .task(id: runtime?.value?.provider) {
+      guard let provider = runtime?.value?.provider else { return }
+      installations = (try? await host.run(DetectAgents())) ?? []
+      models = (try? await host.run(AgentModels(provider: provider))) ?? []
+    }
   }
 
-  private func menu(_ current: Runtime) -> some View {
-    Menu {
+  @ViewBuilder private func choices(_ current: Runtime) -> some View {
+    if choosesAgent {
       Picker(selection: provider(current)) {
         ForEach(Agents.choosable(installations, keeping: current.provider), id: \.self) { provider in
           Label {
@@ -34,58 +58,27 @@ struct RuntimeMenu: View {
       } label: {
         Text(.loci("agents.provider"))
       }
-      .pickerStyle(.inline)
-      Picker(selection: model(current)) {
-        Text(.loci("agents.anyModel")).tag(String?.none)
-        ForEach(Agents.offered(models, keeping: current.model), id: \.self) { model in
-          Text(verbatim: Agents.modelName(model)).tag(String?.some(model))
-        }
-      } label: {
-        Text(.loci("agents.model"))
-      }
-      .pickerStyle(.inline)
-      if !current.provider.efforts.isEmpty {
-        Picker(selection: effort(current)) {
-          Text(.loci("agents.anyModel")).tag(ThinkingEffort?.none)
-          ForEach(current.provider.efforts, id: \.self) { effort in
-            Text(Agents.effortName(effort)).tag(ThinkingEffort?.some(effort))
-          }
-        } label: {
-          Text(.loci("conversation.thinking"))
-        }
-        .pickerStyle(.inline)
+      .pickerStyle(.menu)
+    }
+    Picker(selection: model(current)) {
+      Text(.loci("agents.anyModel")).tag(String?.none)
+      ForEach(Agents.offered(models, keeping: current.model), id: \.self) { model in
+        Text(verbatim: Agents.modelName(model)).tag(String?.some(model))
       }
     } label: {
-      label(current)
+      Text(.loci("agents.model"))
     }
-    .menuStyle(.button)
-    .buttonStyle(ChipStyle())
-    .menuIndicator(.hidden)
-    .fixedSize()
-    .task(id: current.provider) {
-      installations = (try? await host.run(DetectAgents())) ?? []
-      models = (try? await host.run(AgentModels(provider: current.provider))) ?? []
-    }
-  }
-
-  private func label(_ current: Runtime) -> some View {
-    HStack(spacing: 6) {
-      AgentMark(provider: current.provider, size: 16)
-      HStack(spacing: Spacing.xxs) {
-        if namesAgent {
-          Text(verbatim: Agents.name(of: current.provider))
-          Text(verbatim: "·")
+    .pickerStyle(.menu)
+    if !current.provider.efforts.isEmpty {
+      Picker(selection: effort(current)) {
+        Text(.loci("agents.anyModel")).tag(ThinkingEffort?.none)
+        ForEach(current.provider.efforts, id: \.self) { effort in
+          Text(Agents.effortName(effort)).tag(ThinkingEffort?.some(effort))
         }
-        if let model = current.model {
-          Text(verbatim: Agents.modelName(model))
-        } else {
-          Text(.loci("agents.anyModel"))
-        }
-        if let effort = current.effort {
-          Text(verbatim: "·")
-          Text(Agents.effortName(effort))
-        }
+      } label: {
+        Text(.loci("conversation.thinking"))
       }
+      .pickerStyle(.menu)
     }
   }
 
@@ -122,24 +115,21 @@ struct RuntimeMenu: View {
   }
 }
 
-/// A quiet button under the input field, washed on hover.
-struct ChipStyle: ButtonStyle {
+/// A round glyph in the field at the foot of a conversation, washed on hover.
+struct RoundGlyphStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
-    ChipBody(configuration: configuration)
+    GlyphBody(configuration: configuration)
   }
 
-  private struct ChipBody: View {
+  private struct GlyphBody: View {
     let configuration: Configuration
     @State private var hovering = false
 
     var body: some View {
       configuration.label
-        .font(.system(size: 12))
-        .foregroundStyle(Palette.inkMuted)
-        .padding(.horizontal, Spacing.xs)
-        .padding(.vertical, Spacing.xxs)
-        .background(RoundedRectangle(cornerRadius: Radius.row).fill(hovering ? Palette.fill : .clear))
-        .contentShape(RoundedRectangle(cornerRadius: Radius.row))
+        .frame(width: Size.composerButton, height: Size.composerButton)
+        .background(Circle().fill(hovering ? Palette.fill : .clear))
+        .contentShape(Circle())
         .scaleEffect(configuration.isPressed ? Motion.pressScale : 1)
         .onHover { hovering = $0 }
     }

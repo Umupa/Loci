@@ -1,8 +1,8 @@
 import LociModel
 import SwiftUI
 
-/// The glass card floating at the foot of a conversation: the passage being asked about, the field, and a
-/// row with adding a file, what Loci runs on, how full the context is, and send or stop.
+/// The glass capsule floating at the foot of a conversation: the passage being asked about, the field, a
+/// plus menu for adding a file and choosing what Loci runs on, and send or stop.
 struct Composer: View {
   /// The main conversation, or the one beside something read, which asks rather than talks and has no
   /// room for adding files.
@@ -10,7 +10,6 @@ struct Composer: View {
     case talk, companion
   }
 
-  let context: ContextUsage?
   let busy: Bool
   @Binding var draft: PassageDraft?
   let send: (String, Passage?) async throws(HostError) -> Done
@@ -18,37 +17,43 @@ struct Composer: View {
   /// What `/new` does: start the conversation over. Without it, `/new` is sent like any message.
   var startOver: (() async throws(HostError) -> Done)?
   var style = Style.talk
-  /// What the plus button does; without it there is none.
+  /// What adding a file from the plus menu does; without it the menu has no such item.
   var attach: (() -> Void)?
   /// Changes each time the field should take the keyboard; the main conversation's field takes it when it
   /// first shows.
   var focusRequest = 0
+  /// Whether the person has typed anything, for what the conversation offers to send instead.
+  var composing: Binding<Bool> = .constant(false)
   @State private var text = ""
   @State private var selection: TextSelection?
   @State private var stopping = false
   @FocusState private var focused: Bool
 
   var body: some View {
-    let shape = RoundedRectangle(cornerRadius: Radius.composer, style: .continuous)
-    VStack(alignment: .leading, spacing: Spacing.xs) {
-      if let draft { quoted(draft) }
-      field
-      HStack(spacing: 6) {
-        if let attach {
-          AttachButton(action: attach)
+    let shape = RoundedRectangle(cornerRadius: Radius.composer, style: .circular)
+    let inset = (Size.composerHeight - Size.composerButton) / 2
+    VStack(alignment: .leading, spacing: 0) {
+      if let draft { quoted(draft).padding(.top, 14).padding(.trailing, inset) }
+      HStack(alignment: .bottom, spacing: 0) {
+        field.padding(.vertical, (Size.composerHeight - Self.lineHeight) / 2)
+        Group {
+          RuntimeMenu(choosesAgent: style == .talk, attach: attach)
+          sendOrStop
         }
-        RuntimeMenu(namesAgent: style == .talk)
-        Spacer(minLength: Spacing.xxs)
-        if let context, ContextGauge.fraction(context) != nil { ContextGauge(usage: context) }
-        sendOrStop
+        .padding(.bottom, inset)
       }
     }
-    .padding(.leading, Spacing.m)
-    .padding([.top, .bottom, .trailing], 10)
-    .glassEffect(.regular, in: shape)
-    .overlay(shape.strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
-    .shadow(color: .black.opacity(0.10), radius: 15, y: 10)
+    .padding(.leading, 18)
+    .padding(.trailing, inset)
+    .frame(minHeight: Size.composerHeight)
+    .background {
+      shape.fill(.ultraThinMaterial)
+      shape.fill(Palette.composerGlass)
+    }
+    .overlay(shape.strokeBorder(Palette.composerEdge, lineWidth: Size.hairline))
+    .shadow(color: .black.opacity(0.18), radius: 15, y: 8)
     .onChange(of: draft) { if draft != nil { focused = true } }
+    .onChange(of: trimmed.isEmpty) { composing.wrappedValue = !trimmed.isEmpty }
     .onChange(of: focusRequest) { focused = true }
     .onAppear { if style == .talk { focused = true } }
   }
@@ -76,9 +81,9 @@ struct Composer: View {
       Text(.loci(style == .talk ? "talk.prompt" : "companion.prompt"))
     }
     .textFieldStyle(.plain)
-    .font(.system(size: 14.5))
+    .font(.system(size: 15))
     .lineSpacing(3)
-    .frame(minHeight: 22)
+    .frame(minHeight: Self.lineHeight)
     .lineLimit(1...8)
     .focused($focused)
     .onSubmit(submit)
@@ -96,12 +101,14 @@ struct Composer: View {
     }
   }
 
+  private static let lineHeight: CGFloat = 20
+
   @ViewBuilder private var sendOrStop: some View {
     if busy {
-      RoundButton(symbol: Symbols.stop, glyphSize: 11, label: .loci("conversation.stop"), action: halt)
+      RoundButton(symbol: Symbols.stop, glyphSize: 10, label: .loci("conversation.stop"), action: halt)
         .disabled(stopping)
     } else {
-      RoundButton(symbol: Symbols.send, glyphSize: 14, label: .loci("conversation.send"), action: submit)
+      RoundButton(symbol: Symbols.send, glyphSize: 13, label: .loci("conversation.send"), action: submit)
         .disabled(trimmed.isEmpty)
     }
   }
@@ -178,7 +185,7 @@ enum ComposerKey: Equatable {
   }
 }
 
-/// The amber circle that sends, or stops Loci while it works.
+/// The circle that sends, or stops Loci while it works: ink when it can, a faint wash when it cannot.
 private struct RoundButton: View {
   let symbol: String
   let glyphSize: CGFloat
@@ -189,10 +196,10 @@ private struct RoundButton: View {
   var body: some View {
     Button(action: action) {
       Image(systemName: symbol)
-        .font(.system(size: glyphSize, weight: .semibold))
-        .foregroundStyle(enabled ? Palette.onAccent : Palette.inkMuted)
-        .frame(width: Size.sendButton, height: Size.sendButton)
-        .background(enabled ? Palette.accent : Palette.fillStrong, in: .circle)
+        .font(.system(size: glyphSize, weight: .bold))
+        .foregroundStyle(enabled ? Palette.canvas : Palette.ink.opacity(0.45))
+        .frame(width: Size.composerButton, height: Size.composerButton)
+        .background(enabled ? Palette.ink : Palette.ink.opacity(0.1), in: .circle)
     }
     .buttonStyle(SendPressStyle())
     .accessibilityLabel(Text(label))
@@ -205,76 +212,5 @@ private struct SendPressStyle: ButtonStyle {
     configuration.label
       .scaleEffect(configuration.isPressed ? 0.94 : 1)
       .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
-  }
-}
-
-/// Adds a file, as dropping one does.
-private struct AttachButton: View {
-  let action: () -> Void
-  @State private var hovering = false
-
-  var body: some View {
-    Button(action: action) {
-      Image(systemName: Symbols.attach)
-        .font(.system(size: 14, weight: .medium))
-        .foregroundStyle(Palette.inkMuted)
-        .frame(width: Size.iconButton, height: Size.iconButton)
-        .background(Circle().fill(hovering ? Palette.fill : .clear))
-        .contentShape(Circle())
-    }
-    .buttonStyle(.plain)
-    .onHover { hovering = $0 }
-    .accessibilityLabel(Text(.loci("talk.add")))
-  }
-}
-
-/// How full the agent's context window is, as a ring; opened, the numbers.
-struct ContextGauge: View {
-  let usage: ContextUsage
-  @State private var open = false
-
-  var body: some View {
-    Button {
-      open.toggle()
-    } label: {
-      ZStack {
-        Circle().stroke(Palette.fillStrong, lineWidth: 2.2)
-        Circle()
-          .trim(from: 0, to: Self.fraction(usage) ?? 0)
-          .stroke(Palette.accent, style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
-          .rotationEffect(.degrees(-90))
-      }
-      .frame(width: 14, height: 14)
-      .padding(.horizontal, 5)
-      .frame(height: 26)
-      .contentShape(Rectangle())
-    }
-    .buttonStyle(.plain)
-    .accessibilityLabel(Text(.loci("conversation.context")))
-    .accessibilityValue(Text(verbatim: Self.label(usage)))
-    .popover(isPresented: $open, arrowEdge: .top) {
-      VStack(alignment: .leading, spacing: 6) {
-        Capsule().fill(Palette.fillStrong).frame(height: 4)
-          .overlay(alignment: .leading) {
-            GeometryReader { proxy in
-              Capsule().fill(Palette.accent).frame(width: proxy.size.width * (Self.fraction(usage) ?? 0))
-            }
-          }
-        Text(verbatim: Self.label(usage)).font(Typography.mono).foregroundStyle(Palette.inkMuted)
-      }
-      .padding(Spacing.s)
-      .frame(width: 180)
-    }
-  }
-
-  /// Used of the whole, or `nil` when the agent did not say both.
-  nonisolated static func fraction(_ usage: ContextUsage) -> Double? {
-    guard let used = usage.used, let window = usage.window, window > 0 else { return nil }
-    return min(1, Double(used) / Double(window))
-  }
-
-  nonisolated static func label(_ usage: ContextUsage) -> String {
-    func thousands(_ tokens: Int?) -> String { tokens.map { "\(($0 + 500) / 1000)k" } ?? "?" }
-    return "\(thousands(usage.used)) / \(thousands(usage.window))"
   }
 }

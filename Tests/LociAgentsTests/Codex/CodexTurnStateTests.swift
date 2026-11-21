@@ -23,6 +23,19 @@ struct CodexTurnStateTests {
     #expect(state.receive("item/completed", completed).isEmpty)
   }
 
+  @Test func whatCodexSaysAboutItsWorkBetweenToolsIsNotTheReply() throws {
+    var state = CodexTurnState()
+    let started = try json(#"{"item":{"type":"agentMessage","id":"a","phase":"commentary","text":""}}"#)
+    #expect(state.receive("item/started", started).isEmpty)
+    #expect(
+      state.receive("item/agentMessage/delta", try json(#"{"itemId":"a","delta":"我先查一下。"}"#)) == [.thinking("我先查一下。")])
+    let whole = try json(#"{"item":{"type":"agentMessage","id":"b","phase":"commentary","text":"再核对。"}}"#)
+    #expect(state.receive("item/completed", whole) == [.thinking("再核对。")])
+    let answer = try json(#"{"item":{"type":"agentMessage","id":"c","phase":"final_answer","text":""}}"#)
+    _ = state.receive("item/started", answer)
+    #expect(state.receive("item/agentMessage/delta", try json(#"{"itemId":"c","delta":"结论。"}"#)) == [.text("结论。")])
+  }
+
   @Test func toolOutputReplacesThePreviousAggregateAndNonzeroExitFails() throws {
     var state = CodexTurnState()
     let start = try json(#"{"item":{"type":"commandExecution","id":"c","command":"false"}}"#)

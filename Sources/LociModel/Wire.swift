@@ -21,6 +21,7 @@ public enum Wire {
     .writes(SaveMediaLocally.self),
     .reads(ReadCover.self, lane: .data), .reads(ReadItemPDF.self, lane: .data),
     .reads(ReadItemImage.self, lane: .data), .streams(ReadMediaFileInfo.self, lane: .data),
+    .reads(ReadLinkPreview.self), .reads(ReadLinkImage.self, lane: .data),
     .streams(ReadMediaBytes.self, lane: .data),
     .writes(PickKeyPoints.self),
   ]

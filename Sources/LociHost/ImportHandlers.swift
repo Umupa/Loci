@@ -4,7 +4,7 @@ import LociModel
 import LociStore
 
 extension LocalHost {
-  public func probeLink(_ command: ProbeLink) async throws(HostError) -> LinkPreview {
+  public func probeLink(_ command: ProbeLink) async throws(HostError) -> LinkProbe {
     let url = command.url
     if let saved = try attempt({ try database.items() }).first(where: { $0.source == url }) { return .saved(saved) }
     let context = library.context

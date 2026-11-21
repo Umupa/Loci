@@ -41,6 +41,15 @@ enum Palette {
   static let accentInk = Color(nsColor: Tones.accentInk)
   /// Text on an amber fill.
   static let onAccent = Color(nsColor: Tones.onAccent)
+  /// Loci's messages, and the person's, a shade apart.
+  static let bubble = Color(nsColor: Tones.bubble)
+  static let bubbleMine = Color(nsColor: Tones.bubbleMine)
+  /// Around Loci's message in light, where white would melt into the paper.
+  static let bubbleEdge = Color(nsColor: NSColor(dark: 0x000000, light: 0x000000, alpha: (dark: 0, light: 0.05)))
+  /// The field at the foot of a conversation: a wash over the blur behind it, and its edge, low in dark so
+  /// it sits in the page rather than shining over it.
+  static let composerGlass = Color(nsColor: NSColor(dark: 0x22201D, light: 0xFAF9F6, alpha: (dark: 0.62, light: 0.72)))
+  static let composerEdge = Color(nsColor: NSColor(dark: 0xFFFFFF, light: 0x000000, alpha: (dark: 0.08, light: 0.07)))
   /// Behind what is selected: a wash of amber, never a solid block.
   static let tint = Color(nsColor: Tones.tint)
   /// Behind text selected in the reader: a wash of ink, so it never reads as a highlight.
@@ -114,7 +123,8 @@ enum Palette {
     (sidebarInkMuted, Color(nsColor: Tones.sidebarBottom), "muted on the sidebar's bottom"),
     (sidebarSectionInk, Color(nsColor: Tones.sidebarTop), "section on the sidebar's top"),
     (sidebarSectionInk, Color(nsColor: Tones.sidebarBottom), "section on the sidebar's bottom"),
-    (ink, tint, "selected text"), (ink, selection, "text selected in the reader"), (ink, mark, "highlighted text"),
+    (ink, bubble, "Loci's message"), (ink, bubbleMine, "the person's message"), (ink, tint, "selected text"),
+    (ink, selection, "text selected in the reader"), (ink, mark, "highlighted text"),
     (ink, Color(nsColor: Tones.readerMark), "highlighted text in the reader"),
     (inkMuted, canvas, "muted on canvas"), (inkMuted, surface, "muted on surface"),
     (accentInk, canvas, "amber text on canvas"), (accentInk, surface, "amber text on surface"),
@@ -141,6 +151,8 @@ enum Tones {
   static let fill = NSColor(dark: 0xFFF5E6, light: 0x1D1B18, alpha: (dark: 0.05, light: 0.045))
   static let fillStrong = NSColor(dark: 0xFFF5E6, light: 0x1D1B18, alpha: (dark: 0.09, light: 0.08))
   static let accent = NSColor(dark: 0xEBA53A, light: 0xD98E1F)
+  static let bubble = NSColor(dark: 0x211F1C, light: 0xFFFFFF)
+  static let bubbleMine = NSColor(dark: 0x2E2B27, light: 0xEEECE7)
   static let accentInk = NSColor(dark: 0xF3D9AE, light: 0x94590A)
   static let onAccent = NSColor(dark: 0x1A1206, light: 0x1A1206)
   static let tint = NSColor(dark: 0xEBA53A, light: 0xD98E1F, alpha: (dark: 0.17, light: 0.15))

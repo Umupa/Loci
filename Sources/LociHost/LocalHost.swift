@@ -1,4 +1,5 @@
 import Foundation
+import LociMedia
 import LociModel
 import LociStore
 
@@ -13,6 +14,8 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   let hub: Hub
   let loci: LociAgent
   let library: LibraryRuntime
+  /// Previews of the links Loci's replies show as cards.
+  let links: LinkPreviewReader
 
   private init(
     store: Store, database: StoreDatabase, environment: HostEnvironment, prompts: Prompts, readingStateLost: Bool
@@ -29,6 +32,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     library = LibraryRuntime(
       store: store, database: database, environment: environment,
       follower: Follower(store: store, database: database, hub: hub))
+    links = LinkPreviewReader(network: environment.media.network)
   }
 
   /// Opens the database and starts serving from it at once, while the mirrors are rebuilt from the files

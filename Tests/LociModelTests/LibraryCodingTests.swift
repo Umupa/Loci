@@ -20,6 +20,13 @@ struct LibraryCodingTests {
     #expect(try Self.roundTrips(ReadItemPDF(item: Fixture.item)))
     #expect(try Self.roundTrips(ReadItemImage(item: Fixture.item, name: "images/a.png")))
     #expect(try Self.roundTrips(ReadMediaPage(item: Fixture.item)))
+    #expect(try Self.roundTrips(ReadLinkPreview(url: URL(string: "https://github.com/e2b-dev/infra")!)))
+    #expect(try Self.roundTrips(ReadLinkImage(url: URL(string: "https://github.com/e2b-dev/infra")!)))
+    #expect(
+      try Self.roundTrips(
+        LinkPreview(
+          url: URL(string: "https://github.com/e2b-dev/infra")!, title: "e2b-dev/infra", site: "GitHub",
+          summary: nil, image: URL(string: "https://opengraph.githubassets.com/1/e2b-dev/infra"))))
     #expect(try Self.roundTrips(ReadMediaSetup()))
     #expect(try Self.roundTrips(ReadMediaFileInfo(item: Fixture.item)))
     #expect(try Self.roundTrips(ReadMediaBytes(item: Fixture.item, offset: 1 << 33, length: 65_536)))

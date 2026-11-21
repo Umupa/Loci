@@ -4,7 +4,7 @@ import LociModel
 /// The library's commands, answered with nothing in progress and nothing installed.
 extension FakeHost {
   /// A link in the library is that item; one of the sample links is read at once; any other is never read.
-  func probeLink(_ command: ProbeLink) async throws(HostError) -> LinkPreview {
+  func probeLink(_ command: ProbeLink) async throws(HostError) -> LinkProbe {
     if let saved = (library?.items ?? []).first(where: { $0.source == command.url }) { return .saved(saved) }
     if let media = ImportSamples.previews[command.url] { return .media(media) }
     try? await Task.sleep(for: .seconds(600))
@@ -99,4 +99,15 @@ extension FakeHost {
   func setSpeechModel(_ model: SpeechModel) async throws(HostError) -> MediaSetup { try await mediaSetup() }
   func setBrowserLogin(_ login: BrowserLogin) async throws(HostError) -> MediaSetup { try await mediaSetup() }
   func handOverBrowserCookies(_ cookies: [BrowserCookie]) async throws(HostError) -> Done { Done() }
+}
+
+/// Link previews, answered from the sample's pages without the network.
+extension FakeHost {
+  func linkPreview(of url: URL) async throws(HostError) -> LinkPreview {
+    SampleLinks.preview(of: url)
+  }
+
+  func linkImage(of url: URL) async throws(HostError) -> Data? {
+    SampleLinks.image(of: url)
+  }
 }

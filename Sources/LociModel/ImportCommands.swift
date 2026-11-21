@@ -10,7 +10,7 @@ public struct ProbeLink: Command {
     self.url = url
   }
 
-  public func run(on handler: any CommandHandler) async throws(HostError) -> LinkPreview {
+  public func run(on handler: any CommandHandler) async throws(HostError) -> LinkProbe {
     try await handler.probeLink(self)
   }
 }
@@ -27,7 +27,7 @@ public struct ReadImportChoice: Command {
 }
 
 /// What a link leads to, as far as taking it in goes.
-public enum LinkPreview: Hashable, Codable, Sendable {
+public enum LinkProbe: Hashable, Codable, Sendable {
   /// The library has an item from this link already.
   case saved(Item)
   case media(MediaPreview)

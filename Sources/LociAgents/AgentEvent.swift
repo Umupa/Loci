@@ -3,7 +3,7 @@ import LociModel
 public enum AgentEvent: Hashable, Sendable {
   /// More of the reply.
   case text(String)
-  /// More of the reasoning behind the reply.
+  /// More of the reasoning behind the reply, or of what the agent says about its work before more tools.
   case thinking(String)
   /// A tool call seen for the first time.
   case toolCall(ToolCall)

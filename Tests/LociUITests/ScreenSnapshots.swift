@@ -49,7 +49,8 @@ struct ScreenSnapshots {
     try await Self.shoot("selection-bar", bar, appearance: appearance, size: CGSize(width: 320, height: 120))
   }
 
-  /// UI-S6, UI-S8: a passage question answered and saved, a reply streaming, a passage waiting to be asked.
+  /// UI-S6, UI-S8, C-S9, C-S10: a passage question answered and saved, a reply streaming, a passage waiting
+  /// to be asked.
   @Test(arguments: Snapshot.Appearance.allCases)
   func conversation(appearance: Snapshot.Appearance) async throws {
     let sample = try Sample(problems: false)
@@ -63,8 +64,9 @@ struct ScreenSnapshots {
     try await Self.shoot("conversation", view, appearance: appearance, size: CGSize(width: 384, height: 900))
   }
 
-  /// UI-S11 to UI-S14: a display formula, a code block and an answer with their copy buttons, tools folded into
-  /// one row, a line where the conversation started over, and the way back to the latest.
+  /// UI-S11, UI-S13, UI-S14, C-S7, C-S9, C-S10: a display formula, a code block and an answer with their
+  /// copy buttons, no trace of the tools, a line where the conversation started over, replies offered at
+  /// the end, and the way back to the latest.
   @Test(arguments: Snapshot.Appearance.allCases)
   func chat(appearance: Snapshot.Appearance) async throws {
     let sample = try Sample(problems: false)
@@ -79,6 +81,7 @@ struct ScreenSnapshots {
     try await Self.shoot("chat", view, appearance: appearance, size: CGSize(width: 720, height: 1100))
   }
 
+  /// C-S1: one faint line says what Loci is doing where its reply will be.
   @Test(arguments: Snapshot.Appearance.allCases)
   func chatWorking(appearance: Snapshot.Appearance) async throws {
     let sample = try Sample(problems: false)
@@ -87,7 +90,10 @@ struct ScreenSnapshots {
       id: EntityID(), at: start, body: .prompt(Prompt(text: "对比这两篇资料对连接池的解释。", purpose: .chat)))
     let thought = Message(
       id: EntityID(), at: Timestamp(millisecondsSince1970: start.millisecondsSince1970 + 2_000),
-      body: .thinking("先核对两篇资料各自描述的复用范围。"))
+      body: .tool(
+        ToolActivity(
+          id: "pr", name: "commandExecution", kind: .execute,
+          subject: "/bin/zsh -lc 'gh pr list -R tencentcloud/CubeSandbox'", output: "", state: .running)))
     let conversation = Conversation(
       ref: .main, entries: [], turn: LiveTurn(startedAt: start, messages: [question, thought]))
     var away = Following()
@@ -101,37 +107,24 @@ struct ScreenSnapshots {
     try await Self.shoot("chat-working", view, appearance: appearance, size: CGSize(width: 720, height: 310))
   }
 
-  /// UI-S19: an agent that is not installed, and one that is there but would not start, in both languages.
+  /// UI-S19, C-S2: an agent that is not installed, one that is there but would not start, a turn that
+  /// failed and one that was stopped, each a bubble from Loci, in both languages.
   @Test(arguments: Snapshot.Appearance.allCases)
   func agentUnavailable(appearance: Snapshot.Appearance) async throws {
-    let lines = VStack(spacing: Spacing.m) {
-      ForEach([AgentStartFailure.notInstalled, .wouldNotStart], id: \.self) { failure in
-        AsideLine(
-          message: Message(
-            id: EntityID(), at: Timestamp(millisecondsSince1970: 0), body: .ended(.unstarted(.codex, failure))))
+    let endings: [TurnEnding] = [
+      .unstarted(.codex, .notInstalled), .unstarted(.codex, .wouldNotStart), .failed("exit 1: panic"), .interrupted,
+    ]
+    let lines = VStack(spacing: ConversationView.gap) {
+      ForEach(endings, id: \.self) { ending in
+        BubbleRow(speaker: .loci) { EndedTurn(ending: ending) }
       }
     }
     .padding(Spacing.l)
     .frame(maxHeight: .infinity)
     .background(Palette.canvas)
-    let size = CGSize(width: 420, height: 140)
+    let size = CGSize(width: 520, height: 320)
     try await Self.shoot("agent-unavailable", lines, appearance: appearance, size: size)
     try await Self.shoot("agent-unavailable-en", lines, appearance: appearance, english: true, size: size)
-  }
-
-  /// UI-S12: tools in a row, folded and opened, with one failed and the last still running.
-  @Test(arguments: Snapshot.Appearance.allCases)
-  func toolRun(appearance: Snapshot.Appearance) async throws {
-    let steps = try Sample(problems: false).toolRun()
-    let cards = VStack(spacing: Spacing.l) {
-      StepsCard(steps: steps)
-      StepsCard(steps: steps, opened: true)
-    }
-    .padding(Spacing.m)
-    .frame(maxHeight: .infinity, alignment: .top)
-    .background(Palette.canvas)
-    .environment(\.standIns, StandIns(conversationAt: steps.last?.at.date.addingTimeInterval(4)))
-    try await Self.shoot("tool-run", cards, appearance: appearance, size: CGSize(width: 420, height: 420))
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)

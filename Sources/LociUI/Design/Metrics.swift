@@ -28,11 +28,10 @@ enum Radius {
   static let cover: CGFloat = 10
   /// A push button, as System Settings draws one.
   static let push: CGFloat = 6
-  /// The round corners of a message, and the tighter ones where it meets the next from the same speaker.
-  static let message: CGFloat = 18
-  static let messageJoin: CGFloat = 6
-  /// The field at the foot of a conversation.
-  static let composer: CGFloat = 22
+  /// A message in a conversation.
+  static let message: CGFloat = 24
+  /// The field at the foot of a conversation, a capsule while it holds one line.
+  static let composer: CGFloat = 24
   /// A row of the sidebar, and Loci's own row at its top.
   static let sidebarRow: CGFloat = 9
   static let sidebarLoci: CGFloat = 12
@@ -63,12 +62,16 @@ enum Size {
   /// The narrowest the reading column gets when the panel beside it is dragged wide.
   static let readerMinimum: CGFloat = 320
   static let thoughtFieldWidth: CGFloat = 300
-  static let toolOutputHeight: CGFloat = 220
   static let iconButton: CGFloat = 28
   static let avatarTiny: CGFloat = 16
   static let thumbnailSymbol: CGFloat = 30
   static let emptySymbol: CGFloat = 44
-  static let sendButton: CGFloat = 30
+  /// The round buttons in the field at the foot of a conversation.
+  static let composerButton: CGFloat = 32
+  static let composerHeight: CGFloat = 48
+  /// The column the main conversation is read in, and the widest a message gets in it.
+  static let talkColumn: CGFloat = 512
+  static let messageWidest: CGFloat = 424
   static let problemListWidth: CGFloat = 380
   static let settingsWidth: CGFloat = 600
   static let wideSettingsWidth: CGFloat = 640
@@ -148,6 +151,12 @@ enum Motion {
   static let land = Animation.spring(response: 0.55, dampingFraction: 0.62)
   /// The task dock opening into its list.
   static let dock = Animation.spring(response: 0.35, dampingFraction: 0.72)
+  /// What Loci is doing changing to the next thing.
+  static let swap = Animation.timingCurve(0.28, 0.67, 0.32, 1, duration: 0.35)
+  /// How long a reply being written goes on with no tool after it before it shows.
+  static let replyHold: Duration = .seconds(1)
+  /// The light crossing the line that says what Loci is doing.
+  static let sheen = Animation.linear(duration: 2.2).repeatForever(autoreverses: false)
   /// How faint a breathing dot gets before it brightens again.
   static let breathLow = 0.3
   /// A rebuild finishing sooner than this is not shown at all, so nothing flickers.

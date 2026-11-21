@@ -40,7 +40,18 @@ struct QuotedLine: View {
   }
 }
 
-extension AsideLine {
+/// What Loci says when a turn did not finish: one sentence, never the agent's own error output.
+struct EndedTurn: View {
+  let ending: TurnEnding
+
+  var body: some View {
+    switch ending {
+    case .interrupted: Text(.loci("ended.interrupted"))
+    case .failed: Text(.loci("ended.failed"))
+    case .unstarted(let provider, let failure): Self.unstarted(provider, failure)
+    }
+  }
+
   /// Why Loci's agent did not start, beginning with the agent's name.
   static func unstarted(_ provider: Provider, _ failure: AgentStartFailure) -> Text {
     let said: LocalizedStringResource =
@@ -79,35 +90,17 @@ struct SavedChip: View {
   }
 }
 
-/// How a turn went, or where the conversation started over, between the messages.
-struct AsideLine: View {
-  let message: Message
-
+/// Where the conversation started over, between the messages.
+struct StartedOverLine: View {
   var body: some View {
-    Group {
-      switch message.body {
-      case .notice(let text):
-        Text(verbatim: text)
-      case .ended(.interrupted):
-        Text(.loci("conversation.stopped"))
-      case .ended(.failed(let reason)):
-        Text(verbatim: reason).foregroundStyle(Palette.accentInk)
-      case .ended(.unstarted(let provider, let failure)):
-        Self.unstarted(provider, failure).foregroundStyle(Palette.accentInk)
-      case .startedOver:
-        HStack(spacing: Spacing.s) {
-          Rectangle().fill(Palette.line).frame(height: Size.hairline)
-          Text(.loci("conversation.startedOver")).fixedSize()
-          Rectangle().fill(Palette.line).frame(height: Size.hairline)
-        }
-        .padding(.vertical, Spacing.xs)
-      case .prompt, .reply, .thinking, .tool, .savedToNote, .savedItem:
-        EmptyView()
-      }
+    HStack(spacing: Spacing.s) {
+      Rectangle().fill(Palette.line).frame(height: Size.hairline)
+      Text(.loci("conversation.startedOver")).fixedSize()
+      Rectangle().fill(Palette.line).frame(height: Size.hairline)
     }
+    .padding(.vertical, Spacing.xs)
     .font(.system(size: 11, weight: .medium))
     .foregroundStyle(Palette.inkFaint)
     .frame(maxWidth: .infinity)
-    .multilineTextAlignment(.center)
   }
 }

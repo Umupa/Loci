@@ -13,6 +13,9 @@ struct StreamingRowsTests {
   private static let read = ToolActivity(
     id: "r", name: "read", kind: .read, subject: "a.md", output: "", state: .succeeded)
 
+  /// A moment long after anything here began, when every reply being written shows.
+  private static let shown = ReplyHold(now: .distantFuture, wait: .seconds(1))
+
   private static func summary(_ rows: [TalkRow]) -> [String] {
     rows.map { row in
       let kind =
@@ -20,31 +23,30 @@ struct StreamingRowsTests {
         case .day: "day"
         case .asked(let prompt): "asked " + prompt.text
         case .said(let words, let answer): "said \(words) \(answer ?? "-")"
-        case .working: "working"
-        case .steps(let steps): "steps \(steps.map { $0.took.map { "\($0)" } ?? "going" })"
-        case .aside: "aside"
+        case .doing(let doing): "doing \(doing)"
+        case .replies(let replies): "replies \(replies)"
+        case .ended: "ended"
+        case .startedOver: "startedOver"
         case .saved: "saved"
         case .finished(let item, _): "finished " + item.title
         case .task(let item, _): "task " + item.title
         case .cards(let items): "cards \(items.count)"
         case .savedItems(let ids): "saved items \(ids.count)"
+        case .document(let document): "document " + (document.title ?? "-")
+        case .links(let links): "links \(links.count)"
         }
-      return
-        "\(row.id.message.map { "\($0)" } ?? "-")/\(row.id.part) \(kind) \(row.position.map { "\($0)" } ?? "-") \(row.turn)"
+      return "\(row.id.message.map { "\($0)" } ?? "-")/\(row.id.part) \(kind)"
     }
   }
 
   private static func whole(_ said: [Message], turn: [Message]) -> [TalkRow] {
     let live = turn.isEmpty ? nil : LiveTurn(startedAt: turn[0].at, messages: turn)
-    return TalkRow.rows(
-      ConversationEntry.layout(
-        (said + turn).map { .message($0) }, live: live != nil, turnStartedAt: live?.startedAt),
-      turn: live)
+    return TalkRow.rows(ConversationEntry.layout((said + turn).map { .message($0) }, live: live != nil), turn: live)
   }
 
   private static func split(_ said: [Message], turn: [Message]) -> [TalkRow] {
     let live = turn.isEmpty ? nil : LiveTurn(startedAt: turn[0].at, messages: turn)
-    return TalkRow.settled(SaidSoFar(said.map { .message($0) }, turn: live)) + TalkRow.live(live)
+    return TalkRow.settled(SaidSoFar(said.map { .message($0) }, turn: live)) + TalkRow.live(live, hold: Self.shown)
   }
 
   @Test func aRunningTurnIsDrawnTheSameWhetherOrNotWhatWasSaidBeforeItIsLaidOutAgain() {
@@ -96,7 +98,8 @@ struct StreamingRowsTests {
     let id = EntityID()
     func arrivals(_ reply: String?) -> Int {
       let answer = reply.map { [Message(id: id, at: asked.at, body: .reply($0))] } ?? []
-      return TalkRow.live(LiveTurn(startedAt: asked.at, messages: [asked] + answer)).count(where: \.arrives)
+      return TalkRow.live(LiveTurn(startedAt: asked.at, messages: [asked] + answer), hold: Self.shown).count(
+        where: \.arrives)
     }
 
     #expect(arrivals(nil) == 1)

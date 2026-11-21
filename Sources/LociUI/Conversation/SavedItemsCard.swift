@@ -1,10 +1,12 @@
 import LociModel
 import SwiftUI
 
-/// Items Loci put into the library one after another, in one card: each with its cover, title, where it
-/// comes from, and its work while that goes on. A row opens its item and can take it back out of the library.
-/// Items deleted since show as faint lines under the card.
+/// Items Loci put into the library one after another, as library cards: one, or a stack of them. Each says
+/// where its work stands while it goes on, opens its item, and can be taken back out of the library from its
+/// menu. Items deleted since show as faint lines under the cards.
 struct SavedItemsCard: View {
+  @Environment(\.openPage) private var openPage
+  @Environment(\.host) private var host
   let items: [EntityID]
   @State private var library: Feed<[Item]>?
   @State private var jobs: Feed<[Job]>?
@@ -16,23 +18,23 @@ struct SavedItemsCard: View {
     let deleted = lines.filter { if case .deleted = $0 { true } else { false } }
     VStack(alignment: .leading, spacing: Spacing.xxs) {
       if !shown.isEmpty {
-        VStack(spacing: 0) {
-          ForEach(Array(shown.enumerated()), id: \.element.0.id) { index, line in
-            SavedItemRow(item: line.0, work: line.1, divided: index > 0)
+        CardStack(cards: shown) { line, showsWords in
+          LibraryCard(
+            item: line.0, line: SavedItemLine.text(line.0, work: line.1), showsWords: showsWords,
+            progress: SavedItemLine.progress(line.1)
+          )
+          .contextMenu {
+            Button(.loci("added.undo")) { Task { _ = try? await host.run(DeleteItems([line.0.id])) } }
+              .changesData()
           }
+        } open: { line in
+          openPage(.item(line.0.id))
         }
-        .background(RoundedRectangle(cornerRadius: Radius.group, style: .continuous).fill(Palette.surface))
-        .overlay {
-          RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
-            .strokeBorder(Palette.line, lineWidth: Size.hairline)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: Radius.group, style: .continuous))
       }
       ForEach(Array(deleted.enumerated()), id: \.offset) { _, line in
         if case .deleted(let title) = line { DeletedItemLine(title: title) }
       }
     }
-    .frame(maxWidth: 420, alignment: .leading)
     .frame(maxWidth: .infinity, alignment: .leading)
     .subscribing(AllItems(), into: $library)
     .subscribing(AllJobs(), into: $jobs)

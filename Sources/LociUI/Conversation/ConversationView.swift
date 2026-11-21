@@ -32,6 +32,7 @@ struct ConversationScreen: View {
       }
     )
     .subscribing(OneConversation(ref), into: $conversation)
+    .showingDocuments()
   }
 }
 
@@ -49,11 +50,14 @@ struct ConversationView: View {
   /// What `/new` in the composer does; without it, `/new` is sent like any message.
   var startOver: (() async throws(HostError) -> Done)?
   var scale = TalkScale.main
-  /// What the composer's plus button does.
+  /// What adding a file from the composer's plus menu does.
   var attach: (() -> Void)?
   /// Changes each time the composer should take the keyboard.
   var focusRequest = 0
+  /// How long the reply being written waits, with no tool after it, before it shows.
+  var replyHold = Motion.replyHold
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.standIns) private var standIns
   /// Starts keeping the newest line in view.
   @State var follow = Following()
   @State private var position = ScrollPosition(edge: .bottom)
@@ -62,21 +66,26 @@ struct ConversationView: View {
   @State private var settled = Remembered(TalkRow.settled)
   /// How many of the earliest rows are not drawn; `nil` until the conversation arrives.
   @State private var hidden: Int?
+  @State private var composing = false
+  /// When a reply held back last came due, so the conversation is drawn again to show it.
+  @State private var cameDue = Date.distantPast
+  @State private var cover = ConversationCover()
 
   var body: some View {
     let said = said
-    let live = TalkRow.live(conversation?.turn)
+    let now = standIns?.conversationAt ?? max(cameDue, .now)
+    let live = TalkRow.live(conversation?.turn, hold: ReplyHold(now: now, wait: replyHold))
     let start = min(hidden ?? RowWindow.latest(in: said), said.count)
     return ScrollView {
-      LazyVStack(alignment: .leading, spacing: 0) {
-        ForEach(said[start...] + live) { row in
+      LazyVStack(alignment: .leading, spacing: Self.gap) {
+        ForEach(TalkRow.offered(Array(said[start...]) + live, composing: composing)) { row in
           view(of: row).arriving()
         }
       }
       .animatingArrivals(said.count(where: \.arrives) + live.count(where: \.arrives))
+      .frame(maxWidth: scale == .main ? Size.talkColumn : .infinity)
       .padding(.horizontal, scale == .main ? 28 : Spacing.m)
-      .frame(maxWidth: scale == .main ? 640 : .infinity)
-      .padding(.top, scale == .main ? Spacing.l : 0)
+      .padding(.top, scale == .main ? 40 : 0)
       .frame(maxWidth: .infinity)
     }
     .defaultScrollAnchor(.top, for: .alignment)
@@ -97,6 +106,11 @@ struct ConversationView: View {
       self.hidden = RowWindow.earlier(than: hidden, in: said)
       position.scrollTo(id: said[hidden].id, anchor: .top)
     }
+    .task(id: ReplyHold.due(conversation?.turn, wait: replyHold)) {
+      guard let due = ReplyHold.due(conversation?.turn, wait: replyHold), standIns == nil else { return }
+      try? await Task.sleep(for: .seconds(max(0, due.timeIntervalSinceNow)))
+      if !Task.isCancelled { cameDue = .now }
+    }
     .onChange(of: said.isEmpty, initial: true) {
       if hidden == nil, !said.isEmpty { hidden = RowWindow.latest(in: said) }
     }
@@ -107,9 +121,9 @@ struct ConversationView: View {
     .scrollIndicators(.never)
     .safeAreaInset(edge: .bottom, spacing: 0) {
       Composer(
-        context: conversation?.context, busy: conversation?.turn != nil, draft: $draft, send: send,
-        stop: stop, startOver: startOver, style: scale == .main ? .talk : .companion,
-        attach: scale == .main ? attach : nil, focusRequest: focusRequest
+        busy: conversation?.turn != nil, draft: $draft, send: send, stop: stop, startOver: startOver,
+        style: scale == .main ? .talk : .companion, attach: scale == .main ? attach : nil, focusRequest: focusRequest,
+        composing: $composing
       )
       .overlay(alignment: .top) {
         if follow.offersLatest {
@@ -122,12 +136,25 @@ struct ConversationView: View {
         }
       }
       .animation(reduceMotion ? nil : Motion.quick, value: follow.offersLatest)
-      .frame(maxWidth: scale == .main ? 640 : .infinity)
+      .frame(maxWidth: scale == .main ? Size.talkColumn : .infinity)
       .padding(.horizontal, scale == .main ? 28 : 14)
-      .padding(.bottom, scale == .main ? 18 : 14)
+      .padding(.bottom, scale == .main ? 24 : 14)
       .padding(.top, Spacing.l)
+      .background {
+        LinearGradient(
+          stops: [.init(color: .clear, location: 0), .init(color: Palette.canvas, location: 0.7)], startPoint: .top,
+          endPoint: .bottom
+        )
+        .allowsHitTesting(false)
+      }
       .offlineLineInstead(ruled: scale != .main)
+      .onGeometryChange(for: CGRect.self) {
+        $0.frame(in: .global)
+      } action: {
+        cover.area = $0
+      }
     }
+    .environment(\.conversationCover, cover)
     .background(Palette.canvas)
   }
 
@@ -143,15 +170,18 @@ struct ConversationView: View {
     return said + (conversation?.turn == nil ? 0 : 1)
   }
 
+  /// The room between one message and the next.
+  static let gap: CGFloat = 10
+
   @ViewBuilder private func view(of row: TalkRow) -> some View {
     switch row.kind {
     case .day(let day):
       DayDivider(label: Sitting.label(day, now: Date()))
     case .asked(let prompt):
-      bubble(row) { AskedMessage(prompt: prompt, revealPassage: revealPassage) }
+      BubbleRow(speaker: .person, scale: scale) { AskedMessage(prompt: prompt, revealPassage: revealPassage) }
     case .said(let words, let answer):
       BubbleRow(
-        speaker: .loci, position: row.position ?? .alone, turn: row.turn, scale: scale,
+        speaker: .loci, scale: scale,
         words: {
           VStack(alignment: .leading, spacing: 0) { ReplyText(text: words, streaming: false, size: scale.fontSize) }
         },
@@ -160,35 +190,31 @@ struct ConversationView: View {
         }
       )
       .onHover { pointedAnswer = $0 ? row.reply : nil }
-    case .working(let since):
-      StepsCard.working(since: since).padding(.leading, scale.indent).padding(.vertical, 6)
-    case .steps(let steps):
-      StepsCard(steps: steps).padding(.leading, scale.indent).padding(.vertical, 6)
-    case .aside(let message):
-      AsideLine(message: message).padding(.vertical, 10)
+    case .doing(let doing):
+      DoingLine(doing: doing, size: scale.fontSize)
+    case .replies(let replies):
+      QuickReplyChips(replies: replies, size: scale.fontSize) { reply in
+        Task { _ = try? await send(reply, nil) }
+      }
+    case .ended(let ending):
+      BubbleRow(speaker: .loci, scale: scale) { EndedTurn(ending: ending) }
+    case .startedOver:
+      StartedOverLine().padding(.vertical, 10)
     case .saved:
-      SavedChip().padding(.leading, scale.indent).padding(.vertical, 6)
+      SavedChip()
     case .finished(let item, let at):
-      EventPill(
-        words: Text(joining: Text(.loci("talk.finished")), Text(verbatim: " · " + item.title)),
-        time: Text(at, format: .dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-      ) {
-        Cover(item: item, corner: 0, symbolSize: 11)
-      }
+      FinishedCard(item: item, at: at)
     case .task(let item, let job):
-      SavingCard(item: item, job: job, indent: scale.indent)
+      SavingCard(item: item, job: job)
     case .cards(let items):
-      ItemCardRow(indent: scale.indent) {
-        ForEach(items, id: \.id) { item in SavedItemCard(item: item) }
-      }
+      LibraryCards(items: items) { SavedItemByline($0).text }
     case .savedItems(let items):
-      SavedItemsCard(items: items).padding(.leading, scale.indent).padding(.vertical, 6)
+      SavedItemsCard(items: items).padding(.vertical, 6)
+    case .document(let document):
+      DocumentCard(id: row.id, document: document)
+    case .links(let links):
+      LinkCards(links: links)
     }
-  }
-
-  private func bubble(_ row: TalkRow, @ViewBuilder words: () -> some View) -> some View {
-    BubbleRow(
-      speaker: row.speaker ?? .loci, position: row.position ?? .alone, turn: row.turn, scale: scale, words: words)
   }
 }
 
@@ -221,7 +247,6 @@ extension ConversationEntry {
   var at: Timestamp {
     switch self {
     case .asked(let message, _), .aside(let message), .reply(let message, _, _), .saved(let message, _): message.at
-    case .steps(let steps): steps[0].at
     case .savedItems(let messages): messages[0].at
     case .event(let event): event.at
     }

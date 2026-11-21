@@ -39,28 +39,6 @@ struct ChatTests {
     #expect(DisplayMath.fenced("价格 $5 到 $6") == "价格 $5 到 $6")
   }
 
-  @Test func aCommandReadsWithoutTheShellThatRanIt() {
-    #expect(ToolTitle.unwrapped("/bin/zsh -lc 'python3 cleanup.py'") == "python3 cleanup.py")
-    #expect(ToolTitle.unwrapped("bash -c \"echo \\\"hi\\\"\"") == "echo \"hi\"")
-    #expect(ToolTitle.unwrapped("/bin/zsh -lc 'echo '\\''x'\\'''") == "echo 'x'")
-    #expect(ToolTitle.unwrapped("ls -a") == "ls -a")
-    #expect(ToolTitle(Self.tool(.execute, "/bin/zsh -lc 'ls -a'")) == ToolTitle(Self.tool(.execute, "ls -a")))
-  }
-
-  @Test func aWebSearchReadsAsSearchingForItsQuery() {
-    let title = ToolTitle(Self.tool(.search, "python str.strip", name: "webSearch"))
-
-    #expect(title.action == .searched)
-    #expect(title.object == "python str.strip")
-  }
-
-  @Test func runningActivityShowsWholeSecondsWithoutRoundingUpOrGoingNegative() {
-    let start = Date(timeIntervalSinceReferenceDate: 100)
-
-    #expect(ActivityElapsed.wholeSeconds(since: start, at: start.addingTimeInterval(-1)) == 0)
-    #expect(ActivityElapsed.wholeSeconds(since: start, at: start.addingTimeInterval(5.9)) == 5)
-  }
-
   @Test func activityDotsMoveAcrossBothAxesInsideOneIconSlot() {
     let initial = ActivityDots.spots(at: 0)
     let later = ActivityDots.spots(at: 0.4)
@@ -72,31 +50,6 @@ struct ChatTests {
     #expect((initial + later).allSatisfy { bounds.contains($0) })
   }
 
-  @Test func fileToolsReadAsWhatTheyDidToWhichFile() {
-    #expect(ToolTitle(Self.tool(.read, "/w/src/cleanup.py")).object == "cleanup.py")
-    #expect(ToolTitle(Self.tool(.edit, "/w/cleanup.py", name: "fileChange")).action == .edited)
-    #expect(ToolTitle(Self.tool(.create, "/w/cleanup.py", name: "fileChange")).action == .created)
-    #expect(ToolTitle(Self.tool(.create, "/w/cleanup.py")).object == "cleanup.py")
-  }
-
-  @Test func aDeletedFileReadsAsDeletedAndIsCountedAsADeletion() {
-    let deleted = Self.tool(.delete, "/w/qa_r2_file_event.txt", name: "fileChange")
-    let tally = ToolTally([deleted, Self.tool(.create, "/w/qa_r2_file_event.txt")])
-
-    #expect(ToolTitle(deleted).action == .deleted)
-    #expect(ToolTitle(deleted).object == "qa_r2_file_event.txt")
-    #expect(tally.deleted == 1)
-    #expect(tally.edited == 0)
-  }
-
-  @Test func failedToolsAreCountedAlongsideTheirActions() {
-    let failed = ToolActivity(id: "f", name: "read", kind: .read, subject: "a.md", output: "", state: .failed)
-    let tally = ToolTally([failed, Self.tool(.read, "b.md")])
-
-    #expect(tally.read == 2)
-    #expect(tally.failed == 1)
-  }
-
   @Test func aCodeBlocksCopyButtonShowsOnlyWhileThePointerIsOverIt() {
     let block = CGRect(x: 0, y: 200, width: 360, height: 80)
 
@@ -105,34 +58,19 @@ struct ChatTests {
     #expect(!CodePointer.isOver(block, nil))
   }
 
-  @Test func toolsInARowFoldIntoOneRowCountedByAction() {
-    let entries = Self.layout(
-      [
-        Self.asked, Self.message(1, .thinking("想")),
-        Self.message(2, .tool(Self.tool(.execute, "ls"))), Self.message(3, .tool(Self.tool(.execute, "pwd"))),
-        Self.message(4, .tool(Self.tool(.read, "a.md"))), Self.message(5, .reply("好")),
-        Self.message(6, .tool(Self.tool(.read, "b.md"))),
-      ], live: false)
-    let cards = entries.compactMap { if case .steps(let steps) = $0 { StepsCard.segments(steps) } else { nil } }
-    let folded = cards.first?.compactMap { if case .tools(let steps) = $0 { steps } else { nil } }.first
-    let tools: [ToolActivity] = (folded ?? []).compactMap { step in
-      if case .tool(let tool) = step.kind { tool } else { nil }
-    }
+  @Test func aFinishedAnswerIsCopiedWithoutTheRepliesItOffers() {
+    let offer = Self.message(2, .reply("要我存进去吗？\n\n```loci-replies\n好\n```"))
 
-    #expect(cards.map(\.count) == [2, 1])
-    #expect(ToolTally(tools).ran == 2)
-    #expect(ToolTally(tools).read == 1)
-    #expect(ToolTally(tools).phrases.count == 2)
-    if case .one = cards.last?.first {} else { Issue.record("a single tool is not folded") }
+    #expect(ConversationEntry.answers(Self.layout([Self.asked, offer], live: false)) == [offer.id: "要我存进去吗？"])
   }
 
-  @Test func aFinishedAnswerIsCopiedWholeFromUnderItsLastReply() throws {
-    let first = Self.message(2, .reply("一"))
+  @Test func aFinishedAnswerIsCopiedAsItsLastReplyAlone() throws {
+    let first = Self.message(2, .reply("我先看看。"))
     let last = Self.message(4, .reply("二"))
     let entries = Self.layout(
       [Self.asked, first, Self.message(3, .tool(Self.tool(.read, "a.md"))), last], live: false)
 
-    #expect(ConversationEntry.answers(entries) == [last.id: "一\n\n二"])
+    #expect(ConversationEntry.answers(entries) == [last.id: "二"])
   }
 
   @Test func anAnswerStillStreamingCannotBeCopiedYet() {
@@ -167,7 +105,7 @@ struct ChatTests {
     let entries = Self.layout(
       [Self.asked, Self.message(1, .reply("一")), Self.message(2, .startedOver)], live: false)
 
-    if case .aside(let line) = entries.last { #expect(line.body == .startedOver) } else { Issue.record() }
+    #expect(TalkRow.rows(entries).last.map { if case .startedOver = $0.kind { true } else { false } } == true)
   }
 
   @Test func scrollingUpStopsFollowingAndOffersTheWayBack() {

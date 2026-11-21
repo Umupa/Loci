@@ -1,16 +1,15 @@
+import Foundation
 import LociModel
 
 /// One thing the conversation shows, made from one message or from several in a row.
 enum ConversationEntry: Identifiable {
   /// What the person said, with the passage they asked about.
   case asked(Message, Prompt)
-  /// How a turn went, or where the conversation started over, said quietly between the messages.
+  /// How a turn ended when it did not finish, or where the conversation started over.
   case aside(Message)
-  /// The thinking and tools between two replies, in one card.
-  case steps([ConversationStep])
   case reply(Message, String, streaming: Bool)
   case saved(Message, note: EntityID)
-  /// Items Loci put into the library, under the steps that put them there.
+  /// Items Loci put into the library one after another.
   case savedItems([Message])
   /// Something that happened in the library.
   case event(WorldEvent)
@@ -18,22 +17,21 @@ enum ConversationEntry: Identifiable {
   var id: EntityID {
     switch self {
     case .asked(let message, _), .aside(let message), .reply(let message, _, _), .saved(let message, _): message.id
-    case .steps(let steps): steps[0].id
     case .savedItems(let messages): messages[0].id
     case .event(let event): event.id
     }
   }
 
-  /// A conversation's messages and events, oldest first, as the conversation shows them. With `live`, the
-  /// last one belongs to the turn running now.
-  static func layout(_ said: [Conversation.Entry], live: Bool, turnStartedAt: Timestamp? = nil) -> [ConversationEntry] {
+  /// A conversation's messages and events, oldest first, as the conversation shows them: Loci's thinking
+  /// and tools, what its agent reported along the way, and what it said between tools are left out. Of a
+  /// turn's replies only the last shows; while the turn runs, only one being written now, and with `hold`,
+  /// only once the hold lets it. With `live`, the last one belongs to the turn running now.
+  static func layout(_ said: [Conversation.Entry], live: Bool, hold: ReplyHold? = nil) -> [ConversationEntry] {
     var entries: [ConversationEntry] = []
-    var steps: [ConversationStep] = []
     var savedItems: [Message] = []
+    var reply: Int?
     func close() {
-      if !steps.isEmpty { entries.append(.steps(steps)) }
       if !savedItems.isEmpty { entries.append(.savedItems(savedItems)) }
-      steps = []
       savedItems = []
     }
     let going = said.lastIndex { !$0.isSavedItem }
@@ -42,51 +40,58 @@ enum ConversationEntry: Identifiable {
       switch entry {
       case .event(let event):
         close()
+        reply = nil
         entries.append(.event(event))
         continue
       case .message(let said):
         message = said
       }
-      let next = Self.next(after: index, in: said)
       let isLast = live && index == going
       switch message.body {
-      case .thinking(let text):
-        steps.append(
-          ConversationStep(
-            message: message, kind: .thinking(text), next: next, isGoing: isLast, turnStartedAt: turnStartedAt))
-      case .tool(let tool):
-        steps.append(ConversationStep(message: message, kind: .tool(tool), next: next, isGoing: isLast))
+      case .thinking, .tool, .notice:
+        continue
       case .prompt(let prompt):
         close()
+        reply = nil
         entries.append(.asked(message, prompt))
       case .reply(let text):
         close()
+        if let earlier = reply { entries.remove(at: earlier) }
+        reply = nil
+        if isLast, let hold, !hold.lets(message) { continue }
+        reply = entries.count
         entries.append(.reply(message, text, streaming: isLast))
       case .savedToNote(let note):
         close()
         entries.append(.saved(message, note: note))
       case .savedItem:
         savedItems.append(message)
-      case .notice, .ended, .startedOver:
+      case .ended, .startedOver:
         close()
+        if message.body == .startedOver { reply = nil }
         entries.append(.aside(message))
       }
     }
     close()
+    if live, let reply, case .reply(_, _, streaming: false) = entries[reply] { entries.remove(at: reply) }
     return entries
   }
 }
 
-extension ConversationEntry {
-  /// The message after the one at `index` that is not an item put into the library, which is what a step
-  /// lasts until.
-  fileprivate static func next(after index: Int, in said: [Conversation.Entry]) -> Message? {
-    for entry in said[(index + 1)...] {
-      guard case .message(let message) = entry else { return nil }
-      if entry.isSavedItem { continue }
-      return message
-    }
-    return nil
+/// When a reply being written may show: once it has gone on for `wait` with no tool after it. What Loci says
+/// between tools is followed by a tool sooner, so it never shows.
+struct ReplyHold {
+  let now: Date
+  let wait: Duration
+
+  func lets(_ reply: Message) -> Bool {
+    now.timeIntervalSince(reply.at.date) >= wait / .seconds(1)
+  }
+
+  /// When the reply the turn is writing now may show, if it is writing one.
+  static func due(_ turn: LiveTurn?, wait: Duration) -> Date? {
+    guard let last = turn?.messages.last, case .reply = last.body else { return nil }
+    return last.at.date.addingTimeInterval(wait / .seconds(1))
   }
 }
 
@@ -114,46 +119,15 @@ extension ConversationEntry {
         default: break
         }
       case .reply(let message, let text, let going):
-        texts.append(text)
+        texts.append(QuickReplies(text).text)
         last = message.id
         streaming = going
-      case .steps, .saved, .savedItems, .event:
+      case .saved, .savedItems, .event:
         break
       }
     }
     close()
     return answers
-  }
-}
-
-/// A thought or a tool, and how long it took.
-struct ConversationStep: Identifiable {
-  let id: EntityID
-  let at: Timestamp
-  let kind: Kind
-  /// Until the next message; `nil` while it is still going or nothing came after it.
-  let took: Duration?
-  /// The last thing the running turn did.
-  let isGoing: Bool
-
-  let activeSince: Timestamp?
-
-  enum Kind {
-    case thinking(String)
-    case tool(ToolActivity)
-  }
-
-  init(message: Message, kind: Kind, next: Message?, isGoing: Bool, turnStartedAt: Timestamp? = nil) {
-    id = message.id
-    at = message.at
-    self.kind = kind
-    self.isGoing = isGoing
-    took = next.map { .milliseconds($0.at.millisecondsSince1970 - message.at.millisecondsSince1970) }
-    switch (isGoing, kind) {
-    case (true, .thinking): activeSince = turnStartedAt ?? at
-    case (true, .tool(let tool)) where tool.state == .running: activeSince = at
-    default: activeSince = nil
-    }
   }
 }
 
