@@ -20,7 +20,8 @@ struct JoiningTests {
       contentRect: CGRect(x: -20_000, y: -20_000, width: 600, height: 400), styleMask: [.titled], backing: .buffered,
       defer: false)
     window.contentView = NSHostingView(
-      rootView: JoiningHarness(shown: shown, machines: machines).frame(width: 600, height: 400))
+      rootView: JoiningHarness(shown: shown, machines: machines, invite: FakeMachines.invite(issuedAt: .now))
+        .frame(width: 600, height: 400))
     window.orderBack(nil)
     defer { window.orderOut(nil) }
     try await eventually("accept to start") { machines.acceptStarted.withLock { $0 } }
@@ -34,10 +35,11 @@ struct JoiningTests {
   private struct JoiningHarness: View {
     let shown: Shown
     let machines: FakeMachines
+    let invite: Invite
 
     var body: some View {
       if shown.sheet {
-        JoiningSheet(invite: FakeMachines.invite, machines: machines) { _ in }
+        JoiningSheet(invite: invite, machines: machines) { _ in }
       }
     }
   }

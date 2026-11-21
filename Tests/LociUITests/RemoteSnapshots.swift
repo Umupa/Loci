@@ -127,7 +127,8 @@ struct RemoteSnapshots {
   @Test(arguments: Snapshot.Appearance.allCases)
   func joining(appearance: Snapshot.Appearance) async throws {
     try await Self.shoot(
-      "joining", try Self.machines(alone: true, acceptWaits: true), sheet: .joining(FakeMachines.invite),
+      "joining", try Self.machines(alone: true, acceptWaits: true),
+      sheet: .joining(FakeMachines.invite(issuedAt: .now)),
       appearance: appearance)
   }
 
