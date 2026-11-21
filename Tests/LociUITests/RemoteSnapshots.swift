@@ -8,7 +8,7 @@ import Testing
 
 /// Switching between Macs and pairing them, in light and dark, one picture for each state the design draws.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct RemoteSnapshots {
   static let window = CGSize(width: 1240, height: 800)
 

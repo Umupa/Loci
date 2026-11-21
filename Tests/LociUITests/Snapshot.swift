@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Testing
 
 /// Renders a view off screen and saves it under `output/snapshots/`, so a change
 /// to the interface can be looked at without launching the app.
@@ -54,16 +55,25 @@ enum Snapshot {
     let deadline = ContinuousClock.now + .seconds(60)
     var last: (bitmap: NSBitmapImageRep, data: Data)?
     var streak = 0
+    var notReady = 0
+    var changed = 0
+    var checks = 0
     while true {
-      guard ContinuousClock.now < deadline else { throw TimedOut(waitingFor: "\(name) to settle") }
+      guard ContinuousClock.now < deadline else {
+        throw TimedOut(
+          waitingFor: "\(name) to settle", seen: "checked \(checks) times, not ready \(notReady), changed \(changed)")
+      }
       try await Task.sleep(for: .milliseconds(50))
+      checks += 1
       guard ready(window) else {
+        notReady += 1
         streak = 0
         continue
       }
       let bitmap = try picture(of: host, in: window)
       guard let pixels = bitmap.bitmapData else { throw RenderingFailed() }
       let data = Data(bytes: pixels, count: bitmap.bytesPerPlane)
+      if let last, last.data != data { changed += 1 }
       streak = data == last?.data ? streak + 1 : 0
       last = (bitmap, data)
       if streak >= 2 { return bitmap }
@@ -73,6 +83,9 @@ enum Snapshot {
   private static func show(
     _ view: some View, size: CGSize, appearance: Appearance, locale: Locale
   ) -> (NSView, NSWindow) {
+    if !Stage.seated {
+      Issue.record("Mark the suite `.onStage`: its windows share the main thread with every other test.")
+    }
     let host = NSHostingView(
       rootView: view.frame(width: size.width, height: size.height).environment(\.locale, locale))
     let window = NSWindow(

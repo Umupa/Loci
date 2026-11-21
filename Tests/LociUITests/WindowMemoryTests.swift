@@ -9,6 +9,7 @@ import Testing
 
 /// α1-S4: after quitting, Loci reopens where it was, without the system's window restoration.
 @MainActor
+@Suite(.onStage)
 struct WindowMemoryTests {
   static let folder = URL(filePath: "/Users/someone/Loci-Beta")
 

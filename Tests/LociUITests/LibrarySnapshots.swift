@@ -10,7 +10,7 @@ import Testing
 /// The library, the media pages, the browser and the media settings, in light and dark, at the size of the
 /// design's window, one picture for each state the design draws.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct LibrarySnapshots {
   /// The design's window.
   static let window = CGSize(width: 1280, height: 800)

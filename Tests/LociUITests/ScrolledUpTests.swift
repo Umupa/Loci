@@ -9,6 +9,7 @@ import Testing
 /// C-11: someone who scrolls up while Loci answers can keep reading; the conversation does no work frame by
 /// frame while they do.
 @MainActor
+@Suite(.onStage(alone: true))
 struct ScrolledUpTests {
   @Observable final class Feed {
     var conversation: Conversation

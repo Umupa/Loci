@@ -9,7 +9,7 @@ import Testing
 /// The panel column beside the main conversation, in light and dark, in each state the design draws. The
 /// window reads the column, covers and pictures from the host, as the app does.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct PanelSnapshots {
   /// The design's window.
   static let window = CGSize(width: 1440, height: 900)

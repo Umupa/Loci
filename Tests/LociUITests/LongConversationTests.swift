@@ -9,6 +9,7 @@ import Testing
 /// C-11: a long conversation keeps showing its messages while questions follow one another, each answered
 /// at length and followed to its end.
 @MainActor
+@Suite(.onStage(alone: true))
 struct LongConversationTests {
   @Observable final class Feed {
     var conversation: Conversation

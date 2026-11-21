@@ -8,7 +8,7 @@ import Testing
 /// The test app is never active, so its Edit menu does not paste; what is checked is that the monitor leaves a
 /// field being typed into alone, so the field's own paste is the only thing ⌘V does there.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct LinkPasteKeyTests {
   static let link = "https://blog.cloudflare.com/new-standards/"
 

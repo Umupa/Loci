@@ -7,7 +7,7 @@ import Testing
 
 /// The update button at the foot of the sidebar, in each of its states.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct UpdateSnapshots {
   static let release = AppRelease(
     version: ReleaseVersion("1.2.0")!, package: URL(string: "https://example.com/Loci-Beta-1.2.0.dmg")!)

@@ -9,7 +9,7 @@ import Testing
 /// The key points page, playing only them, an article folded to them, how subtitles look, and a podcast in
 /// large words; in light and dark.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct KeyPointSnapshots {
   static func reading(_ item: EntityID) -> WindowState {
     LibrarySnapshots.reading(item)

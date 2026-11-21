@@ -7,7 +7,7 @@ import Testing
 
 /// Every screen in light and dark, for looking at. Each test also checks that something was drawn.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct ScreenSnapshots {
   static func shoot(
     _ name: String, _ view: some View, appearance: Snapshot.Appearance, english: Bool = false,

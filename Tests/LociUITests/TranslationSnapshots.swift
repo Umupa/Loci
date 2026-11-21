@@ -7,7 +7,7 @@ import Testing
 
 /// The Borg article with its translation beside each passage and in place of it, in light and dark.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct TranslationSnapshots {
   static func window(_ mode: SubtitleMode?, translated: Bool = true) throws -> some View {
     var sample = try Sample(problems: false)

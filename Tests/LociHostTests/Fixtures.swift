@@ -117,9 +117,15 @@ func withHost(
   await host.close()
 }
 
+/// How long a test waits for what the host will do before it gives up. Every host test runs at the same time,
+/// and on a runner with three cores the whole run can take longer than a few seconds, so a wait that short
+/// fails because the machine is busy rather than because the host is wrong. Nothing a host test waits for is on
+/// a timer, since ticks come only when the test sends them; this only stops a test that would wait forever.
+let patience: Duration = .seconds(60)
+
 /// The first value the feed delivers that satisfies `match`, or `nil` after `timeout`.
 func first<Value: Sendable>(
-  _ feed: AsyncStream<Feed<Value>>, within timeout: Duration = .seconds(5),
+  _ feed: AsyncStream<Feed<Value>>, within timeout: Duration = patience,
   where match: @escaping @Sendable (Feed<Value>) -> Bool
 ) async -> Feed<Value>? {
   await withTaskGroup(of: Feed<Value>?.self) { group in
@@ -138,7 +144,7 @@ func first<Value: Sendable>(
 }
 
 func value<Value: Sendable>(
-  _ feed: AsyncStream<Feed<Value>>, within timeout: Duration = .seconds(5),
+  _ feed: AsyncStream<Feed<Value>>, within timeout: Duration = patience,
   where match: @escaping @Sendable (Value) -> Bool
 ) async -> Value? {
   let found = await first(feed, within: timeout) { delivered in

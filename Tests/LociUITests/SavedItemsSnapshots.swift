@@ -7,7 +7,7 @@ import Testing
 
 /// Items Loci put into the library, as cards in a conversation, in light and dark.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct SavedItemsSnapshots {
   /// Three saved in a row with their covers and one still downloading, then an article Loci wrote, a paper with
   /// no cover, one that failed, and one deleted since.

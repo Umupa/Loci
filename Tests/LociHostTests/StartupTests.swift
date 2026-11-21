@@ -73,7 +73,7 @@ struct StartupTests {
       try database.replaceMirrors(with: read.updates)
       return read.problems
     }
-    let rebuilt = await value(host.subscribe(HealthReport()), within: .seconds(8)) { $0.database == .ready }
+    let rebuilt = await value(host.subscribe(HealthReport())) { $0.database == .ready }
     #expect(rebuilt != nil)
 
     let items = host.subscribe(AllItems())

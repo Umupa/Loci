@@ -7,6 +7,7 @@ import Testing
 @testable import LociUI
 
 @MainActor
+@Suite(.onStage)
 struct PageStackTests {
   private final class Pages: Sendable {
     let seen = Mutex<[[Page]]>([])
