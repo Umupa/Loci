@@ -70,6 +70,8 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   /// moving.
   private var heldTop: CGFloat?
   private var aligning = false
+  /// The column is changing width; the text moving meanwhile is the reader's doing, not the person's.
+  private var resizing = false
   /// How far the window may drift from where it was put before that counts as the person moving it.
   private static let drift: CGFloat = 24
   private var reporting: Task<Void, Never>?
@@ -107,8 +109,14 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     scrollView.documentView = textView
     self.textView = textView
     self.scrollView = scrollView
-    textView.willResize = { [weak self] in self?.holdPlace() }
-    textView.resized = { [weak self] in self?.showHeld() }
+    textView.willResize = { [weak self] in
+      self?.resizing = true
+      self?.holdPlace()
+    }
+    textView.resized = { [weak self] in
+      self?.resizing = false
+      self?.showHeld()
+    }
     clip.scrolled = { [weak self] in self?.scrolled() }
     textView.selectionEnded = { [weak self] in self?.selectionEnded() }
     textView.windowChanged = { [weak self] window in
@@ -129,7 +137,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     let keep = current == nil ? start : held ?? topQuote()
     aligning = true
     current = text
-    textView.textStorage?.setAttributedString(text.string)
+    textView.setText(text.string)
     textView.placeMarginMarks(marks)
     textView.layOutViewport()
     aligning = false
@@ -228,6 +236,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   private func holdPlace() {
     guard current != nil, held == nil else { return }
     held = topQuote()
+    heldTop = scrollView?.documentVisibleRect.minY
   }
 
   /// Shows the held place, once the column has a width to lay the text out in. A picture not yet in the text
@@ -268,8 +277,11 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     heldTop = nil
   }
 
+  /// What the reader does to its own text, setting a new version, a new width or a held place, neither
+  /// releases the place nor cancels remembering where the person left it.
   private func scrolled() {
-    if !aligning, held != nil, let heldTop, let scrollView,
+    let adjusting = aligning || resizing
+    if !adjusting, held != nil, let heldTop, let scrollView,
       abs(scrollView.documentVisibleRect.minY - heldTop) > Self.drift
     {
       release()
@@ -285,8 +297,8 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     } else {
       textView?.placeMarginMarks(marks)
     }
+    guard !adjusting, held == nil else { return }
     reporting?.cancel()
-    guard held == nil else { return }
     reporting = Task { [weak self, settle] in
       try? await Task.sleep(for: settle)
       guard !Task.isCancelled, let self, let quote = self.topQuote() else { return }
@@ -295,7 +307,9 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   }
 
   private func checkEnd() {
-    guard !endReported, let textView, let scrollView, !textView.string.isEmpty else { return }
+    guard !endReported, let textView, let scrollView, !textView.string.isEmpty, textView.frame.width > 0 else {
+      return
+    }
     let visible = scrollView.documentVisibleRect
     guard visible.maxY >= textView.frame.height - 1, textView.showsEnd(within: visible) else { return }
     endReported = true

@@ -212,6 +212,66 @@ struct ReaderTests {
     #expect(coordinator.topQuote()?.text.hasPrefix("第 151 段") == true)
   }
 
+  /// On a slow machine the window may lay the reader out only after the text is shown.
+  @Test(.timeLimit(.minutes(1))) func aReaderThatGetsItsWidthLateOpensInPlaceAndRemembersWhereItIsLeft() async throws {
+    let heard = Heard()
+    let coordinator = ReaderCoordinator(
+      events: ReaderEvents(moved: { heard.moves.append($0) }, reachedEnd: { heard.ends += 1 }),
+      settle: .milliseconds(50))
+    let scrollView = coordinator.makeScrollView()
+    let text = ReadingText(markdown: Self.long)
+    let started = ContinuousClock.now
+    coordinator.show(text, from: try Self.paragraph(50, in: text.plain))
+    for _ in 0..<20 { scrollView.contentView.scroll(to: CGPoint(x: 0, y: 400)) }
+    #expect(ContinuousClock.now - started < .seconds(2))
+    #expect(heard.ends == 0)
+
+    let window = NSWindow(
+      contentRect: CGRect(x: -20_000, y: -20_000, width: 900, height: 700), styleMask: [.titled], backing: .buffered,
+      defer: false)
+    defer { window.orderOut(nil) }
+    window.contentView = scrollView
+    window.layoutIfNeeded()
+    #expect(coordinator.topQuote()?.text.hasPrefix("第 50 段") == true)
+
+    scrollView.contentView.scroll(to: CGPoint(x: 0, y: scrollView.documentVisibleRect.minY + 400))
+    for _ in 0..<100 where heard.moves.isEmpty { try await Task.sleep(for: .milliseconds(50)) }
+
+    #expect(heard.moves.last?.text.hasPrefix("第 5") == true)
+    #expect(heard.ends == 0)
+  }
+
+  @Test func aReaderSizedBeforeItIsTiledOpensInPlaceAtOnce() throws {
+    let coordinator = ReaderCoordinator(events: ReaderEvents(), settle: .milliseconds(50))
+    let scrollView = coordinator.makeScrollView()
+    scrollView.frame = CGRect(x: 0, y: 0, width: 900, height: 700)
+    let textView = try #require(scrollView.documentView as? ReaderTextView)
+    let text = ReadingText(markdown: Self.long)
+
+    coordinator.show(text, from: try Self.paragraph(50, in: text.plain))
+
+    #expect(textView.frame.width > 0)
+    #expect(coordinator.topQuote()?.text.hasPrefix("第 50 段") == true)
+  }
+
+  /// A scroll bar that appears once the text scrolls, as it does on a Mac without a trackpad, narrows the
+  /// column right after the person moved.
+  @Test func whereTheReaderIsLeftIsRememberedWhenTheColumnNarrowsRightAfter() async throws {
+    let heard = Heard()
+    let (coordinator, scrollView, window) = Self.reader(heard: heard)
+    defer { window.orderOut(nil) }
+    let text = ReadingText(markdown: Self.long)
+    coordinator.show(text, from: try Self.paragraph(50, in: text.plain))
+
+    scrollView.contentView.scroll(to: CGPoint(x: 0, y: scrollView.documentVisibleRect.minY + 400))
+    let left = try #require(coordinator.topQuote())
+    window.setContentSize(CGSize(width: 885, height: 700))
+    for _ in 0..<100 where heard.moves.isEmpty { try await Task.sleep(for: .milliseconds(50)) }
+
+    #expect(heard.moves.last?.text == left.text)
+    #expect(coordinator.topQuote()?.text == left.text)
+  }
+
   @Test func aShortTextIsReadAsSoonAsItIsShown() {
     let heard = Heard()
     let (coordinator, _, window) = Self.reader(heard: heard)
@@ -228,6 +288,9 @@ struct ReaderTests {
     defer { window.orderOut(nil) }
     let text = ReadingText(markdown: Self.long)
     coordinator.show(text, from: try Self.paragraph(50, in: text.plain))
+    try await eventually("the reader to open at paragraph 50") {
+      coordinator.topQuote()?.text.hasPrefix("第 50 段") == true
+    }
 
     scrollView.contentView.scroll(to: CGPoint(x: 0, y: scrollView.documentVisibleRect.minY + 400))
     for _ in 0..<100 where heard.moves.isEmpty { try await Task.sleep(for: .milliseconds(50)) }

@@ -32,6 +32,14 @@ final class ReaderTextView: NSTextView {
     windowChanged(window)
   }
   private var noteDots: [EntityID: NoteDot] = [:]
+  /// The width the whole text was last laid out at; `nil` since the text was set.
+  private var wholeLaidOutAt: CGFloat?
+
+  /// Shows a new text in place of the old one.
+  func setText(_ text: NSAttributedString) {
+    textStorage?.setAttributedString(text)
+    wholeLaidOutAt = nil
+  }
   private var highlights: [(note: EntityID, rects: [CGRect], bands: [CGRect])] = []
   private static let noteDotSize: CGFloat = 4
 
@@ -195,11 +203,15 @@ final class ReaderTextView: NSTextView {
 
   /// Whether the last line of the text lies within `rect`, laying out the whole text to be sure: while
   /// the text is laid out from estimates, as after a jump or a new width, the view can end above the text.
+  /// The whole text is laid out once for each text and width, not again for every scroll near the end.
   func showsEnd(within rect: CGRect) -> Bool {
     guard let layoutManager = textLayoutManager, let storage = contentStorage, !string.isEmpty,
       let last = storage.location(storage.documentRange.endLocation, offsetBy: -1)
     else { return false }
-    layoutManager.ensureLayout(for: storage.documentRange)
+    if wholeLaidOutAt != frame.width {
+      layoutManager.ensureLayout(for: storage.documentRange)
+      wholeLaidOutAt = frame.width
+    }
     guard let fragment = layoutManager.textLayoutFragment(for: last) else { return false }
     return fragment.layoutFragmentFrame.maxY + textContainerOrigin.y <= rect.maxY + 1
   }
