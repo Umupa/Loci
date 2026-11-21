@@ -1,10 +1,12 @@
 import AppKit
 import Synchronization
 
-/// A wait that ran out before what it waited for happened.
+/// A wait that ran out before what it waited for happened, and how often it looked: a wait the main thread starved
+/// looked a few times, one for something that never came looked hundreds of times.
 struct TimedOut: Error, CustomStringConvertible {
   let waitingFor: String
-  var description: String { "timed out waiting for \(waitingFor)" }
+  let seen: String
+  var description: String { "timed out waiting for \(waitingFor) (\(seen))" }
 }
 
 /// Waits until `condition` holds, checking it on the main actor every 20 ms, so a test does not depend on how
@@ -14,8 +16,12 @@ func eventually(
   _ waitingFor: String, within timeout: Duration = .seconds(30), _ condition: @MainActor () -> Bool
 ) async throws {
   let deadline = ContinuousClock.now + timeout
+  var checks = 1
   while !condition() {
-    guard ContinuousClock.now < deadline else { throw TimedOut(waitingFor: waitingFor) }
+    guard ContinuousClock.now < deadline else {
+      throw TimedOut(waitingFor: waitingFor, seen: "checked \(checks) times")
+    }
+    checks += 1
     try await Task.sleep(for: .milliseconds(20))
   }
 }

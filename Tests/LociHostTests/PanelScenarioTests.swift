@@ -146,7 +146,7 @@ struct PanelScenarioTests {
 
       try await read(host, item, at: "Three.")
 
-      let shown = await value(column, within: .seconds(1)) { !$0.slots.isEmpty }
+      let shown = await value(column) { !$0.slots.isEmpty }
       #expect(shown?.slots.first.flatMap(Self.reading)?.map(\.item.id) == [item.id])
     }
   }

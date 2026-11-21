@@ -8,7 +8,7 @@ import Testing
 
 /// I-S1, I-S2, I-S5, I-S6: the import panel over the library, in light and dark.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct ImportSnapshots {
   static func shoot(
     _ name: String, _ pending: PendingImport, appearance: Snapshot.Appearance, english: Bool = false,

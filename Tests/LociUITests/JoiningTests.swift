@@ -7,6 +7,7 @@ import Testing
 
 /// R-S3: pairing from a pasted invite link can be given up while it waits for the other Mac.
 @MainActor
+@Suite(.onStage)
 struct JoiningTests {
   @Observable final class Shown {
     var sheet = true

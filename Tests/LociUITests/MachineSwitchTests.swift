@@ -8,7 +8,7 @@ import Testing
 /// R-S4, R-S7: the window shows one Mac at a time, each where it was left, and goes quiet about changes while
 /// the Mac shown cannot take them.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct MachineSwitchTests {
   static func machines(studio: LociModel.Link = .connected) throws -> FakeMachines {
     let activity = Activity()

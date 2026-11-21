@@ -33,6 +33,7 @@ actor FakeSignIns: BrowserSignIns {
 }
 
 @MainActor
+@Suite(.onStage)
 struct BrowserSessionTests {
   static let video = URL(string: "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
   static let article = URL(string: "https://blog.cloudflare.com/pingora")

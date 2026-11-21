@@ -8,7 +8,7 @@ import Testing
 /// C-S3 to C-S6 and C-S8: document cards, link cards and library cards in the conversation, in light and
 /// dark.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct ChatCardSnapshots {
   static let document = """
     ````loci-doc

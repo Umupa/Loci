@@ -8,7 +8,7 @@ import Testing
 
 /// Loci's face, its page and the main conversation, in light and dark.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct LociSnapshots {
   @Test(arguments: Snapshot.Appearance.allCases)
   func avatars(appearance: Snapshot.Appearance) async throws {

@@ -92,7 +92,7 @@ func withMediaHost(
   await host.close()
 }
 
-/// The job once it reaches a state `match` accepts, or `nil` after a few seconds.
+/// The job once it reaches a state `match` accepts, or `nil` if it does not within `patience`.
 func job(_ host: LocalHost, _ item: EntityID, where match: @escaping @Sendable (Job?) -> Bool) async -> Job?? {
   let feed = host.subscribe(ItemJob(item: item))
   let found = await first(feed) { delivered in

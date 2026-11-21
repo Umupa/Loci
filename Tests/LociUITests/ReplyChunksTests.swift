@@ -5,6 +5,7 @@ import Testing
 @testable import LociUI
 
 @MainActor
+@Suite(.onStage)
 struct ReplyChunksTests {
   private static let reply = """
     开头一段，带行内公式 $x^2$ 和 `code`。

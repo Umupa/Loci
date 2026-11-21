@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 
 /// L-S1: a link reaches the library by ⌘V wherever the keyboard is, or by dragging it in from another app.
 @MainActor
+@Suite(.onStage)
 struct LinkInputTests {
   static let link = URL(string: "https://blog.cloudflare.com/new-standards/")!
 

@@ -5,7 +5,7 @@ import Testing
 
 /// The page script in a real web view, on pages written here, so no network is touched.
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .onStage)
 struct PageScriptTests {
   static func facts(of html: String, at address: String) async throws -> PageFacts {
     let session = BrowserSession()
