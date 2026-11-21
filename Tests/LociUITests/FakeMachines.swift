@@ -23,13 +23,16 @@ final class FakeMachines: Machines {
 
   /// Counts what the window asks of these Macs; the fake hosts given here should share it.
   let activity: Activity
+  private let now: @Sendable () -> Date
 
   /// `hosts` serve each Mac's data, this one's included.
   init(
     paired: [PairedMachine] = [], hosts: [MachineID: any LociModel.Host], nearby: [NearbyMac] = [],
-    requests: [PairingRequest] = [], acceptWaits: Bool = false, activity: Activity = Activity()
+    requests: [PairingRequest] = [], acceptWaits: Bool = false, activity: Activity = Activity(),
+    now: @escaping @Sendable () -> Date = { .now }
   ) {
     self.activity = activity
+    self.now = now
     self.acceptWaits = acceptWaits
     self.paired = paired
     self.hosts = hosts
@@ -49,9 +52,11 @@ final class FakeMachines: Machines {
     PeerAddress(routeToken: Base64URL.encode(Data(count: 32)), publicKey: Data(repeating: key, count: 32))!
   }
 
-  static let invite = Invite(
-    id: EntityID(), name: "MacBook Pro", model: .laptop, address: address(key: 1), secret: Data(count: 32),
-    expires: Timestamp(Date.now.addingTimeInterval(600)))!
+  static func invite(issuedAt: Date) -> Invite {
+    Invite(
+      id: EntityID(), name: "MacBook Pro", model: .laptop, address: address(key: 1), secret: Data(count: 32),
+      expires: Timestamp(issuedAt.addingTimeInterval(600)))!
+  }
 
   static let code = PairingCode(4827)
 
@@ -83,7 +88,7 @@ final class FakeMachines: Machines {
   func invite() async throws(PairingFailure) -> Invite {
     activity.begin()
     defer { activity.end() }
-    return Self.invite
+    return Self.invite(issuedAt: now())
   }
 
   func accept(_ invite: Invite) async throws(PairingFailure) -> Machine {
