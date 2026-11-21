@@ -12,6 +12,26 @@ struct SaidSoFar: Equatable {
   }
 }
 
+/// The turn running now, and which of its replies the hold lets show: all its rows are made from. The same
+/// turn a moment later, its hold letting the same replies, draws the same rows.
+struct LiveSoFar: Equatable {
+  let turn: LiveTurn?
+  let hold: ReplyHold
+
+  init(_ turn: LiveTurn?, hold: ReplyHold) {
+    self.turn = turn
+    self.hold = hold
+  }
+
+  static func == (lhs: LiveSoFar, rhs: LiveSoFar) -> Bool {
+    lhs.turn == rhs.turn && lhs.shown == rhs.shown
+  }
+
+  private var shown: [Bool] {
+    turn?.messages.map(hold.lets) ?? []
+  }
+}
+
 extension TalkRow {
   /// The rows of what has been said, which a streaming answer leaves as they are.
   static func settled(_ said: SaidSoFar) -> [TalkRow] {
@@ -25,5 +45,9 @@ extension TalkRow {
     guard let turn, let question = turn.messages.first, case .prompt(let prompt) = question.body else { return [] }
     let answer = turn.messages.dropFirst().map(Conversation.Entry.message)
     return rows(ConversationEntry.layout(answer, live: true, hold: hold), turn: turn, after: .asked(question, prompt))
+  }
+
+  static func live(_ said: LiveSoFar) -> [TalkRow] {
+    live(said.turn, hold: said.hold)
   }
 }

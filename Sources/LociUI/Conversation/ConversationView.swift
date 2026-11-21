@@ -66,6 +66,8 @@ struct ConversationView: View {
   @State private var scrolling = false
   @State private var pointedAnswer: EntityID?
   @State private var settled = Remembered(TalkRow.settled)
+  /// The running turn's rows, which moving through the conversation leaves as they are.
+  @State private var going = Remembered<LiveSoFar, [TalkRow]>(TalkRow.live)
   /// How many of the earliest rows are not drawn; `nil` until the conversation arrives.
   @State private var hidden: Int?
   @State private var composing = false
@@ -76,7 +78,7 @@ struct ConversationView: View {
   var body: some View {
     let said = said
     let now = standIns?.conversationAt ?? max(cameDue, .now)
-    let live = TalkRow.live(conversation?.turn, hold: ReplyHold(now: now, wait: replyHold))
+    let live = going(LiveSoFar(conversation?.turn, hold: ReplyHold(now: now, wait: replyHold)))
     let start = min(hidden ?? RowWindow.latest(in: said), said.count)
     return ScrollView {
       LazyVStack(alignment: .leading, spacing: Self.gap) {

@@ -115,6 +115,9 @@ enum ReplyPiece: Equatable {
   /// The address a line holds and nothing else: bare, in angle brackets, or as the one Markdown link.
   static func link(on line: Substring) -> URL? {
     let text = line.trimmingCharacters(in: .whitespaces)
+    guard text.hasPrefix("http") || text.hasPrefix("<http") || text.hasPrefix("["), text.contains("://") else {
+      return nil
+    }
     let address: Substring
     if let match = text.wholeMatch(of: /\[[^\]]*\]\(<?(https?:\/\/[^\s)>]+)>?\)/) {
       address = match.output.1

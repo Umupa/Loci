@@ -49,6 +49,34 @@ struct StreamingRowsTests {
     return TalkRow.settled(SaidSoFar(said.map { .message($0) }, turn: live)) + TalkRow.live(live, hold: Self.shown)
   }
 
+  @Test func aRunningTurnIsLaidOutAgainOnlyWhenItChangesOrItsHeldReplyComesDue() {
+    var made = 0
+    let live = Remembered { (said: LiveSoFar) -> [TalkRow] in
+      made += 1
+      return TalkRow.live(said)
+    }
+    let asked = Self.message(0, .prompt(Prompt(text: "问", purpose: .chat)))
+    let turn = LiveTurn(
+      startedAt: asked.at, messages: [asked, Self.message(1, .tool(Self.read)), Self.message(2, .reply("结论。"))])
+    func at(_ second: TimeInterval, _ turn: LiveTurn) -> LiveSoFar {
+      LiveSoFar(turn, hold: ReplyHold(now: Date(timeIntervalSince1970: second), wait: .seconds(1)))
+    }
+
+    _ = live(at(2, turn))
+    _ = live(at(2.5, turn))
+    #expect(made == 1)
+    #expect(Self.summary(live(at(3, turn))).last?.hasSuffix("said 结论。 -") == true)
+    _ = live(at(4, turn))
+    #expect(made == 2)
+    let longer = LiveTurn(
+      startedAt: turn.startedAt,
+      messages: Array(turn.messages.dropLast()) + [
+        Message(id: turn.messages[2].id, at: turn.messages[2].at, body: .reply("结论。再说"))
+      ])
+    _ = live(at(4, longer))
+    #expect(made == 3)
+  }
+
   @Test func aRunningTurnIsDrawnTheSameWhetherOrNotWhatWasSaidBeforeItIsLaidOutAgain() {
     let said = [
       Self.message(0, .prompt(Prompt(text: "一", purpose: .chat))), Self.message(1, .reply("好\n\n再说")),
