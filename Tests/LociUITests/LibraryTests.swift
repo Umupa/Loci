@@ -22,6 +22,11 @@ import Testing
     podcast = try Item(id: id(3), kind: .audio(duration: .seconds(4323)), title: "Inference", site: "Latent Space")
   }
 
+  @Test func articlesAndPapersAppearInTheSameCategory() {
+    #expect(LibraryCategory(article.kind) == .article)
+    #expect(LibraryCategory(.paper) == .article)
+  }
+
   @Test func eachJobStateSaysHowFarAlongOrWhatFixesIt() {
     let item = video.id
     let fraction = Fraction(0.42)

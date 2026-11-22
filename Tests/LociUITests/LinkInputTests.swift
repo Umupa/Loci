@@ -106,7 +106,7 @@ struct LinkInputTests {
     #expect(LinkField.prompt(for: nil).key == "link.prompt")
     #expect(LinkField.prompt(for: .video).key == "link.promptVideo")
     #expect(LinkField.prompt(for: .audio).key == "link.promptAudio")
-    #expect(LinkField.prompt(for: .paper).key == "link.promptPaper")
+    #expect(LinkField.prompt(for: .article).key == "link.promptArticle")
   }
 
   @Test func aDraggedLinkThatIsNotOnTheWebIsLeftOut() async {

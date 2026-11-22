@@ -9,10 +9,32 @@ enum Place: Codable, Hashable {
   /// Loci's own page: its face, Soul, memory and diary.
   case loci
   /// `nil` is every kind.
-  case library(ItemKind?)
+  case library(LibraryCategory?)
   /// The built-in browser, for finding things to add.
   case browser
   case settings(SettingsSection)
+}
+
+enum LibraryCategory: String, Codable, CaseIterable, Hashable {
+  case video, audio, article
+
+  init?(_ kind: Item.Kind) {
+    switch kind {
+    case .video: self = .video
+    case .audio: self = .audio
+    case .article, .paper: self = .article
+    case .repository: return nil
+    }
+  }
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    let saved = try container.decode(String.self)
+    guard let category = saved == "paper" ? Self.article : Self(rawValue: saved) else {
+      throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown library category: \(saved)")
+    }
+    self = category
+  }
 }
 
 /// The sections of settings in the sidebar.

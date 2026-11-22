@@ -4,14 +4,14 @@ import SwiftUI
 /// The field at the top of each library page. A link pasted or typed in adds on Return; the button beside it
 /// chooses files on this Mac. The link icon turns amber once the field holds a link.
 struct LinkField: View {
-  let kind: ItemKind?
+  let category: LibraryCategory?
   let add: (URL) -> Void
   let chooseFiles: () -> Void
   @Environment(\.changesAllowed) private var changesAllowed
   @State private var text = ""
 
   var body: some View {
-    let prompt = Text(Self.prompt(for: kind))
+    let prompt = Text(Self.prompt(for: category))
     HStack(spacing: Spacing.s) {
       Image(systemName: Symbols.link)
         .font(.system(size: 14, weight: .medium))
@@ -56,13 +56,12 @@ struct LinkField: View {
     Dropped.link(in: text.trimmingCharacters(in: .whitespacesAndNewlines))
   }
 
-  static func prompt(for kind: ItemKind?) -> LocalizedStringResource {
-    switch kind {
+  static func prompt(for category: LibraryCategory?) -> LocalizedStringResource {
+    switch category {
     case .video: .loci("link.promptVideo")
     case .audio: .loci("link.promptAudio")
     case .article: .loci("link.promptArticle")
-    case .paper: .loci("link.promptPaper")
-    case .repository, nil: .loci("link.prompt")
+    case nil: .loci("link.prompt")
     }
   }
 }

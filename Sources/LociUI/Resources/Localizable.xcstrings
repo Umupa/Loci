@@ -3277,40 +3277,6 @@
         }
       }
     },
-    "kind.paper": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Papers"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "论文"
-          }
-        }
-      }
-    },
-    "kind.repository": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Code"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "代码"
-          }
-        }
-      }
-    },
     "kind.video": {
       "extractionState": "manual",
       "localizations": {
@@ -3431,13 +3397,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Paste an article link"
+            "value": "Paste an article or paper link"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "粘贴文章链接"
+            "value": "粘贴文章或论文链接"
           }
         }
       }
@@ -3455,23 +3421,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "粘贴播客链接，或把本地音频拖进来"
-          }
-        }
-      }
-    },
-    "link.promptPaper": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paste a paper link"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "粘贴论文链接"
           }
         }
       }

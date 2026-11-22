@@ -23,13 +23,11 @@ enum Messages {
     }
   }
 
-  static func name(of kind: ItemKind) -> LocalizedStringResource {
-    switch kind {
+  static func name(of category: LibraryCategory) -> LocalizedStringResource {
+    switch category {
     case .article: .loci("kind.article")
-    case .paper: .loci("kind.paper")
     case .video: .loci("kind.video")
     case .audio: .loci("kind.audio")
-    case .repository: .loci("kind.repository")
     }
   }
 }

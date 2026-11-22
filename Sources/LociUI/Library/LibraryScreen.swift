@@ -16,7 +16,7 @@ struct LibraryScreen: View {
   @Environment(\.takeIn) private var takeIn
   @Environment(\.deletions) private var deletions
   @Environment(\.standIns) private var standIns
-  let kind: ItemKind?
+  let category: LibraryCategory?
   let chooseFiles: () -> Void
   let opened: (WindowState) -> Void
   let failed: (HostError) -> Void
@@ -32,7 +32,7 @@ struct LibraryScreen: View {
     let items = shown
     ScrollView {
       VStack(alignment: .leading, spacing: 0) {
-        LinkField(kind: kind, add: add, chooseFiles: chooseFiles)
+        LinkField(category: category, add: add, chooseFiles: chooseFiles)
           .padding(.bottom, 26)
         if !items.isEmpty {
           LibraryGallery(
@@ -67,7 +67,7 @@ struct LibraryScreen: View {
     }
     .animation(Motion.standard, value: deletions?.latest)
     .background(WindowKeys(handle: key))
-    .navigationTitle(kind.map { Text(Messages.name(of: $0)) } ?? Text(.loci("sidebar.library")))
+    .navigationTitle(category.map { Text(Messages.name(of: $0)) } ?? Text(.loci("sidebar.library")))
     .acceptingDrops()
     .subscribing(AllItems(), into: $feed)
     .subscribing(AllJobs(), into: $jobs)
@@ -84,8 +84,8 @@ struct LibraryScreen: View {
 
   private var shown: [Item] {
     let items = feed?.value ?? []
-    guard let kind else { return items }
-    return items.filter { ItemKind($0.kind) == kind }
+    guard let category else { return items }
+    return items.filter { LibraryCategory($0.kind) == category }
   }
 
   private var jobsByItem: [EntityID: Job] {
@@ -119,7 +119,7 @@ struct LibraryScreen: View {
   private func click(_ item: EntityID, in items: [Item]) {
     let click = LibrarySelection.Click(event: NSApp.currentEvent)
     if selection.click(item, click, in: items.map(\.id)) {
-      opened(WindowState(place: .library(kind), pages: [.item(item)]))
+      opened(WindowState(place: .library(category), pages: [.item(item)]))
     }
   }
 

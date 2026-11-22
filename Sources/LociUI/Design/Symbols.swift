@@ -79,6 +79,14 @@ enum Symbols {
     }
   }
 
+  static func category(_ category: LibraryCategory) -> String {
+    switch category {
+    case .article: kind(.article)
+    case .video: kind(.video)
+    case .audio: kind(.audio)
+    }
+  }
+
   static func kind(_ kind: ItemKind) -> String {
     switch kind {
     case .article: "doc.text"
@@ -90,12 +98,9 @@ enum Symbols {
   }
 }
 
-/// An item's kind without what the kind carries, for grouping and filtering.
-enum ItemKind: String, CaseIterable, Codable, Hashable {
+/// An item's kind without its associated values, for item icons and labels.
+enum ItemKind: Equatable {
   case video, audio, article, paper, repository
-
-  /// The kinds the sidebar lists, in a fixed order.
-  static let listed: [ItemKind] = [.video, .audio, .article, .paper]
 
   init(_ kind: Item.Kind) {
     switch kind {

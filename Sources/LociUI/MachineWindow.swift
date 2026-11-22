@@ -187,7 +187,7 @@ struct MachineWindow: View {
     OpenPlace { window = WindowState(place: $0) }
   }
 
-  /// The place the sidebar shows as chosen: an item open over the library chooses its kind.
+  /// The place the sidebar shows as chosen: an item open over the library chooses its category.
   private var placeBinding: Binding<Place> {
     Binding(get: { shownPlace }, set: { window = WindowState(place: $0) })
   }
@@ -196,7 +196,7 @@ struct MachineWindow: View {
     guard case .library = window.place, case .item(let id)? = window.pages.last,
       let item = items?.value?.first(where: { $0.id == id })
     else { return window.place }
-    return .library(ItemKind(item.kind))
+    return .library(LibraryCategory(item.kind))
   }
 
   @ViewBuilder private var placeView: some View {
@@ -209,9 +209,9 @@ struct MachineWindow: View {
       .onAppear(perform: talkShown)
     case .loci:
       LociScreen()
-    case .library(let kind):
+    case .library(let category):
       LibraryScreen(
-        kind: kind, chooseFiles: { dialogs.importing = true }, opened: { window = $0 },
+        category: category, chooseFiles: { dialogs.importing = true }, opened: { window = $0 },
         failed: { dialogs.failure = $0 })
     case .browser:
       BrowserScreen(session: browser, opened: { window = $0 }, failed: { dialogs.failure = $0 })

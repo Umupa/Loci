@@ -21,8 +21,8 @@ struct Sidebar: View {
         .padding(.bottom, Spacing.xs)
       SidebarLabel(text: Text(.loci("sidebar.library")))
       row(.library(nil), Text(.loci("sidebar.allItems")), symbol: Symbols.library)
-      ForEach(ItemKind.listed, id: \.self) { kind in
-        row(.library(kind), Text(Messages.name(of: kind)), symbol: Symbols.kind(kind))
+      ForEach(LibraryCategory.allCases, id: \.self) { category in
+        row(.library(category), Text(Messages.name(of: category)), symbol: Symbols.category(category))
       }
       row(.browser, Text(.loci("sidebar.browser")), symbol: Symbols.browser)
       Spacer(minLength: 0)

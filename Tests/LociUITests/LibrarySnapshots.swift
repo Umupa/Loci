@@ -66,6 +66,18 @@ struct LibrarySnapshots {
       appearance: appearance, standIns: StandIns(), english: true)
   }
 
+  @Test(arguments: Snapshot.Appearance.allCases, [false, true])
+  func articlesAndPapersShareTheArticlesPage(appearance: Snapshot.Appearance, english: Bool) async throws {
+    var library = try SampleLibrary()
+    let paper = try Item(
+      id: library.attention.id, kind: .paper, title: library.attention.title, source: library.attention.source)
+    library.items = [library.article, paper, library.video]
+    library.jobs = []
+    let name = english ? "library-articles-en" : "library-articles"
+    try await Self.shoot(
+      name, library, at: WindowState(place: .library(.article)), appearance: appearance, english: english)
+  }
+
   /// I-S8: the dock opened into the list of tasks.
   @Test(arguments: Snapshot.Appearance.allCases)
   func taskDockOpen(appearance: Snapshot.Appearance) async throws {
@@ -111,13 +123,18 @@ struct LibrarySnapshots {
     #expect(try Data(contentsOf: file).count > 10_000)
   }
 
-  @Test(arguments: [nil, ItemKind.paper], Snapshot.Appearance.allCases)
-  func anEmptyLibraryViewKeepsTheSidebarOnTheLeft(kind: ItemKind?, appearance: Snapshot.Appearance) async throws {
-    let host = FakeHost(try Sample(problems: false), library: try SampleLibrary(empty: kind == nil))
-    let place = WindowState(place: .library(kind))
+  @Test(arguments: [nil, LibraryCategory.video], Snapshot.Appearance.allCases)
+  func anEmptyLibraryViewKeepsTheSidebarOnTheLeft(
+    category: LibraryCategory?, appearance: Snapshot.Appearance
+  ) async throws {
+    var library = try SampleLibrary()
+    library.items = category == nil ? [] : [library.article]
+    library.jobs = []
+    let host = FakeHost(try Sample(problems: false), library: library)
+    let place = WindowState(place: .library(category))
     let view = MachineWindow(memory: WindowMemory(recall: { place }, remember: { _ in })).lociHost(host)
     let quiet = Quiet(host.activity)
-    let name = kind == nil ? "library-empty" : "library-papers-empty"
+    let name = category == nil ? "library-empty" : "library-videos-empty"
     let size = CGSize(width: Size.windowMinimum.width, height: Snapshot.windowSize.height)
 
     let file = try await Snapshot.render(view, named: name, size: size, appearance: appearance) { window in

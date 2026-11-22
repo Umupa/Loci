@@ -24,9 +24,18 @@ struct NavigationTests {
     #expect(WindowState(restoring: "{not json") == WindowState())
   }
 
-  @Test(arguments: [Place.settings(.general), .settings(.agents), .library(.paper), .talk, .loci])
+  @Test(arguments: [Place.settings(.general), .settings(.agents), .library(.article), .talk, .loci])
   func everyPlaceComesBack(place: Place) {
     #expect(WindowState(restoring: WindowState(place: place).text) == WindowState(place: place))
+  }
+
+  @Test func aWindowOnTheFormerPapersPageReopensInArticles() throws {
+    let saved = #"{"place":{"library":{"_0":"paper"}},"pages":[]}"#
+    #expect(WindowState(restoring: saved) == WindowState(place: .library(.article)))
+
+    let paper = try #require(EntityID("01a00000-0000-7000-8000-000000000001"))
+    let reading = #"{"place":{"library":{"_0":"paper"}},"pages":[{"item":{"_0":"\#(paper)"}}]}"#
+    #expect(WindowState(restoring: reading) == WindowState(place: .library(.article), pages: [.item(paper)]))
   }
 
   @Test(arguments: [#"{"place":{"start":{}},"pages":[]}"#, #"{"place":{"mentor":{"_0":"x"}},"pages":[]}"#])
