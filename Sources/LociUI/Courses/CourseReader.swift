@@ -57,17 +57,16 @@ struct CourseReader<Conversation: View>: View {
           .transition(.move(edge: .leading))
       }
     }
-    .overlay(alignment: .topLeading) {
-      HStack(spacing: Spacing.xs) {
-        corner(Symbols.back, label: .loci("course.back"), action: actions.back)
-        corner(Symbols.contents, label: .loci("course.contents")) {
-          withAnimation(Motion.fold) {
-            if navBeside { navShown.toggle() } else { navFloating.toggle() }
-          }
+    .windowCorner([
+      WindowCornerItem(
+        symbol: Symbols.back, label: .loci("course.back"), shortcut: KeyboardShortcut("[")
+      ) { actions.back() },
+      WindowCornerItem(symbol: Symbols.contents, label: .loci("course.contents")) {
+        withAnimation(Motion.fold) {
+          if navBeside { navShown.toggle() } else { navFloating.toggle() }
         }
-      }
-      .padding(.leading, Spacing.m).padding(.top, Spacing.s)
-    }
+      },
+    ])
     .onGeometryChange(for: CGFloat.self) {
       $0.size.width
     } action: {
@@ -83,19 +82,6 @@ struct CourseReader<Conversation: View>: View {
         actions.choose(lesson)
       },
       openSource: actions.openLink)
-  }
-
-  private func corner(_ symbol: String, label: LocalizedStringResource, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Image(systemName: symbol)
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(Palette.ink.opacity(0.75))
-        .frame(width: 36, height: 36)
-        .glassEffect(.regular.interactive(), in: .circle)
-    }
-    .buttonStyle(AnswerPress(scale: 0.92))
-    .help(Text(label))
-    .accessibilityLabel(Text(label))
   }
 
   @ViewBuilder private func lesson(room: CGFloat) -> some View {

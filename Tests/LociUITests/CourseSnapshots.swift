@@ -210,7 +210,7 @@ struct CourseSnapshots {
       english: true, standIns: StandIns(readThrough: 0.32))
   }
 
-  /// The narrowest window: the contents and Loci folded out of the lesson's way, each a button in a corner.
+  /// The narrowest window: the contents and Loci folded out of the lesson's way.
   @Test(arguments: Snapshot.Appearance.allCases)
   func readingNarrow(appearance: Snapshot.Appearance) async throws {
     try await Self.shoot(
@@ -242,6 +242,14 @@ struct CourseSnapshots {
       appearance: appearance, standIns: StandIns(readThrough: 1, endInView: true))
   }
 
+  /// UI-S26: with the sidebar hidden, its button, the course's back and its contents sit in a row in the
+  /// window's corner.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func readingWithTheSidebarHidden(appearance: Snapshot.Appearance) async throws {
+    try await Self.window(
+      "course-window-reader-no-sidebar", at: .courses(BuilderSamples.raft), appearance: appearance, sidebar: false)
+  }
+
   /// CO-S10: a lesson not written yet.
   @Test(arguments: Snapshot.Appearance.allCases)
   func readingUnwritten(appearance: Snapshot.Appearance) async throws {
@@ -263,12 +271,15 @@ struct CourseSnapshots {
   }
 
   static func window(
-    _ name: String, at place: Place, appearance: Snapshot.Appearance, size: CGSize = LibrarySnapshots.window
+    _ name: String, at place: Place, appearance: Snapshot.Appearance, size: CGSize = LibrarySnapshots.window,
+    sidebar: Bool = true
   ) async throws {
+    let defaults = LibrarySnapshots.defaults(panel: false)
+    defaults.set(sidebar, forKey: "sidebarShown")
     let view = MachineWindow(memory: WindowMemory(recall: { WindowState(place: place) }, remember: { _ in }))
       .lociHost(FakeHost(try Sample(problems: false), courses: try SampleCourses()))
       .environment(\.standIns, StandIns())
-      .defaultAppStorage(LibrarySnapshots.defaults(panel: false))
+      .defaultAppStorage(defaults)
     let file = try await Snapshot.render(
       view, named: name, size: size, appearance: appearance, settle: .milliseconds(1500))
     #expect(try Data(contentsOf: file).count > 10_000)

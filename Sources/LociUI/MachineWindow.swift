@@ -103,20 +103,25 @@ struct MachineWindow: View {
     }
     .onChange(of: width) { refit() }
     .onChange(of: reading) { refit() }
-    .overlay(alignment: .topLeading) {
+    .overlayPreferenceValue(WindowCornerItems.self, alignment: .topLeading) { placeButtons in
       HStack(spacing: Spacing.xxs) {
         if !sidebarShown {
           SidebarToggle(shown: false, toggle: toggleSidebar).glassEffect(.regular, in: .capsule)
         }
-        if !window.pages.isEmpty {
-          PageBack { window.pages.removeLast() }
-        }
+        ForEach(window.pages.isEmpty ? placeButtons : [pageBack]) { WindowCornerButton(button: $0) }
       }
       .padding(.leading, sidebarShown ? sidebarEdge + Spacing.s : Size.sidebarToggleLeading)
       .padding(.top, Spacing.xs)
     }
     .ignoresSafeArea(edges: .top)
     .background(Palette.canvas)
+  }
+
+  /// Closes the page on top and goes back to the one under it, or to the place.
+  private var pageBack: WindowCornerItem {
+    WindowCornerItem(symbol: Symbols.back, label: .loci("page.back"), shortcut: KeyboardShortcut("[")) {
+      window.pages.removeLast()
+    }
   }
 
   private var sidebar: some View {
