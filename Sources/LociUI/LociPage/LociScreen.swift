@@ -10,6 +10,11 @@ enum LociTab: Hashable {
 /// Soul, memory and diary.
 struct LociScreen: View {
   @State private var page: Feed<LociPage>?
+  @Environment(\.host) private var host
+  @Environment(\.showFailure) private var showFailure
+  @Environment(\.companionName) private var name
+  @State private var renaming = false
+  @State private var draft = ""
   @State private var tab: LociTab
 
   init(tab: LociTab = .soul) {
@@ -47,13 +52,41 @@ struct LociScreen: View {
     .scrollIndicators(.never)
     .background(Palette.canvas)
     .subscribing(LociHome(), into: $page)
+    .alert(Text(.loci("companion.name")), isPresented: $renaming) {
+      TextField(text: $draft) { Text(.loci("companion.name")) }
+      Button(.loci("dialog.cancel"), role: .cancel) {}
+      Button(.loci("loci.save")) { rename(draft) }
+    }
+  }
+
+  private func rename(_ name: String) {
+    Task {
+      do throws(HostError) {
+        _ = try await host.run(RenameCompanion(name))
+      } catch {
+        showFailure(error)
+      }
+    }
   }
 
   private var hero: some View {
     HStack(spacing: Spacing.xl) {
       Portrait()
       VStack(alignment: .leading, spacing: Spacing.s) {
-        Text(verbatim: "Loci").font(.system(size: 46, weight: .semibold, design: .serif)).foregroundStyle(Palette.ink)
+        Button {
+          draft = name
+          renaming = true
+        } label: {
+          HStack(alignment: .firstTextBaseline, spacing: Spacing.s) {
+            (name.isEmpty ? Text(.loci("companion.title")) : Text(verbatim: name))
+              .font(.system(size: 46, weight: .semibold, design: .serif))
+              .lineLimit(1)
+            Image(systemName: Symbols.pencil).font(.system(size: 15)).foregroundStyle(Palette.inkMuted)
+          }
+        }
+        .buttonStyle(.plain)
+        .help(Text(.loci("companion.name")))
+        .changesData()
         if let together = page?.value?.together {
           HStack(spacing: Spacing.xs) {
             FactPill(count: together.days, unit: .loci("loci.days"))

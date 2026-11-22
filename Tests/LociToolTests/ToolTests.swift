@@ -125,7 +125,7 @@ struct ToolTests {
     #expect(outcome.text.hasPrefix("\(Self.id)  Borg"))
   }
 
-  @Test func anArticleIsImportedWithLociAsItsAuthor() async throws {
+  @Test func anArticleIsImportedWithTheCompanionAsItsAuthor() async throws {
     let item = try #require(Self.item)
     let line = ScriptedLine { _ in [.success(Self.json(item))] }
     let folder = FileManager.default.temporaryDirectory.appending(path: "loci-tool-\(UUID().uuidString)")
@@ -136,7 +136,7 @@ struct ToolTests {
 
     _ = await tool.run(.importFile(path: "workspace/borg.md", title: "Borg"), json: false)
 
-    let expected = AddTextItem(fileName: "borg.md", text: "# Borg\n", title: "Borg", authors: ["Loci"])
+    let expected = AddTextItem(fileName: "borg.md", text: "# Borg\n", title: "Borg", authors: ["Companion"])
     #expect(line.requests == [.command(name: AddTextItem.name, body: Self.json(expected))])
   }
 

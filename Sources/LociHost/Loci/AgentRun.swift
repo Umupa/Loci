@@ -18,7 +18,10 @@ struct AgentContext: Sendable {
 
   /// `AGENTS.md` as it should be now.
   func instructions() throws(HostError) -> String {
-    try attempt { prompts.instructions(soul: try store.agentText(.soul), profile: try store.agentText(.profile)) }
+    try attempt {
+      try prompts.instructions(
+        soul: store.agentText(.soul), profile: store.agentText(.profile), name: store.companionName())
+    }
   }
 }
 
@@ -69,7 +72,7 @@ actor AgentRun {
     self.session = session
   }
 
-  static let busy = "Loci is still answering the last message here"
+  static let busy = "Your companion is still answering the last message here"
 
   var isIdle: Bool { turn == nil }
 

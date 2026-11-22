@@ -140,7 +140,7 @@ private struct DocumentSheet: View {
     let title = document.title ?? String(document.body.prefix(40))
     Task {
       let added = try? await host.run(
-        AddTextItem(fileName: title + ".md", text: document.markdown, title: title, authors: [LociAuthor.name]))
+        AddTextItem(fileName: title + ".md", text: document.markdown, title: title, authors: [Item.companionCredit]))
       if added != nil { saved = true }
     }
   }

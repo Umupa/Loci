@@ -19,6 +19,8 @@ enum LociFace: Equatable {
 }
 
 extension EnvironmentValues {
+  @Entry var companionName = ""
+
   /// The face every avatar shows, so changing it changes them all at once.
   @Entry var lociFace: LociFace = .drawn
 }

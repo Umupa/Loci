@@ -25,11 +25,13 @@ struct Prompts: Sendable {
   }
 
   /// `AGENTS.md`: the rules, then the soul and the person as they are now.
-  func instructions(soul: String, profile: String) -> String {
+  func instructions(soul: String, profile: String, name: String) -> String {
     [
       rules.trimmingCharacters(in: .whitespacesAndNewlines),
       "# Your soul (SOUL.md)\n\n" + soul.trimmingCharacters(in: .whitespacesAndNewlines),
       "# The person (USER.md)\n\n" + profile.trimmingCharacters(in: .whitespacesAndNewlines),
+      "# Your name\n\n" + (name.isEmpty ? "You have no name yet." : "Your current name is \(name).")
+        + " This is the current choice even if an older entry uses another name.",
     ].joined(separator: "\n\n") + "\n"
   }
 

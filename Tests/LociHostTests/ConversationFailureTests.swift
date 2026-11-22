@@ -21,7 +21,7 @@ struct ConversationFailureTests {
       #expect(await working(host))
       #expect(await agent.opened.map { $0.resume?.value } == ["gone", nil])
       let session = try #require(await agent.sessions.last)
-      #expect(await session.prompts.last?.contains("Loci: Previous reply") == true)
+      #expect(await session.prompts.last?.contains("Companion: Previous reply") == true)
       await session.finish()
       let done = try #require(await settled(host))
       #expect(done.messages.first == message)

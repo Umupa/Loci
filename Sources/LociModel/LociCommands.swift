@@ -32,7 +32,7 @@ public struct LociHome: Subscription {
   public func isAffected(by changes: Set<ContentChange>) -> Bool {
     changes.contains { change in
       switch change {
-      case .loci(let file): file != .avatar && file != .panels
+      case .loci(let file): file != .avatar && file != .panels && file != .name
       case .turnEnded, .item, .everything: true
       case .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .review, .events, .runtime: false
       }
@@ -128,5 +128,34 @@ public struct ResetAvatar: RemoteCommand {
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
     try await handler.resetAvatar()
+  }
+}
+
+/// The companion's chosen name. An empty name leaves it unnamed.
+public struct CompanionName: Subscription {
+  public static let name = "loci.name"
+
+  public init() {}
+
+  public func value(from handler: any CommandHandler) async throws(HostError) -> String {
+    try await handler.companionName()
+  }
+
+  public func isAffected(by changes: Set<ContentChange>) -> Bool {
+    changes.contains(.loci(.name)) || changes.contains(.everything)
+  }
+}
+
+/// Sets the companion's name in this library. A blank name clears it.
+public struct RenameCompanion: RemoteCommand {
+  public static let name = "loci.rename"
+  public let displayName: String
+
+  public init(_ displayName: String) {
+    self.displayName = displayName
+  }
+
+  public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
+    try await handler.renameCompanion(self)
   }
 }

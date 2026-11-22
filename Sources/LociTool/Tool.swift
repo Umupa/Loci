@@ -90,7 +90,8 @@ struct Tool: Sendable {
     } catch {
       throw .file("\(path) cannot be read: \(error.localizedDescription)")
     }
-    let command = AddTextItem(fileName: file.lastPathComponent, text: text, title: title, authors: ["Loci"])
+    let command = AddTextItem(
+      fileName: file.lastPathComponent, text: text, title: title, authors: [Item.companionCredit])
     return saved(try await line.run(command), json: json)
   }
 

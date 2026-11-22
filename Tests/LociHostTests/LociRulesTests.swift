@@ -137,7 +137,7 @@ struct RecapTests {
 
     let recap = try #require(Recap.of(stored))
 
-    #expect(recap.contains("Person: 新的\n\nLoci: 好"))
+    #expect(recap.contains("Person: 新的\n\nCompanion: 好"))
     #expect(!recap.contains("old") && !recap.contains("hm"))
   }
 

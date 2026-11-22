@@ -58,21 +58,21 @@ enum ConversationMirror {
       case .review, .panel, .course: return ("App", prompt.text)
       }
     case .reply(let text):
-      return ("Loci", text)
+      return ("Companion", text)
     case .tool(let tool):
-      return ("Loci", "- \(tool.kind.rawValue): \(tool.subject ?? tool.name)")
+      return ("Companion", "- \(tool.kind.rawValue): \(tool.subject ?? tool.name)")
     case .ended(.interrupted):
-      return ("Loci", "_(stopped)_")
+      return ("Companion", "_(stopped)_")
     case .ended(.failed(let reason)):
-      return ("Loci", "_(failed: \(reason))_")
+      return ("Companion", "_(failed: \(reason))_")
     case .ended(.unstarted(let provider, .notInstalled)):
-      return ("Loci", "_(\(provider.rawValue) is not installed)_")
+      return ("Companion", "_(\(provider.rawValue) is not installed)_")
     case .ended(.unstarted(let provider, .wouldNotStart)):
-      return ("Loci", "_(\(provider.rawValue) would not start)_")
+      return ("Companion", "_(\(provider.rawValue) would not start)_")
     case .startedOver:
       return ("You", "/new")
     case .savedItem(let item):
-      return ("Loci", "- saved to the library: library/\(item)")
+      return ("Companion", "- saved to the library: library/\(item)")
     case .thinking, .savedToNote, .notice:
       return nil
     }

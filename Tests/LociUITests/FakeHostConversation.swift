@@ -19,6 +19,9 @@ extension FakeHost {
     }
   }
 
+  func companionName() async throws(HostError) -> String { "小满" }
+  func renameCompanion(_ command: RenameCompanion) async throws(HostError) -> Done { Done() }
+
   func lociStatus() async -> LociStatus {
     LociStatus(work: working ? .answering(library?.mainConversation(working: true).turn?.latestTool) : nil)
   }

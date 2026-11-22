@@ -72,6 +72,7 @@ struct ChangeMap {
   /// generated instructions belong to nobody's view.
   private static func lociFile(_ name: String, _ rest: [String]) -> ContentChange? {
     switch (name, rest.count) {
+    case (AgentFile.displayName.name, 0): .loci(.name)
     case (Store.soulFile, 0): .loci(.soul)
     case (Store.profileFile, 0): .loci(.profile)
     case (Store.memoryFile, 0): .loci(.memory)

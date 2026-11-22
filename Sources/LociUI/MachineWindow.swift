@@ -12,6 +12,7 @@ struct MachineWindow: View {
   @State private var items: Feed<[Item]>?
   @State private var health: Feed<Health>?
   @State private var status: Feed<LociStatus>?
+  @State private var name: Feed<String>?
   @State private var avatar: Feed<Avatar?>?
   @State private var saving: Feed<SavingBatch?>?
   @State private var dialogs = Dialogs()
@@ -57,6 +58,7 @@ struct MachineWindow: View {
       .frame(minWidth: Size.windowMinimum.width, minHeight: Size.windowMinimum.height)
       .subscribing(AllItems(), into: $items)
       .subscribing(HealthReport(), into: $health)
+      .subscribing(CompanionName(), into: $name)
       .subscribing(LociWorking(), into: $status)
       .subscribing(LociModel.LociAvatar(), into: $avatar)
       .subscribing(SavingNow(), into: $saving)
@@ -77,6 +79,7 @@ struct MachineWindow: View {
       .environment(\.panelPictures, panelPictures)
       .environment(\.browser, browser)
       .environment(\.nowPlaying, nowPlaying)
+      .environment(\.companionName, name?.value ?? "")
       .environment(\.lociFace, face)
       .environment(\.showFailure, ShowFailure { dialogs.failure = $0 })
       .takingIn(takeIn)

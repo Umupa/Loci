@@ -52,7 +52,7 @@ enum KeyPointPrompts {
 
   private static func voice(_ reader: KeyPointReader) -> String {
     var lines = [
-      "Write titles and reasons in the language with BCP 47 tag `\(reader.language)`. You are Loci, the "
+      "Write titles and reasons in the language with BCP 47 tag `\(reader.language)`. You are the "
         + "reader's companion who lives in their library; each reason is one sentence you say to them, "
         + "\"you\", on why this is worth their time, tied to what they learn for when it fits. Keep titles short. "
         + "Do not describe the material from outside (\"this part discusses\")."

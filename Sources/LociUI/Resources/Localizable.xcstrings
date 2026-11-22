@@ -41,13 +41,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Written by Loci"
+            "value": "Written by your companion"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Loci 写的"
+            "value": "伙伴写的"
           }
         }
       }
@@ -245,13 +245,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Loci Runs On"
+            "value": "Companion Runtime"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Loci 用哪个"
+            "value": "伙伴运行时"
           }
         }
       }
@@ -1095,13 +1095,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ask Loci"
+            "value": "Ask a question"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "问 Loci"
+            "value": "提个问题"
           }
         }
       }
@@ -1418,13 +1418,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Loci is saving"
+            "value": "Saving to the library"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Loci 正在收"
+            "value": "正在收进资料库"
           }
         }
       }
@@ -2166,13 +2166,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Same as Loci"
+            "value": "Same as Companion"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "跟随 Loci"
+            "value": "跟随伙伴"
           }
         }
       }
@@ -3266,13 +3266,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Same as Loci"
+            "value": "Same as Companion"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "跟随 Loci"
+            "value": "跟随伙伴"
           }
         }
       }
@@ -3958,7 +3958,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Use Loci's Own Face"
+            "value": "Restore Default Portrait"
           }
         },
         "zh-Hans": {
@@ -5029,13 +5029,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ask Loci"
+            "value": "Ask about Passage"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "问 Loci"
+            "value": "问问这段"
           }
         }
       }
@@ -5675,13 +5675,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The library, courses, conversations, and Loci's soul, memory and diary go to the Trash. Settings are kept."
+            "value": "The library, courses, conversations, and your companion’s soul, memory and diary go to the Trash. Settings are kept."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "资料库、课程、对话，以及 Loci 的 Soul、记忆和日记都会移到废纸篓。设置会保留。"
+            "value": "资料库、课程、对话，以及伙伴的 Soul、记忆和日记都会移到废纸篓。设置会保留。"
           }
         }
       }
@@ -6644,13 +6644,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Message Loci"
+            "value": "Write a message"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "给 Loci 发消息"
+            "value": "发条消息"
           }
         }
       }
@@ -7154,13 +7154,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ask Loci"
+            "value": "Ask Your Companion"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "问 Loci"
+            "value": "问伙伴"
           }
         }
       }
@@ -7460,13 +7460,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ask Loci to Change It"
+            "value": "Request Changes"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "让 Loci 改改"
+            "value": "请伙伴修改"
           }
         }
       }
@@ -8045,6 +8045,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭"
+          }
+        }
+      }
+    },
+    "companion.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Companion"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伙伴"
+          }
+        }
+      }
+    },
+    "companion.name": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Companion Name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伙伴名字"
+          }
+        }
+      }
+    },
+    "companion.prompt %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "问 %@"
+          }
+        }
+      }
+    },
+    "talk.prompt %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "给 %@ 发消息"
           }
         }
       }

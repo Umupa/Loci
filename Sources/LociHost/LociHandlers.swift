@@ -58,6 +58,16 @@ extension LocalHost {
     return Done()
   }
 
+  public func companionName() async throws(HostError) -> String {
+    try attempt { try store.companionName() }
+  }
+
+  public func renameCompanion(_ command: RenameCompanion) async throws(HostError) -> Done {
+    try attempt { try store.saveCompanionName(command.displayName) }
+    await follow([.loci(.name)])
+    return Done()
+  }
+
   public func avatar() async throws(HostError) -> Avatar? {
     try attempt { try store.avatar() }
   }

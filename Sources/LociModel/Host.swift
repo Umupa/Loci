@@ -95,6 +95,8 @@ public protocol CommandHandler: Sendable {
   func stopTurn(_ command: StopTurn) async throws(HostError) -> Done
   func startOver(_ command: StartOver) async throws(HostError) -> Done
   func conversation(_ conversation: ConversationRef) async throws(HostError) -> Conversation
+  func companionName() async throws(HostError) -> String
+  func renameCompanion(_ command: RenameCompanion) async throws(HostError) -> Done
   func lociStatus() async -> LociStatus
   func lociPage() async throws(HostError) -> LociPage
   func diary(of day: Day) async throws(HostError) -> Diary

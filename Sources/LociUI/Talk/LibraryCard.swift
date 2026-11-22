@@ -19,7 +19,7 @@ struct LibraryCard: View {
   }
 
   @ViewBuilder private var picture: some View {
-    if LociAuthor.wrote(item) {
+    if item.writtenByCompanion {
       PaperPage(title: item.title)
     } else {
       Cover(item: item, corner: 0, backdrop: Palette.cardInset)

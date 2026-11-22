@@ -32,7 +32,7 @@ struct SessionScenarioTests {
       #expect(world.agent.opened.last?.resume == nil)
       let recap = try #require(world.agent.prompts.last)
       #expect(recap.contains("Person: Remember the word cobalt"))
-      #expect(recap.contains("Loci: Hello there."))
+      #expect(recap.contains("Companion: Hello there."))
       #expect(recap.hasSuffix("What was the word?"))
       let conversation = try await host.conversation(.main)
       #expect(!conversation.messages.contains { $0.body == .startedOver })
@@ -66,6 +66,22 @@ struct SessionScenarioTests {
     }
   }
 
+  @Test func theNextTurnUsesTheNewCompanionNameAndKeepsTheConversation() async throws {
+    try await withHost { host, place, world in
+      try await say("one", to: host, prompts: 1)
+      _ = try await host.run(RenameCompanion("Jun"))
+      try await say("two", to: host, prompts: 2)
+      let file = place.root.appending(path: "agent/AGENTS.md")
+      #expect(try String(contentsOf: file, encoding: .utf8).contains("Your current name is Jun."))
+      #expect(world.agent.prompts.last?.contains("Person: one") == true)
+      _ = try await host.run(RenameCompanion(""))
+      try await say("three", to: host, prompts: 3)
+      let instructions = try String(contentsOf: file, encoding: .utf8)
+      #expect(instructions.contains("You have no name yet."))
+      #expect(!instructions.contains("Your current name is Jun."))
+    }
+  }
+
   @Test func whatLociLearnsAboutThePersonRenewsTheSession() async throws {
     try await withHost { host, place, world in
       try await say("one", to: host, prompts: 1)
@@ -87,7 +103,7 @@ struct SessionScenarioTests {
       try await say("two", to: host, prompts: 2)
 
       #expect(agent.opened.count == 2)
-      #expect(agent.prompts.last?.contains("Loci: Full.") == true)
+      #expect(agent.prompts.last?.contains("Companion: Full.") == true)
     }
   }
 

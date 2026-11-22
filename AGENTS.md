@@ -7,7 +7,7 @@ Loci 是一个 Mac 应用：从你读的、看的、听的东西里学习，身�
 | [docs/roadmap.md](docs/roadmap.md) | 做完了哪些版本，下一版做什么 |
 | [docs/features.md](docs/features.md) | 功能叫什么、怎样算做对（场景） |
 | [docs/design.md](docs/design.md) | 现在的产品、视觉、数据和远程设计 |
-| [docs/agent.md](docs/agent.md) | Loci 这个 agent 为什么这样设计 |
+| [docs/agent.md](docs/agent.md) | 资料库里的伙伴为什么这样设计 |
 | [docs/architecture.md](docs/architecture.md) | 模块怎么分 |
 | [CHANGELOG.md](CHANGELOG.md) | 用户看得到的变化，按版本 |
 

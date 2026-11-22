@@ -12,10 +12,24 @@ struct LociPageTests {
     try await withHost { host, _, _ in
       let page = try await host.lociPage()
 
-      #expect(page.soul.core.hasPrefix("# Soul\n\nYou are Loci."))
+      #expect(page.soul.core.hasPrefix("# Soul\n\nYou live on this Mac"))
       #expect(page.soul.traits.isEmpty)
       #expect(page.memory.isEmpty && page.profile.isEmpty && page.today.notes.isEmpty && page.diaries.isEmpty)
       #expect(page.together == Together(days: 0, messages: 0, itemsReadTogether: 0))
+    }
+  }
+
+  @Test func aCompanionCanBeNamedRenamedAndLeftUnnamedWithoutChangingItsSoul() async throws {
+    try await withHost { host, place, _ in
+      let soul = try await host.lociPage().soul
+      let names = host.subscribe(CompanionName())
+      #expect(await value(names) { $0.isEmpty } == "")
+      for (input, expected) in [("  小满  ", "小满"), ("Rae", "Rae"), ("  ", "")] {
+        _ = try await host.run(RenameCompanion(input))
+        #expect(await value(names) { $0 == expected } == expected)
+        #expect(try place.store.companionName() == expected)
+      }
+      #expect(try await host.lociPage().soul == soul)
     }
   }
 

@@ -6,6 +6,14 @@ public struct Item: Hashable, Sendable {
   public let kind: Kind
   public let title: String
   public let authors: [String]
+
+  /// The stable author credit on articles the companion wrote, even when it is renamed.
+  public static let companionCredit = "Companion"
+
+  public var writtenByCompanion: Bool {
+    kind == .article && source == nil && (authors == [Self.companionCredit] || authors == ["Loci"])
+  }
+
   /// Where the item was fetched from; `nil` when it was imported from a local file.
   public let source: URL?
   /// A BCP 47 language tag such as `en` or `zh-Hans`.

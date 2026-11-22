@@ -108,7 +108,7 @@ struct KeyPointWriterTests {
     #expect(prompt.contains("`zh-Hans`"))
     #expect(prompt.contains("Learns distributed systems for an infra job."))
     #expect(prompt.contains("For the interview next week"))
-    #expect(prompt.contains("You are Loci"))
+    #expect(prompt.contains("You are the reader's companion"))
   }
 
   @Test func withoutAProfileOrAReasonThePromptLeavesThemOut() async throws {

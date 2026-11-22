@@ -4,35 +4,36 @@
 
 A Mac app for learning from what you read, watch and listen to, with one AI companion who lives in your library.
 
-Loci keeps your articles, papers, videos and podcasts in one place and reads them with you. Its companion, also called Loci, runs on the agent CLI you already use, or on a bundled Pi with your own model key, remembers what you have read together, and has a personality of its own.
+Loci keeps your articles, papers, videos and podcasts in one place and reads them with you. Your companion runs on the agent CLI you already use, or on a bundled Pi with your own model key, remembers what you have read together, and has a personality of its own.
 
 Native Swift, macOS 26 and later. Still in alpha.
 
 ## What it does
 
-**Loci, the companion.** One conversation that keeps going, and one beside every item in the library. Loci answers like a friend messaging you: short replies, an opinion when you ask which one is better. When you finish reading something or save something new, it shows up in the conversation.
+**Your companion.** One conversation that keeps going, and one beside every item in the library. It answers like a friend messaging you: short replies, an opinion when you ask which one is better. When you finish reading something or save something new, it shows up in the conversation.
 
-**A soul and a memory, as plain files.** Everything that makes Loci who it is lives in the data folder under `agent/`, readable and editable:
+**A soul and a memory, as plain files.** Everything that shapes your companion lives in the data folder under `agent/`, readable and editable:
 
 | File | What it holds |
 |---|---|
-| `SOUL.md` | Who Loci is: a core you can edit, and traits it grows on its own (at most 15) |
+| `SOUL.md` | Your companion’s personality, including a core you can edit, and traits it grows on its own (at most 15) |
+| `NAME.txt` | The optional name you give your companion |
 | `USER.md` | What it knows about you |
 | `MEMORY.md` | What is worth remembering for good |
 | `notes/<date>.md` | What happened today, appended by every conversation |
-| `diary/<date>.md` | What Loci wrote to itself at the end of the day |
+| `diary/<date>.md` | What your companion wrote to itself at the end of the day |
 
-Every night after 23:00, once you have gone quiet, Loci looks back on the day: it writes a diary entry, tidies its memory and may add a trait. The Loci page shows its soul, memory and diary, and lets you give it your own picture.
+Every night after 23:00, once you have gone quiet, your companion looks back on the day: it writes a diary entry, tidies its memory and may add a trait. Open its profile to name it, change its portrait or read its soul, memory and diary. You can rename it or leave it unnamed.
 
-**Any agent CLI.** Loci runs on Claude Code, Codex, Pi, Grok, Cursor, OpenCode, Antigravity and others, using the login you already have. Without one, Loci downloads its own Pi and runs on the model service key you enter. Switch the runtime at any time and it is still the same Loci; sessions underneath rotate on their own when the context fills up.
+**Any agent CLI.** Your companion runs on Claude Code, Codex, Pi, Grok, Cursor, OpenCode, Antigravity and others, using the login you already have. Without one, Loci downloads its own Pi and runs on the model service key you enter. Switch the runtime at any time and it is still the same companion. Sessions underneath rotate on their own when the context fills up.
 
 **A library.**
 
 - Articles in a serif reader, papers as PDFs, and a built-in browser for pages that need a login.
 - Videos and podcasts transcribed on your Mac with Whisper, with chapters, highlights and a line-by-line translation.
-- Highlights anywhere: select a passage, keep a thought, or ask Loci about it right there.
+- Highlights anywhere: select a passage, keep a thought, or ask your companion about it right there.
 
-**Your other Mac.** Pair two Macs through an end-to-end encrypted relay and switch to the other one's library and Loci from the sidebar. What you have opened stays readable offline.
+**Your other Mac.** Pair two Macs through an end-to-end encrypted relay and switch to the other one's library and companion from the sidebar. What you have opened stays readable offline.
 
 ## Build
 

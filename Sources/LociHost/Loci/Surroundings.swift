@@ -90,7 +90,7 @@ enum Recap {
       let line: String
       switch message.body {
       case .prompt(let prompt) where prompt.purpose == .chat: line = "Person: " + prompt.text
-      case .reply(let text): line = "Loci: " + text
+      case .reply(let text): line = "Companion: " + text
       default: continue
       }
       guard lines.count < messages, length + line.count <= characters else { break }

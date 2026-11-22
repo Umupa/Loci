@@ -32,6 +32,8 @@ struct ItemScreen: View {
 
 /// An item's text, with its byline under the title and its pictures, and Loci beside it.
 struct ItemView: View {
+  @Environment(\.companionName) private var name
+  @Environment(\.locale) private var locale
   @Environment(\.host) private var host
   let page: ItemPage
   let openingQuote: TextQuote?
@@ -43,7 +45,8 @@ struct ItemView: View {
     Group {
       if let text = page.text {
         ContentReader(
-          content: .item(page.item.id), title: page.item.title, markdown: text, byline: Byline.of(page.item),
+          content: .item(page.item.id), title: page.item.title, markdown: text,
+          byline: Byline.of(page.item, companion: name, locale: locale),
           images: images,
           serif: true, pane: .itemPanel,
           language: page.translatable
@@ -151,7 +154,7 @@ struct FetchingItem: View {
 /// The line under an article's title: its authors, then site and date in a fixed-width face, then a link to the
 /// original; below it, why the reader took it in, in the serif's italic.
 enum Byline {
-  static func of(_ item: Item) -> NSAttributedString? {
+  static func of(_ item: Item, companion: String, locale: Locale) -> NSAttributedString? {
     let line = NSMutableAttributedString()
     let mono = NSFont.monospacedSystemFont(ofSize: 11.5, weight: .regular)
     let faint: [NSAttributedString.Key: Any] = [.font: mono, .foregroundColor: Tones.inkFaint]
@@ -159,9 +162,12 @@ enum Byline {
       if line.length > 0 { line.append(NSAttributedString(string: "  ·  ", attributes: faint)) }
     }
     if !item.authors.isEmpty {
+      var fallback = LocalizedStringResource.loci("companion.title")
+      fallback.locale = locale
+      let credit = companion.isEmpty ? String(localized: fallback) : companion
       line.append(
         NSAttributedString(
-          string: item.authors.joined(separator: ", "),
+          string: item.writtenByCompanion ? credit : item.authors.joined(separator: ", "),
           attributes: [.font: NSFont.systemFont(ofSize: 12.5), .foregroundColor: Tones.inkMuted]))
     }
     let place = item.site ?? item.source?.host()?.replacing(/^www\./, with: "")

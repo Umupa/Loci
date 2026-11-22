@@ -21,6 +21,30 @@ struct AgentFilesTests {
     }
   }
 
+  @Test func openingAnOlderLibraryRemovesTheStockNameAndKeepsEvolvedTraitsAndCustomSouls() throws {
+    try withStore { store in
+      let core = "# Soul\n\nYou live on this Mac, among the person's library and courses."
+      let traits = "\n\n## Evolved Traits\n- 2026-11-18 Curious about watches.\n"
+      let old = core.replacing("You live", with: "You are Loci. You live") + traits
+      try store.writeFile("agent/SOUL.md", old)
+      try store.prepareAgent(soul: core + "\n\n## Evolved Traits\n")
+      #expect(try store.agentText(.soul) == core + traits)
+      try store.saveAgentText("My own words." + traits, as: .soul)
+      try store.prepareAgent(soul: core + "\n\n## Evolved Traits\n")
+      #expect(try store.agentText(.soul) == "My own words." + traits)
+    }
+  }
+
+  @Test func anUnreadableSoulDoesNotKeepTheLibraryFromOpening() throws {
+    try withStore { store in
+      let soul = store.agentFolder.appending(path: "SOUL.md")
+      let original = Data([0xff, 0xfe, 0xfa])
+      try store.write(original, to: soul)
+      try store.prepareAgent(soul: "# Soul")
+      #expect(try Data(contentsOf: soul) == original)
+    }
+  }
+
   @Test func aMissingFileReadsAsEmpty() throws {
     try withStore { store in
       let day = try #require(Day("2026-11-18"))
@@ -100,7 +124,7 @@ struct AgentFilesTests {
           == "# library-\(Fixture.id(2)) · 2026-11-17\n\n### 23:58 · You\n\n为什么?\n")
       #expect(
         try store.readFile("agent/conversations/2026-11-18/\(name)")
-          == "# library-\(Fixture.id(2)) · 2026-11-18\n\n### 00:02 · Loci\n\n- execute: ls\n因为 fd 属于进程。\n"
+          == "# library-\(Fixture.id(2)) · 2026-11-18\n\n### 00:02 · Companion\n\n- execute: ls\n因为 fd 属于进程。\n"
           + "\n### 00:02 · You\n\n懂了\n")
     }
   }

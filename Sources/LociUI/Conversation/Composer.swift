@@ -125,9 +125,17 @@ struct Composer: View {
     .padding(.trailing, 6)
   }
 
+  @Environment(\.companionName) private var name
+
   private var field: some View {
     TextField(text: $text, selection: $selection, axis: .vertical) {
-      if !making.wrappedValue { Text(.loci(style == .talk ? "talk.prompt" : "companion.prompt")) }
+      if !making.wrappedValue {
+        if name.isEmpty {
+          Text(.loci(style == .talk ? "talk.prompt" : "companion.prompt"))
+        } else {
+          Text(style == .talk ? .loci("talk.prompt \(name)") : .loci("companion.prompt \(name)"))
+        }
+      }
     }
     .overlay(alignment: .leading) {
       if making.wrappedValue, text.isEmpty {

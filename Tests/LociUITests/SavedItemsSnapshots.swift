@@ -14,7 +14,7 @@ struct SavedItemsSnapshots {
   @Test(arguments: Snapshot.Appearance.allCases)
   func savedItems(appearance: Snapshot.Appearance) async throws {
     var library = try SampleLibrary()
-    let note = try Item(id: EntityID(), kind: .article, title: "调度器怎么给 Pod 打分", authors: [LociAuthor.name])
+    let note = try Item(id: EntityID(), kind: .article, title: "调度器怎么给 Pod 打分", authors: [Item.companionCredit])
     let borg = try Item(
       id: EntityID(), kind: .paper, title: "Large-scale cluster management at Google with Borg", authors: ["Verma"])
     library.items += [note, borg]

@@ -67,6 +67,21 @@ struct RemoteHostScenarioTests {
     }
   }
 
+  @Test func renamingAPairedLibrarysCompanionChangesOnlyThatLibrary() async throws {
+    try await TwoMacs.with { macs in
+      try await macs.pair()
+      let remote = macs.laptop.service.open(macs.studio.machine.id)
+      let names = remote.subscribe(CompanionName())
+      #expect(await value(names) { $0.isEmpty } == "")
+
+      _ = try await remote.run(RenameCompanion("小满"))
+
+      #expect(await value(names) { $0 == "小满" } == "小满")
+      #expect(try await macs.studio.local.companionName() == "小满")
+      #expect(try await macs.laptop.local.companionName().isEmpty)
+    }
+  }
+
   @Test func aSubscriptionFollowsTheMacAcrossARelayRestart() async throws {
     try await TwoMacs.with { macs in
       try await macs.pair()

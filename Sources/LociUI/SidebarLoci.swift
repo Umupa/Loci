@@ -5,6 +5,7 @@ import SwiftUI
 /// round the face while the main conversation or Loci's page is on screen. While Loci works, an amber ring
 /// breathes there instead and a faint line under the name says what it is doing.
 struct SidebarLoci: View {
+  @Environment(\.companionName) private var name
   let chosen: Bool
   let work: LociWork?
   let choose: () -> Void
@@ -15,7 +16,7 @@ struct SidebarLoci: View {
       HStack(spacing: 11) {
         face
         VStack(alignment: .leading, spacing: 1) {
-          Text(verbatim: "Loci").font(.system(size: 16.5, weight: .semibold, design: .serif))
+          label.lineLimit(1).font(.system(size: 16.5, weight: .semibold, design: .serif))
           if let work {
             Text(work.words)
               .font(.system(size: 12))
@@ -35,10 +36,12 @@ struct SidebarLoci: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(PressStyle())
-    .accessibilityLabel(Text(verbatim: "Loci"))
+    .accessibilityLabel(label)
     .accessibilityAddTraits(chosen ? .isSelected : [])
     .accessibilityValue(work.map { Text($0.words) } ?? Text(verbatim: ""))
   }
+
+  private var label: Text { name.isEmpty ? Text(.loci("companion.title")) : Text(verbatim: name) }
 
   private var face: some View {
     LociAvatar(size: Self.face)

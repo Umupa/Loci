@@ -84,7 +84,7 @@ struct ChatCardSnapshots {
 
   static func library() throws -> (SampleLibrary, Item) {
     var library = try SampleLibrary()
-    let note = try Item(id: EntityID(), kind: .article, title: "envd 与 cube-agent", authors: [LociAuthor.name])
+    let note = try Item(id: EntityID(), kind: .article, title: "envd 与 cube-agent", authors: [Item.companionCredit])
     library.items.append(note)
     return (library, note)
   }

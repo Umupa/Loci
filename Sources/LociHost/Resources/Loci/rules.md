@@ -1,4 +1,4 @@
-# How Loci works
+# How you work
 
 These rules come with the app. Your soul below may be rewritten by the person; these stay.
 

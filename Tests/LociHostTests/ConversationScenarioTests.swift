@@ -227,8 +227,8 @@ struct ConversationScenarioTests {
       let folder = place.root.appending(path: "agent")
       #expect(agent.opened.first?.workingDirectory.standardizedFileURL == folder.standardizedFileURL)
       let instructions = try String(contentsOf: folder.appending(path: "AGENTS.md"), encoding: .utf8)
-      #expect(instructions.contains("# How Loci works"))
-      #expect(instructions.contains("You are Loci."))
+      #expect(instructions.contains("# How you work"))
+      #expect(instructions.contains("You have no name yet."))
       #expect(instructions.contains("# The person (USER.md)"))
     }
   }

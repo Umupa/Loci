@@ -71,7 +71,7 @@ public struct LociCommands: Commands {
       Button {
         navigator?.showTalk()
       } label: {
-        Text(verbatim: "Loci")
+        Text(.loci("companion.title"))
       }
       .keyboardShortcut("1")
       .disabled(navigator == nil)

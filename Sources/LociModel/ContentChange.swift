@@ -31,6 +31,7 @@ public enum ContentChange: Hashable, Codable, Sendable {
 
 /// The files under `agent/` that the person sees.
 public enum LociFile: String, Hashable, Codable, Sendable {
+  case name
   case soul
   case profile
   case memory

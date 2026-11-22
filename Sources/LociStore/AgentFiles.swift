@@ -17,12 +17,19 @@ extension Store {
   static let workspaceFolder = "workspace"
   static let avatarName = "avatar"
 
-  /// Gives Loci the files it starts from. A file that is there already, the person's or Loci's, stays as
-  /// it is.
+  /// Gives the companion its first files and updates the original, unedited named soul on older libraries.
   public func prepareAgent(soul: String) throws {
     for folder in [Self.dayNotesFolder, Self.diaryFolder, Self.workspaceFolder, Self.conversationsFolder] {
       try FileManager.default.createDirectory(
         at: agentFolder.appending(path: folder, directoryHint: .isDirectory), withIntermediateDirectories: true)
+    }
+    let previousOpening = "# Soul\n\nYou are Loci. You live on this Mac"
+    let currentOpening = "# Soul\n\nYou live on this Mac"
+    if let saved = try? agentText(.soul), saved.hasPrefix(previousOpening) {
+      let updated = currentOpening + saved.dropFirst(previousOpening.count)
+      if Soul(parsing: updated).core == Soul(parsing: soul).core {
+        try saveAgentText(updated, as: .soul)
+      }
     }
     let starts = [(Self.soulFile, soul), (Self.profileFile, "# User\n"), (Self.memoryFile, "# Memory\n")]
     for (name, text) in starts {
@@ -33,7 +40,19 @@ extension Store {
     }
   }
 
-  /// The text of `SOUL.md`, `USER.md` or `MEMORY.md`; empty when the file is missing.
+  public func companionName() throws -> String {
+    Self.normalizedName(try agentText(.displayName))
+  }
+
+  public func saveCompanionName(_ name: String) throws {
+    try saveAgentText(Self.normalizedName(name), as: .displayName)
+  }
+
+  private static func normalizedName(_ text: String) -> String {
+    text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+  }
+
+  /// The text of `NAME.txt`, `SOUL.md`, `USER.md` or `MEMORY.md`; empty when the file is missing.
   public func agentText(_ file: AgentFile) throws -> String {
     do {
       return try readText(agentFolder.appending(path: file.name))
@@ -125,14 +144,16 @@ extension Store {
   }
 }
 
-/// The three files of who Loci is and what it knows.
+/// The editable files describing the companion and what it knows.
 public enum AgentFile: Sendable {
+  case displayName
   case soul
   case profile
   case memory
 
   var name: String {
     switch self {
+    case .displayName: "NAME.txt"
     case .soul: Store.soulFile
     case .profile: Store.profileFile
     case .memory: Store.memoryFile

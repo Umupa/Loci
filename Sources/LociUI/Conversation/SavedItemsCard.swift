@@ -63,15 +63,6 @@ struct SavedItemsCard: View {
   }
 }
 
-/// The name Loci signs the articles it writes with.
-enum LociAuthor {
-  static let name = "Loci"
-
-  static func wrote(_ item: Item) -> Bool {
-    item.authors == [name]
-  }
-}
-
 /// What an item is and where it comes from, under its title: `视频 · YouTube · 34:12`.
 struct SavedItemByline: Equatable {
   enum Source: Equatable {
@@ -86,7 +77,7 @@ struct SavedItemByline: Equatable {
 
   init(_ item: Item) {
     kind = ItemKind(item.kind)
-    if LociAuthor.wrote(item) {
+    if item.writtenByCompanion {
       source = .loci
     } else if let name = item.site ?? item.authors.first ?? item.source?.host() {
       source = .named(name)
