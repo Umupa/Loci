@@ -1,3 +1,5 @@
+<img src="script/resources/Loci.png" width="96" height="96" alt="Loci app icon">
+
 # Loci
 
 A Mac app for learning from what you read, watch and listen to, with one AI companion who lives in your library.
