@@ -10,7 +10,8 @@ struct ImportSheet: View {
   @Environment(\.showFailure) private var showFailure
   let pending: PendingImport
   let close: () -> Void
-  let opened: (WindowState) -> Void
+  /// Opens the item over where the window is.
+  let open: (EntityID) -> Void
   @State private var reading: Reading = .waiting
   @State private var draft: ImportDraft?
   @State private var why = ""
@@ -102,7 +103,7 @@ struct ImportSheet: View {
       if case .saved(let item) = reading {
         Button {
           close()
-          opened(WindowState(place: .library(nil), pages: [.item(item.id)]))
+          open(item.id)
         } label: {
           Text(.loci("import.open"))
         }

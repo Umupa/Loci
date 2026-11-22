@@ -10,7 +10,7 @@ struct BrowserScreen: View {
   let session: BrowserSession
   @Environment(\.standIns) private var standIns
   @Environment(\.takeIn) private var takeIn
-  let opened: (WindowState) -> Void
+  @Environment(\.openPage) private var openPage
   let failed: (HostError) -> Void
   @State private var items: Feed<[Item]>?
   @State private var picking = false
@@ -82,7 +82,7 @@ struct BrowserScreen: View {
   private func take(_ offer: PageOffer) {
     switch offer {
     case .inLibrary(let item):
-      opened(WindowState(place: .library(nil), pages: [.item(item)]))
+      openPage(.item(item))
     case .video:
       guard let address = tab.address else { return }
       Task { await takeVideos([address]) }

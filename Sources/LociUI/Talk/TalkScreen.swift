@@ -41,9 +41,10 @@ struct TalkScreen: View {
     }
     .overlay(alignment: .topTrailing) {
       if panels != nil {
-        PanelColumnToggle(shown: fit.shows(columnPreferred), toggle: toggleColumn)
-          .padding(.trailing, Spacing.m)
-          .padding(.top, 14)
+        let shown = fit.shows(columnPreferred)
+        PanelButton(title: .loci(shown ? "panels.hideColumn" : "panels.showColumn"), action: toggleColumn)
+          .glassEffect(shown ? .identity : .regular, in: .capsule)
+          .padding(Spacing.s)
       }
     }
     .onGeometryChange(for: CGFloat.self) {

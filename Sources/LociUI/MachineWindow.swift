@@ -41,7 +41,7 @@ struct MachineWindow: View {
     layout
       .overlay {
         if let pending = dialogs.intake {
-          ImportSheet(pending: pending, close: { dialogs.intake = nil }, opened: { window = $0 })
+          ImportSheet(pending: pending, close: { dialogs.intake = nil }, open: { window = window.opening(.item($0)) })
             .id(pending)
             .transition(.opacity)
         }
@@ -214,7 +214,7 @@ struct MachineWindow: View {
         category: category, chooseFiles: { dialogs.importing = true }, opened: { window = $0 },
         failed: { dialogs.failure = $0 })
     case .browser:
-      BrowserScreen(session: browser, opened: { window = $0 }, failed: { dialogs.failure = $0 })
+      BrowserScreen(session: browser, failed: { dialogs.failure = $0 })
     case .settings(.general):
       GeneralSettingsPage()
     case .settings(.agents):

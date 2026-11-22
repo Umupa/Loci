@@ -43,6 +43,27 @@ struct NavigationTests {
     #expect(WindowState(restoring: remembered) == WindowState(place: .talk))
   }
 
+  /// UI-S24: an item opened from the browser, the main conversation or the library goes back there.
+  @Test(arguments: [Place.browser, .talk, .loci, .library(.video)])
+  func anItemOpenedFromAPlaceGoesBackToThatPlace(place: Place) throws {
+    let sample = try Sample()
+    var window = WindowState(place: place).opening(.item(sample.borg.id))
+
+    window.pages.removeLast()
+
+    #expect(window == WindowState(place: place))
+  }
+
+  @Test func anItemOpenedFromAnotherGoesBackToTheFirst() throws {
+    let sample = try Sample()
+    let first = WindowState(place: .talk, pages: [.item(sample.borg.id)])
+    var window = first.opening(.item(sample.items[1].id))
+
+    window.pages.removeLast()
+
+    #expect(window == first)
+  }
+
   /// I-S5, I-S7: cancelling an item from its own page lands back in the library it was opened from.
   @Test func aWindowOnADeletedItemGoesBackToWhereItWasOpenedFrom() throws {
     let sample = try Sample()

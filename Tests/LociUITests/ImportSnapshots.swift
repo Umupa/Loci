@@ -18,7 +18,7 @@ struct ImportSnapshots {
     let place = WindowState(place: .library(nil))
     let view = ZStack {
       MachineWindow(memory: WindowMemory(recall: { place }, remember: { _ in }))
-      ImportSheet(pending: pending, close: {}, opened: { _ in })
+      ImportSheet(pending: pending, close: {}, open: { _ in })
     }
     .environment(\.covers, Covers())
     .environment(\.standIns, StandIns())
@@ -80,7 +80,7 @@ struct ImportSnapshots {
   @Test func thePanelCastsNoShadowThatNeedsABlurPass() async throws {
     let host = FakeHost(try Sample(problems: false), library: try SampleLibrary())
     let quiet = Quiet(host.activity)
-    let view = ImportSheet(pending: .link(ImportSamples.video), close: {}, opened: { _ in })
+    let view = ImportSheet(pending: .link(ImportSamples.video), close: {}, open: { _ in })
       .environment(\.covers, Covers())
       .environment(\.standIns, StandIns())
       .lociHost(host)

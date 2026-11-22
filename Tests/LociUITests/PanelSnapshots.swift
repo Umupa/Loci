@@ -83,7 +83,7 @@ struct PanelSnapshots {
       PanelColumnView(column: column, making: true, actions: Self.actions).frame(width: Size.panelColumn)
     }
     .overlay(alignment: .topTrailing) {
-      PanelColumnToggle(shown: true, toggle: {}).padding(.trailing, Spacing.m).padding(.top, 14)
+      PanelButton(title: .loci("panels.hideColumn"), action: {}).padding(Spacing.s)
     }
     .environment(\.standIns, StandIns())
     try await ScreenSnapshots.shoot(

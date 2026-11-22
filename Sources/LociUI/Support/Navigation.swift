@@ -85,6 +85,11 @@ struct WindowState: Codable, Equatable {
     return kept == pages ? self : WindowState(place: place, pages: kept)
   }
 
+  /// `page` opened over where the window is, so going back returns there.
+  func opening(_ page: Page) -> WindowState {
+    WindowState(place: place, pages: pages + [page])
+  }
+
   /// Where choosing Loci at the top of the sidebar goes: from the main conversation to Loci's page, and
   /// from anywhere else back to the main conversation.
   func choosingLoci() -> WindowState {

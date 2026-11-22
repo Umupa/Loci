@@ -12,7 +12,6 @@ enum Symbols {
   static let highlight = "highlighter"
   static let thought = "text.bubble"
   static let ask = "bubble.left"
-  static let sidebar = "sidebar.left"
   static let panel = "sidebar.right"
   static let stop = "stop.fill"
   static let done = "checkmark"

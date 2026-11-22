@@ -136,8 +136,6 @@ enum Size {
   static let panelTallest: CGFloat = 380
   /// A site's small round mark before a panel's title.
   static let siteMark: CGFloat = 22
-  /// The round button that folds the panel column away.
-  static let panelToggle: CGFloat = 44
   static let panelCover: CGFloat = 40
 }
 
