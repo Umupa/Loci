@@ -39,7 +39,23 @@ awk -v version="$version" -v day="$day" '
 ' CHANGELOG.md >CHANGELOG.md.new
 mv CHANGELOG.md.new CHANGELOG.md
 
-if ! script/check; then
+# The version commit changes only CHANGELOG.md, so when CI has already run the
+# full check on this commit (the nightly run or one started by hand), the
+# document rules are all that is left to check.
+head="$(git rev-parse HEAD)"
+checked=""
+for event in schedule workflow_dispatch; do
+  checked="$checked$(gh run list --workflow ci.yml --event "$event" --commit "$head" --status success \
+    --limit 1 --json databaseId --jq '.[].databaseId' 2>/dev/null || true)"
+done
+if [ -n "$checked" ]; then
+  echo "cut-release: CI has run the full check on $(git rev-parse --short HEAD), so only the documents are checked." >&2
+  set -- --documents
+else
+  set --
+fi
+
+if ! script/check "$@"; then
   git checkout -- CHANGELOG.md
   fail "the gate failed, so nothing was committed."
 fi

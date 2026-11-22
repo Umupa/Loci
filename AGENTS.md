@@ -13,18 +13,20 @@ Loci 是一个 Mac 应用：从你读的、看的、听的东西里学习，身�
 
 ## 本地迭代
 
-每轮小改动只跑覆盖改动的测试套件或用例。比如改对话列表时，从仓库根目录运行：
+每轮小改动只跑覆盖改动的测试。比如改对话列表时，从仓库根目录运行：
 
 ```sh
-. script/toolchain
-swift test --filter 'LociUITests\.(ChatTests|ConversationTests|TalkRowsTests)/'
+script/test 'LociUITests\.(ChatTests|ConversationTests|TalkRowsTests)/'
 ```
 
-过滤用 `模块.套件/用例` 的正则表达式，确认输出里确实运行了对应测试。改过代码就让 `swift test` 重新构建。
+过滤用 `测试目标.套件/用例` 的正则表达式，开头必须是测试目标：`script/test` 只构建这些目标和它们依赖的模块，再跑测试，一条都没匹配上就算失败。不带参数时，它跑 `script/affected` 为这次改动挑出的测试目标（跳过快照和长对话压测），并构建受影响的 App。每次都先构建，不会跑旧代码。失败时输出失败的步骤、用例和问题、编译错误，最后一行是完整日志的位置（`output/check-<步骤>.log`）。
 
 | 命令 | 作用 |
 |---|---|
+| `script/test [过滤]...` | 改一轮跑一轮：只构建、只跑涉及的测试 |
+| `script/affected [提交范围]` | 列出改动影响的测试目标和 App |
 | `script/check --fast` | 跑 PR 和 `main` 日常 CI 的检查 |
+| `script/check --documents` | 只改文档时 CI 跑的检查：不构建 App，只跑架构和文档规则 |
 | `script/check` | 跑完整检查，含全量快照和长对话压测 |
 | `script/format` | 按项目风格重排代码 |
 | `script/run` | 构建并打开 `output/Loci (Beta).app`；`--no-open` 只构建 |

@@ -1,6 +1,9 @@
 #!/bin/sh
-# The delivery gate. --fast runs the checks for routine CI. On a
-# failure it prints what failed and how to fix it.
+# The delivery gate. On a failure it prints what failed and how to fix it.
+#   script/check               everything: a release and the nightly CI run
+#   script/check --fast        without the snapshots and the long conversation: a push or pull request
+#   script/check --documents   the architecture and document rules alone, built without the app:
+#                              a change script/affected says touches only the documents
 set -eu
 cd "$(dirname "$0")/.."
 . script/toolchain
@@ -8,10 +11,17 @@ cd "$(dirname "$0")/.."
 case "$#:${1:-}" in
   0:) ;;
   1:--fast) set -- --skip "$slow_tests" ;;
-  *) echo "usage: script/check [--fast]" >&2; exit 2 ;;
+  1:--documents) ;;
+  *) echo "usage: script/check [--fast | --documents]" >&2; exit 2 ;;
 esac
 
 step format swift format lint --strict --recursive --parallel Package.swift Sources Tests
-step build swift build --build-tests
-step test swift test --skip-build "$@"
+if [ "${1:-}" = --documents ]; then
+  # swift test opens every test bundle, so this one bundle runs on its own.
+  step build swift build --product ArchitectureTests
+  step test xcrun xctest "$(swift build --show-bin-path)/ArchitectureTests.xctest"
+else
+  step build swift build --build-tests
+  step test swift test --skip-build "$@"
+fi
 step commits script/check-commits

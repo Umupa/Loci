@@ -102,7 +102,7 @@ jobs:
 
       - name: Document check
         if: steps.scope.outputs.scope == 'documents'
-        run: script/test ArchitectureTests
+        run: script/check --documents
 
       - name: Fast check
         if: steps.scope.outputs.scope == 'fast'

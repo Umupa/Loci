@@ -44,9 +44,13 @@
    | 作业 | 做什么 |
    |---|---|
    | Commits | 检查这次推送或 PR 的提交信息 |
-   | Check | `script/check --fast`，跑格式、编译、单测、行为回归、架构和文档检查，留下各阶段日志 |
+   | Check | 按改了什么选检查，留下各阶段日志 |
 
-   每天定时运行和用 `gh workflow run ci.yml` 手动运行时，CI 跑完整 `script/check`，也留下全量快照。
+   Check 用 `script/affected <这次的提交范围>` 判断：只改了文档（`docs/`、各处的 `.md`、`LICENSE`、`.gitignore`、`.github/ISSUE_TEMPLATE/`）时跑 `script/check --documents`，只构建架构测试、检查文档的链接、旧词和 CHANGELOG 格式，不构建 App；其余改动跑 `script/check --fast`：格式、编译、单测、行为回归、架构和文档检查。脚本、`Package.swift` 和流水线本身的改动都按代码算。
+
+   每天定时运行和用 `gh workflow run ci.yml` 手动运行时，CI 跑完整 `script/check`，也留下全量快照。定时运行遇到已经完整检查过的提交（上一次定时运行、手动运行或发版检查过的同一个提交）就跳过。
+
+   macOS 作业通过 `.github/actions/packages` 缓存 SwiftPM 的依赖克隆和 whisper.framework，键是 `Package.resolved`。编译产物不缓存。
 
 3. **定版本。** 在 `docs/roadmap.md` 里把这一版挪进「已完成」，「发布」一列写上版本号，提交并推送。然后在 main 上：
 
@@ -56,15 +60,27 @@
 
    它检查：版本号的写法，并且比已有的版本都大；在 main 上、工作区干净、和 `origin/main` 一致；tag 还没有；Unreleased 下有内容；roadmap 写了这个版本。然后把 Unreleased 改成 `## 1.1.0 — <今天>`，上面留一个空的 Unreleased，跑 `script/check`，提交 `chore: release 1.1.0`，打带注释的 tag。它不推送。
 
-4. **发布。** `git push origin main v1.1.0`。推上去的 tag 会触发 [release.yml](../.github/workflows/release.yml)：
+   发版提交只改 CHANGELOG。如果 CI 已经对当前提交跑过完整检查（定时运行，或用 `gh workflow run ci.yml` 手动跑的），它只跑 `script/check --documents`；否则在本机跑完整 `script/check`，本机要五分钟左右，大部分花在快照上。想省这一步，可以先 `gh workflow run ci.yml` 等它通过再定版本。
+
+4. **发布。** `git push origin main v1.1.0`。推上去的 tag 会触发 [release.yml](../.github/workflows/release.yml)，在 tag 指向的同一个提交上并排跑两个作业：
+
+   | 作业 | 做什么 |
+   |---|---|
+   | Check | 完整 `script/check`，留下各阶段日志 |
+   | Package | 打包、签名，见下 |
+
+   Package 依次：
 
    1. 确认 tag 在 main 上，用 `script/changelog` 取出这一版的 CHANGELOG 段落作为发布说明；没有这一段就失败。
-   2. `script/check`。
-   3. 检查 secrets：tag 构建必须签名，缺签名的 secret 就失败，不会把 ad hoc 签名的包发给别人。
-   4. 把 `MACOS_SIGNING_IDENTITY` 里的 `.p12` 导入一个临时钥匙串：有 Developer ID 就用它；否则信任其中的「Loci Signing」并用它。
-   5. `script/release`：通用构建、签名、Developer ID 时公证、写 dmg 和校验和。
-   6. `script/measure-launch`：记录 release 构建的冷启动，**只记录，不卡发布**。
-   7. 建 GitHub release，附上 dmg 和校验和。重跑只替换文件，不会重复建 release。
+   2. 检查 secrets：tag 构建必须签名，缺签名的 secret 就失败，不会把 ad hoc 签名的包发给别人。
+   3. 把 `MACOS_SIGNING_IDENTITY` 里的 `.p12` 导入一个临时钥匙串：有 Developer ID 就用它；否则信任其中的「Loci Signing」并用它。
+   4. `script/release`：通用构建、签名并 `codesign --verify --strict`、Developer ID 时公证、写 dmg 和校验和。
+   5. `script/measure-launch`：记录 release 构建的冷启动，**只记录，不卡发布**。
+   6. 把 dmg、校验和、发布说明留成 `release` artifact。
+
+   两个作业都通过后，Publish 取回 `release` artifact，用校验和核对 dmg，再建 GitHub release、附上 dmg 和校验和。任何一个失败都不发布。重跑只替换文件，不会重复建 release。
+
+   推送时 CI 也会检查这个发版提交；它只改了 CHANGELOG，所以只跑文档检查，完整检查交给 Release。
 
 `gh workflow run release` 是试 secrets 用的：构建和签名都和 tag 一样，但不发版，dmg 留成 workflow artifact。
 
