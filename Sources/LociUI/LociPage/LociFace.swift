@@ -7,7 +7,7 @@ enum LociFace: Equatable {
   case picture(NSImage)
 
   /// The app's default portrait, composed for a circle.
-  @MainActor static let drawing: NSImage? = Bundle.module.url(forResource: "loci-face", withExtension: "jpg")
+  @MainActor static let drawing: NSImage? = Bundle.module.url(forResource: "loci-face", withExtension: "png")
     .flatMap(NSImage.init(contentsOf:))
 
   @MainActor var image: NSImage? {
