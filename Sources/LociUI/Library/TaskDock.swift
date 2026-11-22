@@ -19,13 +19,13 @@ struct TaskDock: View {
   let actions: DockActions
   @State private var open = false
 
-  /// The task in front, the one furthest along of those running, then the rest in order; `nil` when there is
-  /// no work.
+  /// The task in front, the one furthest along of those running, then the rest in order; `nil` when no work is
+  /// under way, as a failed task waits on its own card rather than holding the capsule open.
   static func arrange(_ jobs: [Job]) -> (lead: Job, rest: [Job])? {
     let running = jobs.filter { if case .running = $0.state { true } else { false } }
     guard
       let lead = running.first(where: { if case .running(_?, _) = $0.state { true } else { false } }) ?? running.first
-        ?? jobs.first
+        ?? jobs.first(where: { if case .failed = $0.state { false } else { true } })
     else { return nil }
     return (lead, jobs.filter { $0.item != lead.item })
   }
