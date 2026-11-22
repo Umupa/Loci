@@ -9,6 +9,7 @@ struct ContentReader<Ending: View>: View {
   @Environment(\.host) private var host
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.openPage) private var openPage
+  @Environment(\.peekLink) private var peekLink
   @Environment(\.standIns) private var standIns
   @Environment(\.changesAllowed) private var changesAllowed
   let content: ContentRef
@@ -27,8 +28,6 @@ struct ContentReader<Ending: View>: View {
   let placeholder: FetchingItem?
   /// The number of the source a link cites, for text whose links to its sources are citations.
   let cite: ((URL) -> Int?)?
-  /// Where a web link opens; the system's browser when `nil`.
-  let openWeb: ((URL) -> Void)?
   /// Whether a thin amber line along the top shows how far down the text has been read.
   let showsProgress: Bool
   @State private var progress = 0.0
@@ -60,10 +59,9 @@ struct ContentReader<Ending: View>: View {
     content: ContentRef, title: String?, markdown: String, byline: NSAttributedString? = nil,
     images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel, language: ArticleLanguage? = nil,
     openingQuote: TextQuote? = nil, placeholder: FetchingItem? = nil, cite: ((URL) -> Int?)? = nil,
-    openWeb: ((URL) -> Void)? = nil, showsProgress: Bool = false, @ViewBuilder ending: () -> Ending
+    showsProgress: Bool = false, @ViewBuilder ending: () -> Ending
   ) {
     self.cite = cite
-    self.openWeb = openWeb
     self.showsProgress = showsProgress
     self.ending = ending()
     self.language = language
@@ -264,7 +262,7 @@ struct ContentReader<Ending: View>: View {
         if let locator = Locator(url.absoluteString) {
           openPage.follow(locator, in: content.conversation, reveal: show)
         } else if url.isWebLink {
-          if let openWeb { openWeb(url) } else { NSWorkspace.shared.open(url) }
+          peekLink?(url)
         }
       },
       passage: passageActions,

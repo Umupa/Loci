@@ -5,8 +5,7 @@ import SwiftUI
 /// write the next one when it is the last written — and its text follows each rewrite.
 struct ReadingCourse: View {
   @Environment(\.host) private var host
-  @Environment(\.browser) private var browser
-  @Environment(\.openPlace) private var openPlace
+  @Environment(\.peekLink) private var peekLink
   @Environment(\.showFailure) private var showFailure
   @Environment(\.changesAllowed) private var changesAllowed
   let course: EntityID
@@ -27,7 +26,7 @@ struct ReadingCourse: View {
               run { () async throws(HostError) in _ = try await host.run(WriteLessonNow(course: course, lesson: lesson))
               }
             },
-            openLink: { OpenLink(browser: browser, openPlace: openPlace)($0) })
+            openLink: { peekLink?($0) })
         ) {
           ConversationScreen(ref: .course(course), draft: $draft, lesson: current, courseLessons: page.course.lessons)
         }

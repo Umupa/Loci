@@ -250,6 +250,16 @@ struct CourseSnapshots {
       "course-window-reader-no-sidebar", at: .courses(BuilderSamples.raft), appearance: appearance, sidebar: false)
   }
 
+  /// H-S4: a source cited in a lesson opens over the window, not in the browser.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func aCitedSourceOpensOverTheWindow(appearance: Snapshot.Appearance) async throws {
+    try await Self.window(
+      "course-window-web-overlay", at: .courses(BuilderSamples.raft), appearance: appearance,
+      standIns: StandIns(
+        webPage: LibrarySnapshots.webPage("article", appearance),
+        overlayPage: URL(string: "https://raft.github.io/raft.pdf")))
+  }
+
   /// CO-S10: a lesson not written yet.
   @Test(arguments: Snapshot.Appearance.allCases)
   func readingUnwritten(appearance: Snapshot.Appearance) async throws {
@@ -272,13 +282,13 @@ struct CourseSnapshots {
 
   static func window(
     _ name: String, at place: Place, appearance: Snapshot.Appearance, size: CGSize = LibrarySnapshots.window,
-    sidebar: Bool = true
+    sidebar: Bool = true, standIns: StandIns = StandIns()
   ) async throws {
     let defaults = LibrarySnapshots.defaults(panel: false)
     defaults.set(sidebar, forKey: "sidebarShown")
     let view = MachineWindow(memory: WindowMemory(recall: { WindowState(place: place) }, remember: { _ in }))
       .lociHost(FakeHost(try Sample(problems: false), courses: try SampleCourses()))
-      .environment(\.standIns, StandIns())
+      .environment(\.standIns, standIns)
       .defaultAppStorage(defaults)
     let file = try await Snapshot.render(
       view, named: name, size: size, appearance: appearance, settle: .milliseconds(1500))

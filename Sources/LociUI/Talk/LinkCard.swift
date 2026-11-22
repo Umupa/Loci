@@ -78,33 +78,18 @@ extension CardShell {
   }
 }
 
-/// Opens a link in the built-in browser and goes there.
-@MainActor
-struct OpenLink {
-  let browser: BrowserSession?
-  let openPlace: OpenPlace
-
-  func callAsFunction(_ url: URL) {
-    browser?.open(url)
-    openPlace(.browser)
-  }
-}
-
 /// Links Loci gave one after another: a single card, or a stack that spreads into a grid. A card opens its page
-/// over the conversation, or in the browser where nothing opens it over what is shown.
+/// over the window.
 struct LinkCards: View {
-  @Environment(\.browser) private var browser
-  @Environment(\.openPlace) private var openPlace
   @Environment(\.peekLink) private var peekLink
   let links: [URL]
   var spread = false
 
   var body: some View {
-    let open = OpenLink(browser: browser, openPlace: openPlace)
     CardStack(cards: links, spread: spread) { url, front in
       LinkCard(url: url, showsWords: front)
     } open: { url in
-      if let peekLink { peekLink(url) } else { open(url) }
+      peekLink?(url)
     }
   }
 }

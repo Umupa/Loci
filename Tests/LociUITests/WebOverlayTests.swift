@@ -5,8 +5,8 @@ import Testing
 
 @testable import LociUI
 
-/// H-S4: a web page opened over the conversation closes with a click anywhere outside it, and the conversation
-/// is where it was. The click goes through the window as a real mouse press.
+/// H-S4: a web page opened over the window closes with a click anywhere outside it, and the conversation under
+/// it is where it was. The click goes through the window as a real mouse press.
 @MainActor
 @Suite(.onStage)
 struct WebOverlayTests {
@@ -34,7 +34,7 @@ struct WebOverlayTests {
     try await eventually("the conversation to settle") { scroll.contentView.bounds.minY > 0 }
     let scrolled = scroll.contentView.bounds.minY
 
-    Self.click(window, at: Self.point(side, of: scroll))
+    Self.click(window, at: try Self.point(side, in: window))
 
     try await eventually("the page to close") { browser.peeks.isEmpty }
     #expect(scroll.contentView.bounds.minY == scrolled)
@@ -42,9 +42,9 @@ struct WebOverlayTests {
 
   private static let page = URL(string: "https://blog.cloudflare.com/how-we-built-pingora")
 
-  /// A point between the edge of the conversation and the page over it, in window coordinates.
-  private static func point(_ side: Side, of scroll: NSScrollView) -> CGPoint {
-    let room = scroll.convert(scroll.bounds, to: nil)
+  /// A point between the edge of the window and the page over it, in window coordinates.
+  private static func point(_ side: Side, in window: NSWindow) throws -> CGPoint {
+    let room = try #require(window.contentView).bounds
     switch side {
     case .left: return CGPoint(x: room.minX + 12, y: room.midY)
     case .right: return CGPoint(x: room.maxX - 24, y: room.midY)

@@ -32,7 +32,6 @@ struct ConversationScreen<Tail: View>: View {
     )
     .id(ref)
     .modifier(FollowingLinks(ref: ref, revealPassage: revealPassage))
-    .peekingLinks()
     .subscribing(OneConversation(ref), into: $conversation)
     .showingDocuments()
   }

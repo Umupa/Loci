@@ -1,10 +1,10 @@
 import LociModel
 import SwiftUI
 
-/// A web page Loci linked to, opened over the conversation rather than in the browser: a card about seven
-/// tenths of the conversation's size with the conversation blurred behind it. Along its top, going back, the
+/// A web page linked from anywhere but the browser, opened over the window rather than in the browser: a card
+/// about seven tenths of the window's size with the window blurred behind it. Along its top, going back, the
 /// site, saving the page to the library, opening it in the browser, and closing it. Esc or a click outside
-/// closes it and leaves the conversation where it was.
+/// closes it and leaves the page under it where it was.
 struct WebOverlay: View {
   @Environment(\.host) private var host
   @Environment(\.takeIn) private var takeIn
@@ -120,7 +120,7 @@ struct WebOverlay: View {
   static let barHeight: CGFloat = 46
 }
 
-/// Opens a web link over the conversation it was clicked in.
+/// Opens a web link over the window it was clicked in.
 struct PeekLink {
   let action: (URL) -> Void
 
@@ -130,7 +130,7 @@ struct PeekLink {
 }
 
 extension EnvironmentValues {
-  /// Set by a conversation that opens web links over itself; elsewhere a link goes to the browser.
+  /// Set by the window, which opens web links over itself; `nil` where there is no browser to load them.
   @Entry var peekLink: PeekLink?
 }
 

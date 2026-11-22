@@ -5,8 +5,7 @@ import SwiftUI
 /// file dropped anywhere on it goes into the library.
 struct TalkScreen: View {
   @Environment(\.openPage) private var openPage
-  @Environment(\.browser) private var browser
-  @Environment(\.openPlace) private var openPlace
+  @Environment(\.peekLink) private var peekLink
   @Environment(\.host) private var host
   @Environment(\.locale) private var locale
   @Environment(\.reducesMotion) private var reduceMotion
@@ -126,12 +125,12 @@ struct TalkScreen: View {
     }
   }
 
-  /// A web page opens in the built-in browser; a `loci://` place opens that item.
+  /// A web page opens over the window; a `loci://` place opens that item.
   private func open(_ url: URL) {
     if let locator = Locator(url.absoluteString), let page = Page(locator.content) {
       openPage(page)
     } else if url.isWebLink {
-      OpenLink(browser: browser, openPlace: openPlace)(url)
+      peekLink?(url)
     }
   }
 }

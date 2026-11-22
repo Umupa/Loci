@@ -115,6 +115,7 @@ struct MachineWindow: View {
     }
     .ignoresSafeArea(edges: .top)
     .background(Palette.canvas)
+    .peekingLinks()
   }
 
   /// Closes the page on top and goes back to the one under it, or to the place.

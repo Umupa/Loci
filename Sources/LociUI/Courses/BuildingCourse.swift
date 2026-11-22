@@ -5,8 +5,7 @@ import SwiftUI
 /// question at its end, and each step and answer sent to the host.
 struct BuildingCourse: View {
   @Environment(\.host) private var host
-  @Environment(\.browser) private var browser
-  @Environment(\.openPlace) private var openPlace
+  @Environment(\.peekLink) private var peekLink
   @Environment(\.showFailure) private var showFailure
   @Environment(\.changesAllowed) private var changesAllowed
   let course: EntityID
@@ -80,7 +79,7 @@ struct BuildingCourse: View {
       addSource: { url in
         run { () async throws(HostError) in _ = try await host.run(AddCourseSource(course: course, url: url)) }
       },
-      openSource: { OpenLink(browser: browser, openPlace: openPlace)($0) })
+      openSource: { peekLink?($0) })
   }
 
   /// Sends what the person did, unless the Mac behind the window cannot take changes now.

@@ -91,7 +91,7 @@ struct CourseReader<Conversation: View>: View {
       ContentReader(
         content: .lesson(course: shown.course, lesson: lesson), title: title, markdown: markdown,
         byline: LessonFacts.byline(face: face, minutes: minutes),
-        cite: { LessonFacts.citation(of: $0, in: sources) }, openWeb: actions.openLink, showsProgress: true
+        cite: { LessonFacts.citation(of: $0, in: sources) }, showsProgress: true
       ) {
         if let next = shown.next {
           NextLessonCard(next: next) { actions.choose(next.id) }
