@@ -1,7 +1,7 @@
 import LociModel
 import SwiftUI
 
-/// Positions cards in library order and builds only those near the scroll viewport.
+/// Lays cards out in rows, in library order, and builds only those near the scroll viewport.
 struct LibraryGallery<Cards: View>: View {
   let tiles: [GalleryPlacement.Tile]
   @ViewBuilder let card: (EntityID, CGFloat) -> Cards
@@ -58,8 +58,6 @@ private struct GalleryColumn<Cards: View>: View {
 struct GalleryPlacement {
   struct Tile: Equatable {
     let id: EntityID
-    let kind: ItemKind
-    let busy: Bool
   }
 
   struct Placed: Identifiable, Sendable {
@@ -97,10 +95,7 @@ struct GalleryPlacement {
   @MainActor init(width: CGFloat, tiles: [Tile]) {
     let frames =
       width > 0
-      ? Self.frames(width: width, count: tiles.count) { index, width in
-        let tile = tiles[index]
-        return GalleryCard.height(at: width, kind: tile.kind, busy: tile.busy)
-      }
+      ? Self.frames(width: width, count: tiles.count, height: GalleryCard.height(at:))
       : []
     let placed = zip(tiles, frames).map { tile, frame in Placed(id: tile.id, frame: frame) }
     columns = Dictionary(grouping: placed) { $0.frame.minX }
@@ -111,17 +106,17 @@ struct GalleryPlacement {
       }
   }
 
-  static func frames(width: CGFloat, count: Int, height: (Int, CGFloat) -> CGFloat) -> [CGRect] {
+  /// Each card's frame: as many columns as fit `width`, filled row by row, every card as tall as `height`
+  /// makes one of its width.
+  static func frames(width: CGFloat, count: Int, height: (CGFloat) -> CGFloat) -> [CGRect] {
     let gap = columnGap
     let columns = max(1, Int((width + gap) / (Size.cardMinimumWidth + gap)))
     let cardWidth = min(340, (width - gap * CGFloat(columns - 1)) / CGFloat(columns))
-    var bottoms = Array(repeating: CGFloat.zero, count: columns)
+    let cardHeight = height(cardWidth)
     return (0..<count).map { index in
-      let column = bottoms.indices.min { bottoms[$0] < bottoms[$1] } ?? 0
-      let frame = CGRect(
-        x: CGFloat(column) * (cardWidth + gap), y: bottoms[column], width: cardWidth, height: height(index, cardWidth))
-      bottoms[column] = frame.maxY + cardGap
-      return frame
+      CGRect(
+        x: CGFloat(index % columns) * (cardWidth + gap), y: CGFloat(index / columns) * (cardHeight + cardGap),
+        width: cardWidth, height: cardHeight)
     }
   }
 }

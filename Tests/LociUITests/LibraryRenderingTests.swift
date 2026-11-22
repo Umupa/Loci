@@ -39,10 +39,7 @@ struct LibraryRenderingTests {
     let ids = Array(0..<244)
     var entropy = Sample.Seeded()
     let cards = ids.map { index in
-      GalleryPlacement.Tile(
-        id: EntityID(at: Date(timeIntervalSince1970: Double(index)), entropy: &entropy),
-        kind: index.isMultiple(of: 3) ? .audio : .video,
-        busy: index.isMultiple(of: 19))
+      GalleryPlacement.Tile(id: EntityID(at: Date(timeIntervalSince1970: Double(index)), entropy: &entropy))
     }
     let indexByID = Dictionary(uniqueKeysWithValues: zip(cards.map(\.id), ids))
     let size = CGSize(width: 900, height: 600)

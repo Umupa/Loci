@@ -42,8 +42,9 @@ extension CardActions {
 }
 
 /// One item in the gallery: its cover, then its title in the serif over two lines and where it comes from.
-/// While work goes on the cover blurs, says the stage and its share in its corner, and the stage ruler sits
-/// under it; pointing at it offers to pause or carry on and to cancel.
+/// Every cover has the same shape, so the cards line up in rows. While work goes on the cover blurs and its
+/// foot carries the stage, its share and the stage ruler; pointing at it offers to pause or carry on and to
+/// cancel.
 struct GalleryCard: View {
   @Environment(\.standIns) private var standIns
   @Environment(\.covers) private var covers
@@ -61,47 +62,39 @@ struct GalleryCard: View {
   private var hovering: Bool { pointing || standIns?.pointedCard == item.id }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: Self.spacing) {
+    VStack(alignment: .leading, spacing: 0) {
       cover
-      if let job, state.isBusy {
-        StageRuler(segments: StageRuler.segments(of: job, kind: item.kind))
-          .padding(.top, 1)
-          .frame(height: Self.rulerHeight, alignment: .top)
+      title.padding(.top, Self.titleGap)
+      HStack(spacing: 6) {
+        Image(systemName: Symbols.kind(ItemKind(item.kind))).font(.system(size: 11))
+        Text(verbatim: item.byline).lineLimit(1)
       }
-      title.frame(height: Self.titleHeight, alignment: .topLeading)
-      if !state.isBusy {
-        HStack(spacing: 6) {
-          Image(systemName: Symbols.kind(ItemKind(item.kind))).font(.system(size: 11))
-          Text(verbatim: item.byline).lineLimit(1)
-        }
-        .font(.system(size: 11.5).monospaced())
-        .foregroundStyle(Palette.inkMuted)
-        .frame(height: Self.bylineHeight, alignment: .topLeading)
-      }
+      .font(.system(size: 11.5).monospaced())
+      .foregroundStyle(Palette.inkMuted)
+      .frame(height: Self.bylineHeight, alignment: .topLeading)
+      .padding(.top, Self.bylineGap)
     }
+    .frame(maxHeight: .infinity, alignment: .top)
     .contentShape(Rectangle())
     .onHover { pointing = $0 }
   }
 
-  private static let spacing: CGFloat = 9
-  private static let titleHeight: CGFloat = 38
+  private static let titleGap: CGFloat = 11
+  /// Two lines of the title, which a card leaves room for whether it uses them or not.
+  private static let titleHeight: CGFloat = 40
+  private static let bylineGap: CGFloat = 6
   private static let bylineHeight: CGFloat = 15
-  private static let rulerHeight: CGFloat = 25
 
-  static func height(at width: CGFloat, kind: ItemKind, busy: Bool) -> CGFloat {
-    width / coverRatio(for: kind) + titleHeight + (busy ? rulerHeight : bylineHeight) + 2 * spacing
+  /// How tall every card `width` wide is, so a row of them lines up.
+  static func height(at width: CGFloat) -> CGFloat {
+    width / coverRatio + titleGap + titleHeight + bylineGap + bylineHeight
   }
 
-  static func coverRatio(for kind: ItemKind) -> CGFloat {
-    switch kind {
-    case .video: Size.cardThumbnailRatio
-    case .audio: 1
-    case .article, .paper, .repository: 16 / 10
-    }
-  }
+  /// The shape of every cover in the gallery: a podcast's square art sits inside it on a wash of its colors.
+  static let coverRatio: CGFloat = 16 / 10
 
   @ViewBuilder private var art: some View {
-    let picture = Cover(item: item, corner: 0, squareInset: nil, edge: coverWidth)
+    let picture = Cover(item: item, corner: 0, squareInset: 0.09, squareCorner: 6, edge: coverWidth)
     if state.isBusy {
       let softened = item.kind != .article || covers?.image(of: item.id) == nil
       picture
@@ -119,7 +112,7 @@ struct GalleryCard: View {
     let shape = RoundedRectangle(cornerRadius: Radius.galleryCover, style: .continuous)
     return
       art
-      .frame(height: coverWidth / Self.coverRatio(for: ItemKind(item.kind)))
+      .frame(height: coverWidth / Self.coverRatio)
       .overlay {
         if state.isBusy {
           let shade: Double = articleFailure == nil ? 0 : 0.32
@@ -132,7 +125,7 @@ struct GalleryCard: View {
       }
       .overlay(alignment: .bottom) { if !state.isBusy { ProgressLine(share: share) } }
       .clipShape(shape)
-      .overlay(alignment: .bottomLeading) { corner }
+      .overlay(alignment: .bottom) { foot }
       .overlay(alignment: .topTrailing) {
         if state.pausable, hovering { hoverButtons.transition(.opacity) }
       }
@@ -165,26 +158,34 @@ struct GalleryCard: View {
     }
   }
 
-  @ViewBuilder private var corner: some View {
-    let words: Text? =
-      switch state {
-      case .working(let stage, let progress):
-        Text(
-          joining: Text(stage.name),
-          Text(verbatim: progress.map { " " + StageRuler.percent($0) } ?? "").font(.system(size: 11.5).monospaced()))
-      case .queued: Text(.loci("job.queued"))
-      case .paused(let progress):
-        Text(
-          joining: Text(.loci("job.paused")),
-          Text(verbatim: progress.map { " " + StageRuler.percent($0) } ?? "").font(.system(size: 11.5).monospaced()))
-      case .ready, .needs: nil
+  /// Along the foot of a busy cover: the stage and its share, over the stage ruler.
+  @ViewBuilder private var foot: some View {
+    if let job, state.isBusy {
+      VStack(alignment: .leading, spacing: 6) {
+        if let words = footWords {
+          HStack(spacing: Spacing.xs) {
+            words.name.font(.system(size: 11.5, weight: .semibold))
+            Spacer(minLength: 0)
+            if let share = words.share {
+              Text(verbatim: StageRuler.percent(share)).font(.system(size: 11.5, weight: .semibold).monospaced())
+            }
+          }
+          .foregroundStyle(Palette.onCover)
+          .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+        }
+        StageRuler(segments: StageRuler.segments(of: job, kind: item.kind), size: .cover)
       }
-    if let words {
-      words
-        .font(.system(size: 11.5, weight: .semibold))
-        .foregroundStyle(Palette.onCover)
-        .padding(.leading, 9)
-        .padding(.bottom, 8)
+      .padding(.horizontal, 10)
+      .padding(.bottom, 9)
+    }
+  }
+
+  private var footWords: (name: Text, share: Fraction?)? {
+    switch state {
+    case .working(let stage, let progress): (Text(stage.name), progress)
+    case .queued: (Text(.loci("job.queued")), nil)
+    case .paused(let progress): (Text(.loci("job.paused")), progress)
+    case .ready, .needs: nil
     }
   }
 

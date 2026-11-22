@@ -68,10 +68,11 @@ struct Cover: View {
               Image(nsImage: wash).resizable().scaledToFill()
                 .frame(width: frame.size.width, height: frame.size.height)
             }
+            let square = RoundedRectangle(cornerRadius: squareCorner, style: .continuous)
             Image(nsImage: image).resizable().scaledToFill()
               .frame(width: side, height: side)
-              .clipShape(RoundedRectangle(cornerRadius: squareCorner, style: .continuous))
-              .shadow(color: .black.opacity(0.4), radius: side * 0.04, y: side * 0.02)
+              .clipShape(square)
+              .background { SoftShadow(shape: square, opacity: 0.35, radius: side * 0.05, y: side * 0.025, steps: 4) }
           }
           .frame(width: frame.size.width, height: frame.size.height)
         }

@@ -7,29 +7,24 @@ import Testing
 
 @MainActor
 struct LibraryPresentationTests {
-  @Test func videosAreWidescreenAndPodcastsAreSquare() {
-    #expect(GalleryCard.coverRatio(for: .video) == 16.0 / 9)
-    #expect(GalleryCard.coverRatio(for: .audio) == 1)
-  }
+  /// G-S3: cards fill the gallery row by row in library order, every row lined up.
+  @Test func cardsFillRowsInLibraryOrder() {
+    let frames = GalleryPlacement.frames(width: 644, count: 5) { width in width }
 
-  @Test func mixedCardsFillTheShortestColumnBeforeStartingFartherDown() {
-    let heights: [CGFloat] = [160, 240, 180, 150, 220, 190]
-    let frames = GalleryPlacement.frames(width: 644, count: heights.count) { index, _ in heights[index] }
-
-    #expect(frames.map(\.width) == [200, 200, 200, 200, 200, 200])
+    #expect(frames.map(\.width) == [200, 200, 200, 200, 200])
     #expect(
       frames.map(\.origin) == [
         CGPoint(x: 0, y: 0), CGPoint(x: 222, y: 0), CGPoint(x: 444, y: 0),
-        CGPoint(x: 0, y: 186), CGPoint(x: 444, y: 206), CGPoint(x: 222, y: 266),
+        CGPoint(x: 0, y: 226), CGPoint(x: 222, y: 226),
       ])
   }
 
   @Test func aNarrowGalleryKeepsOneColumnInLibraryOrder() {
-    let frames = GalleryPlacement.frames(width: 185, count: 3) { index, width in width + CGFloat(index) }
+    let frames = GalleryPlacement.frames(width: 185, count: 3) { width in width }
 
     #expect(frames.map(\.width) == [185, 185, 185])
     #expect(frames.map(\.minX) == [0, 0, 0])
-    #expect(frames.map(\.minY) == [0, 211, 423])
+    #expect(frames.map(\.minY) == [0, 211, 422])
   }
 
   @Test func aListShowsTheSavedPlaceInEachKindOfMaterial() throws {

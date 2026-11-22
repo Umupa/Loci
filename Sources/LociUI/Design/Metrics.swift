@@ -54,7 +54,6 @@ enum Size {
   /// window's.
   static let windowButtons = CGPoint(x: 22, y: 22)
   static let cardMinimumWidth: CGFloat = 200
-  static let cardThumbnailRatio: CGFloat = 16 / 9
   static let panelWidth: CGFloat = 384
   static let updateButton: CGFloat = 28
   /// The strip along a pane's edge that drags it wider.

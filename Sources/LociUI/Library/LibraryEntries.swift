@@ -38,9 +38,7 @@ struct LibraryEntries: View {
     case .gallery:
       let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
       LibraryGallery(
-        tiles: items.map {
-          GalleryPlacement.Tile(id: $0.id, kind: ItemKind($0.kind), busy: CardState(jobs[$0.id]).isBusy)
-        }
+        tiles: items.map { GalleryPlacement.Tile(id: $0.id) }
       ) { id, width in
         if let item = byID[id] {
           entry(item) { selected, editing in

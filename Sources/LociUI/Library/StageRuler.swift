@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The stages of an item's work as one ruler: each stage a segment as long as the work in it, finished ones
 /// solid with a check, the one under way filling in amber with its share and a sheen running across it, a
-/// paused one hatched, a failed or blocked one red.
+/// paused one hatched, a failed or blocked one red. Over a cover it is bars alone, in light on the picture.
 struct StageRuler: View {
   let segments: [Segment]
   var size = Scale.card
@@ -26,10 +26,16 @@ struct StageRuler: View {
   }
 
   enum Scale {
-    case card, page
+    case cover, card, page
 
-    var bar: CGFloat { self == .card ? 4 : 5 }
-    var font: CGFloat { self == .card ? 11 : 12 }
+    var bar: CGFloat {
+      switch self {
+      case .cover: 3
+      case .card: 4
+      case .page: 5
+      }
+    }
+    var font: CGFloat { self == .page ? 12 : 11 }
   }
 
   /// The segments of `job`'s stages for an item of `kind`. Reading the link is quick and shows as part of
@@ -76,11 +82,13 @@ struct StageRuler: View {
   var body: some View {
     Weighted(weights: segments.map(\.weight), spacing: 3) {
       ForEach(segments, id: \.stage) { segment in
-        VStack(alignment: .leading, spacing: size == .card ? 6 : 7) {
-          SegmentBar(mark: segment.mark, height: size.bar)
-          label(segment)
-            .lineLimit(1)
-            .fixedSize(horizontal: !segments.contains(where: { $0.stage == .fetchPage }), vertical: true)
+        VStack(alignment: .leading, spacing: size == .page ? 7 : 6) {
+          SegmentBar(mark: segment.mark, height: size.bar, onCover: size == .cover)
+          if size != .cover {
+            label(segment)
+              .lineLimit(1)
+              .fixedSize(horizontal: !segments.contains(where: { $0.stage == .fetchPage }), vertical: true)
+          }
         }
       }
     }
@@ -127,6 +135,7 @@ private struct SegmentBar: View {
   @Environment(\.reducesMotion) private var reduceMotion
   let mark: StageRuler.Mark
   let height: CGFloat
+  let onCover: Bool
 
   var body: some View {
     let shape = Capsule()
@@ -151,9 +160,9 @@ private struct SegmentBar: View {
 
   private var fill: Color {
     switch mark {
-    case .done: Palette.accentLine
-    case .stopped: Palette.failure.opacity(0.55)
-    case .upcoming, .running, .paused: Palette.fillStrong
+    case .done: onCover ? Palette.onCover.opacity(0.9) : Palette.accentLine
+    case .stopped: onCover ? Palette.failure : Palette.failure.opacity(0.55)
+    case .upcoming, .running, .paused: onCover ? Palette.onCover.opacity(0.28) : Palette.fillStrong
     }
   }
 
