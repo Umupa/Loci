@@ -135,6 +135,32 @@ struct CourseFilesTests {
     }
   }
 
+  @Test("A course's atlas is saved beside it, comes back with the course, and may point only at planned lessons")
+  func savesAtlas() throws {
+    try withStore { store in
+      let course = try writingCourse()
+      try store.createCourse(course)
+      #expect(try store.coursePage(course.id).atlas == nil)
+      let atlas = try sampleAtlas(pointingAt: "majorities")
+      try store.writeCourseAtlas(atlas, in: course.id)
+      let reopened = Store(root: store.root, discard: .permanently)
+      #expect(try reopened.courseAtlas(course.id) == atlas)
+      #expect(try reopened.coursePage(course.id).atlas == atlas)
+      #expect(throws: StoreError.self) {
+        try store.writeCourseAtlas(try sampleAtlas(pointingAt: "paxos"), in: course.id)
+      }
+      #expect(try store.courseAtlas(course.id) == atlas)
+    }
+  }
+
+  private func sampleAtlas(pointingAt lesson: String) throws -> CourseAtlas {
+    let json = """
+      {"gist": "Any two majorities intersect.", "blocks": [{"kind": "cards", "title": "Safety",
+       "cards": [{"title": "Quorum", "points": ["Two majorities share a node"], "lessons": ["\(lesson)"]}]}]}
+      """
+    return try JSONDecoder().decode(CourseAtlas.self, from: Data(json.utf8))
+  }
+
   private func writingCourse() throws -> Course {
     var course = try Course(id: Fixture.id(1), topic: "Raft", createdAt: Fixture.instant)
     let option = try CourseQuestion.Option(title: "Yes", detail: "Proceed with this goal")

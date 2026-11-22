@@ -10,6 +10,8 @@ enum ShownLesson: Equatable {
   case unwritten(Lesson.ID, title: String, writing: Bool)
   /// Written, its text still on its way.
   case arriving
+  /// Not a lesson: the course's atlas.
+  case atlas(AtlasShown)
 }
 
 /// What a lesson shows besides its text.

@@ -127,7 +127,7 @@ extension Store {
       return CourseLesson(
         lesson: lesson, body: state, isRead: state == .written && course.readLessons.contains(lesson.id))
     }
-    return CoursePage(course: course, lessons: lessons)
+    return CoursePage(course: course, lessons: lessons, atlas: try? courseAtlas(id))
   }
 
   public func lessonText(in id: EntityID, lesson: Lesson.ID) throws -> String? {

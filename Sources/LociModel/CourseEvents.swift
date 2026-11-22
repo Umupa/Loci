@@ -8,6 +8,8 @@ public enum CourseEvent: Hashable, Codable, Sendable {
   case removedSource(CourseSource)
   case beganWriting
   case writeLesson(Lesson.ID, reason: WriteReason)
+  /// Draw the atlas's skeleton, or with a lesson, add what that lesson taught to it.
+  case drawAtlas(Lesson.ID?)
 
   public enum WriteReason: String, Hashable, Codable, Sendable {
     case firstLessons, openedLastWritten, requested

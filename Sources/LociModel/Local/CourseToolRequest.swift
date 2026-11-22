@@ -9,4 +9,5 @@ public enum CourseToolRequest: Hashable, Codable, Sendable {
   case listSources
   case plan([Lesson])
   case writeLesson(Lesson.ID, markdown: String)
+  case atlas(CourseAtlas)
 }

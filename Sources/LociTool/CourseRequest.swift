@@ -10,6 +10,7 @@ enum CourseRequest: Hashable, Sendable {
   case listSources
   case plan
   case writeLesson(Lesson.ID, String)
+  case atlas(String)
 
   static func parse(_ words: [String]) throws(UsageError) -> CourseRequest {
     switch words {
@@ -17,9 +18,14 @@ enum CourseRequest: Hashable, Sendable {
     case ["goal"]: return .goal
     case ["ready"]: return .ready
     case ["plan"]: return .plan
+    case let words where words.first == "atlas":
+      guard words.count == 2, words[1].hasSuffix(".json") else {
+        throw UsageError("Use loci course atlas <file.json>. Run loci help for the format.")
+      }
+      return .atlas(words[1])
     default:
       guard words.first == "source" else {
-        throw UsageError("Use loci course ask, goal, ready, source, or plan. Run loci help for details.")
+        throw UsageError("Use loci course ask, goal, ready, source, plan, or atlas. Run loci help for details.")
       }
       return try source(Array(words.dropFirst()))
     }

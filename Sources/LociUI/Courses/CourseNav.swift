@@ -8,8 +8,15 @@ struct CourseNav: View {
   let lessons: [LessonThread.Row]
   let sources: [SourceShown]
   var pointedSource: EntityID?
+  /// The atlas's row above the lessons, when the course has one.
+  var atlas: AtlasRow?
   let choose: (Lesson.ID) -> Void
+  var openAtlas: () -> Void = {}
   let openSource: (URL) -> Void
+
+  struct AtlasRow: Equatable {
+    let open: Bool
+  }
 
   /// Where this Mac keeps whether the contents are shown beside the lesson.
   static let key = "courseContentsShown"
@@ -33,6 +40,9 @@ struct CourseNav: View {
             .lineLimit(2)
         }
         .padding(.bottom, Spacing.l)
+        if let atlas {
+          AtlasNavRow(open: atlas.open, action: openAtlas).padding(.bottom, Spacing.s)
+        }
         LessonThread(lessons: lessons, ink: .window, rowHeight: 32, choose: choose)
         if !sources.isEmpty {
           Text(.loci("course.stageSources"))
@@ -50,6 +60,39 @@ struct CourseNav: View {
       .padding(.leading, 26).padding(.trailing, Spacing.m).padding(.top, 58).padding(.bottom, Spacing.l)
     }
     .scrollIndicators(.never)
+  }
+}
+
+/// The atlas's row in the reading page's left column, lit while the atlas is open.
+private struct AtlasNavRow: View {
+  let open: Bool
+  let action: () -> Void
+  @State private var hovering = false
+
+  var body: some View {
+    Button(action: action) {
+      HStack(spacing: 10) {
+        Image(systemName: Symbols.atlas)
+          .font(.system(size: 13, weight: .medium))
+          .foregroundStyle(open ? Palette.accentInk : Palette.inkMuted)
+          .frame(width: Size.bead)
+        Text(.loci("course.atlas"))
+          .font(.system(size: 13.5, weight: open ? .semibold : .regular))
+          .foregroundStyle(Palette.ink)
+        Spacer(minLength: 0)
+      }
+      .padding(.horizontal, 8)
+      .frame(height: 34)
+      .background(
+        RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+          .fill(open ? Palette.tint : hovering ? Palette.fill : .clear)
+      )
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .padding(.leading, -8)
+    .onHover { hovering = $0 }
+    .animation(Motion.quick, value: open)
   }
 }
 

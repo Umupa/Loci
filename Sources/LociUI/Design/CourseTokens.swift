@@ -68,6 +68,11 @@ extension Size {
   static let wishField: CGFloat = 52
   static let lessonColumn: CGFloat = 560
   static let bead: CGFloat = 12
+  /// The atlas's measure, and the narrowest width in which its blocks still sit side by side.
+  static let atlasPage: CGFloat = 920
+  static let atlasSideBySide: CGFloat = 560
+  /// The narrowest a step of a flow may be before the flow turns to run downwards.
+  static let atlasStep: CGFloat = 132
 }
 
 extension Motion {

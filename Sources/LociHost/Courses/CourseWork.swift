@@ -13,8 +13,12 @@ struct CourseWork {
       }
     }
 
+    /// A first lesson, or the atlas skeleton drawn between the first lessons.
     var isInitialLesson: Bool {
-      if case .event(.writeLesson(_, .firstLessons)) = self { true } else { false }
+      switch self {
+      case .event(.writeLesson(_, .firstLessons)), .event(.drawAtlas(nil)): true
+      default: false
+      }
     }
   }
 

@@ -63,6 +63,7 @@ public struct CoursePage: Hashable, Codable, Sendable {
   public let course: Course
   public let lessons: [CourseLesson]
   public let activity: CourseActivity
+  public let atlas: CourseAtlas?
 
   public var canBeginSources: Bool {
     course.stage == .goal && course.goalStatus == .ready && activity == .idle
@@ -77,9 +78,10 @@ public struct CoursePage: Hashable, Codable, Sendable {
     return first.id
   }
 
-  public init(course: Course, lessons: [CourseLesson], activity: CourseActivity = .idle) {
+  public init(course: Course, lessons: [CourseLesson], activity: CourseActivity = .idle, atlas: CourseAtlas? = nil) {
     self.course = course
     self.lessons = lessons
     self.activity = activity
+    self.atlas = atlas
   }
 }

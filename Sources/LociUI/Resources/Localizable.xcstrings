@@ -7896,6 +7896,23 @@
         }
       }
     },
+    "course.atlas": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atlas"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图解"
+          }
+        }
+      }
+    },
     "course.back": {
       "extractionState": "manual",
       "localizations": {

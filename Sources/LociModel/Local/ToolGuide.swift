@@ -27,6 +27,7 @@ public enum ToolGuide {
       loci course source list          print IDs, source links and pinned commits
       loci course plan                 save the lesson titles from JSON on standard input
       loci lesson write <id> <file.md> save or revise a lesson from UTF-8 Markdown
+      loci course atlas <file.json>    save the whole course atlas from a JSON file
       loci help                        this text
 
     Add --json to print the app's reply as it is.
@@ -83,6 +84,17 @@ public enum ToolGuide {
       IDs, titles and relative order of lessons already written.
     - lesson write: give the ID from the plan and the path to the Markdown file. Writing again with
       the same ID updates that lesson. Use ordinary Markdown links to cite the exact place in a source.
+    - atlas: {"gist":"…","blocks":[…]}, the whole atlas each time. Every text is one line; **bold** and
+      `code` are the only marks. "lessons" lists lesson IDs from the plan; it and any field marked * may be
+      left out. Blocks, by "kind":
+      figures: {"figures":[{"title","value","note"*}]}, 2 to 5
+      flow: {"title","lede"*,"lessons"*,"steps":[step],"aside"*}, 2 to 6 steps
+        step: {"label"*,"title","points"*:[text, up to 4],"key"*:true for the step it turns on,"lessons"*}
+      layers: {"title","lede"*,"lessons"*,"columns":[{"title","note"*,"layers":[{"text","marked"*}],"verdict"*}]}
+        2 to 4 columns of 2 to 6 layers, top of the stack first; mark the layer each column is about
+      cards: {"title","lede"*,"lessons"*,"cards":[{"label"*,"title","points":[1 to 5],"breaks"*,"lessons"*}]}, 1 to 4
+      dive: {"lesson","title","lede"*,"steps":[step, 2 to 6],"keep"*:[up to 3]}, one per lesson
+      table: {"title","lede"*,"lessons"*,"columns":[2 to 5],"rows":[{"label","cells":[text or null],"key"*,"lessons"*}]}
     """
 
   /// `SKILL.md` for agent programs that look for skills in their working folder.

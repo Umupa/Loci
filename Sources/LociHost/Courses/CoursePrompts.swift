@@ -26,6 +26,12 @@ extension AgentContext {
           words.instruction + "\n\nWrite this lesson's draft in `\(path)`. Create its parent directories. "
           + "Save completed paragraphs to that file as you write. When it is complete, run "
           + "`\"$LOCI\" lesson write \(lesson) \(path)`."
+      } else if case .drawAtlas = event {
+        lessonTitle = nil
+        let path = store.courseAtlasDraftPath(course.id, turn: active.id)
+        text =
+          words.instruction + "\n\nWrite the whole atlas as JSON in `\(path)`. Create its parent directories. "
+          + "Start from ../courses/\(course.id)/atlas.json when it exists. Then run `\"$LOCI\" course atlas \(path)`."
       } else {
         lessonTitle = nil
         text = words.instruction
@@ -97,6 +103,18 @@ extension CourseEvent {
         "Start writing",
         "The person chose to start writing. Plan the whole course with loci course plan. "
           + "Finish this turn after saving the plan. The app will ask for the first three lessons, one at a time."
+      )
+    case .drawAtlas(nil):
+      (
+        "Draw the atlas",
+        "Draw the course atlas: the gist and the skeleton of the subject, from the sources you read, the plan, "
+          + "and the lessons written so far. Leave out what no lesson has taught yet. Finish this turn after saving."
+      )
+    case .drawAtlas(let lesson?):
+      (
+        "Add \(lesson) to the atlas",
+        "The person opened lesson \(lesson). Add what it teaches to the atlas: a dive if it explains a mechanism, "
+          + "its facts in the cards and the table cells it settles. Keep everything else as it is."
       )
     case .writeLesson(let lesson, let reason):
       switch reason {

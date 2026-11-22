@@ -351,7 +351,7 @@ private struct PageStage: View {
 }
 
 /// The reading page with a sample conversation beside it.
-private struct ReadingStage: View {
+struct ReadingStage: View {
   let shown: ReadingShown
   var pointedSource: EntityID?
   var panel = true

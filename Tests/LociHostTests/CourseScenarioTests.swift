@@ -84,7 +84,7 @@ struct CourseScenarioTests {
     }
   }
 
-  @Test("Starting to write plans the full course and produces the first three lessons in order")
+  @Test("Starting to write plans the full course, writes the first lesson, draws the atlas, then two more lessons")
   func draftsThreeLessons() async throws {
     try await withCourseHost { host, place, agent in
       let course = try seed(stage: .sources, in: place, id: EntityID())
@@ -95,7 +95,14 @@ struct CourseScenarioTests {
       try await run(.plan(plan), in: access, on: host)
       await session.finish()
       for (number, lesson) in plan.prefix(3).enumerated() {
-        _ = try await turn(for: course.id, on: agent, number: number + 2)
+        if number == 1 {
+          _ = try await turn(for: course.id, on: agent, number: 3)
+          #expect(await session.prompts.last?.contains("Draw the course atlas") == true)
+          #expect(await session.prompts.last?.contains("course atlas workspace/courses/\(course.id)/") == true)
+          try await run(.atlas(atlas(pointingAt: plan[0].id)), in: access, on: host)
+          await session.finish()
+        }
+        _ = try await turn(for: course.id, on: agent, number: number == 0 ? 2 : number + 3)
         guard case .writing(let id, _) = try await host.coursePage(course.id).activity else {
           Issue.record("The course did not show its active lesson")
           return
@@ -109,6 +116,8 @@ struct CourseScenarioTests {
       #expect(page.firstReadableLesson == plan[0].id)
       #expect(page.lessons.map(\.body) == [.written, .written, .written, .unwritten, .unwritten])
       #expect(try await host.run(ListItems()).isEmpty)
+      #expect(page.atlas == (try atlas(pointingAt: plan[0].id)))
+      #expect(page.course.pendingEvents.isEmpty)
     }
   }
 

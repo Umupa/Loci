@@ -43,6 +43,29 @@ struct CourseToolTests {
     #expect(line.requests == [.course(.writeLesson(lesson, markdown: "A quorum holds."))])
   }
 
+  @Test("An atlas file is checked before it is sent, and a mistake names the block to fix")
+  func sendsAtlas() async throws {
+    let atlas =
+      #"{"gist": "Majorities intersect.", "blocks": [{"kind": "cards", "title": "Safety", "#
+      + #""cards": [{"title": "Quorum", "points": ["Two majorities share a node"]}]}]}"#
+    let line = ScriptedLine { _ in [.success(Data("{}".utf8))] }
+    #expect(try Request.parse(["course", "atlas", "atlas.json"]).request == .course(.atlas("atlas.json")))
+    #expect(throws: UsageError.self) { try Request.parse(["course", "atlas"]) }
+    var sending = Tool(line: line, folder: URL(filePath: "/loci/agent/")) { _ in atlas }
+    let sent = await sending.run(.course(.atlas("atlas.json")), json: false)
+    #expect(sent == .worked("Saved the atlas."))
+    #expect(line.requests == [.course(.atlas(try JSONDecoder().decode(CourseAtlas.self, from: Data(atlas.utf8))))])
+
+    let quiet = ScriptedLine { _ in [] }
+    sending = Tool(line: quiet, folder: URL(filePath: "/loci/agent/")) { _ in
+      atlas.replacing(#""points": ["Two majorities share a node"]"#, with: #""points": []"#)
+    }
+    let wrong = await sending.run(.course(.atlas("atlas.json")), json: false)
+    #expect(wrong.status == 2)
+    #expect(wrong.text.contains("block 1 (cards): give 1 to 5 points in a card, not 0"))
+    #expect(quiet.requests.isEmpty)
+  }
+
   @Test("The course tool prints structured sources and preserves scope and usage exit status")
   func printsSourcesAndErrors() async throws {
     let url = try #require(URL(string: "https://example.org/paper.pdf"))

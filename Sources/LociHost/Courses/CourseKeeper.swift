@@ -16,7 +16,7 @@ actor CourseKeeper {
     self.loci = loci
   }
 
-  private var store: Store { context.store }
+  var store: Store { context.store }
 
   func list() async throws(HostError) -> [CourseEntry] {
     let health = await context.follower.hub.current()
@@ -50,7 +50,7 @@ actor CourseKeeper {
     } else {
       activity = works[id]?.isWorking == true ? .working : .idle
     }
-    return CoursePage(course: page.course, lessons: page.lessons, activity: activity)
+    return CoursePage(course: page.course, lessons: page.lessons, activity: activity, atlas: page.atlas)
   }
 
   func start(_ topic: String) async throws(HostError) -> Course {
@@ -89,21 +89,26 @@ actor CourseKeeper {
       throw .notFound(lesson.description)
     }
     guard opened.body == .written else { return }
-    let next = try attempt {
+    let (next, atlas) = try attempt {
       try store.editCourse(id) { course in
         let latest = try store.coursePage(id)
         guard latest.lessons.contains(where: { $0.id == lesson && $0.body == .written }) else {
-          return nil as Lesson.ID?
+          return (nil as Lesson.ID?, nil as Course.PendingEvent?)
         }
+        let firstRead = !course.readLessons.contains(lesson)
         try course.markLessonRead(lesson)
+        let atlas =
+          firstRead && latest.atlas != nil
+          ? course.keepEvent(.drawAtlas(lesson), id: context.environment.newID()) : nil
         guard latest.lastWrittenLesson?.id == lesson, let next = latest.nextLessonAfterLastWritten else {
-          return nil as Lesson.ID?
+          return (nil, atlas)
         }
         course.setWorkPaused(false)
-        return next
+        return (next, atlas)
       }
     }
     if let next { enqueue(.event(.writeLesson(next, reason: .openedLastWritten)), for: id) }
+    if let atlas { enqueue(atlas, for: id) }
     await changed(id)
   }
 
@@ -175,6 +180,21 @@ actor CourseKeeper {
       }
       await changed(id)
       return try WireCodec.encode(Done())
+    case .atlas(let atlas):
+      switch active.request {
+      case .event(.drawAtlas), .message: break
+      default: throw .invalidRequest("draw the atlas when the app asks for it or the person does")
+      }
+      try attempt {
+        do {
+          try store.writeCourseAtlas(atlas, in: id)
+        } catch StoreError.invalid(let problem) {
+          throw HostError.invalidRequest(problem.reason)
+        }
+        if let recorded = active.action.recorded { try store.editCourse(id) { $0.completeEvent(recorded) } }
+      }
+      await changed(id)
+      return try WireCodec.encode(Done())
     default:
       let reply = try apply(request, in: id, active: active)
       await changed(id)
@@ -186,6 +206,7 @@ actor CourseKeeper {
     throws(HostError) -> Data
   {
     try attempt {
+      var skeleton: Course.PendingEvent?
       let reply = try store.editCourse(id) { course in
         var reply = try WireCodec.encode(Done())
         switch request {
@@ -203,7 +224,8 @@ actor CourseKeeper {
           let page = try store.coursePage(course.id)
           let recorded = Set(page.lessons.filter { $0.body != .unwritten }.map(\.id))
           try course.replacePlan(lessons, keepingWritten: recorded)
-        case .listSources, .writeLesson:
+          if page.atlas == nil { skeleton = course.keepEvent(.drawAtlas(nil), id: context.environment.newID()) }
+        case .listSources, .writeLesson, .atlas:
           throw HostError.invalidRequest("use the course tool in its matching turn")
         }
         if let recorded = active.action.recorded, case .event(let event) = active.request {
@@ -219,9 +241,11 @@ actor CourseKeeper {
       if case .plan = request {
         works[id]?.clearInitialLessons()
         let page = try store.coursePage(id)
-        for lesson in page.initialLessonsToWrite {
+        for (index, lesson) in page.initialLessonsToWrite.enumerated() {
           enqueue(.event(.writeLesson(lesson, reason: .firstLessons)), for: id)
+          if index == 0, let skeleton { enqueue(skeleton, for: id) }
         }
+        if page.initialLessonsToWrite.isEmpty, let skeleton { enqueue(skeleton, for: id) }
       }
       return reply
     }
@@ -278,11 +302,11 @@ actor CourseKeeper {
     guard !closing, !stopping.contains(id) else { throw .invalidRequest("the course is stopping") }
   }
 
-  private func enqueue(_ event: Course.PendingEvent, for id: EntityID) {
+  func enqueue(_ event: Course.PendingEvent, for id: EntityID) {
     enqueue(.event(event.event), for: id, recorded: event.id)
   }
 
-  private func enqueue(_ request: CourseWork.Request, for id: EntityID, recorded: EntityID? = nil) {
+  func enqueue(_ request: CourseWork.Request, for id: EntityID, recorded: EntityID? = nil) {
     works[id, default: CourseWork()].enqueue(request, recorded: recorded)
     if tasks[id] == nil { tasks[id] = Task { await self.work(on: id) } }
   }
@@ -324,44 +348,6 @@ actor CourseKeeper {
     works[id] = nil
     tasks[id] = nil
     await changed(id, files: false)
-  }
-
-  func recoverWork() {
-    for id in store.courseIDs() { recover(id) }
-  }
-
-  private func recover(_ id: EntityID) {
-    guard let page = try? store.coursePage(id), !page.course.workPaused else { return }
-    let course = page.course
-    for record in course.pendingEvents { enqueue(record, for: id) }
-    switch course.stage {
-    case .goal where course.pendingEvents.isEmpty && course.question == nil:
-      if let event = legacyGoalWork(course) { enqueue(.event(event), for: id) }
-    case .writing where course.lessons.isEmpty:
-      if !course.pendingEvents.contains(where: { $0.event == .beganWriting }) {
-        enqueue(.event(.beganWriting), for: id)
-      }
-    case .writing:
-      for lesson in page.initialLessonsToWrite { enqueue(.event(.writeLesson(lesson, reason: .firstLessons)), for: id) }
-      if let last = page.lastWrittenLesson, last.isRead, let next = page.nextLessonAfterLastWritten {
-        enqueue(.event(.writeLesson(next, reason: .openedLastWritten)), for: id)
-      }
-    case .goal, .sources: break
-    }
-  }
-
-  private func legacyGoalWork(_ course: Course) -> CourseEvent? {
-    if course.goalStatus == .confirmed { return .confirmedGoal }
-    guard course.goalStatus == .interview else { return nil }
-    let messages = (try? context.database.messages(of: .conversation(.course(course.id)))) ?? []
-    for message in messages.reversed() {
-      guard case .prompt(let prompt) = message.body, case .course(let event) = prompt.purpose else { continue }
-      switch event {
-      case .started, .answered, .askedToReviseGoal: return event
-      default: continue
-      }
-    }
-    return .started(topic: course.title)
   }
 
   private func shouldSend(_ request: CourseWork.Request, in page: CoursePage) -> Bool {

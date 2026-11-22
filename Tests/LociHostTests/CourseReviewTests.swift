@@ -6,7 +6,7 @@ import Testing
 @testable import LociHost
 
 extension CourseScenarioTests {
-  @Test("A replacement plan determines all three initial writing targets")
+  @Test("A replacement plan determines all three initial writing targets and when the atlas is drawn")
   func replacementPlanWritesItsFirstThree() async throws {
     try await withCourseHost { host, place, agent in
       let course = try seed(stage: .sources, in: place, id: EntityID())
@@ -18,7 +18,12 @@ extension CourseScenarioTests {
       try await run(.plan(Array(plan.dropFirst())), in: access, on: host)
       await session.finish()
       for (offset, lesson) in plan.dropFirst().prefix(3).enumerated() {
-        _ = try await turn(for: course.id, on: agent, number: offset + 2)
+        if offset == 1 {
+          _ = try await turn(for: course.id, on: agent, number: 3)
+          try await run(.atlas(atlas(pointingAt: lesson.id)), in: access, on: host)
+          await session.finish()
+        }
+        _ = try await turn(for: course.id, on: agent, number: offset == 0 ? 2 : offset + 3)
         #expect(try await host.coursePage(course.id).activity == .writing(lesson: lesson.id, draft: nil))
         try await run(.writeLesson(lesson.id, markdown: "Finished."), in: access, on: host)
         await session.finish()

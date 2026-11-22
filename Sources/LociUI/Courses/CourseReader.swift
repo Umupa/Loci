@@ -8,12 +8,19 @@ struct ReadingShown: Equatable {
   var lessons: [LessonThread.Row]
   var sources: [SourceShown]
   var lesson: ShownLesson
+  /// Whether the course has an atlas to open from the contents.
+  var hasAtlas = false
+
+  var atlasOpen: Bool {
+    if case .atlas = lesson { true } else { false }
+  }
 }
 
 /// What the person does on the reading page.
 struct ReadingActions {
   var back: () -> Void = {}
   var choose: (Lesson.ID) -> Void = { _ in }
+  var openAtlas: () -> Void = {}
   var writeNow: (Lesson.ID) -> Void = { _ in }
   var openLink: (URL) -> Void = { _ in }
 }
@@ -77,9 +84,14 @@ struct CourseReader<Conversation: View>: View {
   private var nav: some View {
     CourseNav(
       title: shown.title, lessons: shown.lessons, sources: shown.sources, pointedSource: pointedSource,
+      atlas: shown.hasAtlas ? CourseNav.AtlasRow(open: shown.atlasOpen) : nil,
       choose: { lesson in
         withAnimation(Motion.fold) { navFloating = false }
         actions.choose(lesson)
+      },
+      openAtlas: {
+        withAnimation(Motion.fold) { navFloating = false }
+        actions.openAtlas()
       },
       openSource: actions.openLink)
   }
@@ -95,27 +107,16 @@ struct CourseReader<Conversation: View>: View {
       )
       .id(lesson)
       .transition(.opacity)
+    case .atlas(let atlas):
+      beside(room: room) {
+        AtlasPage(shown: atlas, open: actions.choose)
+      }
+      .id("atlas")
+      .transition(.opacity)
     case .unwritten(let lesson, let title, let writing):
-      let beside = PaneWidth.panel.fitsBeside(in: room)
-      SidePanel(
-        open: beside ? panelShown : panelFloating, beside: beside, width: min(Size.mediaPanel, room),
-        expand: {
-          withAnimation(Motion.fold) {
-            panelShown = true
-            panelFloating = true
-          }
-        }
-      ) {
+      beside(room: room) {
         UnwrittenLesson(title: title, writing: writing) { actions.writeNow(lesson) }
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      } panel: {
-        CoursePanel(
-          collapse: {
-            withAnimation(Motion.fold) {
-              if beside { panelShown = false }
-              panelFloating = false
-            }
-          }, conversation: conversation)
       }
       .id(lesson)
       .transition(.opacity)
@@ -123,9 +124,33 @@ struct CourseReader<Conversation: View>: View {
       Palette.canvas
     }
   }
+
+  /// `content` with the course's conversation in the panel beside it, folded away where there is no room.
+  @ViewBuilder private func beside(room: CGFloat, @ViewBuilder content: @escaping () -> some View) -> some View {
+    let beside = PaneWidth.panel.fitsBeside(in: room)
+    SidePanel(
+      open: beside ? panelShown : panelFloating, beside: beside, width: min(Size.mediaPanel, room),
+      expand: {
+        withAnimation(Motion.fold) {
+          panelShown = true
+          panelFloating = true
+        }
+      }
+    ) {
+      content()
+    } panel: {
+      CoursePanel(
+        collapse: {
+          withAnimation(Motion.fold) {
+            if beside { panelShown = false }
+            panelFloating = false
+          }
+        }, conversation: conversation)
+    }
+  }
 }
 
-/// The course's conversation beside a lesson not written yet, under the button that folds it away.
+/// The course's conversation beside the atlas or a lesson not written yet, under the button that folds it away.
 struct CoursePanel<Conversation: View>: View {
   let collapse: () -> Void
   @ViewBuilder let conversation: () -> Conversation

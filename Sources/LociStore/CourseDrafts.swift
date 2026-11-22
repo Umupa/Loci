@@ -6,6 +6,10 @@ extension Store {
     "workspace/courses/\(course)/\(turn)/\(lesson).md"
   }
 
+  public func courseAtlasDraftPath(_ course: EntityID, turn: EntityID) -> String {
+    "workspace/courses/\(course)/\(turn)/atlas.json"
+  }
+
   public func courseDraft(_ course: EntityID, turn: EntityID, lesson: Lesson.ID) -> String? {
     let path = courseDraftPath(course, turn: turn, lesson: lesson)
     guard let text = try? readText(agentFolder.appending(path: path)), !text.isEmpty else { return nil }

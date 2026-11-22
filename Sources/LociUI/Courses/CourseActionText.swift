@@ -4,6 +4,7 @@ import LociModel
 extension Prompt {
   var showsPersonBubble: Bool {
     if case .course(.writeLesson(_, let reason)) = purpose { return reason == .requested }
+    if case .course(.drawAtlas) = purpose { return false }
     return true
   }
 
@@ -19,6 +20,7 @@ extension Prompt {
     case .addedSource(let source): return source.url.absoluteString
     case .removedSource(let source): label = .loci("course.struckSource \(source.title)")
     case .beganWriting: label = CourseStage.sources.next
+    case .drawAtlas: label = .loci("course.atlas")
     case .writeLesson(let id, _):
       let title = lessonTitle ?? courseLessons.first { $0.id == id }?.title
       if let title {
