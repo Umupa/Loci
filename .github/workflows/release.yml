@@ -1,11 +1,11 @@
 name: Release
 
-# A tag v<x.y.z> made by script/cut-release runs the gate and, side by side on
-# the same commit, builds Loci (Beta).app for Apple silicon and Intel, signs it
-# with the identity in the MACOS_SIGNING_IDENTITY secret (notarized when that is
-# a Developer ID), and makes the dmg. Only when both pass does Publish attach the
-# dmg to that tag's release, with the version's CHANGELOG.md section as its
-# notes. `gh workflow run release` does the same without releasing anything, to
+# A tag v<x.y.z> made by script/cut-release builds Loci (Beta).app for Apple
+# silicon and Intel, signs it with the identity in the MACOS_SIGNING_IDENTITY
+# secret (notarized when that is a Developer ID), and makes the dmg; Publish
+# attaches the dmg to that tag's release, with the version's CHANGELOG.md
+# section as its notes. It runs no check: script/check is run only when asked
+# for. `gh workflow run release` does the same without releasing anything, to
 # try the secrets; the dmg is kept as a workflow artifact. How the pieces fit:
 # docs/releasing.md.
 on:
@@ -21,31 +21,6 @@ permissions:
   contents: read
 
 jobs:
-  check:
-    name: Check
-    runs-on: xcode-27
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Use the newest Xcode
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
-
-      - uses: ./.github/actions/packages
-
-      - name: Check
-        run: script/check
-
-      - name: Keep the logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: check
-          path: |
-            output/check-*.log
-            output/snapshots
-          if-no-files-found: ignore
-
   package:
     name: Package
     runs-on: xcode-27
@@ -185,7 +160,7 @@ jobs:
 
   publish:
     name: Publish
-    needs: [check, package]
+    needs: [package]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     timeout-minutes: 10

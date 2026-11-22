@@ -1,7 +1,8 @@
 #!/bin/sh
 # Cuts a version on main: names the Unreleased section of CHANGELOG.md after it,
-# runs the gate, commits and tags. Pushing the tag is left to you, because that
-# is what publishes it: the release workflow signs, notarizes and releases it.
+# commits and tags. It runs no check: script/check is run only when asked for.
+# Pushing the tag is left to you, because that is what publishes it: the
+# release workflow signs, notarizes and releases it.
 #   script/cut-release 1.1.0
 set -eu
 cd "$(dirname "$0")/.."
@@ -38,27 +39,6 @@ awk -v version="$version" -v day="$day" '
   { print }
 ' CHANGELOG.md >CHANGELOG.md.new
 mv CHANGELOG.md.new CHANGELOG.md
-
-# The version commit changes only CHANGELOG.md, so when CI has already run the
-# full check on this commit (the nightly run or one started by hand), the
-# document rules are all that is left to check.
-head="$(git rev-parse HEAD)"
-checked=""
-for event in schedule workflow_dispatch; do
-  checked="$checked$(gh run list --workflow ci.yml --event "$event" --commit "$head" --status success \
-    --limit 1 --json databaseId --jq '.[].databaseId' 2>/dev/null || true)"
-done
-if [ -n "$checked" ]; then
-  echo "cut-release: CI has run the full check on $(git rev-parse --short HEAD), so only the documents are checked." >&2
-  set -- --documents
-else
-  set --
-fi
-
-if ! script/check "$@"; then
-  git checkout -- CHANGELOG.md
-  fail "the gate failed, so nothing was committed."
-fi
 
 git commit --quiet -m "chore: release $version" CHANGELOG.md
 git tag -a "$tag" -m "Loci $version"

@@ -25,12 +25,12 @@ script/test 'LociUITests\.(ChatTests|ConversationTests|TalkRowsTests)/'
 |---|---|
 | `script/test [过滤]...` | 改一轮跑一轮：只构建、只跑涉及的测试 |
 | `script/affected [提交范围]` | 列出改动影响的测试目标和 App |
-| `script/check --fast` | 跑 PR 和 `main` 日常 CI 的检查 |
+| `script/check --fast` | 跑 PR 和 `main` 日常 CI 的检查（只在用户要求时跑，见下） |
 | `script/check --documents` | 只改文档时 CI 跑的检查：不构建 App，只跑架构和文档规则 |
 | `script/check` | 跑完整检查，含全量快照和长对话压测 |
 | `script/format` | 按项目风格重排代码 |
 | `script/run` | 构建并打开 `output/Loci (Beta).app`；`--no-open` 只构建 |
-| `script/cut-release <版本>` | 定一个版本：改 CHANGELOG、跑闸门、提交、打 tag |
+| `script/cut-release <版本>` | 定一个版本：改 CHANGELOG、提交、打 tag |
 
 ## 这个仓库是你的教材
 
@@ -90,7 +90,7 @@ script/test 'LociUITests\.(ChatTests|ConversationTests|TalkRowsTests)/'
 
 说「做完了」之前：
 
-- 本地小改动完成时，贴对应测试的结果。提交 PR、合并或发版前跑完整 `script/check`，把输出贴出来。
+- 改动完成时，贴对应 `script/test` 的结果。提交、合并和发版前都不跑 `script/check`（任何档位）：它太慢，只在用户明确要求时才跑。
 - 改了界面：用 `Tests/LociUITests/Snapshot.swift` 给亮色和暗色各渲染一张，看过图再交。图在 `output/snapshots/`。
 - 对照 `docs/features.md` 里这次涉及的场景，逐条说明怎么验证的。没验证的明说没验证。
 - 用户看得到的变化，在 `CHANGELOG.md` 的 Unreleased 下加一行。

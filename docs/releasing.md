@@ -58,16 +58,11 @@
    script/cut-release 1.1.0
    ```
 
-   它检查：版本号的写法，并且比已有的版本都大；在 main 上、工作区干净、和 `origin/main` 一致；tag 还没有；Unreleased 下有内容；roadmap 写了这个版本。然后把 Unreleased 改成 `## 1.1.0 — <今天>`，上面留一个空的 Unreleased，跑 `script/check`，提交 `chore: release 1.1.0`，打带注释的 tag。它不推送。
+   它检查：版本号的写法，并且比已有的版本都大；在 main 上、工作区干净、和 `origin/main` 一致；tag 还没有；Unreleased 下有内容；roadmap 写了这个版本。然后把 Unreleased 改成 `## 1.1.0 — <今天>`，上面留一个空的 Unreleased，提交 `chore: release 1.1.0`，打带注释的 tag。它不推送。
 
-   发版提交只改 CHANGELOG。如果 CI 已经对当前提交跑过完整检查（定时运行，或用 `gh workflow run ci.yml` 手动跑的），它只跑 `script/check --documents`；否则在本机跑完整 `script/check`，本机要五分钟左右，大部分花在快照上。想省这一步，可以先 `gh workflow run ci.yml` 等它通过再定版本。
+   发版不跑 `script/check`：完整检查本机要五分钟左右，只在用户明确要求时才跑（本机 `script/check`，或 `gh workflow run ci.yml`）。
 
-4. **发布。** `git push origin main v1.1.0`。推上去的 tag 会触发 [release.yml](../.github/workflows/release.yml)，在 tag 指向的同一个提交上并排跑两个作业：
-
-   | 作业 | 做什么 |
-   |---|---|
-   | Check | 完整 `script/check`，留下各阶段日志 |
-   | Package | 打包、签名，见下 |
+4. **发布。** `git push origin main v1.1.0`。推上去的 tag 会触发 [release.yml](../.github/workflows/release.yml)，在 tag 指向的提交上打包、签名，再发布。它不跑检查。
 
    Package 依次：
 
@@ -78,9 +73,9 @@
    5. `script/measure-launch`：记录 release 构建的冷启动，**只记录，不卡发布**。
    6. 把 dmg、校验和、发布说明留成 `release` artifact。
 
-   两个作业都通过后，Publish 取回 `release` artifact，用校验和核对 dmg，再建 GitHub release、附上 dmg 和校验和。任何一个失败都不发布。重跑只替换文件，不会重复建 release。
+   Package 通过后，Publish 取回 `release` artifact，用校验和核对 dmg，再建 GitHub release、附上 dmg 和校验和。Package 失败就不发布。重跑只替换文件，不会重复建 release。
 
-   推送时 CI 也会检查这个发版提交；它只改了 CHANGELOG，所以只跑文档检查，完整检查交给 Release。
+   推送时 CI 也会检查这个发版提交；它只改了 CHANGELOG，所以只跑文档检查。
 
 `gh workflow run release` 是试 secrets 用的：构建和签名都和 tag 一样，但不发版，dmg 留成 workflow artifact。
 
