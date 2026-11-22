@@ -30,7 +30,7 @@ script/test 'LociUITests\.(ChatTests|ConversationTests|TalkRowsTests)/'
 | `script/check` | 跑完整检查，含全量快照和长对话压测 |
 | `script/format` | 按项目风格重排代码 |
 | `script/run` | 构建并打开 `output/Loci (Beta).app`；`--no-open` 只构建 |
-| `script/cut-release <版本>` | 定一个版本：改 CHANGELOG、提交、打 tag |
+| `script/cut-release` | 定一个版本：默认下一个补丁号，改 CHANGELOG、提交、打 tag |
 
 ## 这个仓库是你的教材
 
@@ -57,7 +57,7 @@ script/test 'LociUITests\.(ChatTests|ConversationTests|TalkRowsTests)/'
 
 1. **规划**：在 `docs/roadmap.md` 的「接下来」写下一版的主题和范围，场景写进 `docs/features.md`，带编号。
 2. **开发**：`feat` 和 `fix` 的提交在 `CHANGELOG.md` 的 Unreleased 下写最终状态（`script/check` 会检查）。还没发布的功能又改了，就改原来那条，不追加；删了，就删那条。
-3. **发版**：roadmap 里把这一版挪进「已完成」，然后 `script/cut-release <版本>`，推送 tag。整个流程见 [docs/releasing.md](docs/releasing.md)。
+3. **发版**：roadmap 里把这一版挪进「已完成」，然后 `script/cut-release`，推送 tag。版本号默认只加最后一段，加中间或第一段只听用户的。整个流程见 [docs/releasing.md](docs/releasing.md)。
 
 ## 文档只写现在
 

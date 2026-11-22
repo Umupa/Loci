@@ -28,7 +28,7 @@
 
 显示出来是 `1.1.0 (412)`：前面是版本号，括号里是构建号。
 
-- **版本号**是三段数字，按 semver：只修问题加最后一段，有新东西加中间一段。tag 是 `v` 加版本号，CHANGELOG 的段落标题是 `## <版本号> — <日期>`，`script/check` 会检查标题的写法。每个版本都是正式的 GitHub release。
+- **版本号**是三段数字。默认只加最后一段，新功能也一样；加中间一段或第一段只由用户决定，`script/cut-release` 不带 `--user-chose` 时拒绝。tag 是 `v` 加版本号，CHANGELOG 的段落标题是 `## <版本号> — <日期>`，`script/check` 会检查标题的写法。每个版本都是正式的 GitHub release。
 - **构建号**是 main 上到这个提交为止的提交数，只增不减，同一个构建号对应同一份代码。
 - 应用包里的 `CFBundleShortVersionString` 和 `CFBundleVersion` 就是这两个。发布时版本号取自 tag；本机构建取 HEAD 之前最近的版本 tag，构建号同样是提交数。设置 › 通用最下面显示它们。
 
@@ -55,7 +55,8 @@
 3. **定版本。** 在 `docs/roadmap.md` 里把这一版挪进「已完成」，「发布」一列写上版本号，提交并推送。然后在 main 上：
 
    ```sh
-   script/cut-release 1.1.0
+   script/cut-release                       # 下一个补丁号
+   script/cut-release 1.8.0 --user-chose    # 用户点名的新版本
    ```
 
    它检查：版本号的写法，并且比已有的版本都大；在 main 上、工作区干净、和 `origin/main` 一致；tag 还没有；Unreleased 下有内容；roadmap 写了这个版本。然后把 Unreleased 改成 `## 1.1.0 — <今天>`，上面留一个空的 Unreleased，提交 `chore: release 1.1.0`，打带注释的 tag。它不推送。
