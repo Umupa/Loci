@@ -58,7 +58,8 @@ struct ToolScenarioTests {
       world.advance(minutes: 1)
 
       _ = try item(
-        await answer(try command(AddTextItem(fileName: "notes.md", text: "# Borg\n", authors: [Item.companionCredit])), on: host))
+        await answer(
+          try command(AddTextItem(fileName: "notes.md", text: "# Borg\n", authors: [Item.companionCredit])), on: host))
       let byPerson = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n"))
       await agent.sessions.first?.finish()
       _ = try #require(await settled(host))
@@ -95,7 +96,8 @@ struct ToolScenarioTests {
     try await withHost { host, _, _ in
       let saved = try item(
         await answer(
-          try command(AddTextItem(fileName: "a.md", text: "# Old\n", title: "Borg in brief", authors: [Item.companionCredit])),
+          try command(
+            AddTextItem(fileName: "a.md", text: "# Old\n", title: "Borg in brief", authors: [Item.companionCredit])),
           on: host))
 
       #expect(saved.title == "Borg in brief")
