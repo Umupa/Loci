@@ -59,7 +59,12 @@ extension JobRun {
         contentHash: item.contentHash, site: info.site ?? item.site, published: info.published.map(Timestamp.init),
         why: item.why)
     }
-    await saveCover(from: info.thumbnail)
+    if try stored({ try context.store.coverFile(of: item.id) }) == nil,
+      let cover = await context.artwork(at: source, thumbnail: info.thumbnail, podcast: info.isAudio)
+    {
+      _ = try? await context.covers.keep(cover, of: item.id)
+    }
+    guard !Task.isCancelled else { return }
     try stored { try context.store.retitle(resolved, from: item.title) }
     await context.notify([.item(item.id)])
     if !info.chapters.isEmpty, try stored({ try context.store.outline(of: item.id) }) == nil {
@@ -126,15 +131,6 @@ extension JobRun {
     return .video(duration: duration)
   }
 
-  /// Saved before the resolved item is announced: the window reads an item's cover once per version of the
-  /// item, and the cover's arrival alone does not change the item. A cover that cannot be had is left out.
-  private func saveCover(from thumbnail: URL?) async {
-    guard (try? context.store.coverFile(of: item)) == nil, let cover = await context.cover(at: thumbnail) else {
-      return
-    }
-    try? context.store.saveCover(cover.data, extension: cover.fileExtension, of: item)
-  }
-
   /// Subtitles that cannot be had are left to recognition.
   private func saveSubtitles(_ language: String, using tool: YtDlp) async {
     guard let folder = try? context.store.workFolder(of: item),
@@ -163,6 +159,11 @@ extension JobRun {
 }
 
 extension Item {
+  var isPodcast: Bool {
+    if case .audio = kind { return true }
+    return false
+  }
+
   var isMedia: Bool {
     switch kind {
     case .video, .audio: true

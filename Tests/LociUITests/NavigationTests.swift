@@ -64,6 +64,17 @@ struct NavigationTests {
     #expect(window == first)
   }
 
+  @Test func openingAnItemAlreadyInTheHistoryStillGoesBackToThePageThatOpenedIt() {
+    let item = Page.item(EntityID())
+    let other = Page.item(EntityID())
+    let from = WindowState(place: .browser, pages: [item, other])
+    var window = from.opening(item)
+
+    #expect(window.pages == [item, other, item])
+    window.pages.removeLast()
+    #expect(window == from)
+  }
+
   /// I-S5, I-S7: cancelling an item from its own page lands back in the library it was opened from.
   @Test func aWindowOnADeletedItemGoesBackToWhereItWasOpenedFrom() throws {
     let sample = try Sample()

@@ -25,7 +25,7 @@ struct ImportScenarioTests {
       #expect(media.title == "Me at the zoo")
       #expect(media.site == "jawed")
       #expect(media.duration == .seconds(19))
-      #expect(media.cover == Data("jpeg".utf8))
+      #expect(media.cover == FakeNetwork.cover)
       #expect(!media.isAudio)
       #expect(media.sizes == [.hd1080: 415_000_000, .hd720: 195_000_000, .audio: 15_000_000])
       #expect(media.subtitles == ["en", "ja"])
@@ -64,7 +64,7 @@ struct ImportScenarioTests {
 
       #expect(item.title == "Me at the zoo")
       #expect(item.kind == .video(duration: .seconds(19)))
-      #expect(try await host.run(ReadCover(item: item.id)) == Data("jpeg".utf8))
+      #expect(try await host.run(ReadCover(item: item.id)) == FakeNetwork.cover)
       #expect(await job(host, item.id, where: isDone) != nil)
       #expect(world.programs.calls(with: "-J").count == 1)
       #expect(world.programs.calls(with: "--print").allSatisfy { $0.arguments.contains("--load-info-json") })

@@ -175,7 +175,7 @@ struct LibraryWorkTests {
       }
       #expect(path.hasSuffix(".bin/yt-dlp"))
       #expect(version == "2026.10.26")
-      #expect(first?.components.dropFirst().map(\.installation) == [.missing, .missing])
+      #expect(first?.components.dropFirst().allSatisfy { $0.installation == .missing } == true)
       #expect(first?.speechModel == .recommended)
       #expect(first?.speechModels.allSatisfy { $0.state == .absent } == true)
 

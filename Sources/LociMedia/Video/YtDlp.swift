@@ -139,7 +139,9 @@ public struct YtDlp: Sendable {
 
   /// Everything every run shares.
   func commonArguments(useBrowser: Bool) -> [String] {
-    var arguments = ["--no-colors", "--ignore-config"]
+    var arguments = [
+      "--no-colors", "--ignore-config", "--replace-in-metadata", "pre_process:url", MediaInfo.duplicateOP3Scheme, "",
+    ]
     if let ffmpeg { arguments += ["--ffmpeg-location", ffmpeg.path(percentEncoded: false)] }
     if let quickJS { arguments += ["--js-runtimes", "quickjs:\(quickJS.path(percentEncoded: false))"] }
     if useBrowser, signIn.browser != .none { arguments += ["--cookies-from-browser", signIn.browser.rawValue] }

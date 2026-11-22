@@ -36,10 +36,23 @@ actor LociAgent {
 
   /// Whether a turn is running anywhere, or the day is being looked back on.
   var isWorking: Bool {
+    get async { await work != nil }
+  }
+
+  /// A turn running in the main conversation, else in any other, else the review of the day. The tool is told
+  /// without what it printed, which the status does not show.
+  var work: LociWork? {
     get async {
-      if review != nil { return true }
-      for run in runs.values where !(await run.isIdle) { return true }
-      return false
+      let main = runs[.main].map { [$0] } ?? []
+      for run in main + runs.filter({ $0.key != .main }).map(\.value) {
+        if let turn = await run.snapshot.turn {
+          return .answering(
+            turn.latestTool.map {
+              ToolActivity(id: $0.id, name: $0.name, kind: $0.kind, subject: $0.subject, output: "", state: $0.state)
+            })
+        }
+      }
+      return review == nil ? nil : .reviewing
     }
   }
 

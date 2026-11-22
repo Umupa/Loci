@@ -61,7 +61,7 @@ public struct AgentPrograms: Sendable {
       return AcpDriver.antigravity(executable: executable, environment: environment, launcher: launcher)
     case .cursor:
       return AcpDriver.cursor(executable: executable, environment: environment, launcher: launcher)
-    case .fx:
+    case .fx, .bundledPi:
       return nil
     }
   }

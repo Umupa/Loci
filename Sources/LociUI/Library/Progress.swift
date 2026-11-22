@@ -27,7 +27,10 @@ extension Item {
 
   /// The line under the title: length and where it comes from, as `34:12 · CNCF` or `blog.cloudflare.com`.
   var byline: String {
-    let place = site ?? source?.host().map { $0.hasPrefix("www.") ? String($0.dropFirst(4)) : $0 }
-    return [length.map(MediaTime.text), place].compactMap { $0 }.joined(separator: " · ")
+    [length.map(MediaTime.text), sourceName].compactMap { $0 }.joined(separator: " · ")
+  }
+
+  var sourceName: String? {
+    site ?? source?.host().map { $0.hasPrefix("www.") ? String($0.dropFirst(4)) : $0 }
   }
 }

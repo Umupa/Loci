@@ -113,11 +113,11 @@ struct ItemConversationTests {
       _ = try await host.run(SendMessage(to: .main, text: "Hi"))
       _ = try await host.run(SendMessage(to: .item(item.id), text: "Hi"))
 
-      #expect(await host.lociStatus() == LociStatus(working: true))
+      #expect(await host.lociStatus() == LociStatus(work: .answering(nil)))
       await #expect(throws: HostError.self) { try await host.run(SendMessage(to: .main, text: "Again")) }
       _ = try await host.run(StopTurn(in: .main))
       _ = try await host.run(StopTurn(in: .item(item.id)))
-      #expect(await host.lociStatus() == LociStatus(working: false))
+      #expect(await host.lociStatus() == LociStatus(work: nil))
     }
   }
 

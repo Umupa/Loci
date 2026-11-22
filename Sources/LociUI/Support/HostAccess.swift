@@ -40,6 +40,10 @@ public final class DeferredHost: LociModel.Host {
     await ready.host().localFile(place)
   }
 
+  public func modelSettingsAccess() async -> (any ModelSettingsAccess)? {
+    await ready.host().modelSettingsAccess()
+  }
+
   private actor Readiness {
     private var resolved: (any LociModel.Host)?
     private var waiting: [CheckedContinuation<any LociModel.Host, Never>] = []

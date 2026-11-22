@@ -10,7 +10,8 @@ enum JobLine: Equatable {
   case none
 
   enum Activity: Equatable {
-    case fetching, downloading, recognizing, translating, outlining, queued
+    case fetching, fetchingPage, extracting, findingCover
+    case downloading, recognizing, separatingSpeakers, translating, outlining, queued
   }
 
   enum Fix: Equatable {
@@ -38,7 +39,7 @@ enum JobLine: Equatable {
     case .queued:
       self = .working(.queued, nil)
     case .running(let progress, _):
-      self = .working(Self.activity(job.stage), progress)
+      self = .working(Self.activity(job), progress)
     case .waiting(let need):
       switch need {
       case .component(let component): self = .action(.downloadComponent(component), nil)
@@ -68,11 +69,15 @@ enum JobLine: Equatable {
     let reason: String
   }
 
-  private static func activity(_ stage: Job.Stage) -> Activity {
-    switch stage {
-    case .resolve, .extract: .fetching
+  private static func activity(_ job: Job) -> Activity {
+    switch job.stage {
+    case .resolve: .fetching
+    case .fetchPage: .fetchingPage
+    case .extract: job.stages.contains(.fetchPage) ? .extracting : .fetching
+    case .findCover: .findingCover
     case .download: .downloading
     case .transcribe: .recognizing
+    case .diarize: .separatingSpeakers
     case .translate: .translating
     case .outline: .outlining
     }

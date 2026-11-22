@@ -11,9 +11,10 @@ struct AgentContext: Sendable {
   let environment: HostEnvironment
   let follower: Follower
   let prompts: Prompts
+  let agents: HostAgents
 
   /// What Loci runs on now.
-  var runtime: Runtime { ((try? store.settings()) ?? HostSettings()).runtime ?? environment.defaultRuntime }
+  var runtime: Runtime { agents.provisionalRuntime }
 
   /// `AGENTS.md` as it should be now.
   func instructions() throws(HostError) -> String {
@@ -38,6 +39,7 @@ actor AgentRun {
   /// Where a prompt is stored while there is no session to go on with, until the agent's session takes it.
   private var holding: SessionRecord?
   private var live: (any AgentSession)?
+  private var liveCredentialRevision: Int?
   private var wear = SessionRotation.Wear()
   private var turn: TurnRecord?
   private var running: Task<Void, Never>?
@@ -201,17 +203,21 @@ actor AgentRun {
   /// The live session, or a new one when the session cannot go on. Gives why a new one was opened, or `nil`
   /// when the turn goes on in the session it had.
   private func openSession() async throws(TurnFailure) -> (any AgentSession, SessionRotation.Reason?) {
-    let runtime = context.runtime
+    let selection = await context.agents.selection()
+    let runtime = selection.runtime
     let instructions = try TurnFailure.from { () throws(HostError) in try context.instructions() }
-    let fingerprint = Fingerprint.of(instructions)
+    let fingerprint = Fingerprint.of(instructions + selection.instructionsScope)
     var reason = SessionRotation.reason(
       current: session, startedOver: stored.last?.body == .startedOver, wear: wear, runtime: runtime,
       instructions: fingerprint)
-    if reason == nil, let live { return (live, nil) }
+    if reason == nil, let live {
+      if liveCredentialRevision == selection.credential?.revision { return (live, nil) }
+      reason = .runtimeChanged
+    }
     await dropLive()
     if reason == nil, session?.handle == nil { reason = .lost }
-    guard let driver = await context.environment.agents(runtime.provider) else {
-      throw TurnFailure(.unstarted(runtime.provider, await context.environment.unavailability(runtime.provider)))
+    guard let driver = await context.agents.driver(for: selection) else {
+      throw TurnFailure(.unstarted(runtime.provider, await context.agents.failure(for: runtime.provider)))
     }
     let store = context.store
     try TurnFailure.from { () throws(HostError) in try attempt { try store.writeInstructions(instructions) } }
@@ -248,6 +254,7 @@ actor AgentRun {
       wear = SessionRotation.Wear()
     }
     live = opened
+    liveCredentialRevision = selection.credential?.revision
     return (opened, reason)
   }
 

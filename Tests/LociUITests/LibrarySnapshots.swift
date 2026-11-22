@@ -20,21 +20,22 @@ struct LibrarySnapshots {
     recognizing: Bool = false, working: Bool = false, avatar: Avatar? = nil, standIns: StandIns? = nil,
     browser: BrowserSession = BrowserSession(), english: Bool = false, size: CGSize = window, panel: Bool = true,
     machine: MachineChoice? = nil, keyPoints: SampleKeyPoints = .picked, panels: PanelColumn = PanelColumn(slots: []),
-    defaults: UserDefaults? = nil,
+    defaults: UserDefaults? = nil, activity: Activity = Activity(),
     until ready: (@MainActor (NSWindow) -> Bool)? = nil
   ) async throws {
     let view = MachineWindow(memory: WindowMemory(recall: { place }, remember: { _ in }), browser: browser)
       .lociHost(
         FakeHost(
           try Sample(problems: false), library: library, recognizing: recognizing, working: working, avatar: avatar,
-          panels: panels, keyPoints: keyPoints)
+          panels: panels, activity: activity, keyPoints: keyPoints)
       )
       .environment(\.standIns, standIns)
       .defaultAppStorage(defaults ?? Self.defaults(panel: panel))
       .environment(\.machineChoice, machine)
+    let quiet = Quiet(activity)
     let file = try await Snapshot.render(
       view, named: name, size: size, appearance: appearance, locale: Locale(identifier: english ? "en" : "zh-Hans"),
-      settle: .milliseconds(1500), until: ready, steady: ready != nil)
+      until: { window in quiet.settled() && (ready?(window) ?? true) }, steady: ready != nil)
     #expect(try Data(contentsOf: file).count > 10_000)
   }
 
@@ -57,6 +58,19 @@ struct LibrarySnapshots {
     try await Self.shoot(
       "library-gallery", try SampleLibrary().withGalleryWork(), at: WindowState(place: .library(nil)),
       appearance: appearance, standIns: StandIns(pointedCard: try SampleLibrary().uring))
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func separatingPodcastSpeakers(appearance: Snapshot.Appearance) async throws {
+    var library = try SampleLibrary()
+    library.jobs = [
+      Job(
+        item: library.podcast.id, stage: .diarize, state: .running(progress: Fraction(0.42)),
+        stages: [.resolve, .transcribe, .diarize, .outline])
+    ]
+    try await Self.shoot(
+      "separating-podcast-speakers", library, at: WindowState(place: .library(nil)), appearance: appearance,
+      standIns: StandIns(pointedCard: library.podcast.id, taskDockOpen: true))
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
@@ -105,7 +119,7 @@ struct LibrarySnapshots {
     let card = CardActions(pause: { _ in }, resume: { _ in }, cancel: { _ in }, fix: { _, _ in })
     let view = ZStack(alignment: .bottom) {
       ScrollView {
-        LibraryGallery(
+        LibraryEntries(
           items: cards, jobs: [:], progress: Progress(), chosen: [cards[1].id, cards[2].id], renaming: cards[4].id,
           click: { _ in }, actions: card, menu: { ItemMenu(item: $0, acted: [$0.id], actions: actions) },
           renamed: { _, _ in }
@@ -206,14 +220,6 @@ struct LibrarySnapshots {
     try await Self.shoot(
       "video-back-to-playing", library, at: Self.reading(library.video.id), appearance: appearance,
       standIns: StandIns(moment: MediaMoment(scrolledAway: true)))
-  }
-
-  @Test(arguments: Snapshot.Appearance.allCases)
-  func podcast(appearance: Snapshot.Appearance) async throws {
-    let library = try SampleLibrary()
-    try await Self.shoot(
-      "podcast", library, at: Self.reading(library.podcast.id), appearance: appearance,
-      standIns: StandIns(moment: MediaMoment()))
   }
 
   /// L-S8: Loci reading along beside a podcast.
@@ -502,7 +508,7 @@ extension LibrarySnapshots {
     let actions = ItemActions(rename: { _ in }, changeCover: { _ in }, delete: { _ in })
     let view = ZStack(alignment: .bottom) {
       ScrollView {
-        LibraryGallery(
+        LibraryEntries(
           items: library.items, jobs: jobs, progress: Progress(), chosen: [], renaming: nil, click: { _ in },
           actions: card, menu: { ItemMenu(item: $0, acted: [$0.id], actions: actions) }, renamed: { _, _ in }
         )

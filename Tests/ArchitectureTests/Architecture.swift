@@ -29,9 +29,10 @@ enum Architecture {
     "LociMedia": Module(
       uses: ["LociModel"],
       frameworks: [
-        "Foundation", "AVFoundation", "CoreMedia", "CoreGraphics", "NaturalLanguage", "WebKit", "Synchronization", "os",
+        "Foundation", "AVFoundation", "CoreMedia", "CoreGraphics", "ImageIO", "NaturalLanguage", "WebKit",
+        "Synchronization", "UniformTypeIdentifiers", "os",
       ],
-      packages: ["whisper", "Markdown"]),
+      packages: ["whisper", "Markdown", "FluidAudio"]),
     "LociCode": Module(uses: ["LociModel"], frameworks: ["Foundation", "os"]),
     "LociRemote": Module(uses: ["LociModel"], frameworks: ["Foundation", "CryptoKit", "Network", "os"]),
     "LociHost": Module(
@@ -40,8 +41,8 @@ enum Architecture {
     "LociUI": Module(
       uses: ["LociModel"],
       frameworks: [
-        "Foundation", "Observation", "SwiftUI", "AppKit", "PDFKit", "AVKit", "AVFoundation", "WebKit",
-        "UniformTypeIdentifiers", "os",
+        "Foundation", "Observation", "SwiftUI", "AppKit", "PDFKit", "AVKit", "AVFoundation", "MediaPlayer",
+        "WebKit", "UniformTypeIdentifiers", "ImageIO", "os",
       ],
       packages: ["Markdown", "Textual", "HighlightSwift", "SwiftMath"]),
     "Loci": Module(

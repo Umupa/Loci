@@ -39,7 +39,7 @@ enum LibraryCategory: String, Codable, CaseIterable, Hashable {
 
 /// The sections of settings in the sidebar.
 enum SettingsSection: String, Codable, Hashable, CaseIterable {
-  case general, agents, media, remote
+  case general, agents, models, media, remote
 }
 
 /// A page opened on top of a place.
@@ -83,6 +83,14 @@ struct WindowState: Codable, Equatable {
   func keeping(items: Set<EntityID>) -> WindowState {
     let kept = pages.filter { items.contains($0.itemID) }
     return kept == pages ? self : WindowState(place: place, pages: kept)
+  }
+
+  /// Brings `item` to the front: back to its page if it is open, or on top of where the window is.
+  func opening(_ item: EntityID) -> WindowState {
+    guard let open = pages.lastIndex(where: { $0.itemID == item }) else {
+      return opening(.item(item))
+    }
+    return WindowState(place: place, pages: Array(pages[...open]))
   }
 
   /// `page` opened over where the window is, so going back returns there.

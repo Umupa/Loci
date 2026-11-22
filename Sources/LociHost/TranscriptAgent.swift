@@ -5,6 +5,7 @@ import LociModel
 public protocol TranscriptAgent: Sendable {
   /// One translated line for each of `lines`, in order. A transcript goes a batch of lines at a time.
   func translate(lines: [String], into language: String) async throws(HostError) -> [String]
+  func translate(_ input: [String], using prompt: TranslationPrompt) async throws(HostError) -> [String]
   /// Chapters only; key points are picked when the reader asks.
   func outline(_ transcript: Transcript, title: String) async throws(HostError) -> Outline
   /// One translation per passage of an article, in order, each still Markdown.
@@ -12,6 +13,10 @@ public protocol TranscriptAgent: Sendable {
   /// Within `count.range`, or as many as there are sentences or passages when there are fewer; in order.
   func keyPoints(of source: KeyPointSource, count: KeyPointCount, for reader: KeyPointReader)
     async throws(HostError) -> [KeyPoint]
+}
+
+public protocol RuntimeTranscriptAgent: TranscriptAgent {
+  func nameSpeakers(in transcript: Transcript, description: String?) async throws(HostError) -> [Int: String]
 }
 
 /// What key points are picked from.
@@ -34,5 +39,14 @@ public struct KeyPointReader: Sendable {
     self.language = language
     self.profile = profile
     self.why = why
+  }
+}
+
+extension TranscriptAgent {
+  public func translate(_ input: [String], using prompt: TranslationPrompt) async throws(HostError) -> [String] {
+    switch prompt.kind {
+    case .transcript: try await translate(lines: input, into: prompt.language)
+    case .article: try await translate(passages: input, into: prompt.language)
+    }
   }
 }

@@ -49,14 +49,15 @@ actor KeyPointPicker {
     let store = context.store
     let found = try attempt { try store.item(item) }
     let source = try attempt { try Self.source(of: found, in: store) }
-    guard let agent = context.transcriptAgent(choice.runtime) else {
+    guard let work = try await context.transcriptWork(choice.runtime) else {
       throw .invalidRequest("No agent is available to pick key points on this Mac.")
     }
     let reader = KeyPointReader(
-      language: context.targetLanguage, profile: (try? store.agentText(.profile)) ?? "", why: found.why)
-    let points = try await gate.through { () async throws(HostError) -> [KeyPoint] in
-      try await agent.keyPoints(of: source, count: choice.count, for: reader)
+      language: context.media.readerLanguage, profile: (try? store.agentText(.profile)) ?? "", why: found.why)
+    let pick = { () async throws(HostError) in
+      try await work.agent.keyPoints(of: source, count: choice.count, for: reader)
     }
+    let points = if work.usesRuntime { try await gate.through(pick) } else { try await pick() }
     if Task.isCancelled { return }
     try attempt { try store.save(try KeyPoints(points: points, choice: choice), of: item) }
   }

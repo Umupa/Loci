@@ -3,7 +3,7 @@ import SwiftUI
 /// Amber light running around the edge of something being worked on: a bright arc that circles once every few
 /// seconds, with a soft halo behind it. Snapshots hold it still.
 struct AmberGlow: ViewModifier {
-  @Environment(\.standIns) private var standIns
+  @Environment(\.reducesMotion) private var reduceMotion
   let active: Bool
   let corner: CGFloat
   var width: CGFloat = 2
@@ -28,8 +28,8 @@ struct AmberGlow: ViewModifier {
   }
 
   private func turning(_ draw: @escaping (Angle) -> some View) -> some View {
-    TimelineView(.animation(paused: standIns != nil)) { context in
-      let turns = standIns != nil ? 0.18 : context.date.timeIntervalSinceReferenceDate / Self.period
+    TimelineView(.animation(paused: reduceMotion)) { context in
+      let turns = reduceMotion ? 0.18 : context.date.timeIntervalSinceReferenceDate / Self.period
       draw(.degrees(turns.truncatingRemainder(dividingBy: 1) * 360))
     }
     .allowsHitTesting(false)

@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 import Testing
 
+@testable import LociUI
+
 /// Renders a view off screen and saves it under `output/snapshots/`, so a change
 /// to the interface can be looked at without launching the app.
 ///
@@ -47,8 +49,7 @@ enum Snapshot {
 
   /// The picture once `ready` holds and the picture has stopped changing: the same three times in a row, 50 ms
   /// apart. What a view shows after its data arrives, such as covers asked for once a list appears, changes the
-  /// picture, so the wait goes on until it is all drawn. A view that keeps moving never settles; snapshots set
-  /// `standIns`, which holds spinners and pulses still.
+  /// picture, so the wait goes on until it is all drawn.
   private static func steady(
     _ host: NSView, in window: NSWindow, named name: String, when ready: @MainActor (NSWindow) -> Bool
   ) async throws -> NSBitmapImageRep {
@@ -87,7 +88,15 @@ enum Snapshot {
       Issue.record("Mark the suite `.onStage`: its windows share the main thread with every other test.")
     }
     let host = NSHostingView(
-      rootView: view.frame(width: size.width, height: size.height).environment(\.locale, locale))
+      rootView:
+        view
+        .frame(width: size.width, height: size.height)
+        .environment(\.locale, locale)
+        .environment(\.suppressMotion, true)
+        .transaction { transaction in
+          transaction.animation = nil
+          transaction.disablesAnimations = true
+        })
     let window = NSWindow(
       contentRect: CGRect(origin: CGPoint(x: -20_000, y: -20_000), size: size), styleMask: [.titled],
       backing: .buffered, defer: false)

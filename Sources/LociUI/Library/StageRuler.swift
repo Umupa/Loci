@@ -62,9 +62,12 @@ struct StageRuler: View {
     let audio: Bool = if case .audio = kind { true } else { false }
     return switch stage {
     case .resolve: 0.6
+    case .fetchPage: 1
+    case .findCover: 0.9
     case .extract: 1
     case .download: audio ? 1.6 : 3
     case .transcribe: audio ? 3 : 2.4
+    case .diarize: 1.5
     case .translate: 1.4
     case .outline: 1
     }
@@ -75,7 +78,9 @@ struct StageRuler: View {
       ForEach(segments, id: \.stage) { segment in
         VStack(alignment: .leading, spacing: size == .card ? 6 : 7) {
           SegmentBar(mark: segment.mark, height: size.bar)
-          label(segment).fixedSize()
+          label(segment)
+            .lineLimit(1)
+            .fixedSize(horizontal: !segments.contains(where: { $0.stage == .fetchPage }), vertical: true)
         }
       }
     }
@@ -119,7 +124,7 @@ struct StageRuler: View {
 
 /// One segment's bar.
 private struct SegmentBar: View {
-  @Environment(\.standIns) private var standIns
+  @Environment(\.reducesMotion) private var reduceMotion
   let mark: StageRuler.Mark
   let height: CGFloat
 
@@ -131,7 +136,7 @@ private struct SegmentBar: View {
         if case .running(let progress) = mark {
           GeometryReader { frame in
             shape.fill(Palette.accent).frame(width: frame.size.width * (progress?.value ?? 0))
-            if standIns == nil { sheen(width: frame.size.width) }
+            if !reduceMotion { sheen(width: frame.size.width) }
           }
         } else if case .paused(let progress) = mark {
           GeometryReader { frame in
@@ -213,9 +218,12 @@ extension Job.Stage {
   var name: LocalizedStringResource {
     switch self {
     case .resolve: .loci("stage.resolve")
+    case .fetchPage: .loci("stage.fetchPage")
+    case .findCover: .loci("stage.findCover")
     case .extract: .loci("stage.extract")
     case .download: .loci("stage.download")
     case .transcribe: .loci("stage.transcribe")
+    case .diarize: .loci("stage.diarize")
     case .translate: .loci("stage.translate")
     case .outline: .loci("stage.outline")
     }

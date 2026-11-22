@@ -114,7 +114,7 @@ struct PaperFetcherTests {
     await #expect(throws: FetchError(reason: "The site refused the page (HTTP 403).", needsLogin: true)) {
       try await PaperFetcher(network: network).paper(at: refused)
     }
-    await #expect(throws: FetchError(reason: "The page does not exist (HTTP 404).")) {
+    await #expect(throws: FetchError(reason: "The page does not exist (HTTP 404).", cause: .unavailable)) {
       try await PaperFetcher(network: network).paper(at: missing)
     }
   }

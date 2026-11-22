@@ -87,6 +87,9 @@ enum Palette {
   static let menuFace = Color(nsColor: Tones.menuFace)
   /// Over the window behind a sheet.
   static let scrim = Color(nsColor: Tones.scrim)
+  /// Over a conversation behind a web page opened on it: dark enough that the page stands apart even where the
+  /// blur under it is not drawn.
+  static let pageScrim = Color(nsColor: Tones.pageScrim)
   /// Menus and bars that float over the page.
   static let floating = Color(nsColor: Tones.floating)
 
@@ -94,10 +97,11 @@ enum Palette {
   static let accentLine = Color(nsColor: Tones.accentLine)
   /// Work that failed.
   static let failure = Color(nsColor: Tones.failure)
-  /// The paper an article or paper without a picture is set on, the same in both appearances.
-  static let paper = Color(nsColor: NSColor(rgb: 0xF6F1E7))
-  static let paperFoot = Color(nsColor: NSColor(rgb: 0xEDE5D6))
-  static let paperInk = Color(nsColor: NSColor(rgb: 0x2B2621))
+  /// Paper and ink for the cover of an item without a picture.
+  static let paper = Color(dark: 0x302B25, light: 0xF6F1E7)
+  static let paperFoot = Color(dark: 0x27231E, light: 0xEDE5D6)
+  static let paperInk = Color(dark: 0xF2E8D7, light: 0x2B2621)
+  static let paperInkMuted = Color(dark: 0xB6A897, light: 0x6F6150)
 
   /// The light that flows around work under way, and around the window while Loci saves.
   enum Glow {
@@ -139,6 +143,8 @@ enum Palette {
     (inkMuted, canvas, "muted on canvas"), (inkMuted, surface, "muted on surface"),
     (accentInk, canvas, "amber text on canvas"), (accentInk, surface, "amber text on surface"),
     (onAccent, accent, "text on amber"),
+    (paperInk, paper, "cover title on paper"), (paperInk, paperFoot, "cover title on paper foot"),
+    (paperInkMuted, paper, "cover source on paper"), (paperInkMuted, paperFoot, "cover source on paper foot"),
     (Code.keyword, well, "code keyword"), (Code.string, well, "code string"),
     (Code.number, well, "code number"), (Code.name, well, "code name"),
   ]
@@ -179,6 +185,7 @@ enum Tones {
   static let coverPlaceholder = NSColor(dark: 0x2A2420, light: 0xEFEAE2)
   static let menuFace = NSColor(dark: 0x2C2824, light: 0xFDFBF8)
   static let scrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.32, light: 0.10))
+  static let pageScrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.62, light: 0.30))
   static let floating = NSColor(dark: 0x2C2824, light: 0xFDFBF8, alpha: (dark: 0.96, light: 0.96))
   static let codeKeyword = NSColor(dark: 0xE09A6A, light: 0x9C4524)
   static let codeString = NSColor(dark: 0xA9C27C, light: 0x4F6A22)

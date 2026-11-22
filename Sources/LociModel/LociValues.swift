@@ -48,13 +48,52 @@ public struct Together: Hashable, Codable, Sendable {
   }
 }
 
-/// Whether Loci is working on anything: a turn in any conversation, or the daily review.
+/// What Loci is working on, if anything.
 public struct LociStatus: Hashable, Codable, Sendable {
-  public let working: Bool
+  /// `nil` while Loci is idle.
+  public let work: LociWork?
 
-  public init(working: Bool) {
-    self.working = working
+  public init(work: LociWork?) {
+    self.work = work
   }
+
+  public var working: Bool { work != nil }
+}
+
+extension LociStatus {
+  private enum CodingKeys: String, CodingKey {
+    case work, working
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    if let work = try container.decodeIfPresent(LociWork.self, forKey: .work) {
+      self.init(work: work)
+    } else {
+      self.init(work: try container.decodeIfPresent(Bool.self, forKey: .working) == true ? .unspecified : nil)
+    }
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(working, forKey: .working)
+    try container.encodeIfPresent(work, forKey: .work)
+  }
+}
+
+/// One thing Loci can be busy with. When it does several at once, the status names the one the person is
+/// most likely waiting on.
+public enum LociWork: Hashable, Codable, Sendable {
+  /// An older Mac reports that Loci is busy without saying what it is doing.
+  case unspecified
+  /// Answering in a conversation, with the tool it used last; `nil` while it has used none.
+  case answering(ToolActivity?)
+  /// Refreshing the panel with this title.
+  case refreshing(title: String)
+  /// Looking back on a day.
+  case reviewing
+  /// Taking in items it saved.
+  case saving
 }
 
 /// A picture the person chose to show as Loci.

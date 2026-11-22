@@ -2,7 +2,7 @@
 
 A Mac app for learning from what you read, watch and listen to, with one AI companion who lives in your library.
 
-Loci keeps your articles, papers, videos and podcasts in one place and reads them with you. Its companion, also called Loci, runs on the agent CLI you already use, remembers what you have read together, and has a personality of its own.
+Loci keeps your articles, papers, videos and podcasts in one place and reads them with you. Its companion, also called Loci, runs on the agent CLI you already use, or on a bundled Pi with your own model key, remembers what you have read together, and has a personality of its own.
 
 Native Swift, macOS 26 and later. Still in alpha.
 
@@ -22,7 +22,7 @@ Native Swift, macOS 26 and later. Still in alpha.
 
 Every night after 23:00, once you have gone quiet, Loci looks back on the day: it writes a diary entry, tidies its memory and may add a trait. The Loci page shows its soul, memory and diary, and lets you give it your own picture.
 
-**Any agent CLI.** Loci runs on Claude Code, Codex, Pi, Grok, Cursor, OpenCode, Antigravity and others, using the login you already have. Switch the runtime at any time and it is still the same Loci; sessions underneath rotate on their own when the context fills up.
+**Any agent CLI.** Loci runs on Claude Code, Codex, Pi, Grok, Cursor, OpenCode, Antigravity and others, using the login you already have. Without one, Loci downloads its own Pi and runs on the model service key you enter. Switch the runtime at any time and it is still the same Loci; sessions underneath rotate on their own when the context fills up.
 
 **A library.**
 

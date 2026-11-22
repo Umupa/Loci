@@ -32,7 +32,7 @@ struct MediaScenarioTests {
       let titled = await value(items) { $0.first?.title == "Me at the zoo" }
       #expect(titled?.first?.site == "jawed")
       #expect(titled?.first?.kind == .video(duration: .seconds(19)))
-      #expect(try await host.run(ReadCover(item: item.id)) == Data("jpeg".utf8))
+      #expect(try await host.run(ReadCover(item: item.id)) == FakeNetwork.cover)
 
       await world.programs.downloads.open()
 
@@ -125,7 +125,7 @@ struct MediaScenarioTests {
       #expect(card.site == "jawed")
       #expect(card.kind == .video(duration: .seconds(19)))
       #expect(card.published == Timestamp(millisecondsSince1970: 1_794_825_900_000))
-      #expect(try await host.run(ReadCover(item: item.id)) == Data("jpeg".utf8))
+      #expect(try await host.run(ReadCover(item: item.id)) == FakeNetwork.cover)
     }
   }
 
@@ -145,7 +145,7 @@ struct MediaScenarioTests {
       }
 
       #expect(await value(items) { $0.first?.title == "Me at the zoo" } != nil)
-      #expect(try await host.run(ReadCover(item: item.id)) == Data("jpeg".utf8))
+      #expect(try await host.run(ReadCover(item: item.id)) == FakeNetwork.cover)
     }
   }
 

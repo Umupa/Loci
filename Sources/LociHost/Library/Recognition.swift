@@ -19,7 +19,7 @@ extension JobRun {
     if let file = try stored({ try context.store.mediaFile(of: item.id) }) {
       media = file
     } else if let source = item.source {
-      media = try await sound(of: source)
+      media = try await sound(of: source, at: .transcribe)
     } else {
       throw .failed("the media file is missing")
     }
@@ -27,15 +27,15 @@ extension JobRun {
       try await recognize(
         item, media: media, model: model, language: choice?.recognition?.language, file: modelFile, earlier: earlier)
     }
-    if Task.isCancelled { return }
+    if Task.isCancelled || item.isPodcast { return }
     if choice?.keeping == .online { try stored { try context.store.removeWork(named: Self.sound, of: item.id) } }
   }
 
   /// The sound of a video or episode not downloaded, fetched once into the work folder.
-  private func sound(of source: URL) async throws(StageStop) -> URL {
+  func sound(of source: URL, at stage: Job.Stage) async throws(StageStop) -> URL {
     if let fetched = try stored({ try context.store.workFile(named: Self.sound, of: item) }) { return fetched }
     let tool = try await context.ytDlp(needing: [.ytDlp, .ffmpeg])
-    return try await fetch(source, audio: true, using: tool, at: .transcribe, report: { _, _ in })
+    return try await fetch(source, audio: true, using: tool, at: stage, report: { _, _ in })
   }
 
   private func recognize(
@@ -60,7 +60,7 @@ extension JobRun {
     }
     if Task.isCancelled { return }
     try await transcript.finish()
-    try stored { try context.store.removeWork(named: Self.wav, of: item.id) }
+    if !item.isPodcast { try stored { try context.store.removeWork(named: Self.wav, of: item.id) } }
     if item.language == nil, let language = transcript.language {
       let tagged = try? Item(
         id: item.id, kind: item.kind, title: item.title, authors: item.authors, source: item.source,

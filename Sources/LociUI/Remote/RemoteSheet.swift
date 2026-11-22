@@ -77,7 +77,7 @@ struct SheetButtonStyle: ButtonStyle {
 
 /// A thin ring turning while something is being looked for or waited on.
 struct Spinner: View {
-  @Environment(\.standIns) private var standIns
+  @Environment(\.reducesMotion) private var reduceMotion
   @State private var turned = false
 
   var body: some View {
@@ -90,7 +90,7 @@ struct Spinner: View {
       .frame(width: 14, height: 14)
       .rotationEffect(.degrees(turned ? 360 : 0))
       .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: turned)
-      .onAppear { turned = standIns == nil }
+      .onAppear { turned = !reduceMotion }
       .accessibilityHidden(true)
   }
 }

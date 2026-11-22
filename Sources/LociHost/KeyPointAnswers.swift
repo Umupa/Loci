@@ -60,9 +60,11 @@ enum KeyPointAnswers {
       }
       let from = segments[range.lowerBound].start - .seconds(1)
       let to = (segments[range.upperBound - 1].end) + .seconds(1)
+      let startTime = try TranscriptAnswers.time(max(start, 0))
+      let endTime = try TranscriptAnswers.time(end)
       let span: TimeSpan
       do {
-        span = try TimeSpan(start: TranscriptAnswers.time(max(start, 0)), end: TranscriptAnswers.time(end))
+        span = try TimeSpan(start: startTime, end: endTime)
       } catch {
         throw TranscriptAnswerError("a key point ends before it starts")
       }
@@ -71,7 +73,7 @@ enum KeyPointAnswers {
       }
       return .time(span)
     case .passages(let passages):
-      guard let number = point.passage, range.contains(number - 1) else {
+      guard let number = point.passage, number > 0, range.contains(number - 1) else {
         throw TranscriptAnswerError("a key point names a passage that is not there")
       }
       do {

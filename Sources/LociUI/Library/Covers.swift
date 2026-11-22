@@ -1,117 +1,147 @@
 import AppKit
+import ImageIO
 import LociModel
 import SwiftUI
 
-/// Item covers the window has already read from the host, so scrolling and reopening do not ask again.
+/// Decoded covers for the window, bounded by their pixel storage and kept in order of use.
 @MainActor
 @Observable
 final class Covers {
-  private var images: [EntityID: NSImage] = [:]
-  private var washes: [EntityID: NSImage] = [:]
-  private var asked: Set<Item> = []
+  private struct Request: Hashable {
+    let item: EntityID
+    let pixels: Int
+  }
+
+  private struct Entry {
+    let picture: CoverPicture?
+
+    var bytes: Int { picture.map { $0.bytes + CoverWash.byteBudget } ?? 0 }
+  }
+
+  private let countLimit: Int
+  private let byteLimit: Int
+  private var cached: [Request: Entry] = [:]
+  @ObservationIgnored private var order: [Request] = []
+  @ObservationIgnored private var pending: [Request: Task<CoverPicture?, Never>] = [:]
+  @ObservationIgnored private var bytes = 0
+  private(set) var revision = 0
+
+  init(countLimit: Int = 96, byteLimit: Int = 12 * 1024 * 1024) {
+    self.countLimit = countLimit
+    self.byteLimit = byteLimit
+  }
 
   func image(of item: EntityID) -> NSImage? {
-    images[item]
+    guard
+      let best = cached.keys.filter({ $0.item == item && cached[$0]?.picture != nil })
+        .max(by: { $0.pixels < $1.pixels })
+    else { return nil }
+    touch(best)
+    return cached[best]?.picture?.image
   }
 
-  /// The cover blurred into a wash of its colors, for behind a square cover in a wider frame.
-  func wash(of item: EntityID) -> NSImage? {
-    washes[item]
+  /// The host has a new user-selected cover, so mounted views fetch it at their display size.
+  func invalidate(_ item: EntityID) {
+    for key in order.filter({ $0.item == item }) { forget(key) }
+    for key in pending.keys.filter({ $0.item == item }) {
+      pending.removeValue(forKey: key)?.cancel()
+    }
+    revision += 1
   }
 
-  /// Shows a cover just chosen at once, rather than waiting for the item to change.
-  func replace(_ item: EntityID, with image: NSImage) {
-    images[item] = image
-    washes[item] = CoverWash.of(image)
+  /// Returns an existing picture at this size or keeps listening while a visible cover is still being fetched.
+  func load(_ item: Item, pixels: Int, from host: any LociModel.Host) async -> CoverPicture? {
+    let key = Request(item: item.id, pixels: pixels)
+    let startedAt = revision
+    if let entry = cached[key] {
+      touch(key)
+      if let picture = entry.picture { return picture }
+    } else if let picture = await read(key, from: host) {
+      return picture
+    }
+
+    guard !Task.isCancelled, revision == startedAt else { return nil }
+    for await feed in host.subscribe(ItemCover(item: item.id)) {
+      guard !Task.isCancelled, revision == startedAt else { return nil }
+      if let picture = cached[key]?.picture {
+        touch(key)
+        return picture
+      }
+      if case .value(let data?) = feed, let image = await Self.decode(data, pixels: pixels) {
+        guard !Task.isCancelled, revision == startedAt else { return nil }
+        let picture = CoverPicture(image)
+        remember(picture, for: key)
+        return picture
+      }
+    }
+    return nil
   }
 
-  /// Reads the cover once per version of the item: a link's cover arrives after its title and length do.
-  func load(_ item: Item, from host: any LociModel.Host) async {
-    guard images[item.id] == nil, asked.insert(item).inserted else { return }
-    guard let data = try? await host.run(ReadCover(item: item.id)), let image = NSImage(data: data) else { return }
-    replace(item.id, with: image)
+  private func read(_ key: Request, from host: any LociModel.Host) async -> CoverPicture? {
+    if let task = pending[key] { return await task.value }
+    let task = Task { () -> CoverPicture? in
+      defer { if !Task.isCancelled { pending[key] = nil } }
+      do {
+        let data = try await host.run(ReadCover(item: key.item))
+        let image: CGImage? = if let data { await Self.decode(data, pixels: key.pixels) } else { nil }
+        guard !Task.isCancelled else { return nil }
+        let picture = image.map(CoverPicture.init)
+        remember(picture, for: key)
+        return picture
+      } catch {
+        return nil
+      }
+    }
+    pending[key] = task
+    return await task.value
+  }
+
+  @concurrent nonisolated private static func decode(_ data: Data, pixels: Int) async -> CGImage? {
+    guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary)
+    else { return nil }
+    return CGImageSourceCreateThumbnailAtIndex(
+      source, 0,
+      [
+        kCGImageSourceCreateThumbnailFromImageAlways: true,
+        kCGImageSourceCreateThumbnailWithTransform: true,
+        kCGImageSourceShouldCacheImmediately: true,
+        kCGImageSourceThumbnailMaxPixelSize: pixels,
+      ] as CFDictionary)
+  }
+
+  private func touch(_ key: Request) {
+    order.removeAll { $0 == key }
+    order.append(key)
+  }
+
+  private func remember(_ picture: CoverPicture?, for key: Request) {
+    let entry = Entry(picture: picture)
+    if let previous = cached.updateValue(entry, forKey: key) { bytes -= previous.bytes }
+    bytes += entry.bytes
+    touch(key)
+    while cached.count > countLimit || bytes > byteLimit, let oldest = order.first {
+      forget(oldest)
+    }
+  }
+
+  private func forget(_ key: Request) {
+    if let entry = cached.removeValue(forKey: key) { bytes -= entry.bytes }
+    order.removeAll { $0 == key }
+  }
+}
+
+@MainActor
+final class CoverPicture {
+  let image: NSImage
+  let bytes: Int
+  lazy var wash = CoverWash.of(image)
+
+  init(_ picture: CGImage) {
+    image = NSImage(cgImage: picture, size: .zero)
+    bytes = picture.bytesPerRow * picture.height
   }
 }
 
 extension EnvironmentValues {
-  /// Set by the window; views outside one read every cover afresh.
   @Entry var covers: Covers?
-}
-
-/// An item's cover in a frame of the given shape. Video and articles fill it; a podcast's square cover sits in
-/// the middle over a blurred wash of itself. Without a cover the frame shows the kind's symbol.
-struct Cover: View {
-  @Environment(\.host) private var host
-  @Environment(\.covers) private var covers
-  let item: Item
-  var corner: CGFloat = Radius.cover
-  /// How far the square art of a podcast stays from the top and bottom, as a share of the height.
-  var squareInset: CGFloat = 0.08
-  var squareCorner: CGFloat = 4
-  var dimmed = false
-  /// The kind's symbol shown while there is no cover.
-  var symbolSize = Size.thumbnailSymbol
-  /// Behind the cover, and all there is without one.
-  var backdrop = Palette.coverBackdrop
-
-  var body: some View {
-    Rectangle()
-      .fill(backdrop)
-      .overlay { art }
-      .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-      .task(id: item) { await covers?.load(item, from: host) }
-  }
-
-  @ViewBuilder private var art: some View {
-    if let image = covers?.image(of: item.id) {
-      if case .audio = item.kind {
-        GeometryReader { frame in
-          let side = frame.size.height * (1 - squareInset * 2)
-          ZStack {
-            if let wash = covers?.wash(of: item.id) {
-              Image(nsImage: wash).resizable().scaledToFill()
-                .frame(width: frame.size.width, height: frame.size.height)
-            }
-            Image(nsImage: image).resizable().scaledToFill()
-              .frame(width: side, height: side)
-              .clipShape(RoundedRectangle(cornerRadius: squareCorner, style: .continuous))
-              .shadow(color: .black.opacity(0.4), radius: side * 0.04, y: side * 0.02)
-          }
-          .frame(width: frame.size.width, height: frame.size.height)
-        }
-        .saturation(dimmed ? 0.7 : 1).brightness(dimmed ? -0.2 : 0)
-      } else {
-        Image(nsImage: image).resizable().scaledToFill()
-          .saturation(dimmed ? 0.7 : 1).brightness(dimmed ? -0.2 : 0)
-      }
-    } else {
-      Image(systemName: Symbols.kind(ItemKind(item.kind)))
-        .font(.system(size: symbolSize, weight: .light))
-        .foregroundStyle(Palette.inkFaint)
-    }
-  }
-}
-
-/// A square cover alone, as the podcast page shows it.
-struct SquareCover: View {
-  @Environment(\.host) private var host
-  @Environment(\.covers) private var covers
-  let item: Item
-  let corner: CGFloat
-
-  var body: some View {
-    Group {
-      if let image = covers?.image(of: item.id) {
-        Image(nsImage: image).resizable().scaledToFill()
-      } else {
-        Palette.coverBackdrop.overlay {
-          Image(systemName: Symbols.kind(.audio))
-            .font(.system(size: Size.emptySymbol, weight: .light))
-            .foregroundStyle(Palette.inkFaint)
-        }
-      }
-    }
-    .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-    .task(id: item) { await covers?.load(item, from: host) }
-  }
 }

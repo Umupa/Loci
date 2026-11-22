@@ -36,6 +36,9 @@ public struct ComponentLocator: Sendable {
   }
 
   public func locate(_ component: Component) async -> LocatedComponent {
+    let absent = LocatedComponent(
+      status: ComponentStatus(component: component, installation: .missing), executable: nil)
+    guard component != .bundledPi else { return absent }
     let own = folder(of: component).appending(path: component.managedExecutable)
     if isExecutable(own) {
       return LocatedComponent(
@@ -50,7 +53,7 @@ public struct ComponentLocator: Sendable {
       return LocatedComponent(
         status: ComponentStatus(component: component, installation: installation), executable: candidate)
     }
-    return LocatedComponent(status: ComponentStatus(component: component, installation: .missing), executable: nil)
+    return absent
   }
 
   public func locateAll() async -> [LocatedComponent] {
@@ -88,6 +91,7 @@ extension Component {
     case .ytDlp: "yt-dlp_macos"
     case .ffmpeg: "ffmpeg"
     case .quickJS: "qjs"
+    case .bundledPi: "pi"
     }
   }
 
@@ -96,12 +100,13 @@ extension Component {
     case .ytDlp: "yt-dlp"
     case .ffmpeg: "ffmpeg"
     case .quickJS: "qjs"
+    case .bundledPi: "pi"
     }
   }
 
   var versionFlag: String {
     switch self {
-    case .ytDlp: "--version"
+    case .ytDlp, .bundledPi: "--version"
     case .ffmpeg: "-version"
     case .quickJS: "-h"
     }
@@ -113,6 +118,8 @@ enum ComponentVersion {
   static func read(_ component: Component, from said: String) -> String? {
     let lines = said.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
     switch component {
+    case .bundledPi:
+      return lines.first
     case .ytDlp:
       return lines.first { $0.wholeMatch(of: /\d{4}\.\d{2}\.\d{2}(\.\d+)?/) != nil }
     case .ffmpeg, .quickJS:

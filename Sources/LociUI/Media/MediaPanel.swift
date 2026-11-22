@@ -76,3 +76,18 @@ struct RecognitionCard: View {
         Palette.lineStrong, lineWidth: Size.hairline))
   }
 }
+
+/// The pages of the panel beside a video or a podcast.
+enum MediaTab: Hashable {
+  case transcript, keyPoints, conversation, highlights
+
+  /// An episode's transcript is its page, so its panel has no transcript.
+  static func all(for item: Item) -> [(value: MediaTab, title: LocalizedStringResource)] {
+    let rest: [(value: MediaTab, title: LocalizedStringResource)] = [
+      (.keyPoints, .loci("panel.keyPoints")), (.conversation, .loci("panel.conversation")),
+      (.highlights, .loci("panel.highlights")),
+    ]
+    if case .audio = item.kind { return rest }
+    return [(.transcript, .loci("panel.transcript"))] + rest
+  }
+}

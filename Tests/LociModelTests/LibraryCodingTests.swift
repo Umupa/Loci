@@ -20,6 +20,7 @@ struct LibraryCodingTests {
     #expect(try Self.roundTrips(ReadItemPDF(item: Fixture.item)))
     #expect(try Self.roundTrips(ReadItemImage(item: Fixture.item, name: "images/a.png")))
     #expect(try Self.roundTrips(ReadMediaPage(item: Fixture.item)))
+    #expect(try Self.roundTrips(RenameSpeaker(item: Fixture.item, speaker: 1, name: "Maya")))
     #expect(try Self.roundTrips(ReadLinkPreview(url: URL(string: "https://github.com/e2b-dev/infra")!)))
     #expect(try Self.roundTrips(ReadLinkImage(url: URL(string: "https://github.com/e2b-dev/infra")!)))
     #expect(try Self.roundTrips(ReadWebPicture(url: URL(string: "https://example.com/cover.jpg")!)))
@@ -51,7 +52,8 @@ struct LibraryCodingTests {
       url: URL(string: "https://media.example.com/a.m4a")!, headers: ["Referer": "https://www.bilibili.com/"],
       audioOnly: true, expires: Timestamp(millisecondsSince1970: 1_800_000_000_000))
     let transcript = try Transcript(
-      language: "en", origin: .recognized(.base), segments: [try .init(start: .zero, end: .seconds(1), text: "Hi")])
+      language: "en", origin: .recognized(.base),
+      segments: [try .init(start: .zero, end: .seconds(1), text: "Hi", speaker: 1)], speakerNames: [1: "Maya"])
     let page = MediaPage(
       transcript: transcript, translations: [try Translation(language: "zh-Hans", lines: ["你好"])],
       outline: try Outline(chapters: []), hasCover: true, downloaded: false)

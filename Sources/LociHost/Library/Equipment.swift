@@ -7,15 +7,19 @@ import LociStore
 /// install is reported as a `.media` change, so the settings show it as it goes.
 actor Equipment {
   private let environment: MediaEnvironment
-  private let support: Support
+  let support: Support
+  private let bundledPi: BundledPiEnvironment?
+  private let newID: @Sendable () -> EntityID
   private let notify: @Sendable (Set<ContentChange>) async -> Void
   private var located: [Component: LocatedComponent] = [:]
   private var componentWork: [Component: Transfer] = [:]
   private var modelWork: [SpeechModel: Transfer] = [:]
 
-  init(environment: MediaEnvironment, notify: @escaping @Sendable (Set<ContentChange>) async -> Void) {
-    self.environment = environment
-    support = Support(root: environment.support)
+  init(environment: HostEnvironment, notify: @escaping @Sendable (Set<ContentChange>) async -> Void) {
+    self.environment = environment.media
+    support = Support(root: environment.media.support)
+    bundledPi = environment.bundledPi
+    newID = environment.newID
     self.notify = notify
   }
 
@@ -35,11 +39,19 @@ actor Equipment {
 
   /// The program to run for a component, or `nil` when it is missing or being installed.
   func executable(_ component: Component) async -> URL? {
+    if component == .bundledPi { return support.activePi()?.executable }
     if case .running = componentWork[component] { return nil }
     return await locate(component, again: false).executable
   }
 
   private func locate(_ component: Component, again: Bool) async -> LocatedComponent {
+    if component == .bundledPi {
+      let active = support.activePi()
+      return LocatedComponent(
+        status: ComponentStatus(
+          component: component, installation: active.map { .managed(version: $0.version) } ?? .missing),
+        executable: active?.executable)
+    }
     if !again, let known = located[component] { return known }
     let found = await locator.locate(component)
     located[component] = found
@@ -48,21 +60,34 @@ actor Equipment {
 
   /// Downloads the latest version into Loci's folder. Returns once it is installed or has failed; either
   /// way the settings hear of it.
-  func install(_ component: Component) async {
+  func install(_ component: Component, retry: Bool) async {
+    if component == .bundledPi, !needsPiUpdate(retry: retry) { return }
     if case .running = componentWork[component] { return }
     await report(component, .running(nil))
     do throws(FetchError) {
       try await download(component)
       componentWork[component] = nil
-      located[component] = await locator.locate(component)
+      located[component] = await locate(component, again: true)
       await notify([.media])
     } catch {
       await report(component, .failed(error.reason))
     }
   }
 
+  private func needsPiUpdate(retry: Bool) -> Bool {
+    guard let bundledPi else { return false }
+    if case .running = componentWork[.bundledPi] { return false }
+    if case .failed = componentWork[.bundledPi], !retry { return false }
+    return support.activePi()?.version != bundledPi.package(environment.arm).version
+  }
+
   private func download(_ component: Component) async throws(FetchError) {
-    let package = ComponentPackage.of(component, arm: environment.arm)
+    let package =
+      if component == .bundledPi, let bundledPi {
+        ComponentPackage.pi(bundledPi.package(environment.arm))
+      } else {
+        ComponentPackage.of(component, arm: environment.arm)
+      }
     var lastFailure = FetchError(reason: "no address to download \(component.rawValue) from")
     for url in package.urls {
       do throws(FetchError) {
@@ -70,13 +95,44 @@ actor Equipment {
           Task { await self?.progress(component, share) }
         }
         defer { support.discard(file) }
-        try await place(file, as: component, archive: package.isArchive)
+        switch package.format {
+        case .piTarGzip(let pi): try await placePi(file, package: pi)
+        case .zip: try await place(file, as: component, archive: true)
+        case .executable: try await place(file, as: component, archive: false)
+        }
         return
       } catch {
         lastFailure = error
       }
     }
     throw lastFailure
+  }
+
+  private func placePi(_ file: URL, package: PiPackage) async throws(FetchError) {
+    guard let bundledPi else { throw FetchError(reason: "Bundled Pi is unavailable.") }
+    do {
+      guard try support.sha256(of: file) == package.sha256 else {
+        throw FetchError(reason: "The Pi download did not match its checksum.")
+      }
+      let staging = try support.scratchFolder()
+      defer { support.discard(staging) }
+      let folder = try await package.unpack(file, into: staging, runner: environment.runner)
+      try support.makePiExecutable(in: folder)
+      let executable = folder.appending(path: "pi")
+      try await package.checkSignature(of: executable, runner: environment.runner)
+      guard let license = Bundle.module.url(forResource: "LICENSE", withExtension: nil, subdirectory: "Resources/Pi")
+      else { throw FetchError(reason: "The Pi license is missing from the app.") }
+      try support.copyPiLicense(license, into: folder)
+      let configuration = try support.scratchFolder()
+      defer { support.discard(configuration) }
+      try await bundledPi.smokeTest(executable, in: configuration, version: package.version)
+      try Task.checkCancellation()
+      try support.activatePi(folder, version: package.version, generation: newID())
+    } catch let error as FetchError {
+      throw error
+    } catch {
+      throw FetchError(reason: error.localizedDescription)
+    }
   }
 
   private func place(_ file: URL, as component: Component, archive: Bool) async throws(FetchError) {
@@ -110,6 +166,8 @@ actor Equipment {
     componentWork[component] = state
     await notify([.media])
   }
+
+  var modelsFolder: URL { support.models }
 
   func modelFile(_ model: SpeechModel) -> URL? {
     if case .transferring(.running) = modelState(model) { return nil }

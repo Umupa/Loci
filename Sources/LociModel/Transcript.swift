@@ -6,14 +6,38 @@ public struct Transcript: Hashable, Sendable {
   public let origin: Origin
   /// In time order.
   public let segments: [Segment]
+  private let speakerNames: [Int: String]
 
-  public init(language: String?, origin: Origin, segments: [Segment]) throws {
+  public var speakers: [Speaker] {
+    Set(segments.compactMap(\.speaker)).sorted().map { Speaker(number: $0, name: speakerNames[$0]) }
+  }
+
+  public func name(ofSpeaker number: Int) -> String? {
+    speakerNames[number]
+  }
+
+  public func renamingSpeaker(_ number: Int, to name: String) throws -> Transcript {
+    var names = speakerNames
+    names[number] = name
+    return try Transcript(language: language, origin: origin, segments: segments, speakerNames: names)
+  }
+
+  public init(
+    language: String?, origin: Origin, segments: [Segment], speakerNames: [Int: String] = [:]
+  ) throws {
     for (earlier, later) in zip(segments, segments.dropFirst()) where later.start < earlier.start {
       throw ModelError("segments are out of time order")
     }
     self.language = language
     self.origin = origin
     self.segments = segments
+    if speakerNames.isEmpty {
+      self.speakerNames = [:]
+    } else {
+      let numbers = Set(segments.compactMap(\.speaker))
+      guard speakerNames.keys.allSatisfy(numbers.contains) else { throw ModelError("no such speaker") }
+      self.speakerNames = try speakerNames.mapValues { try $0.requiringText("speaker name") }
+    }
   }
 
   /// Where the text came from.
@@ -47,7 +71,7 @@ public struct Transcript: Hashable, Sendable {
 
 extension Transcript: Codable {
   private enum CodingKeys: String, CodingKey {
-    case language, origin, model, segments
+    case language, origin, model, segments, speakerNames
   }
 
   public init(from decoder: any Decoder) throws {
@@ -62,7 +86,10 @@ extension Transcript: Codable {
       }
     let language = try container.decodeIfPresent(String.self, forKey: .language)
     let segments = try container.decode([Segment].self, forKey: .segments)
-    self = try decoder.validated { try Transcript(language: language, origin: origin, segments: segments) }
+    let names = try container.decodeIfPresent([Int: String].self, forKey: .speakerNames) ?? [:]
+    self = try decoder.validated {
+      try Transcript(language: language, origin: origin, segments: segments, speakerNames: names)
+    }
   }
 
   public func encode(to encoder: any Encoder) throws {
@@ -76,6 +103,7 @@ extension Transcript: Codable {
       try container.encode(model, forKey: .model)
     }
     try container.encode(segments, forKey: .segments)
+    if !speakerNames.isEmpty { try container.encode(speakerNames, forKey: .speakerNames) }
   }
 }
 

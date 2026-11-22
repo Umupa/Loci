@@ -13,6 +13,6 @@ struct MarksTests {
 
   @Test(arguments: [Component.ytDlp, .ffmpeg])
   func theComponentsWithPublishedIconsShipThoseIcons(component: Component) {
-    #expect(MarkArt.component(component) != nil)
+    #expect(MarkArt.component(component, in: .light) != nil)
   }
 }

@@ -49,6 +49,49 @@ struct BrowserSessionTests {
     #expect(session.current.address == Self.article)
   }
 
+  /// H-S4: a link opened over a conversation is not a tab until it is opened in the browser.
+  @Test func aPageOpenedOverAConversationStaysOutOfTheTabs() throws {
+    let session = BrowserSession()
+
+    let peek = session.peek(try #require(Self.article))
+
+    #expect(peek.address == Self.article)
+    #expect(session.tabs.count == 1)
+    #expect(session.current.atStart)
+  }
+
+  @Test func openingThePageInTheBrowserPutsItInFrontInPlaceOfAnEmptyStartPage() throws {
+    let session = BrowserSession()
+    let peek = session.peek(try #require(Self.article))
+
+    session.keep(peek)
+
+    #expect(session.tabs.count == 1)
+    #expect(session.current === peek)
+  }
+
+  @Test func openingThePageInTheBrowserKeepsTheTabsAlreadyOpen() throws {
+    let session = BrowserSession()
+    session.open(Self.video)
+    let peek = session.peek(try #require(Self.article))
+
+    session.keep(peek)
+
+    #expect(session.tabs.map(\.address) == [Self.video, Self.article])
+    #expect(session.current === peek)
+  }
+
+  @Test func aClosedPageCannotBeOpenedInTheBrowserAfterwards() throws {
+    let session = BrowserSession()
+    let peek = session.peek(try #require(Self.article))
+
+    session.endPeek(peek)
+    session.keep(peek)
+
+    #expect(session.tabs.count == 1)
+    #expect(session.current !== peek)
+  }
+
   @Test func aNewTabOpensBesideTheOneInFrontOnTheStartPage() {
     let session = BrowserSession()
     session.open(Self.video)

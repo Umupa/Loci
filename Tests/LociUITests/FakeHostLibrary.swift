@@ -53,6 +53,8 @@ extension FakeHost {
     Job(item: library?.video.id ?? sample.borg.id, stage: .transcribe, state: .running(progress: Fraction(0.63)))
   }
 
+  func renameSpeaker(_ command: RenameSpeaker) async throws(HostError) -> Done { Done() }
+
   func mediaPage(_ item: EntityID) async throws(HostError) -> MediaPage {
     if let library {
       if item == library.video.id, let page = try? library.videoPage(recognizing: recognizing) { return page }
@@ -86,7 +88,8 @@ extension FakeHost {
   func mediaSetup() async throws(HostError) -> MediaSetup {
     if let setup = library?.setup { return setup }
     return MediaSetup(
-      components: await detectComponents(again: false), componentWork: [],
+      components: await detectComponents(again: false),
+      componentWork: piWork.map { [ComponentWork(component: .bundledPi, state: $0)] } ?? [],
       speechModels: SpeechModel.allCases.map { SpeechModelStatus(model: $0, state: .absent) },
       speechModel: .recommended, browserLogin: .none)
   }

@@ -7,16 +7,17 @@ import SwiftUI
 /// focus. The system's list selection follows the system accent color and turns gray when focus is
 /// elsewhere.
 struct Sidebar: View {
+  @Environment(\.machineChoice) private var machineChoice
   @Binding var place: Place
   /// Whether the main conversation or Loci's page is on screen.
   let lociChosen: Bool
-  /// Whether Loci is working on anything.
-  let working: Bool
+  /// What Loci is working on; `nil` while it is idle.
+  let work: LociWork?
   let chooseLoci: () -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
-      SidebarLoci(chosen: lociChosen, working: working, choose: chooseLoci)
+      SidebarLoci(chosen: lociChosen, work: work, choose: chooseLoci)
         .padding(.top, 14)
         .padding(.bottom, Spacing.xs)
       SidebarLabel(text: Text(.loci("sidebar.library")))
@@ -29,6 +30,9 @@ struct Sidebar: View {
       SidebarLabel(text: Text(.loci("sidebar.settings")))
       row(.settings(.general), Text(.loci("settings.general")), symbol: Symbols.settings)
       row(.settings(.agents), Text(.loci("settings.agents")), symbol: Symbols.agents)
+      if machineChoice?.link == nil {
+        row(.settings(.models), Text(.loci("settings.models")), symbol: ModelSettingsPage.symbol)
+      }
       row(.settings(.media), Text(.loci("settings.media")), symbol: Symbols.media)
       row(.settings(.remote), Text(.loci("settings.remote")), symbol: Symbols.remote)
     }
@@ -37,38 +41,6 @@ struct Sidebar: View {
 
   private func row(_ target: Place, _ title: Text, symbol: String) -> some View {
     SidebarRow(selected: place == target, title: title, symbol: symbol) { place = target }
-  }
-}
-
-/// Loci at the top of the sidebar: its face and name, and an amber dot breathing while it works.
-private struct SidebarLoci: View {
-  let chosen: Bool
-  let working: Bool
-  let choose: () -> Void
-  @State private var hovering = false
-
-  var body: some View {
-    Button(action: choose) {
-      HStack(spacing: 11) {
-        LociAvatar(size: 36)
-        Text(verbatim: "Loci").font(.system(size: 16.5, weight: .semibold, design: .serif))
-        Spacer(minLength: 0)
-        BreathingDot(color: Tones.accent, size: 7, breathing: working, period: 1.6)
-          .opacity(working ? 1 : 0)
-          .animation(.easeInOut(duration: 0.3), value: working)
-      }
-      .foregroundStyle(Palette.ink)
-      .padding(Spacing.xs)
-      .background(
-        RoundedRectangle(cornerRadius: Radius.sidebarLoci, style: .continuous).fill(
-          chosen ? Palette.tint : hovering ? Palette.fill : .clear)
-      )
-      .contentShape(Rectangle())
-    }
-    .buttonStyle(.plain)
-    .onHover { hovering = $0 }
-    .accessibilityAddTraits(chosen ? .isSelected : [])
-    .accessibilityValue(working ? Text(.loci("sidebar.working")) : Text(verbatim: ""))
   }
 }
 

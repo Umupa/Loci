@@ -127,7 +127,7 @@ struct ImportSteps: View {
             selection: provider,
             options: [(Provider?.none, Text(.loci("import.followLoci")))]
               + Agents.choosable(installations, keeping: draft.translating.runtime?.provider ?? .codex).map {
-                (Provider?.some($0), Text(verbatim: Agents.name(of: $0)))
+                (Provider?.some($0), Text(Agents.label(of: $0)))
               })
         }
         if let runtime = draft.translating.runtime {

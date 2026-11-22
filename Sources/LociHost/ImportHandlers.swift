@@ -16,7 +16,7 @@ extension LocalHost {
       } catch {
         throw await context.stop(error, at: url)
       }
-      let cover = await context.cover(at: read.info.thumbnail)
+      let cover = await context.artwork(at: url, thumbnail: read.info.thumbnail, podcast: read.info.isAudio)
       await context.probes.keep(Probes.Probe(info: read.info, json: read.json, cover: cover), for: url)
       return .media(
         MediaPreview(

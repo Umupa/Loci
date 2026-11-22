@@ -11,6 +11,8 @@ struct LibraryContext: Sendable {
   let equipment: Equipment
   let streams: StreamCache
   let probes: Probes
+  let covers: LibraryCovers
+  let models: ModelServices
   /// Brings the database up to date and tells the subscriptions.
   let notify: @Sendable (Set<ContentChange>) async -> Void
 
@@ -21,17 +23,39 @@ struct LibraryContext: Sendable {
   var settings: HostSettings { (try? store.settings()) ?? HostSettings() }
 
   /// The language transcripts are translated into: the reader's own.
-  var targetLanguage: String { media.readerLanguage }
+  var targetLanguage: String { translationSettings.language ?? media.readerLanguage }
 
-  /// What Loci runs on.
-  var runtime: Runtime { settings.runtime ?? environment.defaultRuntime }
+  var translationSettings: TranslationSettings {
+    (try? store.modelSettings().translation) ?? TranslationSettings()
+  }
 
   var speechModel: SpeechModel { settings.speechModel ?? .recommended }
 
-  /// The agent that writes translations, chapters and key points on `runtime`; `nil` follows what Loci runs
-  /// on. `nil` when there is no agent to run.
-  func transcriptAgent(_ runtime: Runtime?) -> (any TranscriptAgent)? {
-    media.transcriptAgent.map { $0(runtime ?? self.runtime) }
+  func transcriptWork(_ chosen: Runtime?) async throws(HostError) -> TranscriptWork? {
+    let (translation, direct) = try await models.selection()
+    if let direct {
+      let service = direct.service
+      return TranscriptWork(
+        agent: direct, parallelism: models.parallelism, usesRuntime: false,
+        identity: ["model", service.provider.rawValue, service.endpoint.absoluteString, service.model],
+        settings: translation, cache: models.cache)
+    }
+    guard let (agent, runtime) = await runtimeWriter(chosen) else { return nil }
+    return TranscriptWork(
+      agent: agent, parallelism: 1, usesRuntime: true,
+      identity: ["runtime", runtime.provider.rawValue, runtime.model ?? "", runtime.effort?.rawValue ?? ""],
+      settings: translation, cache: models.cache)
+  }
+
+  func runtimeWriter(_ preferred: Runtime?) async -> (any RuntimeTranscriptAgent, Runtime)? {
+    let agents = HostAgents(store: store, environment: environment, library: self)
+    let selection = await agents.selection(preferred)
+    let runtime = selection.runtime
+    if runtime.provider == .bundledPi {
+      guard let driver = await agents.driver(for: selection) else { return nil }
+      return (AgentTranscriptAgent(runtime: runtime, agents: { _ in driver }), runtime)
+    }
+    return media.transcriptAgent.map { ($0(runtime), runtime) }
   }
 }
 
@@ -76,15 +100,19 @@ extension Job.Stage {
   /// choices were kept downloads first.
   static func all(for item: Item, choice: ImportChoice?) -> [Job.Stage] {
     switch item.kind {
-    case .article, .paper: return [.extract]
+    case .article:
+      let stages: [Job.Stage] = item.source == nil ? [] : [.fetchPage, .extract, .findCover]
+      return choice?.translation == nil ? stages : stages + [.translate]
+    case .paper: return [.extract]
     case .repository: return []
     case .video, .audio:
       guard let choice else {
-        return item.source == nil
-          ? [.transcribe, .translate, .outline] : [.resolve, .download, .transcribe, .translate, .outline]
+        let start: [Job.Stage] = item.source == nil ? [] : [.resolve, .download]
+        return start + [.transcribe] + (item.isPodcast ? [.diarize] : []) + [.translate, .outline]
       }
       var stages: [Job.Stage] = item.source == nil ? [] : [.resolve]
       if choice.recognition != nil { stages.append(.transcribe) }
+      if item.isPodcast, choice.recognition != nil || choice.siteSubtitles { stages.append(.diarize) }
       if item.source != nil, choice.keeping == .local { stages.append(.download) }
       if choice.translation != nil { stages.append(.translate) }
       return stages + [.outline]

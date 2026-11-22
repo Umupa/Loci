@@ -46,11 +46,13 @@ extension CardActions {
 /// under it; pointing at it offers to pause or carry on and to cancel.
 struct GalleryCard: View {
   @Environment(\.standIns) private var standIns
+  @Environment(\.covers) private var covers
   let item: Item
   let job: Job?
   let share: Double?
   let chosen: Bool
   let actions: CardActions
+  let coverWidth: CGFloat
   /// Set while the title is being renamed: what to do with the new title, `nil` when it was left as it was.
   var renamed: ((String?) -> Void)?
   @State private var pointing = false
@@ -59,12 +61,14 @@ struct GalleryCard: View {
   private var hovering: Bool { pointing || standIns?.pointedCard == item.id }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 9) {
+    VStack(alignment: .leading, spacing: Self.spacing) {
       cover
       if let job, state.isBusy {
-        StageRuler(segments: StageRuler.segments(of: job, kind: item.kind)).padding(.top, 1)
+        StageRuler(segments: StageRuler.segments(of: job, kind: item.kind))
+          .padding(.top, 1)
+          .frame(height: Self.rulerHeight, alignment: .top)
       }
-      title
+      title.frame(height: Self.titleHeight, alignment: .topLeading)
       if !state.isBusy {
         HStack(spacing: 6) {
           Image(systemName: Symbols.kind(ItemKind(item.kind))).font(.system(size: 11))
@@ -72,24 +76,57 @@ struct GalleryCard: View {
         }
         .font(.system(size: 11.5).monospaced())
         .foregroundStyle(Palette.inkMuted)
+        .frame(height: Self.bylineHeight, alignment: .topLeading)
       }
     }
     .contentShape(Rectangle())
     .onHover { pointing = $0 }
   }
 
+  private static let spacing: CGFloat = 9
+  private static let titleHeight: CGFloat = 38
+  private static let bylineHeight: CGFloat = 15
+  private static let rulerHeight: CGFloat = 25
+
+  static func height(at width: CGFloat, kind: ItemKind, busy: Bool) -> CGFloat {
+    width / coverRatio(for: kind) + titleHeight + (busy ? rulerHeight : bylineHeight) + 2 * spacing
+  }
+
+  static func coverRatio(for kind: ItemKind) -> CGFloat {
+    switch kind {
+    case .video: Size.cardThumbnailRatio
+    case .audio: 1
+    case .article, .paper, .repository: 16 / 10
+    }
+  }
+
+  @ViewBuilder private var art: some View {
+    let picture = Cover(item: item, corner: 0, squareInset: nil, edge: coverWidth)
+    if state.isBusy {
+      let softened = item.kind != .article || covers?.image(of: item.id) == nil
+      picture
+        .blur(radius: softened ? 9 : 0)
+        .scaleEffect(softened ? 1.12 : 1)
+        .saturation(saturation)
+        .brightness(brightness)
+        .drawingGroup()
+    } else {
+      picture
+    }
+  }
+
   private var cover: some View {
     let shape = RoundedRectangle(cornerRadius: Radius.galleryCover, style: .continuous)
-    return GalleryArt(item: item)
-      .blur(radius: state.isBusy ? 9 : 0)
-      .scaleEffect(state.isBusy ? 1.12 : 1)
-      .saturation(saturation)
-      .brightness(brightness)
-      .drawingGroup()
+    return
+      art
+      .frame(height: coverWidth / Self.coverRatio(for: ItemKind(item.kind)))
       .overlay {
         if state.isBusy {
+          let shade: Double = articleFailure == nil ? 0 : 0.32
           LinearGradient(
-            stops: [.init(color: .black.opacity(0), location: 0.4), .init(color: .black.opacity(0.45), location: 1)],
+            stops: [
+              .init(color: .black.opacity(shade), location: 0.4), .init(color: .black.opacity(0.45), location: 1),
+            ],
             startPoint: .top, endPoint: .bottom)
         }
       }
@@ -104,11 +141,10 @@ struct GalleryCard: View {
       .overlay { shape.strokeBorder(Palette.lineStrong, lineWidth: Size.hairline) }
       .overlay { if chosen { shape.strokeBorder(Palette.accent, lineWidth: 3) } }
       .background {
-        SoftShadow(shape: shape, color: Palette.warmShadow, opacity: 0.1, radius: 12, y: 6)
-        SoftShadow(shape: shape, opacity: 0.08, radius: 1.5, y: 1)
+        SoftShadow(shape: shape, color: Palette.warmShadow, opacity: 0.1, radius: 12, y: 6, steps: 4)
+        SoftShadow(shape: shape, opacity: 0.08, radius: 1.5, y: 1, steps: 2)
       }
       .amberGlow(state.glows, corner: Radius.galleryCover)
-      .aspectRatio(16 / 10, contentMode: .fit)
   }
 
   private var saturation: Double {
@@ -164,7 +200,39 @@ struct GalleryCard: View {
     .padding(8)
   }
 
-  private func center(_ fix: JobLine.Fix) -> some View {
+  private var articleFailure: JobLine.Problem? {
+    guard item.kind == .article, case .action(_, let problem) = JobLine(job) else { return nil }
+    return problem
+  }
+
+  @ViewBuilder private func center(_ fix: JobLine.Fix) -> some View {
+    if let problem = articleFailure, let source = item.source {
+      VStack(spacing: 6) {
+        Text(problem.summary)
+          .font(.system(size: 12.5, weight: .semibold))
+          .foregroundStyle(Palette.onCover)
+          .lineLimit(1)
+        HStack(spacing: 6) {
+          fixButton(fix)
+          Link(destination: source) {
+            Image(systemName: Symbols.external)
+              .font(.system(size: 12, weight: .semibold))
+              .foregroundStyle(Palette.onCover)
+              .frame(width: 28, height: 28)
+              .glassEffect(.clear, in: .circle)
+          }
+          .buttonStyle(PressStyle())
+          .help(Text(.loci("job.openInBrowser")))
+          .accessibilityLabel(Text(.loci("job.openInBrowser")))
+        }
+      }
+      .padding(8)
+    } else {
+      fixButton(fix)
+    }
+  }
+
+  private func fixButton(_ fix: JobLine.Fix) -> some View {
     Button {
       actions.fix(fix, item)
     } label: {
@@ -194,18 +262,12 @@ struct GalleryCard: View {
   }
 }
 
-/// The picture on a card: the item's cover, or for an article or paper without one its title set on paper.
+/// The item's cover in the wide frames of the task dock and the preparation page.
 struct GalleryArt: View {
-  @Environment(\.host) private var host
-  @Environment(\.covers) private var covers
   let item: Item
 
   var body: some View {
-    if covers?.image(of: item.id) == nil, item.kind == .article || item.kind == .paper {
-      PaperCover(item: item).task(id: item) { await covers?.load(item, from: host) }
-    } else {
-      Cover(item: item, corner: 0, squareInset: 0.1, squareCorner: 4)
-    }
+    Cover(item: item, corner: 0, squareInset: 0.1)
   }
 }
 

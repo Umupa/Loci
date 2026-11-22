@@ -6,6 +6,8 @@ import SwiftUI
 /// and the moment of a reader it opens on. The app never sets it.
 struct StandIns {
   var webPage: NSImage?
+  /// This page is open over the conversation.
+  var overlayPage: URL?
   var moment: MediaMoment?
   /// The list of a page's videos is open.
   var videoPickerOpen = false
@@ -21,6 +23,8 @@ struct StandIns {
   var taskDockOpen = false
   /// The gallery is scrolled to its end.
   var galleryAtEnd = false
+  /// The episode playing in the play bar.
+  var listening: EntityID?
 }
 
 /// A reader of a video or audio item caught part way through.

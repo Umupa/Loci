@@ -14,7 +14,7 @@ struct MediaSettingsPage: View {
           StorageSection()
           VStack(alignment: .leading, spacing: 6) {
             SettingsGroup(title: .loci("media.components"), inset: 50) {
-              ForEach(setup.components, id: \.component) { status in
+              ForEach(setup.components.filter { $0.component != .bundledPi }, id: \.component) { status in
                 ComponentRow(
                   status: status, work: setup.componentWork.first { $0.component == status.component }?.state,
                   install: { run(InstallComponent(status.component)) })
@@ -60,18 +60,21 @@ struct MediaSettingsPage: View {
 }
 
 /// One program: its tile, name, version and where it came from, and what can be done about it.
-private struct ComponentRow: View {
+struct ComponentRow: View {
+  @Environment(\.colorScheme) private var scheme
   let status: ComponentStatus
   let work: Transfer?
-  let install: () -> Void
+  var install: (() -> Void)?
 
   var body: some View {
     SettingsRow {
       HStack(spacing: 10) {
         tile
         HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
-          Text(verbatim: status.component.name)
-          detail.font(Typography.mono).foregroundStyle(Palette.inkMuted)
+          label
+          if status.component != .bundledPi || work == nil {
+            detail.font(Typography.mono).foregroundStyle(Palette.inkMuted)
+          }
         }
         .lineLimit(1)
       }
@@ -82,26 +85,36 @@ private struct ComponentRow: View {
         Text(verbatim: share.map { "\(Int(($0.value * 100).rounded()))%" } ?? "").font(Typography.mono)
           .foregroundStyle(Palette.inkMuted)
       case .failed(let reason):
-        Text(verbatim: reason).font(.system(size: 12)).foregroundStyle(Palette.inkMuted).lineLimit(1)
-        Button(action: install) { Text(.loci("job.retry")) }.buttonStyle(PushStyle())
+        Text(verbatim: reason).font(.system(size: 12)).foregroundStyle(Palette.inkMuted).lineLimit(1).help(reason)
+        if let install { Button(action: install) { Text(.loci("job.retry")) }.buttonStyle(PushStyle()) }
       case nil:
-        if case .missing = status.installation {
-          Button(action: install) { Text(.loci("media.download")) }.buttonStyle(PushStyle())
-        } else if status.component == .ytDlp {
-          Button(action: install) { Text(.loci("job.update")) }.buttonStyle(PushStyle())
-        }
-        Menu {
-          Button(action: install) { Text(.loci("media.installManaged")) }
-        } label: {
-          Image(systemName: Symbols.more).font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.inkMuted)
-            .frame(width: 22, height: 22)
-        }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .fixedSize()
+        if let install { actions(install) }
       }
     }
+  }
+
+  @ViewBuilder private func actions(_ install: @escaping () -> Void) -> some View {
+    if case .missing = status.installation {
+      Button(action: install) { Text(.loci("media.download")) }.buttonStyle(PushStyle())
+    } else if status.component == .ytDlp {
+      Button(action: install) { Text(.loci("job.update")) }.buttonStyle(PushStyle())
+    }
+    if status.component != .bundledPi {
+      Menu {
+        Button(action: install) { Text(.loci("media.installManaged")) }
+      } label: {
+        Image(systemName: Symbols.more).font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.inkMuted)
+          .frame(width: 22, height: 22)
+      }
+      .menuStyle(.button)
+      .buttonStyle(.plain)
+      .menuIndicator(.hidden)
+      .fixedSize()
+    }
+  }
+
+  private var label: Text {
+    status.component == .bundledPi ? Text(.loci("agents.bundledPi")) : Text(verbatim: status.component.name)
   }
 
   /// `2026.10.26 · Homebrew`, `9.0.2 · 由 Loci 管理`, or that it is missing.
@@ -121,7 +134,7 @@ private struct ComponentRow: View {
     RoundedRectangle(cornerRadius: 7)
       .fill(Palette.fill)
       .overlay {
-        if let mark = MarkArt.component(status.component) {
+        if let mark = MarkArt.component(status.component, in: scheme) {
           Image(nsImage: mark)
             .renderingMode(.original)
             .resizable()
@@ -142,6 +155,7 @@ private struct ComponentRow: View {
     case .ytDlp: Symbols.download
     case .ffmpeg: "film"
     case .quickJS: "curlybraces"
+    case .bundledPi: ModelSettingsPage.symbol
     }
   }
 }

@@ -9,7 +9,7 @@ struct PanelFrame<Marks: View, Content: View>: View {
   let choose: (PanelMenu) -> Void
   @ViewBuilder var marks: Marks
   @ViewBuilder var content: Content
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.reducesMotion) private var reduceMotion
   @State private var open: Bool
   @State private var height: CGFloat = 0
   @State private var pointed = false
@@ -111,7 +111,7 @@ struct PanelCard: View {
   let actions: PanelActions
   var open = false
   var page = 0
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.reducesMotion) private var reduceMotion
 
   var body: some View {
     PanelFrame(
@@ -149,7 +149,7 @@ struct PanelCard: View {
 struct PanelPager: View {
   let pages: [PanelPage]
   let actions: PanelActions
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.reducesMotion) private var reduceMotion
   @State private var index: Int
   @State private var turn = PageTurn.forward
 

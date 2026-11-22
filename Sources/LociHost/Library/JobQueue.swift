@@ -74,7 +74,12 @@ actor JobQueue {
   /// Starts the job again where it was paused, failed or waits; an item without one starts where its files
   /// say it should. A job already running is left alone.
   func retry(_ item: EntityID, firstStage: () throws -> Job.Stage?) async throws -> Job {
-    if let running = work[item], !running.task.isCancelled, let job = jobs[item], job.state != .done { return job }
+    if let running = work[item], !running.task.isCancelled, let job = jobs[item] {
+      switch job.state {
+      case .running, .queued: return job
+      default: break
+      }
+    }
     let stage: Job.Stage
     if let job = jobs[item], job.state != .done {
       stage = job.stage
@@ -86,6 +91,29 @@ actor JobQueue {
     await set(Job(item: item, stage: stage, state: .queued))
     start(item, at: stage)
     return jobs[item] ?? Job(item: item, stage: stage, state: .queued)
+  }
+
+  func requestArticleTranslation(_ item: EntityID) async throws {
+    let saved = context.choice(of: item)
+    if saved?.translation == nil {
+      var choice = saved ?? context.lastChoice
+      choice.translation = .init(language: context.targetLanguage, runtime: nil)
+      try context.store.saveImportChoice(choice, of: item)
+    }
+    if let pending = jobs[item], pending.state != .done {
+      if work[item] != nil, pending.stage == .translate {
+        switch pending.state {
+        case .running, .queued: return
+        default: break
+        }
+      }
+      if pending.stage != .translate {
+        await set(Job(item: item, stage: pending.stage, state: pending.state))
+        return
+      }
+    }
+    await set(Job(item: item, stage: .translate, state: .queued))
+    start(item, at: .translate)
   }
 
   /// Pauses the job and keeps what it made, a download's part among it; nothing when there is no work.
@@ -103,6 +131,27 @@ actor JobQueue {
       guard case .waiting(let need) = job.state, met(need), work[job.item] == nil else { continue }
       start(job.item, at: job.stage)
     }
+  }
+
+  func saveSpeakerLabels(_ labeled: Transcript, replacing original: Transcript, of item: EntityID) throws {
+    guard !Task.isCancelled, try context.store.transcript(of: item) == original else { return }
+    try context.store.save(labeled, of: item)
+  }
+
+  func renameSpeaker(_ command: RenameSpeaker) async throws(HostError) -> Done {
+    try attempt {
+      guard try context.store.item(command.item).isPodcast else {
+        throw HostError.invalidRequest("this item is not a podcast")
+      }
+      guard let transcript = try context.store.transcript(of: command.item) else {
+        throw HostError.invalidRequest("this episode has no transcript")
+      }
+      let name = command.name.trimmingCharacters(in: .whitespacesAndNewlines)
+      let renamed = try transcript.renamingSpeaker(command.speaker, to: name)
+      try context.store.save(renamed, of: command.item)
+    }
+    await context.notify([.item(command.item)])
+    return Done()
   }
 
   /// Stops the job of an item being deleted, keeping where it was so `putBack` can carry on from there.
@@ -149,7 +198,13 @@ actor JobQueue {
   /// meanwhile reports nothing more.
   func report(_ item: EntityID, stage: Job.Stage, state: Job.State) async {
     guard !Task.isCancelled else { return }
-    let job = Job(item: item, stage: stage, state: state, stages: stages(of: item))
+    let stages = stages(of: item)
+    if state == .done, stage == .findCover, stages.last == .translate {
+      await set(Job(item: item, stage: .translate, state: .queued, stages: stages))
+      start(item, at: .translate)
+      return
+    }
+    let job = Job(item: item, stage: stage, state: state, stages: stages)
     guard jobs[item] != job else { return }
     await set(job)
   }
@@ -193,7 +248,7 @@ actor JobQueue {
   var notStarted: [EntityID] {
     saving.filter { item in
       guard let job = jobs[item], job.state == .queued else { return false }
-      return [.resolve, .extract, .transcribe, .download].contains(job.stage)
+      return [.resolve, .fetchPage, .extract, .transcribe, .download].contains(job.stage)
     }
   }
 

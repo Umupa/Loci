@@ -7,6 +7,7 @@ enum Agents {
   static func name(of provider: Provider) -> String {
     switch provider {
     case .pi: "Pi"
+    case .bundledPi: "Bundled Pi"
     case .omp: "Oh My Pi"
     case .grok: "Grok"
     case .antigravity: "Antigravity"
@@ -19,13 +20,25 @@ enum Agents {
     }
   }
 
+  static func label(of provider: Provider) -> LocalizedStringResource {
+    provider == .bundledPi ? .loci("agents.bundledPi") : LocalizedStringResource(stringLiteral: name(of: provider))
+  }
+
+  static func bundledPiIsReady(_ installations: [AgentInstallation]) -> Bool {
+    installations.contains { installation in
+      guard case .installed(let found) = installation else { return false }
+      return found.provider == .bundledPi && found.signIn == .signedIn
+    }
+  }
+
   /// Pi and Grok, which Loci is tested with, every provider found installed, and the one in use even if it is
   /// gone, so a picker never loses its selection. In `Provider.allCases` order.
   static func choosable(_ installations: [AgentInstallation], keeping current: Provider) -> [Provider] {
     let installed = installations.compactMap { installation -> Provider? in
       if case .installed(let found) = installation { found.provider } else { nil }
     }
-    let offered = Set(installed + [.pi, .grok, current])
+    let bundled = installations.contains { $0.provider == .bundledPi } ? [Provider.bundledPi] : []
+    let offered = Set(installed + bundled + [.pi, .grok, current])
     return Provider.allCases.filter(offered.contains)
   }
 

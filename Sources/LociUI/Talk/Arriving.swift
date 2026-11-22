@@ -34,7 +34,7 @@ private struct CardShadow<S: InsettableShape>: ViewModifier {
 }
 
 private struct Arriving: ViewModifier {
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.reducesMotion) private var reduceMotion
 
   func body(content: Content) -> some View {
     content.transition(reduceMotion ? .identity : .opacity.combined(with: .offset(y: Motion.riseDistance)))
@@ -43,7 +43,7 @@ private struct Arriving: ViewModifier {
 
 private struct AnimatingArrivals<Value: Equatable>: ViewModifier {
   let value: Value
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.reducesMotion) private var reduceMotion
 
   func body(content: Content) -> some View {
     content.animation(reduceMotion ? nil : Motion.arrive, value: value)

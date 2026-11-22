@@ -6,6 +6,8 @@ import LociModel
 /// A host with fixed sample data, so the interface can be rendered and tested without a disk.
 final class FakeHost: LociModel.Host, CommandHandler {
   let sample: Sample
+  let modelSettings: (any ModelSettingsAccess)?
+  let piWork: Transfer?
   /// The design's library; when given, it is the library and the conversations this host serves.
   let library: SampleLibrary?
   /// The library's video is still having its speech recognized.
@@ -26,9 +28,12 @@ final class FakeHost: LociModel.Host, CommandHandler {
   init(
     _ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false, working: Bool = false,
     avatar: Avatar? = nil, panels: PanelColumn = PanelColumn(slots: []), activity: Activity = Activity(),
-    lastChoice: ImportChoice? = nil, keyPoints: SampleKeyPoints = .picked
+    lastChoice: ImportChoice? = nil, keyPoints: SampleKeyPoints = .picked,
+    modelSettings: (any ModelSettingsAccess)? = nil, piWork: Transfer? = nil
   ) {
     self.lastChoice = lastChoice
+    self.modelSettings = modelSettings
+    self.piWork = piWork
     self.sample = sample
     self.library = library
     self.keyPoints = keyPoints
@@ -61,6 +66,7 @@ final class FakeHost: LociModel.Host, CommandHandler {
 
   func upload(_ file: LocalFile) async throws(HostError) -> Upload { Upload(id: sample.items[0].id) }
   func localFile(_ place: LocalPlace) async -> LocalFile? { nil }
+  func modelSettingsAccess() async -> (any ModelSettingsAccess)? { modelSettings }
 
   func addTextItem(_ command: AddTextItem) async throws(HostError) -> Item { sample.items[0] }
   func deleteItems(_ command: DeleteItems) async throws(HostError) -> Done { Done() }

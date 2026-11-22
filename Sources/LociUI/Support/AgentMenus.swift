@@ -7,12 +7,14 @@ import SwiftUI
 /// for the whole app.
 struct RuntimeMenu: View {
   @Environment(\.host) private var host
+  @Environment(\.openPlace) private var openPlace
   @Environment(\.colorScheme) private var scheme
   /// Whether the agent can be chosen here too, or only the model and thinking.
   let choosesAgent: Bool
   /// What adding a file does; without it the menu has no such item.
   var attach: (() -> Void)?
   @State private var runtime: Feed<Runtime>?
+  @State private var equipment: Feed<MediaSetup>?
   @State private var installations: [AgentInstallation] = []
   @State private var models: [String] = []
 
@@ -37,11 +39,29 @@ struct RuntimeMenu: View {
     .accessibilityLabel(Text(.loci("talk.add")))
     .changesData()
     .subscribing(CurrentRuntime(), into: $runtime)
-    .task(id: runtime?.value?.provider) {
-      guard let provider = runtime?.value?.provider else { return }
+    .subscribing(MediaSettings(), into: $equipment)
+    .task(id: piInstallation) {
       installations = (try? await host.run(DetectAgents())) ?? []
-      models = (try? await host.run(AgentModels(provider: provider))) ?? []
     }
+    .task(id: modelRequest) {
+      guard let request = modelRequest else { return }
+      models = []
+      let found = (try? await host.run(AgentModels(provider: request.runtime.provider))) ?? []
+      if !Task.isCancelled { models = found }
+    }
+  }
+
+  private var piInstallation: ComponentStatus.Installation? {
+    equipment?.value?.components.first { $0.component == .bundledPi }?.installation
+  }
+
+  private struct ModelRequest: Hashable {
+    let runtime: Runtime
+    let installation: ComponentStatus.Installation?
+  }
+
+  private var modelRequest: ModelRequest? {
+    runtime?.value.map { ModelRequest(runtime: $0, installation: $0.provider == .bundledPi ? piInstallation : nil) }
   }
 
   @ViewBuilder private func choices(_ current: Runtime) -> some View {
@@ -49,7 +69,7 @@ struct RuntimeMenu: View {
       Picker(selection: provider(current)) {
         ForEach(Agents.choosable(installations, keeping: current.provider), id: \.self) { provider in
           Label {
-            Text(verbatim: Agents.name(of: provider))
+            Text(Agents.label(of: provider))
           } icon: {
             AgentMark.image(provider, in: scheme).map { Image(nsImage: $0).renderingMode(.original) }
           }
@@ -61,7 +81,7 @@ struct RuntimeMenu: View {
       .pickerStyle(.menu)
     }
     Picker(selection: model(current)) {
-      Text(.loci("agents.anyModel")).tag(String?.none)
+      if current.provider != .bundledPi { Text(.loci("agents.anyModel")).tag(String?.none) }
       ForEach(Agents.offered(models, keeping: current.model), id: \.self) { model in
         Text(verbatim: Agents.modelName(model)).tag(String?.some(model))
       }
@@ -86,6 +106,10 @@ struct RuntimeMenu: View {
     Binding {
       current.provider
     } set: { provider in
+      if provider == .bundledPi {
+        change(Runtime(provider: provider, effort: current.effort))
+        return
+      }
       Task {
         let models = (try? await host.run(AgentModels(provider: provider))) ?? []
         let kept = current.model.flatMap { models.contains($0) ? $0 : nil }
@@ -111,8 +135,17 @@ struct RuntimeMenu: View {
   }
 
   private func change(_ runtime: Runtime) {
-    Task { _ = try? await host.run(SetRuntime(runtime)) }
+    Task { await chooseRuntime(runtime, on: host, openPlace: openPlace) }
   }
+}
+
+@MainActor
+func chooseRuntime(_ runtime: Runtime, on host: any LociModel.Host, openPlace: OpenPlace) async {
+  guard (try? await host.run(SetRuntime(runtime))) != nil, runtime.provider == .bundledPi,
+    await host.modelSettingsAccess() != nil
+  else { return }
+  let installations = (try? await host.run(DetectAgents())) ?? []
+  if !Agents.bundledPiIsReady(installations) { openPlace(.settings(.models)) }
 }
 
 /// A round glyph in the field at the foot of a conversation, washed on hover.

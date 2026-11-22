@@ -5,8 +5,12 @@ extension JobLine.Activity {
   var name: LocalizedStringResource {
     switch self {
     case .fetching: .loci("job.fetching")
+    case .fetchingPage: .loci("stage.fetchPage")
+    case .extracting: .loci("stage.extract")
+    case .findingCover: .loci("stage.findCover")
     case .downloading: .loci("job.downloading")
     case .recognizing: .loci("job.recognizing")
+    case .separatingSpeakers: .loci("job.separatingSpeakers")
     case .translating: .loci("job.translating")
     case .outlining: .loci("job.outlining")
     case .queued: .loci("job.queued")
@@ -53,11 +57,15 @@ extension JobLine.Problem {
     case .network: .loci("job.network")
     case .outdated: .loci("job.failedOutdated")
     case .cookiesUnreadable: .loci("job.cookiesUnreadable")
+    case .noArticleText: .loci("job.noArticleText")
     case nil:
       switch stage {
-      case .resolve, .extract: .loci("job.failedFetch")
+      case .resolve, .fetchPage: .loci("job.failedFetch")
+      case .extract: .loci("job.failedExtract")
+      case .findCover: .loci("job.failedCover")
       case .download: .loci("job.failedDownload")
       case .transcribe: .loci("job.failedRecognize")
+      case .diarize: .loci("job.failedSeparateSpeakers")
       case .translate: .loci("job.failedTranslate")
       case .outline: .loci("job.failedOutline")
       }
@@ -71,7 +79,7 @@ extension JobLine.Problem {
     case .network: .loci("job.networkDetail")
     case .outdated: .loci("job.outdatedDetail")
     case .cookiesUnreadable: .loci("job.cookiesUnreadableDetail")
-    case nil: nil
+    case .noArticleText, nil: nil
     }
   }
 }
@@ -83,6 +91,7 @@ extension Component {
     case .ytDlp: "yt-dlp"
     case .ffmpeg: "FFmpeg"
     case .quickJS: "QuickJS"
+    case .bundledPi: "Pi"
     }
   }
 }

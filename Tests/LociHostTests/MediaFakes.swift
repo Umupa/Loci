@@ -8,6 +8,7 @@ import Synchronization
 struct FakeSite: Sendable {
   var title: String
   var site: String? = "Channel"
+  var description: String?
   var duration: Double? = 120
   var audio = false
   /// WebVTT for the site's own subtitles, in every language of `subtitleLanguages`.
@@ -34,6 +35,7 @@ struct FakeSite: Sendable {
       "formats": [format] + (sized ? Self.sizedFormats : []),
     ]
     if let site { info["channel"] = site }
+    if let description { info["description"] = description }
     if let duration { info["duration"] = duration }
     let data = (try? JSONSerialization.data(withJSONObject: info)) ?? Data()
     return String(decoding: data, as: UTF8.self)
@@ -139,6 +141,9 @@ final class FakePrograms: ProgramRunner {
 
 /// The network: images answer with a few bytes, downloads become small files.
 final class FakeNetwork: Network {
+  static let cover =
+    Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")
+    ?? Data()
   private let asked = Mutex<[URL]>([])
   let downloads = Latch(open: true)
   let images = Latch(open: true)
@@ -155,8 +160,8 @@ final class FakeNetwork: Network {
     asked.withLock { $0.append(url) }
     await images.wait()
     let response = HTTPURLResponse(
-      url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "image/jpeg"])
-    return (Data("jpeg".utf8), response ?? HTTPURLResponse())
+      url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "image/png"])
+    return (Self.cover, response ?? HTTPURLResponse())
   }
 
   func download(_ request: URLRequest, progress: @escaping @Sendable (Fraction?) -> Void) async throws(FetchError)
@@ -237,9 +242,11 @@ final class FakeTranscriber: Transcribing {
 
 /// Translates by numbering lines, outlines with one chapter and picks the first sentences or passages as key
 /// points, recording what it was asked.
-final class FakeTranscriptAgent: TranscriptAgent {
+final class FakeTranscriptAgent: RuntimeTranscriptAgent {
   private let asked = Mutex<[String]>([])
   private let readers = Mutex<[KeyPointReader]>([])
+  private let names = Mutex<[Int: String]>([:])
+  private let descriptions = Mutex<[String?]>([])
 
   var requests: [String] { asked.withLock { $0 } }
   var keyPointReaders: [KeyPointReader] { readers.withLock { $0 } }
@@ -251,6 +258,17 @@ final class FakeTranscriptAgent: TranscriptAgent {
     }
     if let after = batchesBeforeFailing.withLock({ $0 }), batch > after { throw .invalidRequest("the agent gave up") }
     return lines.map { "[\(language)] \($0)" }
+  }
+
+  var speakerDescriptions: [String?] { descriptions.withLock { $0 } }
+
+  func setSpeakerNames(_ names: [Int: String]) {
+    self.names.withLock { $0 = names }
+  }
+
+  func nameSpeakers(in transcript: Transcript, description: String?) async throws(HostError) -> [Int: String] {
+    descriptions.withLock { $0.append(description) }
+    return names.withLock { $0 }
   }
 
   func outline(_ transcript: Transcript, title: String) async throws(HostError) -> Outline {
@@ -313,12 +331,18 @@ final class FakeTranscriptAgent: TranscriptAgent {
 
 /// Fetches articles and papers from a fixed answer.
 struct FakeTextFetcher: TextFetching {
-  func article(at url: URL, html: String?) async throws(FetchError) -> FetchedArticle {
+  func articlePage(at url: URL, html: String?) async throws(FetchError) -> ArticlePage {
     if html == nil, url.path().contains("members") { throw FetchError(reason: "sign in to read", needsLogin: true) }
-    return FetchedArticle(
-      title: "Borg, Omega, and Kubernetes", authors: ["Brendan Burns"], site: "ACM Queue", published: nil,
-      language: "en", markdown: html ?? "# Borg, Omega, and Kubernetes\n\n![](images/figure-1.png)\n",
-      images: [FetchedFile(name: "figure-1.png", data: Data("png".utf8))])
+    return ArticlePage(
+      preview: LinkPreview(
+        url: url, title: "Borg, Omega, and Kubernetes", site: "ACM Queue", summary: nil, image: nil),
+      coverImages: []
+    ) {
+      return FetchedArticle(
+        title: "Borg, Omega, and Kubernetes", authors: ["Brendan Burns"], site: "ACM Queue", published: nil,
+        language: "en", markdown: html ?? "# Borg, Omega, and Kubernetes\n\n![](images/figure-1.png)\n",
+        images: [FetchedFile(name: "figure-1.png", data: Data("png".utf8))])
+    }
   }
 
   func paper(at url: URL) async throws(FetchError) -> FetchedPaper {

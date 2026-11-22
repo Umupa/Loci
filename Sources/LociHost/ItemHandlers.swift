@@ -90,7 +90,11 @@ extension LocalHost {
     guard let file = await hub.takeUpload(command.upload.id) else { throw .notFound("upload \(command.upload.id)") }
     let format = file.pathExtension.lowercased()
     guard SetCover.formats.contains(format) else { throw .invalidRequest("\(file.lastPathComponent) is not a picture") }
-    try attempt { try store.saveCover(copying: file, of: command.item) }
+    do {
+      try await library.context.covers.replace(command.item, with: file)
+    } catch {
+      throw HostError(error)
+    }
     await follow([.item(command.item)])
     return Done()
   }
@@ -104,7 +108,7 @@ extension LocalHost {
   }
 
   public func itemPage(_ id: EntityID) async throws(HostError) -> ItemPage {
-    let language = library.context.targetLanguage
+    let language = library.context.choice(of: id)?.translation?.language ?? library.context.targetLanguage
     let page = try attempt {
       let item = try store.item(id)
       guard item.kind == .article, let text = try store.fetchedContent(of: id) else {
@@ -116,16 +120,33 @@ extension LocalHost {
         translation: foreign ? try store.articleTranslation(of: id, into: language) : nil)
     }
     guard page.translatable else { return page }
+    let job = await library.queue.job(of: id)
+    let progress: TranslationProgress?
+    if let job, job.stage == .translate {
+      progress =
+        switch job.state {
+        case .queued: .running(Fraction(0))
+        case .running(let fraction, _): .running(fraction ?? Fraction(0))
+        case .failed(let failure): .failed(failure.reason)
+        case .waiting(.agent): .failed("No agent is available to translate on this Mac.")
+        case .paused, .waiting, .done: nil
+        }
+    } else {
+      progress = nil
+    }
     return ItemPage(
       item: page.item, text: page.text, translatable: true, translation: page.translation,
-      translating: await library.translator.progress(of: id))
+      translating: progress)
   }
 
   public func translateArticle(_ id: EntityID) async throws(HostError) -> Done {
     let page = try await itemPage(id)
     guard page.translatable else { throw .invalidRequest("\(page.item.title) is not an article in another language") }
-    await library.translator.start(id)
-    await follow([.item(id)])
+    do {
+      try await library.queue.requestArticleTranslation(id)
+    } catch {
+      throw HostError(error)
+    }
     return Done()
   }
 }

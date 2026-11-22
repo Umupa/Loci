@@ -13,7 +13,7 @@ struct PanelColumnView: View {
   /// Panels that start opened out, and the page a paging panel starts on, by name, for a snapshot.
   var opened: Set<String> = []
   var pages: [String: Int] = [:]
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.reducesMotion) private var reduceMotion
   @State private var position = ScrollPosition(edge: .top)
 
   var body: some View {

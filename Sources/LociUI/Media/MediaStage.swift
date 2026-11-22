@@ -17,6 +17,8 @@ struct StageModel {
   /// How subtitles look is open beside the stage.
   let styling: Bool
   let openStyle: () -> Void
+  /// Plays or pauses, through the window, where what plays is kept.
+  let toggle: () -> Void
 }
 
 /// A video's page: the picture, the progress bar, the controls, and the title with where it comes from.
@@ -87,7 +89,7 @@ struct VideoStage: View {
       RoundIconButton(
         symbol: model.player.playing ? Symbols.pause : Symbols.play,
         title: model.player.playing ? .loci("player.pause") : .loci("player.play"), symbolSize: 18
-      ) { model.player.toggle() }
+      ) { model.toggle() }
       .disabled(!model.player.canPlay)
       if !compact {
         RoundIconButton(symbol: Symbols.back5, title: .loci("player.back")) { model.player.skip(by: .seconds(-5)) }

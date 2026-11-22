@@ -22,7 +22,8 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
 
   /// defuddle is added to every page as soon as its document is parsed, in a world of its own that the
   /// page's scripts cannot see, and says when it is there.
-  private init(store: WKWebsiteDataStore) throws(FetchError) {
+  private init(source: Source, store: WKWebsiteDataStore) throws(FetchError) {
+    self.source = source
     let configuration = WKWebViewConfiguration()
     configuration.websiteDataStore = store
     configuration.mediaTypesRequiringUserActionForPlayback = .all
@@ -37,30 +38,56 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     webView.navigationDelegate = self
   }
 
-  /// Gives up after `timeout`, counting from the start of loading to the end of extraction.
+  let source: Source
+  var address: URL {
+    switch source {
+    case .url(let requested): webView.url ?? requested
+    case .html(_, let base): base
+    }
+  }
+
   static func read(
     _ source: Source, timeout: Duration, store: WKWebsiteDataStore = .default()
   ) async throws(FetchError) -> Extraction {
-    let reader = try PageReader(store: store)
-    let deadline = ContinuousClock.now + timeout
-    defer {
-      reader.webView.stopLoading()
-      reader.webView.configuration.userContentController.removeAllScriptMessageHandlers()
-    }
-    let timer = Task { @MainActor [weak reader] in
-      try await Task.sleep(for: timeout)
-      reader?.finishLoading(.failure(FetchError(reason: "The page took too long to load.")))
-    }
-    defer { timer.cancel() }
-    try await reader.load(source).get()
-    if case .url = source { await reader.waitForTextToSettle() }
-    guard ContinuousClock.now < deadline else {
-      throw FetchError(reason: "The page took too long to load.")
-    }
-    return try await reader.extract(at: source)
+    try await open(source, timeout: timeout, store: store).extract()
   }
 
-  private func load(_ source: Source) async -> Result<Void, FetchError> {
+  static func open(
+    _ source: Source, timeout: Duration, store: WKWebsiteDataStore = .default()
+  ) async throws(FetchError) -> PageReader {
+    let reader = try PageReader(source: source, store: store)
+    defer { reader.webView.configuration.userContentController.removeAllScriptMessageHandlers() }
+    let timer = Task { @MainActor [weak reader] in
+      try await Task.sleep(for: timeout)
+      reader?.finishLoading(.failure(FetchError(reason: "The page took too long to load.", cause: .network)))
+    }
+    defer { timer.cancel() }
+    let loaded = await withTaskCancellationHandler {
+      await reader.load()
+    } onCancel: {
+      Task { @MainActor in
+        reader.finishLoading(.failure(FetchError(reason: "Page loading was cancelled.")))
+        reader.webView.stopLoading()
+      }
+    }
+    do {
+      try loaded.get()
+    } catch {
+      reader.webView.stopLoading()
+      throw error
+    }
+    try reader.checkSignIn()
+    return reader
+  }
+
+  func head() async -> String {
+    switch source {
+    case .url: (try? await webView.evaluateJavaScript("document.head?.outerHTML ?? ''")) as? String ?? ""
+    case .html(let html, _): html
+    }
+  }
+
+  private func load() async -> Result<Void, FetchError> {
     await withCheckedContinuation { continuation in
       loading = continuation
       switch source {
@@ -86,6 +113,7 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   private func waitForTextToSettle() async {
     var last = -1
     for _ in 0..<8 {
+      guard !Task.isCancelled else { return }
       let length = (try? await webView.evaluateJavaScript("document.body ? document.body.innerText.length : 0")) as? Int
       if let length, length == last, length > 0 { return }
       last = length ?? -1
@@ -93,7 +121,10 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     }
   }
 
-  private func extract(at source: Source) async throws(FetchError) -> Extraction {
+  func extract() async throws(FetchError) -> Extraction {
+    defer { webView.stopLoading() }
+    if case .url = source { await waitForTextToSettle() }
+    try checkSignIn()
     let arguments: [String: Any] =
       switch source {
       case .url: ["html": NSNull(), "base": NSNull()]
@@ -108,10 +139,13 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     guard let json = reply as? String,
       let extraction = try? JSONDecoder().decode(Extraction.self, from: Data(json.utf8))
     else { throw FetchError(reason: "The page's text could not be read.") }
-    if case .url(let requested) = source, let landed = webView.url, Self.isSignInPage(landed, requested: requested) {
+    return extraction
+  }
+
+  private func checkSignIn() throws(FetchError) {
+    if case .url(let requested) = source, Self.isSignInPage(address, requested: requested) {
       throw FetchError(reason: "The site asks you to sign in.", needsLogin: true)
     }
-    return extraction
   }
 
   /// defuddle takes the page's cover image out of the text, expecting it to be shown above the article. Loci
@@ -149,7 +183,7 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     switch status {
     case 200..<400: nil
     case 401, 403: FetchError(reason: "The site refused the page (HTTP \(status)).", needsLogin: true)
-    case 404, 410: FetchError(reason: "The page does not exist (HTTP \(status)).")
+    case 404, 410: FetchError(reason: "The page does not exist (HTTP \(status)).", cause: .unavailable)
     default: FetchError(reason: "The site answered with an error (HTTP \(status)).")
     }
   }
@@ -179,6 +213,6 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   }
 
   private static func loadFailure(_ error: any Error) -> FetchError {
-    FetchError(reason: "The page could not be loaded: \(error.localizedDescription)")
+    FetchError(reason: "The page could not be loaded: \(error.localizedDescription)", cause: .network)
   }
 }

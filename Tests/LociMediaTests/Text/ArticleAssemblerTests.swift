@@ -96,7 +96,7 @@ struct ArticleAssemblerTests {
   }
 
   @Test func aPageWithNoTextFails() async throws {
-    await #expect(throws: FetchError(reason: "The page has no text to read.")) {
+    await #expect(throws: FetchError(reason: "The page has no text to read.", cause: .noArticleText)) {
       try await Self.assemble(Extraction(title: "S", markdown: " \n "))
     }
   }

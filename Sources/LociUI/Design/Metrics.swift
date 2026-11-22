@@ -32,9 +32,8 @@ enum Radius {
   static let message: CGFloat = 24
   /// The field at the foot of a conversation, a capsule while it holds one line.
   static let composer: CGFloat = 24
-  /// A row of the sidebar, and Loci's own row at its top.
+  /// A row of the sidebar.
   static let sidebarRow: CGFloat = 9
-  static let sidebarLoci: CGFloat = 12
   /// A sheet dropped over the window.
   static let sheet: CGFloat = 24
   static let importSheet: CGFloat = 22
@@ -67,7 +66,6 @@ enum Size {
   static let thoughtFieldWidth: CGFloat = 300
   static let iconButton: CGFloat = 28
   static let avatarTiny: CGFloat = 16
-  static let thumbnailSymbol: CGFloat = 30
   static let emptySymbol: CGFloat = 44
   /// The round buttons in the field at the foot of a conversation.
   static let composerButton: CGFloat = 32
@@ -96,10 +94,16 @@ enum Size {
   static let scrubberHeight: CGFloat = 22
   static let knob: CGFloat = 12
   static let controlButton: CGFloat = 32
-  static let podcastCover: CGFloat = 300
-  static let podcastColumn: CGFloat = 460
-  static let podcastPlay: CGFloat = 52
-  static let podcastButton: CGFloat = 38
+  /// The cover at the top of an episode's page.
+  static let episodeCover: CGFloat = 112
+  /// The column an episode's page reads in.
+  static let episodeColumn: CGFloat = 620
+  static let episodePlay: CGFloat = 36
+  /// The play bar along the foot of the window, and the cover in it.
+  static let playBar = CGSize(width: 640, height: 56)
+  static let playBarCover: CGFloat = 40
+  /// A video left while playing, in a corner of the window.
+  static let videoCorner = CGSize(width: 320, height: 180)
   /// The column a transcript keeps for the time of each sentence.
   static let timeColumn: CGFloat = 40
 
@@ -171,4 +175,10 @@ enum Motion {
   static let breathLow = 0.3
   /// A rebuild finishing sooner than this is not shown at all, so nothing flickers.
   static let quietDelay = Duration.milliseconds(300)
+}
+
+extension EnvironmentValues {
+  @Entry var suppressMotion = false
+
+  var reducesMotion: Bool { suppressMotion || accessibilityReduceMotion }
 }

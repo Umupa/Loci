@@ -6,15 +6,17 @@ import LociStore
 /// The host in this process, over the Loci folder and its database.
 ///
 /// Commands run concurrently: the store and the database are values, and the database serializes its
-/// own writes. All mutable state lives in the `Hub`.
+/// own writes. The hub tracks subscriptions and the cover reader remembers where each item lives.
 public final class LocalHost: LociModel.Host, CommandHandler {
   let store: Store
   let database: StoreDatabase
+  let coverReader: CoverReader
   let environment: HostEnvironment
   let hub: Hub
   let loci: LociAgent
   let panels: PanelKeeper
   let library: LibraryRuntime
+  let agents: HostAgents
   /// Previews of the links Loci's replies show as cards.
   let links: LinkPreviewReader
 
@@ -23,18 +25,20 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   ) {
     self.store = store
     self.database = database
+    coverReader = CoverReader(store)
     self.environment = environment
     let hub = Hub(health: Health(database: .rebuilding, readingStateLost: readingStateLost, fileProblems: []))
     self.hub = hub
+    let follower = Follower(store: store, database: database, hub: hub)
+    let library = LibraryRuntime(store: store, database: database, environment: environment, follower: follower)
+    self.library = library
+    let agents = HostAgents(store: store, environment: environment, library: library.context)
+    self.agents = agents
     let context = AgentContext(
-      store: store, database: database, environment: environment,
-      follower: Follower(store: store, database: database, hub: hub), prompts: prompts)
+      store: store, database: database, environment: environment, follower: follower, prompts: prompts, agents: agents)
     let loci = LociAgent(context: context)
     self.loci = loci
     panels = PanelKeeper(context: context) { await loci.isWorking }
-    library = LibraryRuntime(
-      store: store, database: database, environment: environment,
-      follower: Follower(store: store, database: database, hub: hub))
     links = LinkPreviewReader(network: environment.media.network)
   }
 
@@ -92,6 +96,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     let host = LocalHost(
       store: store, database: database, environment: environment, prompts: prompts, readingStateLost: readingStateLost)
     let changes = store.changes()
+    let coverFolders = store.foldersForCoverBackfill()
     let work = Task {
       await host.rebuild(using: rebuild)
       for await batch in changes { await host.follow(batch) }
@@ -111,13 +116,16 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     }
     await host.discardSetAside()
     await host.library.queue.resume()
+    if let coverFolders {
+      await host.hub.hold(Task { await host.library.context.backfillCovers(in: coverFolders) })
+    }
+    await host.provisionPiIfSelected(retry: false)
     return host
   }
 
   /// Stops watching the folder and stops Loci. Subscriptions stay open but receive nothing more.
   public func close() async {
     await library.queue.close()
-    await library.translator.close()
     await library.picker.close()
     await discardSetAside()
     await panels.close()

@@ -27,6 +27,10 @@ public struct HostEnvironment: Sendable {
   public let ticks: @Sendable () -> AsyncStream<Void>
   /// The programs, network and recognizer the library uses to fetch and transcribe.
   public let media: MediaEnvironment
+  public let modelKeys: (any ModelKeyStore)?
+  public let modelClient: ModelClient
+  public let modelParallelism: Int
+  public let bundledPi: BundledPiEnvironment?
   /// Waits a moment: how long a running turn holds what it said before showing it, so that the words
   /// streaming in are shown a few at a time.
   public let wait: @Sendable (Duration) async -> Void
@@ -43,7 +47,9 @@ public struct HostEnvironment: Sendable {
     ticks: @escaping @Sendable () -> AsyncStream<Void> = { AsyncStream { $0.finish() } },
     media: MediaEnvironment = .disconnected,
     wait: (@Sendable (Duration) async -> Void)? = nil,
-    tool: AgentTool? = nil
+    tool: AgentTool? = nil,
+    modelKeys: (any ModelKeyStore)? = nil, modelClient: ModelClient = ModelClient(), modelParallelism: Int = 3,
+    bundledPi: BundledPiEnvironment? = nil
   ) {
     self.newID = newID
     self.now = now
@@ -58,6 +64,10 @@ public struct HostEnvironment: Sendable {
     self.media = media
     self.wait = wait ?? { duration in try? await Task.sleep(for: duration) }
     self.tool = tool
+    self.modelKeys = modelKeys
+    self.modelClient = modelClient
+    self.modelParallelism = max(1, modelParallelism)
+    self.bundledPi = bundledPi
   }
 
   /// The real clock and time zone, fresh identifiers, the Trash, and the agent programs installed on this Mac.
@@ -68,7 +78,8 @@ public struct HostEnvironment: Sendable {
       discard: .toTrash, agents: { await installed.driver(for: $0) },
       unavailability: { await installed.unavailability(of: $0) },
       detectAgents: { await installed.detect(again: $0) }, models: { await installed.models(of: $0) },
-      ticks: { everyMinute() }, media: .system(agents: { await installed.driver(for: $0) }), tool: tool)
+      ticks: { everyMinute() }, media: .system(agents: { await installed.driver(for: $0) }), tool: tool,
+      modelKeys: ModelKeychain(serviceName: "com.loci.native.dev.model-service"), bundledPi: BundledPiEnvironment())
   }
 
   private static func everyMinute() -> AsyncStream<Void> {

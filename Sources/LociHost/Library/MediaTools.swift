@@ -38,16 +38,16 @@ extension LibraryContext {
 struct LibraryRuntime: Sendable {
   let context: LibraryContext
   let queue: JobQueue
-  let translator: ArticleTranslator
   let picker: KeyPointPicker
 
   init(store: Store, database: StoreDatabase, environment: HostEnvironment, follower: Follower) {
-    let equipment = Equipment(environment: environment.media) { await follower.follow($0) }
+    let equipment = Equipment(environment: environment) { await follower.follow($0) }
     context = LibraryContext(
       store: store, database: database, environment: environment, equipment: equipment, streams: StreamCache(),
-      probes: Probes(), notify: { await follower.follow($0) })
+      probes: Probes(), covers: LibraryCovers(store: store, network: environment.media.network),
+      models: ModelServices(store: store, environment: environment),
+      notify: { await follower.follow($0) })
     queue = JobQueue(context: context)
-    translator = ArticleTranslator(context: context, gate: queue.gates.agents)
     picker = KeyPointPicker(context: context, gate: queue.gates.agents)
   }
 }

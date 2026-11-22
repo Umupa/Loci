@@ -61,10 +61,10 @@ struct ComponentTests {
 
   @Test func eachComponentDownloadsFromWhereVimpoGetsIt() {
     #expect(ComponentPackage.of(.ytDlp, arm: true).urls.first?.lastPathComponent == "yt-dlp_macos.zip")
-    #expect(ComponentPackage.of(.ytDlp, arm: true).isArchive)
+    #expect(ComponentPackage.of(.ytDlp, arm: true).format == .zip)
     #expect(ComponentPackage.of(.ffmpeg, arm: true).urls.first?.path().contains("/macos/arm64/release/") == true)
     #expect(ComponentPackage.of(.quickJS, arm: false).urls.first?.lastPathComponent == "qjs-darwin-x86_64")
-    #expect(!ComponentPackage.of(.quickJS, arm: true).isArchive)
+    #expect(ComponentPackage.of(.quickJS, arm: true).format == .executable)
   }
 
   @Test func eachSpeechModelHasItsOwnWhisperFile() {

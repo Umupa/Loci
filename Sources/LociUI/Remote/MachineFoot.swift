@@ -50,7 +50,7 @@ struct MachineFoot: View {
 
 /// Amber and pulsing while a Mac is dialed again, gray while it is offline.
 struct LinkDot: View {
-  @Environment(\.standIns) private var standIns
+  @Environment(\.reducesMotion) private var reduceMotion
   let link: LociModel.Link
   @State private var pulsing = false
 
@@ -64,7 +64,7 @@ struct LinkDot: View {
             .stroke(Palette.accent.opacity(pulsing ? 0 : 0.6), lineWidth: 1)
             .scaleEffect(pulsing ? 2.6 : 1)
             .animation(.easeOut(duration: 1.4).repeatForever(autoreverses: false), value: pulsing)
-            .onAppear { pulsing = standIns == nil }
+            .onAppear { pulsing = !reduceMotion }
         }
       }
   }

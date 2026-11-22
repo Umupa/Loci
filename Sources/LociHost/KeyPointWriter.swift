@@ -1,7 +1,7 @@
 import LociModel
 
-extension AgentTranscriptAgent {
-  public func keyPoints(of source: KeyPointSource, count: KeyPointCount, for reader: KeyPointReader)
+extension TranscriptWriting {
+  func keyPoints(of source: KeyPointSource, count: KeyPointCount, for reader: KeyPointReader)
     async throws(HostError) -> [KeyPoint]
   {
     let (units, title, size): (KeyPointUnits, String, Int) =
@@ -20,14 +20,17 @@ extension AgentTranscriptAgent {
       }
     }
     var candidates: [KeyPoint] = []
-    for (number, piece) in pieces.enumerated() {
+    let pick = { @Sendable (number: Int, piece: Range<Int>) async throws(HostError) -> [KeyPoint] in
       let suggest = 0...wanted.upperBound
       let prompt = KeyPointPrompts.pick(
         units.lines(piece), of: units, title: title, count: suggest, for: reader, piece: (number + 1, pieces.count))
-      candidates += try await answer(prompt, piece: number + 1, of: pieces.count) {
+      return try await answer(prompt, piece: number + 1, of: pieces.count) {
         reply throws(TranscriptAnswerError) in
         try KeyPointAnswers.points(in: reply, of: units, within: piece, count: suggest)
       }
+    }
+    try await Batches.run(pieces, parallelism: parallelism, work: pick) { (found: [KeyPoint]) async throws(HostError) in
+      candidates += found
     }
     guard !candidates.isEmpty else { throw .invalidRequest("The agent found nothing worth picking.") }
     let final = min(wanted.lowerBound, candidates.count)...min(wanted.upperBound, candidates.count)

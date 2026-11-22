@@ -60,9 +60,12 @@ enum Words {
   private static func stage(_ stage: Job.Stage) -> String {
     switch stage {
     case .resolve: "reading the link"
+    case .fetchPage: "fetching the page"
+    case .findCover: "finding a cover"
     case .extract: "taking the text out of the page"
     case .download: "downloading"
     case .transcribe: "transcribing"
+    case .diarize: "separating speakers"
     case .translate: "translating"
     case .outline: "finding chapters"
     }

@@ -5,19 +5,37 @@ import LociModel
 /// description.
 public enum PageMeta {
   public static func preview(html: String, at url: URL) -> LinkPreview {
-    let head = html.range(of: "</head>", options: .caseInsensitive).map { String(html[..<$0.lowerBound]) } ?? html
+    let head = head(in: html)
     let tags = metaTags(in: head)
     func first(_ names: String...) -> String? {
       names.lazy.compactMap { tags[$0] }.first { !$0.isEmpty }
     }
-    let image = first("og:image", "og:image:url", "twitter:image").flatMap { URL(string: $0, relativeTo: url) }
     let site = first("og:site_name") ?? domain(of: url)
     return LinkPreview(
       url: url,
       title: (first("og:title", "twitter:title") ?? title(in: head)).map { trimmed($0, site: site, url: url) },
       site: site,
       summary: first("og:description", "twitter:description", "description"),
-      image: image?.absoluteURL)
+      image: coverImages(in: tags, at: url).first)
+  }
+
+  public static func coverImages(html: String, at url: URL) -> [URL] {
+    coverImages(in: metaTags(in: head(in: html)), at: url)
+  }
+
+  private static func coverImages(in tags: [String: String], at url: URL) -> [URL] {
+    var found: [URL] = []
+    for name in ["og:image", "og:image:url", "og:image:secure_url", "twitter:image", "twitter:image:src"] {
+      guard let value = tags[name], !value.isEmpty,
+        let image = URL(string: value, relativeTo: url)?.absoluteURL, image.isWebLink, !found.contains(image)
+      else { continue }
+      found.append(image)
+    }
+    return found
+  }
+
+  private static func head(in html: String) -> String {
+    html.range(of: "</head>", options: .caseInsensitive).map { String(html[..<$0.lowerBound]) } ?? html
   }
 
   /// A title without the site's name before or after it, which the card says on its own line; and for a

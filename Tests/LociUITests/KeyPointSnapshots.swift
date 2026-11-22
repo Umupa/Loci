@@ -6,8 +6,8 @@ import Testing
 
 @testable import LociUI
 
-/// The key points page, playing only them, an article folded to them, how subtitles look, and a podcast in
-/// large words; in light and dark.
+/// The key points page, playing only them, an article folded to them, and how subtitles look; in light and
+/// dark.
 @MainActor
 @Suite(.serialized, .onStage)
 struct KeyPointSnapshots {
@@ -15,10 +15,10 @@ struct KeyPointSnapshots {
     LibrarySnapshots.reading(item)
   }
 
-  /// Subtitles over the picture and the podcast's large words, or none.
-  static func defaults(subtitles: Bool = true) -> UserDefaults {
+  /// Subtitles over the picture.
+  static func defaults() -> UserDefaults {
     let defaults = LibrarySnapshots.defaults(panel: true)
-    defaults.set(subtitles, forKey: "subtitlesShown")
+    defaults.set(true, forKey: "subtitlesShown")
     defaults.set(SubtitleMode.both.rawValue, forKey: SubtitleMode.key)
     return defaults
   }
@@ -74,32 +74,5 @@ struct KeyPointSnapshots {
     try await LibrarySnapshots.shoot(
       "subtitle-style", library, at: Self.reading(library.video.id), appearance: appearance,
       standIns: StandIns(moment: MediaMoment(styling: true)), defaults: Self.defaults())
-  }
-
-  /// S-S5: the same with the panel folded away, the words and the cover larger.
-  @Test(arguments: Snapshot.Appearance.allCases)
-  func podcastWordsWide(appearance: Snapshot.Appearance) async throws {
-    let library = try SampleLibrary()
-    try await LibrarySnapshots.shoot(
-      "podcast-words-wide", library, at: Self.reading(library.podcast.id), appearance: appearance,
-      standIns: StandIns(moment: MediaMoment(panelFolded: true)), defaults: Self.defaults())
-  }
-
-  /// S-S5: a podcast with subtitles on, in large words over the cover's glow, the panel open beside it.
-  @Test(arguments: Snapshot.Appearance.allCases)
-  func podcastWords(appearance: Snapshot.Appearance) async throws {
-    let library = try SampleLibrary()
-    try await LibrarySnapshots.shoot(
-      "podcast-words", library, at: Self.reading(library.podcast.id), appearance: appearance,
-      standIns: StandIns(moment: MediaMoment(panel: .keyPoints)), defaults: Self.defaults())
-  }
-
-  /// S-S5: with subtitles off the podcast is its large cover again.
-  @Test(arguments: Snapshot.Appearance.allCases)
-  func podcastCover(appearance: Snapshot.Appearance) async throws {
-    let library = try SampleLibrary()
-    try await LibrarySnapshots.shoot(
-      "podcast-cover", library, at: Self.reading(library.podcast.id), appearance: appearance,
-      standIns: StandIns(moment: MediaMoment()), defaults: Self.defaults(subtitles: false))
   }
 }

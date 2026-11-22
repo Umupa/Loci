@@ -3,34 +3,6 @@ import LociModel
 
 /// What the transcript agent is asked. Each prompt ends with the exact JSON shape wanted.
 enum TranscriptPrompts {
-  static func translation(of lines: [String], into language: String) -> String {
-    """
-    Translate each line of this transcript into the language with BCP 47 tag `\(language)`. Translate the \
-    meaning naturally, keep technical terms recognizable, and keep one output line for each input line, in the \
-    same order: the answer has exactly \(lines.count) lines, none of them empty.
-
-    Return only one JSON object, no prose around it: {"lines": ["…", …]}
-
-    The lines:
-    \(json(["lines": lines]))
-    """
-  }
-
-  static func translation(ofPassages passages: [String], into language: String) -> String {
-    """
-    Translate each passage of this article into the language with BCP 47 tag `\(language)`. Each passage is \
-    Markdown: a heading or a paragraph. Translate the meaning naturally and keep technical terms recognizable. \
-    Keep the Markdown as it is: heading marks, emphasis, links and their addresses, inline code and formulas \
-    stay unchanged around the translated words. Keep one output passage for each input passage, in the same \
-    order: the answer has exactly \(passages.count) passages, none of them empty.
-
-    Return only one JSON object, no prose around it: {"lines": ["…", …]}
-
-    The passages:
-    \(json(["lines": passages]))
-    """
-  }
-
   static func outline(of segments: [Transcript.Segment], title: String, piece: Int, of pieces: Int) -> String {
     let from = seconds(segments.first?.start ?? .zero)
     let to = seconds(segments.last?.end ?? .zero)
@@ -53,7 +25,7 @@ enum TranscriptPrompts {
     String(format: "%.1f", duration.inSeconds)
   }
 
-  private static func json(_ value: [String: [String]]) -> String {
+  static func json(_ value: some Encodable) -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
     return (try? encoder.encode(value)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
@@ -97,7 +69,7 @@ enum TranscriptAnswers {
     let slack = Duration.seconds(1)
     do {
       let chapters = try answer.chapters.map { chapter throws -> Outline.Chapter in
-        let at = time(chapter.start)
+        let at = try time(chapter.start)
         guard at >= start - slack, at <= end else {
           throw TranscriptAnswerError("a chapter starts at \(chapter.start)s, outside this part")
         }
@@ -125,8 +97,11 @@ enum TranscriptAnswers {
     }
   }
 
-  static func time(_ seconds: Double) -> Duration {
-    .milliseconds(Int((seconds * 1000).rounded()))
+  static func time(_ seconds: Double) throws(TranscriptAnswerError) -> Duration {
+    guard let milliseconds = Int(exactly: (seconds * 1000).rounded()) else {
+      throw TranscriptAnswerError("a timestamp is outside the supported range")
+    }
+    return .milliseconds(milliseconds)
   }
 }
 

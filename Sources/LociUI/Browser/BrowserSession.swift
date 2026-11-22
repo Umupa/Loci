@@ -12,6 +12,8 @@ import WebKit
 final class BrowserSession {
   private(set) var tabs: [BrowserTab]
   private(set) var current: BrowserTab
+  /// Pages opened over a conversation, outside the tab strip until one is kept.
+  @ObservationIgnored private(set) var peeks: [BrowserTab] = []
   /// A browser whose sign-ins the start page offers, until the reader answers.
   private(set) var signInOffer: SignInBrowser?
   /// Goes up each time the address field should take the cursor.
@@ -42,6 +44,34 @@ final class BrowserSession {
     guard let url else { return }
     if !current.atStart || current.address != nil { newTab() }
     current.open(url)
+  }
+
+  /// A page opened over a conversation: signed in as the browser is and watched the same way, but not one of
+  /// the tabs. Links it opens in a new window stay in it.
+  func peek(_ url: URL) -> BrowserTab {
+    let tab = BrowserTab()
+    tab.open(url)
+    peeks.append(tab)
+    return tab
+  }
+
+  /// Closes a page opened over a conversation.
+  func endPeek(_ tab: BrowserTab) {
+    guard let index = peeks.firstIndex(where: { $0 === tab }) else { return }
+    peeks.remove(at: index)
+    tab.view?.stopLoading()
+  }
+
+  /// Makes a page opened over a conversation the tab in front, where it is, with its way back.
+  func keep(_ tab: BrowserTab) {
+    guard let index = peeks.firstIndex(where: { $0 === tab }) else { return }
+    peeks.remove(at: index)
+    if current.atStart, current.address == nil, let blank = tabs.firstIndex(where: { $0 === current }) {
+      tabs[blank] = tab
+    } else {
+      tabs.insert(tab, at: (tabs.firstIndex { $0 === current } ?? tabs.count - 1) + 1)
+    }
+    current = tab
   }
 
   /// Goes to what was typed: an address as it is, a bare domain over https, anything else as a search.
@@ -127,8 +157,15 @@ final class BrowserSession {
     for tab in tabs where tab.view?.url != nil { tab.reload() }
   }
 
-  /// A tab for a window a page opened, beside the page, with the configuration WebKit gives.
-  fileprivate func popUp(with configuration: WKWebViewConfiguration) -> WKWebView {
+  /// A tab for a window a page opened, beside the page, with the configuration WebKit gives. A page opened
+  /// over a conversation goes there itself instead.
+  fileprivate func popUp(
+    from opener: WKWebView, with configuration: WKWebViewConfiguration, for request: URLRequest
+  ) -> WKWebView? {
+    if peeks.contains(where: { $0.view === opener }) {
+      opener.load(request)
+      return nil
+    }
     let made = WKWebView(frame: .zero, configuration: configuration)
     prepare(made)
     newTab()
@@ -137,7 +174,11 @@ final class BrowserSession {
   }
 
   fileprivate func tab(showing view: WKWebView) -> BrowserTab? {
-    tabs.first { $0.view === view }
+    tabs.first { $0.view === view } ?? peeks.first { $0.view === view }
+  }
+
+  fileprivate func peeking(_ tab: BrowserTab) -> Bool {
+    peeks.contains { $0 === tab }
   }
 
   private func prepare(_ view: WKWebView) {
@@ -219,12 +260,12 @@ private final class PageWatcher: NSObject, WKNavigationDelegate, WKUIDelegate, W
     _ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
     for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures
   ) -> WKWebView? {
-    session?.popUp(with: configuration)
+    session?.popUp(from: webView, with: configuration, for: navigationAction.request)
   }
 
   /// A window that closes itself, such as a finished sign-in, closes its tab.
   func webViewDidClose(_ webView: WKWebView) {
-    guard let session, let tab = session.tab(showing: webView) else { return }
+    guard let session, let tab = session.tab(showing: webView), !session.peeking(tab) else { return }
     session.close(tab)
   }
 

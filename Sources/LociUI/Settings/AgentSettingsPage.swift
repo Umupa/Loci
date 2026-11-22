@@ -5,6 +5,7 @@ import SwiftUI
 /// chosen, and its model and thinking effort. One setting for the whole app.
 struct AgentSettingsPage: View {
   @Environment(\.host) private var host
+  @Environment(\.openPlace) private var openPlace
   @State private var installations: [AgentInstallation]?
   @State private var runtime: Feed<Runtime>?
   @State private var models: [String] = []
@@ -20,7 +21,7 @@ struct AgentSettingsPage: View {
               }
             }
           }
-          SettingsGroup(title: LocalizedStringResource(stringLiteral: Agents.name(of: current.provider))) {
+          SettingsGroup(title: Agents.label(of: current.provider)) {
             SettingsRow {
               Text(.loci("agents.model"))
             } trailing: {
@@ -50,9 +51,11 @@ struct AgentSettingsPage: View {
     }
     .subscribing(CurrentRuntime(), into: $runtime)
     .task { installations = (try? await host.run(DetectAgents())) ?? [] }
-    .task(id: runtime?.value?.provider) {
+    .task(id: runtime?.value) {
       guard let provider = runtime?.value?.provider else { return }
-      models = (try? await host.run(AgentModels(provider: provider))) ?? []
+      models = []
+      let found = (try? await host.run(AgentModels(provider: provider))) ?? []
+      if !Task.isCancelled { models = found }
     }
   }
 
@@ -73,7 +76,7 @@ struct AgentSettingsPage: View {
   }
 
   private func change(_ runtime: Runtime) {
-    Task { _ = try? await host.run(SetRuntime(runtime)) }
+    Task { await chooseRuntime(runtime, on: host, openPlace: openPlace) }
   }
 }
 
@@ -85,7 +88,7 @@ private struct AgentRow: View {
 
   var body: some View {
     Group {
-      if isInstalled {
+      if isInstalled || installation.provider == .bundledPi {
         Button(action: choose) { row.contentShape(Rectangle()) }
           .buttonStyle(.plain)
       } else {
@@ -100,7 +103,7 @@ private struct AgentRow: View {
   private var row: some View {
     SettingsRow {
       AgentMark(provider: installation.provider)
-      Text(verbatim: Agents.name(of: installation.provider))
+      Text(Agents.label(of: installation.provider))
         .foregroundStyle(isInstalled ? Palette.ink : Palette.inkMuted)
       if let version {
         Text(verbatim: version).font(.system(size: 11).monospaced()).foregroundStyle(Palette.inkMuted)

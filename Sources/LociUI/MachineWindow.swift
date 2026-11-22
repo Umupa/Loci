@@ -20,8 +20,8 @@ struct MachineWindow: View {
   @State private var deletions = Deletions()
   @State private var linkPreviews = LinkPreviews()
   @State private var panelPictures = PanelPictures()
-  @State private var panelColumn: Feed<PanelColumn>?
   @State private var browser: BrowserSession
+  @State private var nowPlaying = NowPlaying()
   @AppStorage(PaneWidth.sidebar.key) private var sidebarWidth = Double(PaneWidth.sidebar.ideal)
   @AppStorage("sidebarShown") private var sidebarPreferred = true
   @AppStorage("panelColumnShown") private var panelColumnPreferred = true
@@ -57,11 +57,11 @@ struct MachineWindow: View {
       .frame(minWidth: Size.windowMinimum.width, minHeight: Size.windowMinimum.height)
       .subscribing(AllItems(), into: $items)
       .subscribing(HealthReport(), into: $health)
-      .subscribing(WatchPanelColumn(), into: $panelColumn)
       .subscribing(LociWorking(), into: $status)
       .subscribing(LociModel.LociAvatar(), into: $avatar)
       .subscribing(SavingNow(), into: $saving)
       .onAppear(perform: restore)
+      .task { await openModelSetup() }
       .onChange(of: window) { memory.remember(window) }
       .onChange(of: itemIDs) { _, items in
         if let items { window = window.keeping(items: items) }
@@ -76,6 +76,7 @@ struct MachineWindow: View {
       .environment(\.linkPreviews, linkPreviews)
       .environment(\.panelPictures, panelPictures)
       .environment(\.browser, browser)
+      .environment(\.nowPlaying, nowPlaying)
       .environment(\.lociFace, face)
       .environment(\.showFailure, ShowFailure { dialogs.failure = $0 })
       .takingIn(takeIn)
@@ -90,6 +91,9 @@ struct MachineWindow: View {
         placeView.environment(\.openPlace, openPlace)
       } destination: { page in
         ItemScreen(destination: page).environment(\.openPlace, openPlace)
+      }
+      .nowPlaying(nowPlaying, items: items?.value ?? [], front: window.pages.last?.itemID) {
+        window = window.opening($0)
       }
     }
     .onGeometryChange(for: CGFloat.self) {
@@ -130,7 +134,7 @@ struct MachineWindow: View {
   /// The sidebar's rows, above its foot.
   private var sidebarList: some View {
     Sidebar(
-      place: placeBinding, lociChosen: lociChosen, working: status?.value?.working == true,
+      place: placeBinding, lociChosen: lociChosen, work: status?.value?.work,
       chooseLoci: { window = window.choosingLoci() }
     )
     .safeAreaInset(edge: .top, spacing: 0) {
@@ -204,7 +208,7 @@ struct MachineWindow: View {
     case .talk:
       TalkScreen(
         focusRequest: focusRequest, attach: { dialogs.importing = true }, opened: { window = $0 },
-        failed: { dialogs.failure = $0 }, panels: panels, columnPreferred: $panelColumnPreferred
+        failed: { dialogs.failure = $0 }, columnPreferred: $panelColumnPreferred
       )
       .onAppear(perform: talkShown)
     case .loci:
@@ -219,29 +223,12 @@ struct MachineWindow: View {
       GeneralSettingsPage()
     case .settings(.agents):
       AgentSettingsPage()
+    case .settings(.models):
+      ModelSettingsPage()
     case .settings(.media):
       MediaSettingsPage()
     case .settings(.remote):
       RemoteSettingsPage()
-    }
-  }
-
-  /// The panel column once the host has it, and the host's commands on it.
-  private var panels: Panels? {
-    panelColumn?.value.map { column in
-      Panels(
-        column: column, refresh: { panel in send(RefreshPanel(panel.name)) }, moveToTop: { send(MovePanelToTop($0)) },
-        remove: { panel in send(RemovePanel(panel.name)) })
-    }
-  }
-
-  private func send<C: Command>(_ command: C) {
-    Task {
-      do throws(HostError) {
-        _ = try await host.run(command)
-      } catch {
-        dialogs.failure = error
-      }
     }
   }
 
@@ -306,6 +293,13 @@ struct MachineWindow: View {
   /// The items there are, once the list has arrived.
   private var itemIDs: Set<EntityID>? {
     items?.value.map { Set($0.map(\.id)) }
+  }
+
+  private func openModelSetup() async {
+    guard let access = await host.modelSettingsAccess(), await access.needsModelSetup(),
+      !Task.isCancelled, window == WindowState()
+    else { return }
+    window = WindowState(place: .settings(.models))
   }
 
   /// Opens where the window was last, unless that was an item deleted since; the list of items may arrive

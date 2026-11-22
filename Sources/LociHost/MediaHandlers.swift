@@ -19,13 +19,13 @@ extension LocalHost {
   }
 
   public func installComponent(_ component: Component) async throws(HostError) -> Done {
-    let library = library
-    await hub.hold(
-      Task {
-        await library.context.equipment.install(component)
-        await library.queue.wake { if case .component = $0 { true } else { false } }
-      })
+    await hub.hold(Task { await self.installComponent(component, retry: true) })
     return Done()
+  }
+
+  func installComponent(_ component: Component, retry: Bool) async {
+    await library.context.equipment.install(component, retry: retry)
+    await library.queue.wake { if case .component = $0 { true } else { false } }
   }
 
   public func downloadSpeechModel(_ model: SpeechModel) async throws(HostError) -> Done {

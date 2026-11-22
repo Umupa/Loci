@@ -13,13 +13,13 @@ struct SoftShadow<S: InsettableShape>: View {
   let radius: CGFloat
   var y: CGFloat = 0
 
-  static var steps: Int { 8 }
+  var steps = 8
 
   var body: some View {
     ZStack {
-      ForEach(1...Self.steps, id: \.self) { step in
-        shape.inset(by: -radius * CGFloat(step) / CGFloat(Self.steps))
-          .fill(color.opacity(opacity / Double(Self.steps)))
+      ForEach(1...steps, id: \.self) { step in
+        shape.inset(by: -radius * CGFloat(step) / CGFloat(steps))
+          .fill(color.opacity(opacity / Double(steps)))
       }
     }
     .offset(y: y)

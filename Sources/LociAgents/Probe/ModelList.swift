@@ -33,7 +33,7 @@ public struct ModelList: Sendable {
       return Self.codexModels(in: await output(of: executable, ["debug", "models"]))
     case .pi:
       return Self.piModels(in: await output(of: executable, ["--list-models"]))
-    case .omp, .grok, .antigravity, .cursor, .fx, .hermes, .opencode:
+    case .bundledPi, .omp, .grok, .antigravity, .cursor, .fx, .hermes, .opencode:
       return []
     }
   }

@@ -48,6 +48,40 @@ struct LociSnapshots {
       "talk-working", try SampleLibrary(), at: WindowState(), appearance: appearance, working: true)
   }
 
+  /// H-S1, H-S2: Loci at the top of the sidebar, chosen and not, idle and at each kind of work.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func sidebarLoci(appearance: Snapshot.Appearance) async throws {
+    let search = ToolActivity(
+      id: "1", name: "web_search", kind: .search, subject: "CubeSandbox snapshot restore latency", output: "",
+      state: .running)
+    let states: [(chosen: Bool, work: LociWork?)] = [
+      (true, nil), (false, nil), (true, .answering(nil)), (false, .answering(search)),
+      (false, .refreshing(title: "沙箱雷达")), (false, .reviewing), (false, .saving), (false, .unspecified),
+    ]
+    let view = VStack(alignment: .leading, spacing: Spacing.m) {
+      ForEach(states.indices, id: \.self) { index in
+        SidebarLoci(chosen: states[index].chosen, work: states[index].work) {}
+      }
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, Spacing.l)
+    .frame(width: 240)
+    .background(Palette.sidebarWash)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Palette.canvas)
+    try await ScreenSnapshots.shoot("sidebar-loci", view, appearance: appearance, size: CGSize(width: 480, height: 560))
+  }
+
+  /// H-S4: a link from the main conversation open over it.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func linkOverTheConversation(appearance: Snapshot.Appearance) async throws {
+    try await LibrarySnapshots.shoot(
+      "talk-web-overlay", try SampleLibrary(), at: WindowState(), appearance: appearance,
+      standIns: StandIns(
+        webPage: LibrarySnapshots.webPage("article", appearance),
+        overlayPage: URL(string: "https://blog.cloudflare.com/how-we-built-pingora")))
+  }
+
   @Test(arguments: Snapshot.Appearance.allCases)
   func talkInEnglish(appearance: Snapshot.Appearance) async throws {
     try await LibrarySnapshots.shoot(

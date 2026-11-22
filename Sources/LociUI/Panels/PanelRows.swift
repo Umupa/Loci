@@ -104,8 +104,7 @@ private struct PanelProminent: View {
 /// Bars that grow from the left when they first show.
 private struct PanelBars: View {
   let bars: [PanelBar]
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Environment(\.standIns) private var standIns
+  @Environment(\.reducesMotion) private var reduceMotion
   @State private var grown = false
 
   var body: some View {
@@ -135,7 +134,7 @@ private struct PanelBars: View {
     }
   }
 
-  private var shown: Bool { grown || reduceMotion || standIns != nil }
+  private var shown: Bool { grown || reduceMotion }
 }
 
 private struct PanelPicture: View {

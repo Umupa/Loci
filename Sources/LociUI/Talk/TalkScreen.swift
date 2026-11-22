@@ -9,14 +9,12 @@ struct TalkScreen: View {
   @Environment(\.openPlace) private var openPlace
   @Environment(\.host) private var host
   @Environment(\.locale) private var locale
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.changesAllowed) private var changesAllowed
   let focusRequest: Int
   let attach: () -> Void
   let opened: (WindowState) -> Void
   let failed: (HostError) -> Void
-  /// The panel column, once the host has it; without it the conversation has the room to itself.
-  let panels: Panels?
   /// Whether the person left the panel column showing.
   @Binding var columnPreferred: Bool
   @State private var draft: PassageDraft?
@@ -24,6 +22,8 @@ struct TalkScreen: View {
   @State private var fill: ComposerFill?
   @State private var working = false
   @State private var fit = PaneFit.panelColumn
+  /// The panel column, once the host has it; without it the conversation has the room to itself.
+  @State private var panelColumn: Feed<PanelColumn>?
 
   var body: some View {
     HStack(spacing: 0) {
@@ -31,16 +31,14 @@ struct TalkScreen: View {
         ref: .main, draft: $draft, revealPassage: { openPage(Page($0.content)) }, attach: attach,
         focusRequest: focusRequest, panelRequest: panelRequest
       )
-      if let panels, fit.shows(columnPreferred) {
-        PanelColumnView(
-          column: panels.column, building: building, making: newPanel == .asking, actions: actions(panels)
-        )
-        .frame(width: Size.panelColumn)
-        .transition(reduceMotion ? .identity : .move(edge: .trailing).combined(with: .opacity))
+      if let column, fit.shows(columnPreferred) {
+        PanelColumnView(column: column, building: building, making: newPanel == .asking, actions: actions)
+          .frame(width: Size.panelColumn)
+          .transition(reduceMotion ? .identity : .move(edge: .trailing).combined(with: .opacity))
       }
     }
     .overlay(alignment: .topTrailing) {
-      if panels != nil {
+      if column != nil {
         let shown = fit.shows(columnPreferred)
         PanelButton(title: .loci(shown ? "panels.hideColumn" : "panels.showColumn"), action: toggleColumn)
           .glassEffect(shown ? .identity : .regular, in: .capsule)
@@ -55,10 +53,13 @@ struct TalkScreen: View {
       guard next != fit else { return }
       withAnimation(reduceMotion ? nil : Motion.fold) { fit = next }
     }
-    .onChange(of: panels?.column.panelNames) { settle() }
+    .onChange(of: column?.panelNames) { settle() }
     .onChange(of: working) { settle() }
     .acceptingDrops()
+    .subscribing(WatchPanelColumn(), into: $panelColumn)
   }
+
+  private var column: PanelColumn? { panelColumn?.value }
 
   /// What marks the skeleton of the panel being made, while one is.
   private var building: PanelSources? {
@@ -70,7 +71,7 @@ struct TalkScreen: View {
   }
 
   private func settle() {
-    newPanel = newPanel?.settled(names: panels?.column.panelNames ?? [], working: working)
+    newPanel = newPanel?.settled(names: column?.panelNames ?? [], working: working)
   }
 
   private var panelRequest: PanelRequest {
@@ -86,20 +87,31 @@ struct TalkScreen: View {
         }),
       made: { typed in
         newPanel = .building(
-          known: panels?.column.panelNames ?? [], started: working,
+          known: column?.panelNames ?? [], started: working,
           sources: PanelSources.named(in: typed, locale: locale))
       },
       fill: fill,
       working: { working = $0 })
   }
 
-  private func actions(_ panels: Panels) -> PanelActions {
+  private var actions: PanelActions {
     PanelActions(
       open: open, openItem: { openPage(.item($0)) },
       ask: ask,
       create: { newPanel = .asking },
       revise: { panel in fill = .revising(panel, serial: (fill?.serial ?? 0) + 1, locale: locale) },
-      refresh: panels.refresh, moveToTop: panels.moveToTop, remove: panels.remove)
+      refresh: { panel in send(RefreshPanel(panel.name)) }, moveToTop: { send(MovePanelToTop($0)) },
+      remove: { panel in send(RemovePanel(panel.name)) })
+  }
+
+  private func send<C: Command>(_ command: C) {
+    Task {
+      do throws(HostError) {
+        _ = try await host.run(command)
+      } catch {
+        failed(error)
+      }
+    }
   }
 
   /// Says `words` in the main conversation, as the person.
@@ -122,13 +134,4 @@ struct TalkScreen: View {
       OpenLink(browser: browser, openPlace: openPlace)(url)
     }
   }
-}
-
-/// The panel column as the host has it, and what the host does to it.
-struct Panels {
-  let column: PanelColumn
-  let refresh: (Panel) -> Void
-  let moveToTop: (PanelSlot) -> Void
-  /// Removes the panel and its file.
-  let remove: (Panel) -> Void
 }

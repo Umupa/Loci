@@ -18,7 +18,9 @@ extension FakeHost {
     }
   }
 
-  func lociStatus() async -> LociStatus { LociStatus(working: working) }
+  func lociStatus() async -> LociStatus {
+    LociStatus(work: working ? .answering(library?.mainConversation(working: true).turn?.latestTool) : nil)
+  }
 
   func lociPage() async throws(HostError) -> LociPage {
     do {

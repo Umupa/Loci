@@ -1,3 +1,5 @@
+import Foundation
+
 /// Every item, newest first.
 public struct AllItems: Subscription {
   public static let name = "items"
@@ -34,9 +36,9 @@ public struct OneItem: Subscription {
   public func isAffected(by changes: Set<ContentChange>) -> Bool {
     changes.contains { change in
       switch change {
-      case .item(let id): id == item
+      case .item(let id), .job(let id): id == item
       case .everything: true
-      case .notes, .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
+      case .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
       }
     }
   }
@@ -54,5 +56,22 @@ public struct HealthReport: Subscription {
 
   public func isAffected(by changes: Set<ContentChange>) -> Bool {
     true
+  }
+}
+
+public struct ItemCover: Subscription {
+  public static let name = "itemCover"
+  public let item: EntityID
+
+  public init(item: EntityID) {
+    self.item = item
+  }
+
+  public func value(from handler: any CommandHandler) async throws(HostError) -> Data? {
+    try await handler.cover(of: item)
+  }
+
+  public func isAffected(by changes: Set<ContentChange>) -> Bool {
+    changes.contains(.item(item)) || changes.contains(.everything)
   }
 }

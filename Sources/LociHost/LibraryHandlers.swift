@@ -13,20 +13,24 @@ extension LocalHost {
     let probe = await library.context.probes.take(url)
     let item = try attempt { try Self.item(at: url, probed: probe?.info, id: environment.newID(), why: command.why) }
     try attempt { try store.addPending(item) }
-    do throws(HostError) {
+    do {
       try attempt {
         if item.kind == .article, let html = command.articleHTML, html.utf8.count <= AddLink.maximumArticleBytes {
           _ = try store.saveWork(Data(html.utf8), named: JobRun.articleHTML, of: item.id)
         }
         if let probe {
           _ = try store.saveWork(probe.json, named: JobRun.info, of: item.id)
-          if let cover = probe.cover { try store.saveCover(cover.data, extension: cover.fileExtension, of: item.id) }
         }
-        if item.isMedia { try store.saveImportChoice(choosing(command.choice), of: item.id) }
+        if item.isMedia {
+          try store.saveImportChoice(choosing(command.choice), of: item.id)
+        } else if item.kind == .article, let choice = command.choice, choice.translation != nil {
+          try store.saveImportChoice(choice, of: item.id)
+        }
       }
+      if let cover = probe?.cover { _ = try await library.context.covers.keep(cover, of: item.id) }
     } catch {
       try? store.deleteItem(item.id)
-      throw error
+      throw HostError(error)
     }
     await follow([.item(item.id)])
     if let first = Job.Stage.all(for: item, choice: library.context.choice(of: item.id)).first {
@@ -131,6 +135,10 @@ extension LocalHost {
     await library.queue.job(of: item)
   }
 
+  public func renameSpeaker(_ command: RenameSpeaker) async throws(HostError) -> Done {
+    try await library.queue.renameSpeaker(command)
+  }
+
   public func mediaPage(_ item: EntityID) async throws(HostError) -> MediaPage {
     try attempt {
       let transcript = try store.transcript(of: item)
@@ -184,7 +192,11 @@ extension LocalHost {
   }
 
   public func cover(of item: EntityID) async throws(HostError) -> Data? {
-    try attempt { try store.cover(of: item) }
+    do {
+      return try await coverReader.cover(of: item)
+    } catch {
+      throw HostError(error)
+    }
   }
 
   public func itemPDF(_ item: EntityID) async throws(HostError) -> Data {

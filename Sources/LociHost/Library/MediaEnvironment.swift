@@ -10,6 +10,7 @@ public struct MediaEnvironment: Sendable {
   public let runner: any ProgramRunner
   public let network: any Network
   public let transcriber: any Transcribing
+  public let diarizer: (any Diarizing)?
   /// Folders searched for components already on this Mac.
   public let searchPaths: [URL]
   /// The system proxy, read each time a program is started.
@@ -22,18 +23,19 @@ public struct MediaEnvironment: Sendable {
   public let textFetching: (any TextFetching)?
   /// Writes translations and outlines on what Loci runs on; `nil` leaves those stages
   /// waiting for an agent.
-  public let transcriptAgent: (@Sendable (Runtime) -> any TranscriptAgent)?
+  public let transcriptAgent: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)?
 
   public init(
     support: URL, runner: any ProgramRunner, network: any Network, transcriber: any Transcribing,
     searchPaths: [URL], proxy: @escaping @Sendable () -> String? = { nil }, readerLanguage: String,
     arm: Bool = true, textFetching: (any TextFetching)? = nil,
-    transcriptAgent: (@Sendable (Runtime) -> any TranscriptAgent)? = nil
+    transcriptAgent: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)? = nil, diarizer: (any Diarizing)? = nil
   ) {
     self.support = support
     self.runner = runner
     self.network = network
     self.transcriber = transcriber
+    self.diarizer = diarizer
     self.searchPaths = searchPaths
     self.proxy = proxy
     self.readerLanguage = readerLanguage
@@ -58,7 +60,7 @@ public struct MediaEnvironment: Sendable {
       searchPaths: ComponentLocator.systemSearchPaths(environment: ProcessInfo.processInfo.environment),
       proxy: { SystemProxy.current() }, readerLanguage: Locale.preferredLanguages.first ?? "en", arm: arm,
       textFetching: WebTextFetcher(network: SystemNetwork()),
-      transcriptAgent: { runtime in AgentTranscriptAgent(runtime: runtime, agents: agents) })
+      transcriptAgent: { runtime in AgentTranscriptAgent(runtime: runtime, agents: agents) }, diarizer: FluidDiarizer())
   }
 
   /// Nothing outside: no program starts, nothing downloads, nothing is recognized. For hosts that never

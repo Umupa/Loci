@@ -19,6 +19,8 @@ final class Player {
   private(set) var time: Duration
   private(set) var playing = false
   private(set) var speed = PlaybackSpeed.normal
+  /// Counts the jumps, so what follows the clock without reading every tick learns of each.
+  private(set) var jumps = 0
   /// From the media once it has loaded, or from the item until then.
   private(set) var length: Duration?
   /// No picture to show yet, or only the sound is playing, so the cover stays up.
@@ -112,6 +114,7 @@ final class Player {
   func seek(to moment: Duration) {
     let end = length ?? moment
     time = min(max(moment, .zero), end)
+    jumps += 1
     engine.seek(to: Self.cmTime(time), toleranceBefore: .zero, toleranceAfter: .zero)
     save()
   }

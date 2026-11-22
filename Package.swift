@@ -8,6 +8,7 @@ let package = Package(
   defaultLocalization: "en",
   platforms: [.macOS(.v26)],
   dependencies: [
+    .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.17.7", traits: []),
     .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.11.1"),
     .package(url: "https://github.com/swiftlang/swift-markdown.git", exact: "0.9.0"),
     .package(url: "https://github.com/gonzalezreal/textual.git", exact: "0.5.0"),
@@ -30,7 +31,10 @@ let package = Package(
       checksum: "e57f8c48933000acabc13bb913fbe82805d483a2deff692cc6738836bd92393b"),
     .target(
       name: "LociMedia",
-      dependencies: ["LociModel", "whisper", .product(name: "Markdown", package: "swift-markdown")],
+      dependencies: [
+        "LociModel", "whisper", .product(name: "Markdown", package: "swift-markdown"),
+        .product(name: "FluidAudio", package: "FluidAudio"),
+      ],
       resources: [.copy("Resources")],
       swiftSettings: strict),
     .target(name: "LociRemote", dependencies: ["LociModel"], swiftSettings: strict),

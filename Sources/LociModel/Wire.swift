@@ -14,7 +14,7 @@ public enum Wire {
     .reads(DataLocation.self),
     .writes(RetryJob.self), .writes(PauseJob.self), .writes(StopSaving.self), .reads(ListJobs.self),
     .writes(TranslateArticle.self),
-    .reads(ReadMediaPage.self), .reads(ReadPlayback.self), .reads(ReadMediaSetup.self),
+    .writes(RenameSpeaker.self), .reads(ReadMediaPage.self), .reads(ReadPlayback.self), .reads(ReadMediaSetup.self),
     .reads(DetectComponents.self), .writes(InstallComponent.self),
     .writes(DownloadSpeechModel.self), .writes(DeleteSpeechModel.self), .writes(SetSpeechModel.self),
     .writes(SetBrowserLogin.self), .writes(HandOverBrowserCookies.self), .writes(FreeMediaSpace.self),
@@ -30,7 +30,8 @@ public enum Wire {
 
   public static let subscriptions: [any Subscription.Type] = [
     OneConversation.self, LociWorking.self, CurrentRuntime.self, LociHome.self, OneDiary.self, LociAvatar.self,
-    AllItems.self, OneItem.self, NotesOn.self, AllJobs.self, ItemJob.self, SavingNow.self, ItemMedia.self,
+    AllItems.self, OneItem.self, ItemCover.self, NotesOn.self, AllJobs.self, ItemJob.self, SavingNow.self,
+    ItemMedia.self,
     MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self, WatchPanelColumn.self,
   ]
 

@@ -32,6 +32,8 @@ enum Typography {
   /// A sentence of a transcript, and its translation under it.
   static let transcript = Font.system(size: 14)
   static let transcriptTranslation = Font.system(size: 13)
+  /// A paragraph of talk on an episode's page.
+  static let episodeTranscript = Font.system(size: 15)
   /// The clock under a player.
   static let clock = Font.system(size: 11.5).monospaced()
   /// A small button's words.

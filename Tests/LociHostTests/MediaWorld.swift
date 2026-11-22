@@ -26,7 +26,7 @@ struct MediaWorld {
   func install(_ components: [Component] = Component.allCases) throws {
     try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
     guard !components.isEmpty else { return }
-    for component in components {
+    for component in components where component != .bundledPi {
       let name = ["ytDlp": "yt-dlp", "ffmpeg": "ffmpeg", "quickJS": "qjs"][component.rawValue] ?? ""
       let file = bin.appending(path: name)
       try Data("#!/bin/sh\n".utf8).write(to: file)
@@ -41,34 +41,37 @@ struct MediaWorld {
   }
 
   func environment(
-    transcriber: FakeTranscriber, agent: Bool = true, text: Bool = true, readerLanguage: String = "zh-Hans"
+    transcriber: FakeTranscriber, agent: Bool = true, text: Bool = true, readerLanguage: String = "zh-Hans",
+    fetcher: (any TextFetching)? = nil, diarizer: (any Diarizing)? = nil, provider: Provider = .codex
   ) -> HostEnvironment {
     let writer = self.agent
-    var make: (@Sendable (Runtime) -> any TranscriptAgent)?
+    var make: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)?
     if agent {
       make = { [runtimes] runtime in
         runtimes.add(runtime)
         return writer
       }
     }
-    let fetcher: (any TextFetching)? = text ? FakeTextFetcher() : nil
     let media = MediaEnvironment(
       support: support, runner: programs, network: network, transcriber: transcriber, searchPaths: [bin],
-      readerLanguage: readerLanguage, textFetching: fetcher,
-      transcriptAgent: make)
+      readerLanguage: readerLanguage, textFetching: fetcher ?? (text ? FakeTextFetcher() : nil),
+      transcriptAgent: make, diarizer: diarizer)
     return HostEnvironment(
-      newID: { [world] in world.nextID() }, now: { TestWorld.instant }, defaultRuntime: Runtime(provider: .pi),
+      newID: { [world] in world.nextID() }, now: { TestWorld.instant }, defaultRuntime: Runtime(provider: provider),
       discard: .permanently,
       agents: { _ in nil }, media: media)
   }
 
   func start(
     transcriber: FakeTranscriber = FakeTranscriber([]), agent: Bool = true, text: Bool = true,
-    readerLanguage: String = "zh-Hans"
+    readerLanguage: String = "zh-Hans", fetcher: (any TextFetching)? = nil, diarizer: (any Diarizing)? = nil,
+    provider: Provider = .codex
   ) async throws -> LocalHost {
     try await LocalHost.start(
       root: place.root, database: place.database,
-      environment: environment(transcriber: transcriber, agent: agent, text: text, readerLanguage: readerLanguage))
+      environment: environment(
+        transcriber: transcriber, agent: agent, text: text, readerLanguage: readerLanguage,
+        fetcher: fetcher, diarizer: diarizer, provider: provider))
   }
 }
 

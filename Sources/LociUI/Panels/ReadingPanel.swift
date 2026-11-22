@@ -21,7 +21,7 @@ struct ReadingPanel: View {
               title: reading.item.title, subtitle: subtitle(of: reading.item), progress: reading.progress,
               open: { actions.openItem(reading.item.id) }
             ) {
-              Cover(item: reading.item, corner: 9, symbolSize: 16, backdrop: Palette.ink.opacity(0.08))
+              Cover(item: reading.item, corner: 9, backdrop: Palette.ink.opacity(0.08))
                 .frame(width: Size.panelCover, height: Size.panelCover)
             }
           }
@@ -55,8 +55,7 @@ struct ReadingPanel: View {
 /// Where the panel being made will be, until it is.
 struct PanelSkeleton: View {
   let sources: PanelSources
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Environment(\.standIns) private var standIns
+  @Environment(\.reducesMotion) private var reduceMotion
   @State private var sweep = false
 
   var body: some View {
@@ -77,7 +76,7 @@ struct PanelSkeleton: View {
         .strokeBorder(Palette.bubbleEdge, lineWidth: Size.hairline)
     )
     .onAppear {
-      guard !reduceMotion, standIns == nil else { return }
+      guard !reduceMotion else { return }
       withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) { sweep = true }
     }
     .accessibilityHidden(true)

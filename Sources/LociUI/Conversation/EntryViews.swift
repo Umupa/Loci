@@ -59,7 +59,7 @@ struct EndedTurn: View {
       case .notInstalled: .loci("conversation.agentNotInstalled")
       case .wouldNotStart: .loci("conversation.agentWouldNotStart")
       }
-    return Text(joining: Text(verbatim: Agents.name(of: provider) + " "), Text(said))
+    return Text(joining: Text(Agents.label(of: provider)), Text(verbatim: " "), Text(said))
   }
 }
 

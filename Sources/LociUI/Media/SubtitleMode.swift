@@ -66,3 +66,14 @@ struct ReadableTranscript: Equatable {
     mode.lines(of: segments[index].text, translated: translated(index), order: order)
   }
 }
+
+extension ReadableTranscript {
+  /// The sentences chosen, as a stretch of time and their words.
+  func passage(_ range: NSRange, of item: EntityID) -> (locator: Locator, excerpt: String)? {
+    let last = range.location + max(range.length, 1) - 1
+    guard segments.indices.contains(range.location), segments.indices.contains(last),
+      let span = try? TimeSpan(start: segments[range.location].start, end: segments[last].end)
+    else { return nil }
+    return (.item(item, .time(span)), TranscriptParagraph.joined(segments[range.location...last].map(\.text)))
+  }
+}

@@ -3,6 +3,7 @@ import Foundation
 /// The agent command-line program Loci runs on.
 public enum Provider: String, CaseIterable, Codable, CodingKeyRepresentable, Hashable, Sendable {
   case pi
+  case bundledPi = "bundled-pi"
   case omp
   case grok
   case antigravity
@@ -18,7 +19,7 @@ public enum Provider: String, CaseIterable, Codable, CodingKeyRepresentable, Has
     switch self {
     case .claudeCode: [.low, .medium, .high, .xhigh, .max]
     case .codex: [.low, .medium, .high, .xhigh, .max]
-    case .pi: [.off, .minimal, .low, .medium, .high, .xhigh, .max]
+    case .pi, .bundledPi: [.off, .minimal, .low, .medium, .high, .xhigh, .max]
     case .omp, .grok, .antigravity, .cursor, .fx, .hermes, .opencode: []
     }
   }

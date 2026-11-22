@@ -5,20 +5,18 @@ import SwiftUI
 struct DoingLine: View {
   let doing: Doing
   var size: CGFloat = 15
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Environment(\.standIns) private var standIns
+  @Environment(\.reducesMotion) private var reduceMotion
 
   var body: some View {
-    let still = reduceMotion || standIns?.conversationAt != nil
     ZStack(alignment: .leading) {
       Text(doing.words)
         .font(.system(size: size))
         .foregroundStyle(Palette.ink.opacity(Self.faint))
-        .overlay { if !still { Sheen().mask { Text(doing.words).font(.system(size: size)) } } }
+        .overlay { if !reduceMotion { Sheen().mask { Text(doing.words).font(.system(size: size)) } } }
         .id(doing)
-        .transition(still ? .identity : .opacity.combined(with: .offset(y: 6)))
+        .transition(reduceMotion ? .identity : .opacity.combined(with: .offset(y: 6)))
     }
-    .animation(still ? nil : Motion.swap, value: doing)
+    .animation(reduceMotion ? nil : Motion.swap, value: doing)
     .lineLimit(1)
     .truncationMode(.tail)
     .padding(.vertical, 14.5)

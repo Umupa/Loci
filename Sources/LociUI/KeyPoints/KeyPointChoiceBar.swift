@@ -110,7 +110,7 @@ private struct KeyPointRuntimeMenu: View {
       Picker(selection: provider) {
         ForEach(Agents.choosable(installations, keeping: shown?.provider ?? .codex), id: \.self) { provider in
           Label {
-            Text(verbatim: Agents.name(of: provider))
+            Text(Agents.label(of: provider))
           } icon: {
             AgentMark.image(provider, in: scheme).map { Image(nsImage: $0).renderingMode(.original) }
           }
@@ -137,7 +137,7 @@ private struct KeyPointRuntimeMenu: View {
         if runtime == nil {
           Text(.loci("keypoints.followLoci"))
         } else if let shown {
-          Text(verbatim: Agents.name(of: shown.provider))
+          Text(Agents.label(of: shown.provider))
           if let model = shown.model {
             Text(verbatim: Agents.modelName(model)).font(.system(size: 11.5).monospaced()).foregroundStyle(
               Palette.inkMuted)

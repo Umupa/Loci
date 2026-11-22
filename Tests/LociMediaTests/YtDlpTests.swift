@@ -32,6 +32,54 @@ struct YtDlpTests {
     #expect(arguments.contains("quickjs:/support/quickJS/qjs"))
   }
 
+  @Test(arguments: [
+    "https://op3.dev/e/https://https://cdn.changelog.com/uploads/podcast/692/the-changelog-692.mp3",
+    "https://op3.dev/e/https://cdn.changelog.com/uploads/podcast/692/the-changelog-692.mp3",
+  ])
+  func anAppleEpisodePlaysAndItsSavedInfoStillDownloadsForRecognition(enclosure: String) async throws {
+    let episode = try #require(URL(string: "https://podcasts.apple.com/us/podcast/id341623264?i=1000803211056"))
+    let playable = "https://op3.dev/e/https://cdn.changelog.com/uploads/podcast/692/the-changelog-692.mp3"
+    let runner = ScriptedRunner { call in
+      let arguments = call.arguments
+      let address: String
+      if let index = arguments.firstIndex(of: "--replace-in-metadata"),
+        arguments.count > index + 3, arguments[index + 1] == "pre_process:url"
+      {
+        address = enclosure.replacingOccurrences(
+          of: arguments[index + 2], with: arguments[index + 3], options: .regularExpression)
+      } else {
+        address = enclosure
+      }
+      if arguments.contains("-J") {
+        return ([], ProgramResult(status: 0, output: Self.episodeInfo(at: address)))
+      }
+      if address == playable {
+        return ([], ProgramResult(status: 0, output: "/w/media.m4a\n"))
+      }
+      return ([], ProgramResult(status: 1, output: "", diagnostics: "ERROR: HTTP Error 400: Bad Request"))
+    }
+    let tool = Self.ytDlp(runner)
+
+    let saved = try MediaInfo(json: Data(Self.episodeInfo(at: enclosure).utf8))
+    #expect(saved.stream?.url.absoluteString == playable)
+    let (info, kept) = try await tool.resolve(episode)
+    #expect(info.stream?.url.absoluteString == playable)
+    #expect(String(decoding: kept, as: UTF8.self) == Self.episodeInfo(at: playable))
+
+    let sound = try await tool.download(
+      episode, info: Self.folder.appending(path: "info.json"), audio: true, into: Self.folder
+    ) { _, _ in }
+    #expect(sound == URL(filePath: "/w/media.m4a"))
+    #expect(runner.calls.count == 2)
+    #expect(runner.calls.last?.arguments.contains("--load-info-json") == true)
+  }
+
+  private static func episodeInfo(at address: String) -> String {
+    """
+    {"title":"A seminal moment in computing (Interview)","url":"\(address)","ext":"mp3","vcodec":"none"}
+    """
+  }
+
   @Test func recognizingAsksOnlyTheSitesYtDlpKnowsByName() async throws {
     let json = try Fixture.data("youtube")
     let runner = ScriptedRunner(output: String(decoding: json, as: UTF8.self))

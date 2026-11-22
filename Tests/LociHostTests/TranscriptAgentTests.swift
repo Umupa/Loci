@@ -29,7 +29,7 @@ struct TranscriptAgentTests {
   }
 
   static func writer(_ agent: FakeAgent, provider: Provider = .pi) -> AgentTranscriptAgent {
-    AgentTranscriptAgent(runtime: Runtime(provider: provider), agents: { $0 == .pi ? agent : nil })
+    AgentTranscriptAgent(runtime: Runtime(provider: provider), agents: { $0 == .pi || $0 == .codex ? agent : nil })
   }
 
   static func lines(_ count: Int) -> [String] {
@@ -105,6 +105,17 @@ struct TranscriptAgentTests {
     let agent = FakeAgent { _ in .reply(replies.next()) }
 
     #expect(try await Self.writer(agent).outline(try Self.transcript(5), title: "T").chapters.map(\.title) == ["A"])
+    #expect(agent.prompts.count == 2)
+  }
+
+  @Test func anUnrepresentableChapterTimeIsAskedForAgain() async throws {
+    let replies = Replies([
+      #"{"chapters": [{"start": 1e40, "title": "Outside"}]}"#,
+      #"{"chapters": [{"start": 0, "title": "First"}]}"#,
+    ])
+    let agent = FakeAgent { _ in .reply(replies.next()) }
+    let outline = try await Self.writer(agent, provider: .codex).outline(try Self.transcript(3), title: "Talk")
+    #expect(outline.chapters.map(\.title) == ["First"])
     #expect(agent.prompts.count == 2)
   }
 

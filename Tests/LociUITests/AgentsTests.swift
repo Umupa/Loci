@@ -10,8 +10,8 @@ struct AgentsTests {
     #expect(Agents.choosable([], keeping: .pi) == [.pi, .grok])
   }
 
-  @Test func everyInstalledAgentCanBeChosen() {
-    #expect(Agents.choosable(FakeHost.installations, keeping: .pi) == [.pi, .grok, .claudeCode, .codex])
+  @Test func everyInstalledAgentAndBundledPiCanBeChosen() {
+    #expect(Agents.choosable(FakeHost.installations, keeping: .pi) == [.pi, .bundledPi, .grok, .claudeCode, .codex])
   }
 
   @Test func theAgentInUseStaysChoosableAfterItIsUninstalled() {

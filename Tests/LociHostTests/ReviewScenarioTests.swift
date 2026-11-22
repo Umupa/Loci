@@ -174,7 +174,7 @@ struct ReviewScenarioTests {
 
       world.tick()
 
-      #expect(await value(feed) { $0.working } != nil)
+      #expect(await value(feed) { $0.work == .reviewing } != nil)
     }
   }
 }

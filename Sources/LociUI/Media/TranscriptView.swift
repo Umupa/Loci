@@ -6,26 +6,21 @@ struct TranscriptLayout {
   enum Line: Identifiable {
     /// A chapter beginning, with its time.
     case chapter(Outline.Chapter)
-    /// A new speaker, named or numbered, with the time they start.
-    case speaker(Int?, Duration)
     case sentence(Int)
 
     var id: String {
       switch self {
       case .chapter(let chapter): "c\(chapter.start.roundedMilliseconds)"
-      case .speaker(_, let start): "p\(start.roundedMilliseconds)"
       case .sentence(let index): "s\(index)"
       }
     }
   }
 
   /// A chapter goes before the first sentence at or after its start; chapters with no sentence of their own
-  /// in the transcript, such as before recognition has reached them, are left out. Speakers go before each sentence where
-  /// the speaker changes, when speakers were told apart.
-  static func lines(_ segments: [Transcript.Segment], chapters: [Outline.Chapter], showSpeakers: Bool) -> [Line] {
+  /// in the transcript, such as before recognition has reached them, are left out.
+  static func lines(_ segments: [Transcript.Segment], chapters: [Outline.Chapter]) -> [Line] {
     var lines: [Line] = []
     var pending = chapters[...]
-    var speaker: Int?
     for (index, segment) in segments.enumerated() {
       var begun: Outline.Chapter?
       while let chapter = pending.first, chapter.start <= segment.start {
@@ -33,10 +28,6 @@ struct TranscriptLayout {
         pending = pending.dropFirst()
       }
       if let begun { lines.append(.chapter(begun)) }
-      if showSpeakers, let said = segment.speaker, said != speaker {
-        lines.append(.speaker(said, segment.start))
-        speaker = said
-      }
       lines.append(.sentence(index))
     }
     return lines
@@ -54,8 +45,6 @@ struct TranscriptView: View {
   let mode: SubtitleMode
   let order: SubtitleStyle.BilingualOrder
   let playing: Int?
-  /// Who speaks is shown over each change of speaker, and times go with the speakers instead of each sentence.
-  var speakers = false
   /// Still being recognized: the last sentence may change, and more come.
   var growing = false
   @Binding var follow: TranscriptFollow
@@ -68,7 +57,7 @@ struct TranscriptView: View {
   @State private var visible = CGRect.zero
 
   var body: some View {
-    let lines = TranscriptLayout.lines(transcript.segments, chapters: chapters, showSpeakers: speakers)
+    let lines = TranscriptLayout.lines(transcript.segments, chapters: chapters)
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 0) {
         ForEach(lines) { line in
@@ -142,15 +131,6 @@ struct TranscriptView: View {
       .padding(.bottom, Spacing.xxs)
       .padding(.leading, Spacing.xs)
       .padding(.trailing, 10)
-    case .speaker(let number, let start):
-      HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
-        Text(joining: Text(.loci("transcript.speaker")), Text(verbatim: number.map { " \($0)" } ?? ""))
-          .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Palette.ink)
-        Text(verbatim: MediaTime.text(start)).font(Typography.mono).foregroundStyle(Palette.inkFaint)
-      }
-      .padding(.top, 18)
-      .padding(.bottom, 2)
-      .padding(.horizontal, 10)
     case .sentence(let index):
       sentence(index)
     }
@@ -165,13 +145,11 @@ struct TranscriptView: View {
     let lines = transcript.lines(index, mode: mode, order: order)
     let partial = growing && index == transcript.segments.count - 1
     return HStack(alignment: .top, spacing: Spacing.xxs) {
-      if !speakers {
-        Text(verbatim: MediaTime.text(segment.start))
-          .font(Typography.mono)
-          .foregroundStyle(now ? Palette.accentInk : Palette.inkFaint)
-          .padding(.top, 5)
-          .frame(width: Size.timeColumn, alignment: .leading)
-      }
+      Text(verbatim: MediaTime.text(segment.start))
+        .font(Typography.mono)
+        .foregroundStyle(now ? Palette.accentInk : Palette.inkFaint)
+        .padding(.top, 5)
+        .frame(width: Size.timeColumn, alignment: .leading)
       VStack(alignment: .leading, spacing: 2) {
         ForEach(Array(lines.enumerated()), id: \.offset) { order, line in
           let first = order == 0
@@ -181,7 +159,7 @@ struct TranscriptView: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .padding(.leading, speakers ? 10 : Spacing.xs)
+    .padding(.leading, Spacing.xs)
     .padding(.trailing, 10)
     .padding(.top, 6)
     .padding(.bottom, 7)

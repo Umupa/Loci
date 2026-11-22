@@ -17,13 +17,14 @@ struct JobRun: Sendable {
       await queue.forget(item)
       return
     }
+    var page: ArticlePage?
     var last = first
     var next = Self.stage(in: stages(of: current), from: first, after: false)
     while let stage = next {
       if Task.isCancelled { return }
       await queue.report(item, stage: stage, state: .running(progress: nil))
       do throws(StageStop) {
-        try await perform(stage)
+        try await perform(stage, page: &page)
       } catch {
         if Task.isCancelled { return }
         switch error {
@@ -58,14 +59,20 @@ struct JobRun: Sendable {
     return stages.first { (order.firstIndex(of: $0) ?? 0) > start }
   }
 
-  private func perform(_ stage: Job.Stage) async throws(StageStop) {
+  private func perform(_ stage: Job.Stage, page: inout ArticlePage?) async throws(StageStop) {
     let current = try stored { try context.store.item(item) }
     switch stage {
     case .resolve: try await resolve(current)
-    case .extract: try await extract(current)
+    case .fetchPage: page = try await fetchPage(current)
+    case .extract: try await extract(current, page: page)
+    case .findCover:
+      try await findCover(current, page: page)
+      page = nil
     case .download: try await download(current)
     case .transcribe: try await transcribe(current)
-    case .translate: try await translate(current)
+    case .diarize: await diarize(current)
+    case .translate:
+      if current.kind == .article { try await translateArticle(current) } else { try await translate(current) }
     case .outline: try await outline(current)
     }
   }
@@ -104,13 +111,26 @@ struct JobRun: Sendable {
     case .resolve:
       return try store.mediaFile(of: item.id) != nil || store.workFile(named: info, of: item.id) != nil
         || store.transcript(of: item.id) != nil
+    case .fetchPage, .findCover:
+      return try store.fetchedContent(of: item.id) != nil
     case .download:
       return try store.mediaFile(of: item.id) != nil
     case .extract:
       return item.kind == .paper ? (try? store.pdf(of: item.id)) != nil : try store.fetchedContent(of: item.id) != nil
     case .transcribe:
       return try store.transcript(of: item.id) != nil
+    case .diarize:
+      guard let transcript = try store.transcript(of: item.id), !transcript.segments.isEmpty else { return true }
+      return !transcript.speakers.isEmpty
     case .translate:
+      if item.kind == .article {
+        guard let target = try store.importChoice(of: item.id)?.translation?.language,
+          let text = try store.fetchedContent(of: item.id)
+        else { return true }
+        if let original = item.language, Self.primary(original) == Self.primary(target) { return true }
+        let translated = try store.articleTranslation(of: item.id, into: target)?.bySource ?? [:]
+        return ArticlePassages.of(text, title: item.title).allSatisfy { translated[$0] != nil }
+      }
       guard let transcript = try store.transcript(of: item.id), !transcript.segments.isEmpty else { return true }
       return try store.translations(of: item.id).contains { $0.fits(transcript) }
     case .outline:

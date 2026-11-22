@@ -20,27 +20,20 @@ extension JobRun {
     if let spoken = transcript.language, Self.primary(spoken) == Self.primary(target) { return }
     let translations = try stored { try context.store.translations(of: item.id) }
     if translations.contains(where: { $0.language == target && $0.fits(transcript) }) { return }
-    let agent = try agent(chosen?.runtime)
+    let work = try await writer(chosen?.runtime)
     let sentences = transcript.segments.map(\.text)
+    let prompt = work.prompt(.transcript, language: target, source: sentences)
+    let identity = TranslationCacheKey(work.identity + prompt.cacheIdentity + sentences).digest
     let partial = Self.partial(target)
-    let lines = try await inTurn(queue.gates.agents, at: .translate) { () async throws(StageStop) -> [String] in
-      var lines = translatedSoFar(partial, of: sentences.count)
-      let report = progress(.translate)
-      report(Fraction(Double(lines.count) / Double(sentences.count)))
-      while lines.count < sentences.count {
-        let batch = Array(sentences[lines.count..<min(lines.count + Self.translationBatch, sentences.count)])
-        do throws(HostError) {
-          lines += try await agent.translate(lines: batch, into: target)
-        } catch {
-          throw .failed(Self.describe(error))
-        }
-        if let kept = try? JSONEncoder().encode(lines) {
-          _ = try? context.store.saveWork(kept, named: partial, of: item.id)
-        }
-        report(Fraction(Double(lines.count) / Double(sentences.count)))
+    let lines: [String]
+    if work.usesRuntime {
+      lines = try await inTurn(queue.gates.agents, at: .translate) { () async throws(StageStop) in
+        try await translate(sentences, using: prompt, work: work, partial: partial, identity: identity)
       }
-      return lines
+    } else {
+      lines = try await translate(sentences, using: prompt, work: work, partial: partial, identity: identity)
     }
+    if Task.isCancelled { return }
     let translation = try stored { try Translation(language: target, lines: lines) }
     guard translation.fits(transcript) else {
       throw .failed("the translation has \(translation.lines.count) lines for \(transcript.segments.count) sentences")
@@ -54,12 +47,50 @@ extension JobRun {
     "translating-\(language).json"
   }
 
-  /// The lines a translation left part way holds; none when there is no such file or it does not fit.
-  private func translatedSoFar(_ name: String, of count: Int) -> [String] {
-    guard let text = try? context.store.workText(named: name, of: item),
-      let lines = try? JSONDecoder().decode([String].self, from: Data(text.utf8)), lines.count <= count
-    else { return [] }
+  private struct PartialTranslation: Codable {
+    let identity: String
+    var lines: [String]
+  }
+
+  private func translate(
+    _ sentences: [String], using prompt: TranslationPrompt, work: TranscriptWork, partial: String, identity: String
+  ) async throws(StageStop) -> [String] {
+    var lines = translatedSoFar(partial, of: sentences.count, identity: identity, work: work)
+    await queue.progress(item, stage: .translate, Fraction(Double(lines.count) / Double(sentences.count)))
+    let batches = Batches.pieces(of: Array(sentences.dropFirst(lines.count)), size: Self.translationBatch)
+    let translate = { @Sendable (_: Int, batch: [String]) async throws(StageStop) -> [String] in
+      do throws(HostError) {
+        return try await work.translate(batch, using: prompt)
+      } catch {
+        throw .failed(Self.describe(error))
+      }
+    }
+    try await Batches.run(batches, parallelism: work.parallelism, work: translate) { batch async throws(StageStop) in
+      if Task.isCancelled { return }
+      lines += batch
+      try stored {
+        let kept = try JSONEncoder().encode(PartialTranslation(identity: identity, lines: lines))
+        _ = try context.store.saveWork(kept, named: partial, of: item)
+      }
+      await queue.progress(item, stage: .translate, Fraction(Double(lines.count) / Double(sentences.count)))
+    }
     return lines
+  }
+
+  private func translatedSoFar(_ name: String, of count: Int, identity: String, work: TranscriptWork) -> [String] {
+    guard let text = try? context.store.workText(named: name, of: item) else { return [] }
+    let data = Data(text.utf8)
+    let decoder = JSONDecoder()
+    if let saved = try? decoder.decode(PartialTranslation.self, from: data) {
+      return saved.identity == identity && saved.lines.count <= count ? saved.lines : []
+    }
+    if work.usesRuntime, !work.settings.smart,
+      work.settings.transcriptPrompt == TranslationSettings.defaultTranscriptPrompt,
+      let lines = try? decoder.decode([String].self, from: data), lines.count <= count
+    {
+      return lines
+    }
+    return []
   }
 
   /// Asks for chapters, unless the site gave them.
@@ -67,21 +98,33 @@ extension JobRun {
     guard let transcript = try stored({ try context.store.transcript(of: item.id) }), !transcript.segments.isEmpty,
       try stored({ try context.store.outline(of: item.id) })?.chapters.isEmpty ?? true
     else { return }
-    let agent = try agent(nil)
-    let outline = try await inTurn(queue.gates.agents, at: .outline) { () async throws(StageStop) -> Outline in
+    let work = try await writer(nil)
+    let write = { () async throws(StageStop) -> Outline in
       do throws(HostError) {
-        return try await agent.outline(transcript, title: item.title)
+        return try await work.agent.outline(transcript, title: item.title)
       } catch {
         throw .failed(Self.describe(error))
       }
     }
+    let outline =
+      if work.usesRuntime {
+        try await inTurn(queue.gates.agents, at: .outline, write)
+      } else {
+        try await write()
+      }
+    if Task.isCancelled { return }
     try stored { try context.store.save(outline, of: item.id) }
   }
 
-  /// The agent on `runtime`; `nil` follows what Loci runs on.
-  func agent(_ runtime: Runtime?) throws(StageStop) -> any TranscriptAgent {
-    guard let agent = context.transcriptAgent(runtime) else { throw .wait(.agent) }
-    return agent
+  func writer(_ runtime: Runtime?) async throws(StageStop) -> TranscriptWork {
+    let work: TranscriptWork?
+    do throws(HostError) {
+      work = try await context.transcriptWork(runtime)
+    } catch {
+      throw .failed(Self.describe(error))
+    }
+    guard let work else { throw .wait(.agent) }
+    return work
   }
 
   static func primary(_ tag: String) -> String {
@@ -95,58 +138,6 @@ extension JobRun {
     case .alreadyExists(let id): "already exists: \(id)"
     case .invalidFile(let problem): problem.reason
     case .offline: "the Mac is offline"
-    }
-  }
-}
-
-/// Fetching the text of articles and papers.
-extension JobRun {
-  static let articleHTML = "article.html"
-
-  func extract(_ item: Item) async throws(StageStop) {
-    guard let source = item.source else { return }
-    let html =
-      item.kind == .article ? try stored { try context.store.workText(named: Self.articleHTML, of: item.id) } : nil
-    if html == nil, try await recognize(item) { return }
-    guard let fetcher = context.media.textFetching else {
-      throw .failed("Fetching articles and papers is not available in this build.", nil)
-    }
-    let fetched: Item
-    switch item.kind {
-    case .paper:
-      let paper = try await fetch(source) { () async throws(FetchError) in try await fetcher.paper(at: source) }
-      try stored { try context.store.savePDF(paper.pdf, of: item.id) }
-      fetched = try stored {
-        try Item(
-          id: item.id, kind: .paper, title: paper.title, authors: paper.authors, source: source,
-          language: item.language, site: item.site, published: paper.published.map(Timestamp.init), why: item.why)
-      }
-    default:
-      let article = try await fetch(source) { () async throws(FetchError) in
-        try await fetcher.article(at: source, html: html)
-      }
-      let images = Dictionary(article.images.map { ($0.name, $0.data) }, uniquingKeysWith: { first, _ in first })
-      try stored { try context.store.saveArticle(article.markdown, images: images, of: item.id) }
-      fetched = try stored {
-        try Item(
-          id: item.id, kind: .article, title: article.title, authors: article.authors, source: source,
-          language: article.language.flatMap(Self.tag), site: article.site,
-          published: article.published.map(Timestamp.init), why: item.why)
-      }
-    }
-    try stored {
-      try context.store.retitle(fetched, from: item.title)
-      if html != nil { try context.store.clearWork(of: item.id) }
-    }
-  }
-
-  private func fetch<Value>(_ source: URL, _ body: () async throws(FetchError) -> Value) async throws(StageStop)
-    -> Value
-  {
-    do {
-      return try await body()
-    } catch {
-      throw error.needsLogin ? .wait(.login(site: source.host() ?? source.absoluteString)) : .failed(error.reason)
     }
   }
 }

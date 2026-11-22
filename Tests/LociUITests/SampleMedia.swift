@@ -129,7 +129,8 @@ extension SampleLibrary {
       try Outline.Chapter(start: Self.time($0.0), title: $0.1)
     }
     return MediaPage(
-      transcript: try Transcript(language: "en", origin: .recognized(.largeV3TurboQuantized), segments: segments),
+      transcript: try Transcript(
+        language: "en", origin: .recognized(.largeV3TurboQuantized), segments: segments, speakerNames: [1: "Maya Chen"]),
       translations: [try Translation(language: "zh-Hans", lines: lines.map(\.3))],
       outline: try Outline(chapters: chapters), hasCover: true, downloaded: true)
   }

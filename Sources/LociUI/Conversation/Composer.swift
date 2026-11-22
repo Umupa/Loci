@@ -31,8 +31,7 @@ struct Composer: View {
   /// Words put in from outside, such as asking Loci to change a panel.
   var fill: ComposerFill?
   @Environment(\.locale) private var locale
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Environment(\.standIns) private var standIns
+  @Environment(\.reducesMotion) private var reduceMotion
   @State private var example = 0
   @State private var text = ""
   @State private var selection: TextSelection?
@@ -65,11 +64,11 @@ struct Composer: View {
     .onChange(of: making.wrappedValue) { if making.wrappedValue { focused = true } }
     .task(id: making.wrappedValue) {
       example = 0
-      guard making.wrappedValue, standIns == nil else { return }
+      guard making.wrappedValue, !reduceMotion else { return }
       while !Task.isCancelled {
         try? await Task.sleep(for: PanelExample.stay)
         if Task.isCancelled { return }
-        withAnimation(reduceMotion ? nil : Motion.swap) { example += 1 }
+        withAnimation(Motion.swap) { example += 1 }
       }
     }
   }

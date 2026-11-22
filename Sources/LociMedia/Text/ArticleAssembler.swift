@@ -10,7 +10,7 @@ struct ArticleAssembler: Sendable {
 
   func article(from extraction: Extraction, at page: URL) async throws(FetchError) -> FetchedArticle {
     let body = extraction.markdown.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !body.isEmpty else { throw FetchError(reason: "The page has no text to read.") }
+    guard !body.isEmpty else { throw FetchError(reason: "The page has no text to read.", cause: .noArticleText) }
     let (markdown, images) = await localizingImages(in: body, from: page)
     return FetchedArticle(
       title: Self.title(of: extraction, at: page), authors: Self.authors(extraction.author),

@@ -5,6 +5,7 @@ import AppKit
 enum CoverWash {
   private static let few = 6
   private static let side = 64
+  static let byteBudget = side * side * 4
 
   static func of(_ image: NSImage) -> NSImage? {
     guard let picture = image.cgImage(forProposedRect: nil, context: nil, hints: nil),

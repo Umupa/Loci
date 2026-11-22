@@ -71,7 +71,7 @@ enum KeyPointPrompts {
 }
 
 /// What a source is cut into for picking: the sentences of a transcript or the passages of an article.
-enum KeyPointUnits {
+enum KeyPointUnits: Sendable {
   case sentences([Transcript.Segment])
   case passages([String])
 

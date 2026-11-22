@@ -26,14 +26,30 @@ struct ConversationScreen: View {
       scale: ref == .main ? .main : .companion, attach: attach, focusRequest: focusRequest, panelRequest: panelRequest
     )
     .id(ref)
-    .environment(
-      \.openURL,
-      OpenURLAction { url in
-        openPage.follow(url, in: ref, reveal: revealPassage)
-      }
-    )
+    .modifier(FollowingLinks(ref: ref, revealPassage: revealPassage))
+    .peekingLinks()
     .subscribing(OneConversation(ref), into: $conversation)
     .showingDocuments()
+  }
+}
+
+/// A web link clicked in a conversation opens over it; a `loci://` place opens where it was read.
+private struct FollowingLinks: ViewModifier {
+  @Environment(\.openPage) private var openPage
+  @Environment(\.peekLink) private var peekLink
+  let ref: ConversationRef
+  let revealPassage: @MainActor (Locator) -> Void
+
+  func body(content: Content) -> some View {
+    content.environment(
+      \.openURL,
+      OpenURLAction { url in
+        if url.isWebLink, let peekLink {
+          peekLink(url)
+          return .handled
+        }
+        return openPage.follow(url, in: ref, reveal: revealPassage)
+      })
   }
 }
 
@@ -58,7 +74,7 @@ struct ConversationView: View {
   var panelRequest = PanelRequest()
   /// How long the reply being written waits, with no tool after it, before it shows.
   var replyHold = Motion.replyHold
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.standIns) private var standIns
   /// Starts keeping the newest line in view.
   @State var follow = Following()

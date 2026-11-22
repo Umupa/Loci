@@ -12,6 +12,7 @@ public protocol Host: Sendable {
   func upload(_ file: LocalFile) async throws(HostError) -> Upload
   /// `nil` unless the host is this Mac and the place exists.
   func localFile(_ place: LocalPlace) async -> LocalFile?
+  func modelSettingsAccess() async -> (any ModelSettingsAccess)?
 }
 
 /// One thing the host can be asked to do, with the type of its reply.
@@ -114,6 +115,7 @@ public protocol CommandHandler: Sendable {
   func keyPointsPage(_ item: EntityID) async throws(HostError) -> KeyPointsPage
   func jobs() async throws(HostError) -> [Job]
   func job(of item: EntityID) async throws(HostError) -> Job?
+  func renameSpeaker(_ command: RenameSpeaker) async throws(HostError) -> Done
   func mediaPage(_ item: EntityID) async throws(HostError) -> MediaPage
   func playback(_ command: ReadPlayback) async throws(HostError) -> Playback
   func mediaFileInfo(of item: EntityID) async throws(HostError) -> MediaFileInfo

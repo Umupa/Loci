@@ -1,4 +1,4 @@
-/// Whether Loci is working, for the dot beside its name.
+/// What Loci is working on, for the line under its name.
 public struct LociWorking: Subscription {
   public static let name = "loci.status"
 
@@ -11,8 +11,8 @@ public struct LociWorking: Subscription {
   public func isAffected(by changes: Set<ContentChange>) -> Bool {
     changes.contains { change in
       switch change {
-      case .conversation, .turnEnded, .review, .everything: true
-      case .item, .notes, .reading, .job, .media, .events, .loci, .runtime: false
+      case .conversation, .turnEnded, .review, .job, .loci(.panels), .everything: true
+      case .item, .notes, .reading, .media, .events, .loci, .runtime: false
       }
     }
   }

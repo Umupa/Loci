@@ -90,10 +90,12 @@ struct OpenLink {
   }
 }
 
-/// Links Loci gave one after another: a single card, or a stack that spreads into a grid.
+/// Links Loci gave one after another: a single card, or a stack that spreads into a grid. A card opens its page
+/// over the conversation, or in the browser where nothing opens it over what is shown.
 struct LinkCards: View {
   @Environment(\.browser) private var browser
   @Environment(\.openPlace) private var openPlace
+  @Environment(\.peekLink) private var peekLink
   let links: [URL]
   var spread = false
 
@@ -102,7 +104,7 @@ struct LinkCards: View {
     CardStack(cards: links, spread: spread) { url, front in
       LinkCard(url: url, showsWords: front)
     } open: { url in
-      open(url)
+      if let peekLink { peekLink(url) } else { open(url) }
     }
   }
 }

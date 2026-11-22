@@ -4,7 +4,7 @@ import Testing
 
 @testable import LociUI
 
-/// S-S2, S-S4, S-S5: how subtitles look, kept on this Mac, and a podcast's sentence filling in.
+/// S-S2, S-S4: how subtitles look, kept on this Mac.
 struct SubtitleStyleTests {
   @Test func theStandardStyleIsBigYellowTranslationsOverWhiteOriginals() {
     let style = SubtitleStyle.standard
@@ -57,12 +57,5 @@ struct SubtitleStyleTests {
   @Test func bilingualOrderPutsTheTranslationFirstWhenAsked() {
     let lines = SubtitleMode.both.lines(of: "Hi", translated: "你好", order: .translationAbove)
     #expect(lines == [SubtitleLine(text: "你好", translated: true), SubtitleLine(text: "Hi", translated: false)])
-  }
-
-  @Test func aSentenceFillsInProportionToTimePlayed() throws {
-    let segment = try Transcript.Segment(start: .seconds(10), end: .seconds(14), text: "abcdefgh")
-    #expect(LyricFill.characters(of: segment, at: .seconds(9)) == 0)
-    #expect(LyricFill.characters(of: segment, at: .seconds(11)) == 2)
-    #expect(LyricFill.characters(of: segment, at: .seconds(14)) == 8)
   }
 }

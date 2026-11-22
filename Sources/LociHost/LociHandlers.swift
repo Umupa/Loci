@@ -4,7 +4,15 @@ import LociStore
 
 extension LocalHost {
   public func lociStatus() async -> LociStatus {
-    LociStatus(working: await loci.isWorking)
+    if let work = await loci.work { return LociStatus(work: work) }
+    if let name = await panels.refreshingNames.first {
+      let title = await panels.entries().first { $0.name == name }?.panel?.title
+      return LociStatus(work: .refreshing(title: title ?? name))
+    }
+    if let batch = await library.queue.savingBatch, batch.finished < batch.items.count {
+      return LociStatus(work: .saving)
+    }
+    return LociStatus(work: nil)
   }
 
   /// Read from the files each time, which Loci and the person may both have changed.

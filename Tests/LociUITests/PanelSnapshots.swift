@@ -20,18 +20,21 @@ struct PanelSnapshots {
     moveToTop: { _ in }, remove: { _ in })
 
   /// Where the window remembers the column folded or not, apart from the app's own preferences.
-  static func defaults(columnShown: Bool) -> UserDefaults {
+  static func defaults(columnShown: Bool, sidebarShown: Bool) -> UserDefaults {
     let defaults = UserDefaults(suiteName: "loci-panel-snapshots") ?? .standard
     defaults.set(columnShown, forKey: "panelColumnShown")
+    defaults.set(sidebarShown, forKey: "sidebarShown")
     return defaults
   }
 
   static func shoot(
-    _ name: String, columnShown: Bool = true, english: Bool = false, appearance: Snapshot.Appearance
+    _ name: String, columnShown: Bool = true, sidebarShown: Bool = true, english: Bool = false,
+    appearance: Snapshot.Appearance
   ) async throws {
     try await LibrarySnapshots.shoot(
       name, try SampleLibrary(), at: WindowState(), appearance: appearance, english: english, size: window,
-      panels: try SamplePanels.column(reads: false), defaults: defaults(columnShown: columnShown))
+      panels: try SamplePanels.column(reads: false),
+      defaults: defaults(columnShown: columnShown, sidebarShown: sidebarShown))
   }
 
   /// The column alone, read through the host.
@@ -58,6 +61,11 @@ struct PanelSnapshots {
   @Test(arguments: Snapshot.Appearance.allCases)
   func folded(appearance: Snapshot.Appearance) async throws {
     try await Self.shoot("panels-folded", columnShown: false, appearance: appearance)
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func bothSidePanesCanStartFolded(appearance: Snapshot.Appearance) async throws {
+    try await Self.shoot("sidebar-and-panels-folded", columnShown: false, sidebarShown: false, appearance: appearance)
   }
 
   /// P-S2, P-S3: the whole column: the paging panels on their second page and opened out, and the panel with

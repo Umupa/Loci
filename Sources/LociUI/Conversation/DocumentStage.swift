@@ -23,7 +23,7 @@ extension View {
 }
 
 private struct DocumentStage: ViewModifier {
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.reducesMotion) private var reduceMotion
   @Namespace private var space
   @State var shown: (id: AnyHashable, document: LociDocument)?
   @State private var hidden: AnyHashable?

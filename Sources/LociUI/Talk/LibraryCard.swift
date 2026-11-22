@@ -22,7 +22,7 @@ struct LibraryCard: View {
     if LociAuthor.wrote(item) {
       PaperPage(title: item.title)
     } else {
-      Cover(item: item, corner: 0, symbolSize: 18, backdrop: Palette.cardInset)
+      Cover(item: item, corner: 0, backdrop: Palette.cardInset)
     }
   }
 }

@@ -30,4 +30,14 @@ enum Messages {
     case .audio: .loci("kind.audio")
     }
   }
+
+  static func name(of kind: ItemKind) -> LocalizedStringResource {
+    switch kind {
+    case .article: name(of: LibraryCategory.article)
+    case .paper: .loci("library.typePaper")
+    case .video: name(of: LibraryCategory.video)
+    case .audio: name(of: LibraryCategory.audio)
+    case .repository: .loci("library.typeRepository")
+    }
+  }
 }

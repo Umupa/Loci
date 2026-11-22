@@ -108,7 +108,7 @@ private struct KeyPointPicture: View {
     if let at, let image = frames?.image(at: at) {
       Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
     } else {
-      Cover(item: item, corner: 0, squareInset: 0.1, squareCorner: 3, symbolSize: 16)
+      Cover(item: item, corner: 0, squareInset: 0.1, squareCorner: 3)
     }
   }
 }

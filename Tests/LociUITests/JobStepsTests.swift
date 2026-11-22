@@ -13,6 +13,16 @@ struct JobStepsTests {
     #expect(JobSteps.progress(of: job, kind: Self.video) == 0.5)
   }
 
+  @MainActor @Test func anArticleFailureStopsOnlyTheStageThatFailed() {
+    let job = Job(
+      item: EntityID(), stage: .extract, state: .failed(.init(reason: "No readable text")),
+      stages: [.fetchPage, .extract, .findCover, .translate])
+
+    let segments = StageRuler.segments(of: job, kind: .article)
+    #expect(segments.map(\.stage) == [.fetchPage, .extract, .findCover, .translate])
+    #expect(segments.map(\.mark) == [.done, .stopped, .upcoming, .upcoming])
+  }
+
   @Test func anArticleIsOneStepWhicheverPartOfFetchingItIsIn() {
     let resolving = Job(item: EntityID(), stage: .resolve, state: .queued)
     let extracted = Job(item: EntityID(), stage: .extract, state: .done)

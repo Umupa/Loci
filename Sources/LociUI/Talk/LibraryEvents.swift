@@ -23,8 +23,9 @@ struct SavingCard: View {
 
   private func line(_ progress: Double) -> Text {
     if let problem { return problem.foregroundStyle(Palette.accentInk) }
+    let stage = JobSteps.Step(job.stage, separateArticleStages: item.kind == .article && !job.stages.isEmpty)
     return Text(
-      joining: Text(JobSteps.Step(job.stage).name), Text(verbatim: " · "),
+      joining: Text(stage.name), Text(verbatim: " · "),
       Text(progress, format: .percent.precision(.fractionLength(0))).monospacedDigit())
   }
 

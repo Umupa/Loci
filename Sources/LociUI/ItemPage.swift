@@ -32,6 +32,7 @@ struct ItemView: View {
   let openingQuote: TextQuote?
   @State private var images: [String: NSImage] = [:]
   @State private var job: Feed<Job?>?
+  @State private var openedWhileFetching = false
 
   var body: some View {
     Group {
@@ -41,10 +42,12 @@ struct ItemView: View {
           serif: true, pane: .itemPanel,
           language: page.translatable
             ? ArticleLanguage(translation: page.translation, progress: page.translating) : nil,
-          openingQuote: openingQuote
+          openingQuote: openingQuote,
+          placeholder: openedWhileFetching ? FetchingItem(item: page.item, job: nil) : nil
         )
       } else {
         FetchingItem(item: page.item, job: job?.value ?? nil)
+          .onAppear { openedWhileFetching = true }
       }
     }
     .subscribing(ItemJob(item: page.item.id), into: $job)
@@ -71,23 +74,71 @@ struct FetchingItem: View {
   @Environment(\.openPlace) private var openPlace
   @Environment(\.browser) private var browser
   @Environment(\.showFailure) private var showFailure
+  @AppStorage(ReadingWidth.key) private var readingWidth = ReadingWidth.comfortable
   let item: Item
   let job: Job?
 
   var body: some View {
-    VStack(spacing: Spacing.s) {
-      Text(serif: item.title, Typography.mediaTitle)
-        .foregroundStyle(Palette.ink)
-        .multilineTextAlignment(.center)
-      JobDetail(line: JobLine(job)) { fix in
-        JobFixes(
-          host: host, openPlace: openPlace, browser: browser, failed: showFailure, changesAllowed: changesAllowed
-        ).apply(fix, to: item)
+    Group {
+      if item.kind == .article {
+        GeometryReader { frame in
+          ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.s) {
+              Text(serif: item.title, Serif.Face(size: ReadingStyle.articleTitleSize, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+              if let source = item.site ?? item.source?.host()?.replacing(/^www\./, with: "") {
+                Text(verbatim: source).font(Typography.mono).foregroundStyle(Palette.inkMuted)
+              }
+              if case .action(_, let problem) = JobLine(job) {
+                details
+                if problem != nil, let source = item.source {
+                  Link(destination: source) { Text(.loci("job.openInBrowser")) }
+                    .buttonStyle(PushStyle())
+                }
+              } else {
+                skeleton
+              }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, readingWidth.margin(in: frame.size.width))
+            .padding(.vertical, Size.readingTop)
+          }
+        }
+      } else {
+        VStack(spacing: Spacing.s) {
+          Text(serif: item.title, Typography.mediaTitle)
+            .foregroundStyle(Palette.ink)
+            .multilineTextAlignment(.center)
+          details
+        }
+        .padding(Spacing.xxl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
-    .padding(Spacing.xxl)
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Palette.canvas)
+  }
+
+  private var details: some View {
+    JobDetail(line: JobLine(job)) { fix in
+      JobFixes(
+        host: host, openPlace: openPlace, browser: browser, failed: showFailure, changesAllowed: changesAllowed
+      ).apply(fix, to: item)
+    }
+  }
+
+  private var skeleton: some View {
+    VStack(alignment: .leading, spacing: 13) {
+      ForEach([1.0, 0.93, 0.59, 0.98, 0.87, 0.68], id: \.self) { width in
+        GeometryReader { line in
+          Capsule()
+            .fill(Palette.fillStrong)
+            .frame(width: line.size.width * width)
+        }
+        .frame(height: 8)
+      }
+    }
+    .padding(.top, Spacing.l)
+    .accessibilityHidden(true)
   }
 }
 

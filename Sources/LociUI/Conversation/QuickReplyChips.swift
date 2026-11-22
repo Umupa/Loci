@@ -29,7 +29,7 @@ private struct QuickReplyStyle: ButtonStyle {
   private struct Chip: View {
     let configuration: Configuration
     @State private var hovering = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.reducesMotion) private var reduceMotion
 
     var body: some View {
       configuration.label

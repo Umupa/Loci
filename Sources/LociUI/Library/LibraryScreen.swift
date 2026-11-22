@@ -2,7 +2,7 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// The library: the link field over a gallery of every item, and floating at its foot the task dock while
+/// The library: the link field over every item, and floating at its foot the task dock while
 /// there is work. Pasting or dropping a link adds it too. Items are renamed in place, given a new cover, and
 /// deleted with a notice that brings them back; cancelling an item's work deletes it the same way.
 struct LibraryScreen: View {
@@ -27,18 +27,19 @@ struct LibraryScreen: View {
   @State private var progress = Progress()
   @State private var selection = LibrarySelection()
   @State private var renaming: EntityID?
+  @AppStorage(LibraryPresentation.key) private var presentation = LibraryPresentation.gallery
 
   var body: some View {
     let items = shown
+    let itemIDs = items.map(\.id)
     ScrollView {
       VStack(alignment: .leading, spacing: 0) {
-        LinkField(category: category, add: add, chooseFiles: chooseFiles)
-          .padding(.bottom, 26)
+        controls.padding(.bottom, presentation == .gallery ? 26 : 12)
         if !items.isEmpty {
-          LibraryGallery(
+          LibraryEntries(
             items: items, jobs: jobsByItem, progress: progress, chosen: selection.chosen, renaming: renaming,
             click: { click($0, in: items) }, actions: cardActions,
-            menu: { menu(for: $0) }, renamed: rename)
+            menu: { menu(for: $0) }, renamed: rename, presentation: presentation)
         }
       }
       .padding(.horizontal, 28)
@@ -73,12 +74,35 @@ struct LibraryScreen: View {
     .subscribing(AllJobs(), into: $jobs)
     .subscribing(SavingNow(), into: $saving)
     .subscribing(StorageUse(), into: $storage)
-    .task(id: feed?.value?.map(\.id)) { await readProgress() }
-    .onChange(of: items.map(\.id)) { selection.keep(items.map(\.id)) }
+    .task(id: itemIDs) { await readProgress(itemIDs) }
+    .onChange(of: itemIDs) { selection.keep(itemIDs) }
     .task(id: deletions?.latest) {
       guard let deletion = deletions?.latest else { return }
       try? await Task.sleep(for: .seconds(6))
       if !Task.isCancelled { deletions?.settle(deletion) }
+    }
+  }
+
+  private var controls: some View {
+    HStack(spacing: Spacing.m) {
+      LinkField(category: category, add: add, chooseFiles: chooseFiles)
+      Picker(selection: $presentation) {
+        ForEach(LibraryPresentation.allCases, id: \.self) { option in
+          Label {
+            Text(option.name)
+          } icon: {
+            Image(systemName: option.symbol)
+          }
+          .labelStyle(.iconOnly)
+          .tag(option)
+        }
+      } label: {
+        Text(.loci("library.presentation"))
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
+      .controlSize(.large)
+      .fixedSize()
     }
   }
 
@@ -137,14 +161,14 @@ struct LibraryScreen: View {
     return false
   }
 
-  /// How far into each item the reader is, for the line along the foot of its cover.
-  private func readProgress() async {
-    guard let feed else { return }
+  /// The saved reading state of the items in the current view.
+  private func readProgress(_ items: [EntityID]) async {
     var states: [EntityID: ReadingState] = [:]
-    for item in feed.value ?? [] {
-      if let state = try? await host.run(ReadReadingState(content: .item(item.id))) { states[item.id] = state }
+    for item in items {
+      guard !Task.isCancelled else { return }
+      if let state = try? await host.run(ReadReadingState(content: .item(item))) { states[item] = state }
     }
-    progress = Progress(states: states)
+    if !Task.isCancelled { progress = Progress(states: states) }
   }
 
   private func act(_ fix: JobLine.Fix, on item: Item) {
@@ -168,7 +192,7 @@ struct LibraryScreen: View {
     run { () async throws(HostError) in
       guard let picture = await choosePicture() else { return }
       _ = try await host.run(SetCover(item: item.id, upload: try await host.upload(LocalFile(picture))))
-      if let image = NSImage(contentsOf: picture) { covers?.replace(item.id, with: image) }
+      covers?.invalidate(item.id)
     }
   }
 

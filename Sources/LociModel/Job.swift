@@ -32,14 +32,17 @@ public struct Job: Hashable, Codable, Sendable {
     Job(item: item, stage: stage, state: state, stages: stages)
   }
 
-  /// In the order they run. Articles stop after `extract`; video and audio skip it.
+  /// In the order they run.
   public enum Stage: String, CaseIterable, Codable, Hashable, Sendable {
     /// Reads the title, cover, duration and subtitles behind a link.
     case resolve
+    case fetchPage
     /// Takes the text out of a web page.
     case extract
+    case findCover
     case download
     case transcribe
+    case diarize
     case translate
     /// Finds chapters; key points are picked when the reader asks.
     case outline
@@ -112,6 +115,7 @@ public struct Job: Hashable, Codable, Sendable {
     case outdated
     /// The browser's sign-in could not be read.
     case cookiesUnreadable
+    case noArticleText
   }
 }
 

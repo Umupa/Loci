@@ -1,13 +1,9 @@
 import LociModel
 import SwiftUI
 
-/// The pages of the panel beside a video or a podcast.
-enum MediaTab: Hashable {
-  case transcript, keyPoints, conversation, highlights
-}
-
-/// A video or audio item: the player on the left, and beside it the transcript, the key points, the
-/// conversation with Loci reading along, and the highlights; or how subtitles look, while that is open. Space plays and pauses, ← → jump five seconds, < > change speed.
+/// A video or audio item: the player, or an episode's page, on the left, and beside it the transcript of a
+/// video, the key points, the conversation with Loci reading along, and the highlights; or how subtitles look,
+/// while that is open. Space plays and pauses, ← → jump five seconds, < > change speed.
 struct MediaScreen: View {
   @Environment(\.host) private var host
   @Environment(\.standIns) private var standIns
@@ -18,14 +14,16 @@ struct MediaScreen: View {
   @Environment(\.machineChoice) private var machineChoice
   @Environment(\.deletions) private var deletions
   @Environment(\.undoManager) private var undoManager
+  @Environment(\.nowPlaying) private var nowPlaying
   let item: Item
   let initialTime: Duration?
-  @State private var player: Player
+  /// The page's own player, which the window takes over once an episode plays.
+  @State private var own: Player
   @State private var media: Feed<MediaPage>?
   @State private var job: Feed<Job?>?
   @State private var notes: Feed<[Note]>?
   @State private var keyPoints: Feed<KeyPointsPage>?
-  @State private var tab = MediaTab.transcript
+  @State private var tab: MediaTab
   @AppStorage(SubtitleMode.key) private var subtitles = SubtitleMode.both
   @AppStorage(SubtitleStyle.key) private var style = SubtitleStyle.standard
   @State private var styling = false
@@ -47,8 +45,16 @@ struct MediaScreen: View {
   init(item: Item, initialTime: Duration? = nil) {
     self.item = item
     self.initialTime = initialTime
-    _player = State(initialValue: Player(start: .zero, length: item.length))
+    _own = State(initialValue: Player(start: .zero, length: item.length))
+    _tab = State(initialValue: MediaTab.all(for: item)[0].value)
   }
+
+  /// The window's player while this item plays there, the page's own otherwise.
+  private var player: Player {
+    nowPlaying?.player(of: item.id) ?? own
+  }
+
+  private var isEpisode: Bool { if case .audio = item.kind { true } else { false } }
 
   var body: some View {
     HStack(spacing: 0) {
@@ -80,7 +86,7 @@ struct MediaScreen: View {
     .focusEffectDisabled()
     .focused($focused)
     .onKeyPress(.space) {
-      player.toggle()
+      toggle()
       return .handled
     }
     .onKeyPress(.leftArrow) {
@@ -104,14 +110,16 @@ struct MediaScreen: View {
     .subscribing(NotesOn(content: .item(item.id)), into: $notes)
     .subscribing(ItemKeyPoints(item: item.id), into: $keyPoints)
     .task(id: item.id) { await open() }
-    .task(id: playable) { await load() }
+    .task(id: playable + [adopted]) { await load() }
     .task(id: [points.compactMap(\.span?.start), [player.soundOnly ? .zero : .seconds(1)]]) { await drawFrames() }
     .onChange(of: playback) { player.only = onlyKeyPoints ? playback : nil }
     .onChange(of: onlyKeyPoints) { _, only in
       player.only = only ? playback : nil
       if only, case .jump(let start) = playback.step(at: player.time) { player.seek(to: start) }
     }
-    .onDisappear { player.close() }
+    .onDisappear {
+      if adopted { nowPlaying?.left(item.id) } else { own.close() }
+    }
   }
 
   @ViewBuilder private var stage: some View {
@@ -120,7 +128,7 @@ struct MediaScreen: View {
       timeline: Timeline(length: length, outline: media?.value?.outline, keyPoints: points), transcript: readable,
       subtitles: $subtitles, subtitlesShown: $subtitlesShown, menuOpen: $menuOpen, style: $style,
       onlyKeyPoints: points.isEmpty ? nil : $onlyKeyPoints, styling: styling,
-      openStyle: { withAnimation(Motion.fold) { styleSubtitles() } })
+      openStyle: { withAnimation(Motion.fold) { styleSubtitles() } }, toggle: toggle)
     if let preparing = PreparingStage.job(job?.value ?? nil, playable: player.canPlay) {
       PreparingStage(
         item: item, job: preparing,
@@ -132,12 +140,8 @@ struct MediaScreen: View {
         if player.availability == .failed {
           Text(.loci("player.failed")).font(Typography.bodyEmphasis).padding(.top, Spacing.m)
         }
-        if case .audio = item.kind {
-          if subtitlesShown, let readable {
-            PodcastLyrics(model: model, transcript: readable).transition(.opacity)
-          } else {
-            PodcastStage(model: model).transition(.opacity)
-          }
+        if isEpisode {
+          episode
         } else {
           VideoStage(model: model)
         }
@@ -200,10 +204,7 @@ struct MediaScreen: View {
     .overlay(alignment: .leading) { Rectangle().fill(Palette.lineStrong).frame(width: Size.hairline) }
   }
 
-  private let tabs: [(value: MediaTab, title: LocalizedStringResource)] = [
-    (.transcript, .loci("panel.transcript")), (.keyPoints, .loci("panel.keyPoints")),
-    (.conversation, .loci("panel.conversation")), (.highlights, .loci("panel.highlights")),
-  ]
+  private var tabs: [(value: MediaTab, title: LocalizedStringResource)] { MediaTab.all(for: item) }
 
   private var points: [KeyPoint] { keyPoints?.value?.keyPoints?.points ?? [] }
 
@@ -219,8 +220,39 @@ struct MediaScreen: View {
 
   private func play(from start: Duration) {
     player.seek(to: start)
-    player.play()
+    play()
     follow.resume()
+  }
+
+  /// What plays is kept by the window, so it goes on after the page is left.
+  private func play() {
+    if let nowPlaying { nowPlaying.play(item, on: player) } else { player.play() }
+  }
+
+  private func toggle() {
+    player.playing ? player.pause() : play()
+  }
+
+  /// The window plays this item with the player the page made earlier.
+  private var adopted: Bool {
+    nowPlaying?.player(of: item.id) != nil
+  }
+
+  private var episode: some View {
+    EpisodePage(
+      model: EpisodeModel(
+        item: item, player: player, length: length, transcript: readable,
+        chapters: media?.value?.outline?.chapters ?? [], notes: notes?.value ?? [], mode: $subtitles,
+        growing: recognizing != nil,
+        actions: passageActions,
+        toggle: toggle, play: play(from:)),
+      follow: $follow, chosen: $chosen
+    ) {
+      TranscriptPending(job: job?.value ?? nil, act: { fixes.apply($0, to: item) })
+    }
+    .overlay(alignment: .bottom) {
+      if let recognizing { RecognitionCard(progress: recognizing).frame(maxWidth: 420).padding(Spacing.s) }
+    }
   }
 
   private func styleSubtitles() {
@@ -239,20 +271,16 @@ struct MediaScreen: View {
         transcript: readable, chapters: media?.value?.outline?.chapters ?? [], keyPoints: playback.spans,
         notes: notes?.value ?? [], mode: subtitlesShown ? subtitles : .both, order: style.order,
         playing: TranscriptFollow.playing(in: readable.segments, at: player.time),
-        speakers: speaksInTurns(readable.transcript), growing: recognizing != nil, follow: $follow, chosen: $chosen,
+        growing: recognizing != nil, follow: $follow, chosen: $chosen,
         actions: passageActions(readable), play: { player.seek(to: readable.segments[$0].start) }
       )
       .overlay(alignment: .bottom) {
         if let recognizing { RecognitionCard(progress: recognizing).padding(Spacing.s) }
       }
     } else {
-      TranscriptPending(job: job?.value ?? nil, act: act)
+      TranscriptPending(job: job?.value ?? nil, act: { fixes.apply($0, to: item) })
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-  }
-
-  private func act(_ fix: JobLine.Fix) {
-    fixes.apply(fix, to: item)
   }
 
   /// The share of speech recognized so far, while recognition runs.
@@ -263,36 +291,19 @@ struct MediaScreen: View {
     return progress ?? Fraction(0)
   }
 
-  /// A podcast whose speakers were told apart reads as turns of talk.
-  private func speaksInTurns(_ transcript: Transcript) -> Bool {
-    guard case .audio = item.kind else { return false }
-    return transcript.segments.contains { $0.speaker != nil }
-  }
-
   private func passageActions(_ readable: ReadableTranscript) -> PassageActions {
     PassageActions(
       highlight: { range in
-        guard let passage = passage(range, in: readable) else { return nil }
+        guard let passage = readable.passage(range, of: item.id) else { return nil }
         return try? await host.run(AddNote(locator: passage.locator, excerpt: passage.excerpt)).id
       },
       think: { note, thought in
         Task { _ = try? await host.run(SetNoteThought(content: .item(item.id), note: note, thought: thought)) }
       },
       ask: { range in
-        guard let passage = passage(range, in: readable) else { return }
+        guard let passage = readable.passage(range, of: item.id) else { return }
         ask(passage.locator, excerpt: passage.excerpt)
       }, changes: changesAllowed)
-  }
-
-  /// The sentences chosen, as a stretch of time and their words.
-  private func passage(_ range: NSRange, in readable: ReadableTranscript) -> (locator: Locator, excerpt: String)? {
-    let segments = readable.segments
-    let last = range.location + max(range.length, 1) - 1
-    guard segments.indices.contains(range.location), segments.indices.contains(last),
-      let span = try? TimeSpan(start: segments[range.location].start, end: segments[last].end)
-    else { return nil }
-    let words = segments[range.location...last].map(\.text).joined(separator: " ")
-    return (.item(item.id, .time(span)), words)
   }
 
   private func ask(_ locator: Locator, excerpt: String) {
@@ -332,17 +343,17 @@ struct MediaScreen: View {
     let host = host
     if let initialTime {
       player.seek(to: initialTime)
-    } else if let state = try? await host.run(ReadReadingState(content: .item(id))),
+    } else if !adopted, let state = try? await host.run(ReadReadingState(content: .item(id))),
       !followedPassage, let time = state.position?.time
     {
-      player.seek(to: time.start)
+      own.seek(to: time.start)
     }
-    player.remember = { time in
+    own.remember = { time in
       guard let span = try? TimeSpan(start: time) else { return }
       Task { _ = try? await host.run(SaveReadingPosition(content: .item(id), position: .item(id, .time(span)))) }
     }
-    player.reachedEnd = { Task { _ = try? await host.run(MarkRead(content: .item(id))) } }
-    player.refresh = {
+    own.reachedEnd = { Task { _ = try? await host.run(MarkRead(content: .item(id))) } }
+    own.refresh = {
       guard let playback = try? await host.run(ReadPlayback(item: id, refresh: true)) else { return nil }
       return await PlayerSource.of(playback, item: id, on: host)
     }
@@ -352,10 +363,10 @@ struct MediaScreen: View {
   /// Plays once the host can say where from: at once for a downloaded file, after the link is resolved for
   /// a stream.
   private func load() async {
-    guard standIns == nil, !onlyThere, let playback = try? await host.run(ReadPlayback(item: item.id)),
+    guard standIns == nil, !onlyThere, !adopted, let playback = try? await host.run(ReadPlayback(item: item.id)),
       let source = await PlayerSource.of(playback, item: item.id, on: host)
     else { return }
-    player.load(source)
+    own.load(source)
   }
 
   /// What may change where the media plays from.
@@ -366,7 +377,10 @@ struct MediaScreen: View {
   /// Sets the page as a snapshot asks: after the transcript has come to the sentence playing, so scrolling
   /// away leaves it there.
   private func show(_ moment: MediaMoment) {
-    if moment.playing { player.showPlaying() }
+    if moment.playing {
+      nowPlaying?.play(item, on: own)
+      player.showPlaying()
+    }
     chosen = moment.chosen
     menuOpen = moment.subtitleMenuOpen
     onlyKeyPoints = moment.onlyKeyPoints

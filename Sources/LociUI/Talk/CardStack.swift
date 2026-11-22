@@ -9,7 +9,7 @@ struct CardStack<Element, Card: View>: View {
   /// A card, and whether its words show: they do on top of a stack and in the grid.
   let card: (Element, _ showsWords: Bool) -> Card
   let open: (Element) -> Void
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.reducesMotion) private var reduceMotion
   @State private var spread: Bool
   @State private var watcher = StackSpread()
   @Environment(\.conversationCover) private var cover

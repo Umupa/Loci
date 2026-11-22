@@ -7,6 +7,7 @@ public struct MediaInfo: Hashable, Sendable {
   public let title: String
   /// The show, channel or uploader, as it names itself.
   public let site: String?
+  public let description: String?
   public let published: Date?
   public let duration: Duration?
   public let thumbnail: URL?
@@ -35,6 +36,7 @@ public struct MediaInfo: Hashable, Sendable {
     }
     self.title = title
     site = Self.site(of: raw)
+    description = raw.description
     published =
       (raw.timestamp ?? raw.releaseTimestamp).map { Date(timeIntervalSince1970: $0) }
       ?? raw.uploadDate.flatMap(Self.day)
@@ -101,6 +103,8 @@ public struct MediaInfo: Hashable, Sendable {
     offered.filter { !["live_chat", "danmaku", "comments"].contains($0) }.sorted()
   }
 
+  static let duplicateOP3Scheme = #"(?<=^https://op3\.dev/e/)https://(?=https://)"#
+
   private static let decoder = {
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -110,6 +114,7 @@ public struct MediaInfo: Hashable, Sendable {
   struct Raw: Decodable {
     let title: String?
     let series: String?
+    let description: String?
     let channel: String?
     let uploader: String?
     let webpageUrlDomain: String?
@@ -164,7 +169,11 @@ public struct MediaInfo: Hashable, Sendable {
       static let audioExtensions: Set = ["mp3", "m4a", "aac", "wav", "ogg", "opus", "flac"]
 
       func stream(audioOnly: Bool) -> OnlineStream? {
-        guard let url = url.flatMap(URL.init(string:)) else { return nil }
+        guard
+          let address = url?.replacingOccurrences(
+            of: MediaInfo.duplicateOP3Scheme, with: "", options: .regularExpression),
+          let url = URL(string: address)
+        else { return nil }
         let expires = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
           .first { $0.name == "expire" || $0.name == "deadline" }?.value.flatMap(Double.init)
           .map { Timestamp(Date(timeIntervalSince1970: $0)) }

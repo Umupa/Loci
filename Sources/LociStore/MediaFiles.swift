@@ -56,7 +56,8 @@ extension Store {
 
   /// Removes one file from the work folder, if it is there.
   public func removeWork(named name: String, of item: EntityID) throws {
-    guard let file = try workFile(named: name, of: item) else { return }
+    let target = try itemFolder(item).appending(path: Self.workFolder).appending(path: name)
+    guard let file = existing(target) else { return }
     try FileManager.default.removeItem(at: file)
   }
 
@@ -129,7 +130,11 @@ extension Store {
   }
 
   public func cover(of item: EntityID) throws -> Data? {
-    try coverFile(of: item).map(read)
+    try cover(in: itemFolder(item))
+  }
+
+  func cover(in folder: URL) throws -> Data? {
+    try named(Self.coverName, in: folder).map(read)
   }
 
   /// Saves the cover as `cover.<extension>`, replacing any earlier one.

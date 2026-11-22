@@ -2,16 +2,14 @@ import LociModel
 import SwiftUI
 
 struct ActivityDots: View {
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Environment(\.standIns) private var standIns
+  @Environment(\.reducesMotion) private var reduceMotion
 
   nonisolated static let size = CGSize(width: 18, height: 14)
 
   var body: some View {
-    let still = reduceMotion || standIns?.conversationAt != nil
-    TimelineView(.animation(paused: still)) { timeline in
+    TimelineView(.animation(paused: reduceMotion)) { timeline in
       Canvas { context, _ in
-        for spot in Self.spots(at: still ? 0 : timeline.date.timeIntervalSinceReferenceDate) {
+        for spot in Self.spots(at: reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate) {
           context.fill(Path(ellipseIn: spot), with: .color(Palette.accent))
         }
       }

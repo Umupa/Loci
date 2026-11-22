@@ -171,14 +171,14 @@ private struct CoverArt: View {
   }
 }
 
-/// A placeholder with light passing over it, for something still being read. Held still in snapshots.
+/// A placeholder with light passing over it, for something still being read.
 struct Shimmer: View {
-  @Environment(\.standIns) private var standIns
+  @Environment(\.reducesMotion) private var reduceMotion
 
   var body: some View {
-    TimelineView(.animation(paused: standIns != nil)) { context in
+    TimelineView(.animation(paused: reduceMotion)) { context in
       let phase =
-        standIns == nil ? context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.2) / 1.2 : 0.35
+        reduceMotion ? 0.35 : context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.2) / 1.2
       RoundedRectangle(cornerRadius: 6, style: .continuous)
         .fill(
           LinearGradient(

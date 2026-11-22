@@ -6,6 +6,7 @@ import SwiftUI
 /// remembers where they go and whether they reached the end, and shows the highlights left on it.
 struct ContentReader: View {
   @Environment(\.host) private var host
+  @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.openPage) private var openPage
   @Environment(\.standIns) private var standIns
   @Environment(\.changesAllowed) private var changesAllowed
@@ -22,6 +23,7 @@ struct ContentReader: View {
   /// The article's translation, when it is in another language than the reader's.
   let language: ArticleLanguage?
   let openingQuote: TextQuote?
+  let placeholder: FetchingItem?
   @AppStorage(SubtitleMode.key) private var mode = SubtitleMode.both
   @AppStorage(SubtitleStyle.key) private var style = SubtitleStyle.standard
   @State private var keyPoints: Feed<KeyPointsPage>?
@@ -45,10 +47,11 @@ struct ContentReader: View {
   init(
     item: EntityID, title: String?, markdown: String, byline: NSAttributedString? = nil,
     images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel, language: ArticleLanguage? = nil,
-    openingQuote: TextQuote? = nil
+    openingQuote: TextQuote? = nil, placeholder: FetchingItem? = nil
   ) {
     self.language = language
     self.openingQuote = openingQuote
+    self.placeholder = placeholder
     self.byline = byline
     self.images = images
     self.serif = serif
@@ -64,6 +67,7 @@ struct ContentReader: View {
   var body: some View {
     HStack(spacing: 0) {
       reader
+        .animation(placeholder != nil && !reduceMotion ? Motion.standard : nil, value: text != nil)
       if panelShown {
         ReaderPanel(
           item: item, notes: placedNotes, keyPoints: keyPoints?.value, openKeyPoint: open, tab: $tab, draft: $draft,
@@ -136,8 +140,11 @@ struct ContentReader: View {
         text: text, start: start, width: readingWidth, marks: marks, reveal: reveal, selected: standIns?.selection,
         events: events, passageBar: passageBar
       )
+      .transition(.opacity)
       .onDisappear { passageBar.close() }
       .overlay(alignment: .topTrailing) { corner }
+    } else if let placeholder {
+      placeholder
     } else {
       Palette.canvas
     }

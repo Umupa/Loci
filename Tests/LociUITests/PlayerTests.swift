@@ -147,7 +147,7 @@ extension PlayerTests {
   @Test func aChapterHeadsItsFirstSentenceAndEmptyChaptersAreLeftOut() throws {
     let segments = try Self.transcript([100, 200]).segments
     let chapters = try [0, 50, 150].map { try Outline.Chapter(start: .seconds($0), title: "c\($0)") }
-    let lines = TranscriptLayout.lines(segments, chapters: chapters, showSpeakers: false).map(\.id)
+    let lines = TranscriptLayout.lines(segments, chapters: chapters).map(\.id)
     #expect(lines == ["c50000", "s0", "c150000", "s1"])
   }
 

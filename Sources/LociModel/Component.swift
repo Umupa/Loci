@@ -1,4 +1,4 @@
-/// A program Loci calls on but does not contain, needed only for video and audio.
+/// A program Loci downloads or finds on this Mac.
 public enum Component: String, CaseIterable, Codable, Hashable, Sendable {
   /// Finds and fetches video and audio from a link.
   case ytDlp
@@ -6,6 +6,7 @@ public enum Component: String, CaseIterable, Codable, Hashable, Sendable {
   case ffmpeg
   /// Lets yt-dlp run the scripts some sites need.
   case quickJS
+  case bundledPi
 }
 
 /// Where a component was found, and which version.

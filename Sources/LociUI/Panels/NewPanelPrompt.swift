@@ -25,7 +25,7 @@ struct PanelExample {
 /// The examples in turn, each rising in as the last rises away.
 struct PanelExamples: View {
   let index: Int
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.reducesMotion) private var reduceMotion
 
   var body: some View {
     Text(PanelExample.at(index).words).font(.system(size: 15)).foregroundStyle(Palette.ink.opacity(0.45))

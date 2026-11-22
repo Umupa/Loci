@@ -25,7 +25,7 @@ struct LinkPreviewScenarioTests {
     try await withMediaHost { host, world in
       let picture = try #require(URL(string: "https://example.com/cover.jpg"))
 
-      #expect(try await host.run(ReadWebPicture(url: picture)) == Data("jpeg".utf8))
+      #expect(try await host.run(ReadWebPicture(url: picture)) == FakeNetwork.cover)
       #expect(world.network.requests == [picture])
     }
   }

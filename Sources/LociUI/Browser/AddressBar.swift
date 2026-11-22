@@ -86,8 +86,8 @@ struct AddressBar<Trailing: View>: View {
   }
 }
 
-/// An amber line along the address's lower edge while the page loads.
-private struct LoadingLine: View {
+/// An amber line along the lower edge of what shows a page's address while the page loads.
+struct LoadingLine: View {
   let progress: Double?
 
   var body: some View {

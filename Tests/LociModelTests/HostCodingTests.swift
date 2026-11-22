@@ -99,7 +99,7 @@ struct HostCodingTests {
 
     #expect(try Self.roundTrips(Feed<LociPage>.value(page)))
     #expect(try Self.roundTrips(Diary(heading: page.diaries[0], body: "今天…", toRemember: ["地基"])))
-    #expect(try Self.roundTrips(LociStatus(working: true)))
+    #expect(try Self.roundTrips(LociStatus(work: .refreshing(title: "沙箱雷达"))))
     #expect(try Self.roundTrips(Feed<Avatar?>.value(nil)))
   }
 
@@ -110,6 +110,29 @@ struct HostCodingTests {
     #expect(throws: ModelError.self) { try Avatar(data: Data(count: Avatar.largest + 1), format: "png") }
     let json = #"{"data":"AQ==","format":"exe"}"#
     #expect(throws: DecodingError.self) { try JSONDecoder().decode(Avatar.self, from: Data(json.utf8)) }
+  }
+
+  @Test(arguments: [true, false])
+  func aNewWindowCanReadAnOlderHostsLociStatus(working: Bool) throws {
+    let older = Feed.value(PreviousLociStatus(working: working))
+    let data = try JSONEncoder().encode(older)
+    let current = try JSONDecoder().decode(Feed<LociStatus>.self, from: data)
+
+    #expect(current == .value(LociStatus(work: working ? .unspecified : nil)))
+  }
+
+  @Test(arguments: [LociWork?.none, .refreshing(title: "沙箱雷达")])
+  func anOlderWindowCanReadANewHostsLociStatus(work: LociWork?) throws {
+    let current = Feed.value(LociStatus(work: work))
+    let data = try JSONEncoder().encode(current)
+    let older = try JSONDecoder().decode(Feed<PreviousLociStatus>.self, from: data)
+
+    #expect(older == .value(PreviousLociStatus(working: work != nil)))
+    #expect(try JSONDecoder().decode(Feed<LociStatus>.self, from: data) == current)
+  }
+
+  private struct PreviousLociStatus: Codable, Equatable {
+    let working: Bool
   }
 
   @Test func aRuntimeKeepsOnlyWhatItsProviderTakes() throws {

@@ -12,6 +12,8 @@ final class FakeAgent: AgentDriver, Sendable {
     case askToRun
     /// Works until interrupted.
     case hang
+    /// Starts reading a file, then works until interrupted.
+    case readAndHang(String)
     /// Writes these files, relative to Loci's folder, then replies.
     case write([String: String], reply: String)
     /// Says how full its context window is, then replies.
@@ -123,6 +125,11 @@ private actor FakeSession: AgentSession {
       return .completed
     case .hang:
       out.yield(.text("Working"))
+      if !wasInterrupted { await withCheckedContinuation { interrupted = $0 } }
+      return .interrupted
+    case .readAndHang(let path):
+      out.yield(
+        .toolCall(ToolCall(id: .init("read-1"), name: "read", kind: .read, input: .object(["path": .string(path)]))))
       if !wasInterrupted { await withCheckedContinuation { interrupted = $0 } }
       return .interrupted
     case .write(let files, let reply):

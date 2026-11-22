@@ -14,14 +14,25 @@ public struct WebTextFetcher: TextFetching {
   }
 
   public func article(at url: URL, html: String? = nil) async throws(FetchError) -> FetchedArticle {
+    try await articlePage(at: url, html: html).article()
+  }
+
+  public func articlePage(at url: URL, html: String?) async throws(FetchError) -> ArticlePage {
     let assembler = ArticleAssembler(network: network)
-    if let html, let extraction = try? await PageReader.read(.html(html, base: url), timeout: timeout),
-      let article = try? await assembler.article(from: extraction, at: url)
-    {
-      return article
+    let source: PageReader.Source = html.map { .html($0, base: url) } ?? .url(url)
+    let reader = try await PageReader.open(source, timeout: timeout)
+    let address = await reader.address
+    let head = await reader.head()
+    return ArticlePage(
+      preview: PageMeta.preview(html: head, at: address), coverImages: PageMeta.coverImages(html: head, at: address)
+    ) { () async throws(FetchError) in
+      do throws(FetchError) {
+        return try await assembler.article(from: reader.extract(), at: address)
+      } catch {
+        guard html != nil, !Task.isCancelled else { throw error }
+        return try await article(at: url)
+      }
     }
-    let extraction = try await PageReader.read(.url(url), timeout: timeout)
-    return try await assembler.article(from: extraction, at: url)
   }
 
   public func paper(at url: URL) async throws(FetchError) -> FetchedPaper {

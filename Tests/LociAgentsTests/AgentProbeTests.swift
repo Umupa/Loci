@@ -30,7 +30,7 @@ struct AgentProbeTests {
       launcher: ProbeLauncher(), search: AgentSearch(directories: [folder]), workingDirectory: folder)
 
     let installations = await probe.installations()
-    #expect(installations.map(\.provider) == Provider.allCases)
+    #expect(installations.map(\.provider) == Provider.allCases.filter { $0 != .bundledPi })
     for installation in installations {
       guard case .missing = installation else {
         Issue.record("\(installation.provider) was found in an empty folder")
@@ -141,8 +141,8 @@ struct AgentProbeTests {
     #expect(launcher.launched.isEmpty)
   }
 
-  @Test func everyProviderHasAProgramToLookFor() {
-    #expect(AgentCLI.all.map(\.provider) == Provider.allCases)
+  @Test func everyExternalProviderHasAProgramToLookFor() {
+    #expect(AgentCLI.all.map(\.provider) == Provider.allCases.filter { $0 != .bundledPi })
   }
 }
 
