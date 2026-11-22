@@ -8,7 +8,6 @@ struct ReadingShown: Equatable {
   var lessons: [LessonThread.Row]
   var sources: [SourceShown]
   var lesson: ShownLesson
-  var next: NextLesson?
 }
 
 /// What the person does on the reading page.
@@ -25,6 +24,7 @@ struct ReadingActions {
 /// the window leaves the lesson too little room they and the panel lie over it when asked for instead.
 struct CourseReader<Conversation: View>: View {
   @Environment(\.lociFace) private var face
+  @Environment(\.locale) private var locale
   let shown: ReadingShown
   let actions: ReadingActions
   var pointedSource: EntityID?
@@ -90,13 +90,9 @@ struct CourseReader<Conversation: View>: View {
       let sources = shown.sources.compactMap(\.url)
       ContentReader(
         content: .lesson(course: shown.course, lesson: lesson), title: title, markdown: markdown,
-        byline: LessonFacts.byline(face: face, minutes: minutes),
+        byline: LessonFacts.byline(face: face, minutes: minutes, locale: locale),
         cite: { LessonFacts.citation(of: $0, in: sources) }, showsProgress: true
-      ) {
-        if let next = shown.next {
-          NextLessonCard(next: next) { actions.choose(next.id) }
-        }
-      }
+      )
       .id(lesson)
       .transition(.opacity)
     case .unwritten(let lesson, let title, let writing):

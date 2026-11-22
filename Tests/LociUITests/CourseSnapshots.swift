@@ -15,16 +15,17 @@ struct CourseSnapshots {
   /// A wider window, with room for the conversation beside a lesson.
   static let wide = CGSize(width: 1360, height: 880)
 
-  static func shoot(
+  @discardableResult static func shoot(
     _ name: String, _ view: some View, appearance: Snapshot.Appearance, english: Bool = false, size: CGSize = page,
     standIns: StandIns = StandIns()
-  ) async throws {
+  ) async throws -> URL {
     let file = try await Snapshot.render(
       view.environment(\.standIns, standIns).background(Palette.canvas)
         .lociHost(FakeHost(try Sample(problems: false), courses: try SampleCourses())),
       named: name, size: size,
       appearance: appearance, locale: Locale(identifier: english ? "en" : "zh-Hans"), settle: .milliseconds(700))
     #expect(try Data(contentsOf: file).count > 10_000)
+    return file
   }
 
   /// Draws `view` with SwiftUI's own renderer, which keeps 3D turns and shadows that the window's picture
@@ -234,14 +235,6 @@ struct CourseSnapshots {
       size: CGSize(width: Size.windowMinimum.width, height: 700))
   }
 
-  /// CO-S9: at the end of the lesson, the next one being written.
-  @Test(arguments: Snapshot.Appearance.allCases)
-  func readingNextWriting(appearance: Snapshot.Appearance) async throws {
-    try await Self.shoot(
-      "course-reader-next-writing", ReadingStage(shown: ReadingSamples.first(nextWriting: true), panel: false),
-      appearance: appearance, standIns: StandIns(readThrough: 1, endInView: true))
-  }
-
   /// UI-S26: with the sidebar hidden, its button, the course's back and its contents sit in a row in the
   /// window's corner.
   @Test(arguments: Snapshot.Appearance.allCases)
@@ -258,6 +251,18 @@ struct CourseSnapshots {
       standIns: StandIns(
         webPage: LibrarySnapshots.webPage("article", appearance),
         overlayPage: URL(string: "https://raft.github.io/raft.pdf")))
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func theEndOfALessonStaysClearWhileLociWritesTheNext(appearance: Snapshot.Appearance) async throws {
+    let file = try await Self.shoot(
+      "course-reader-end", ReadingStage(shown: ReadingSamples.first(nextWriting: true), panel: false),
+      appearance: appearance, standIns: StandIns(readThrough: 1))
+    let bitmap = try #require(NSBitmapImageRep(data: Data(contentsOf: file)))
+    let foot = bitmap.pixelsHigh * 15 / 16
+    let belowText = try #require(bitmap.colorAt(x: bitmap.pixelsWide * 3 / 4, y: foot))
+    let besideText = try #require(bitmap.colorAt(x: bitmap.pixelsWide - 32, y: foot))
+    #expect(belowText == besideText)
   }
 
   /// CO-S10: a lesson not written yet.

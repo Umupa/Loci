@@ -102,5 +102,4 @@ extension Symbols {
   static let course = "text.book.closed"
   static let pencil = "pencil"
   static let collapseBuilder = "chevron.down"
-  static let next = "arrow.right"
 }

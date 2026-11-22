@@ -125,6 +125,14 @@ struct CourseTests {
     #expect(LessonFacts.minutes(Array(repeating: "quorum", count: 660).joined(separator: " ")) == 3)
     #expect(LessonFacts.minutes("短") == 1)
   }
+
+  @Test func aLessonShowsTheAuthorsAvatarAndEstimatedReadingTime() {
+    for (language, readingTime) in [("zh-Hans", "约 5 分钟"), ("en", "5 min read")] {
+      let byline = LessonFacts.byline(face: .drawn, minutes: 5, locale: Locale(identifier: language))
+      #expect(byline.attribute(.attachment, at: 0, effectiveRange: nil) is NSTextAttachment)
+      #expect(byline.string.dropFirst().trimmingCharacters(in: .whitespaces) == readingTime)
+    }
+  }
 }
 
 /// The words on a course's paper and cloth stay readable, in both appearances.

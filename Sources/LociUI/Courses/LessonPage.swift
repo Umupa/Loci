@@ -12,13 +12,6 @@ enum ShownLesson: Equatable {
   case arriving
 }
 
-/// The lesson after the open one, as the card at the end of the lesson.
-struct NextLesson: Equatable {
-  let id: Lesson.ID
-  let title: String
-  let writing: Bool
-}
-
 /// What a lesson shows besides its text.
 enum LessonFacts {
   /// The number of the source `url` cites, counting the course's sources from 1: the first source whose address
@@ -48,8 +41,8 @@ enum LessonFacts {
     return max(1, Int((Double(characters) / 400 + Double(words) / 220).rounded()))
   }
 
-  /// "Loci · 8 minutes" after Loci's face, under a lesson's title.
-  @MainActor static func byline(face: LociFace, minutes: Int) -> NSAttributedString {
+  /// Loci's face and the estimated reading time under a lesson's title.
+  @MainActor static func byline(face: LociFace, minutes: Int, locale: Locale) -> NSAttributedString {
     let line = NSMutableAttributedString()
     if let picture = face.image {
       let side: CGFloat = 20
@@ -64,9 +57,11 @@ enum LessonFacts {
       line.append(NSAttributedString(attachment: attachment))
       line.append(NSAttributedString(string: "  "))
     }
+    var readingTime = LocalizedStringResource.loci("course.byline \(minutes)")
+    readingTime.locale = locale
     line.append(
       NSAttributedString(
-        string: String(localized: .loci("course.byline \(minutes)")),
+        string: String(localized: readingTime),
         attributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: Tones.inkMuted]))
     return line
   }
@@ -126,48 +121,5 @@ struct UnwrittenLesson: View {
     .padding(.top, 62)
     .padding(.horizontal, Spacing.xl)
     .frame(maxWidth: .infinity, alignment: .leading)
-  }
-}
-
-/// The card at the end of a lesson for the one after it; its title shimmers while Loci is still writing it.
-struct NextLessonCard: View {
-  let next: NextLesson
-  let open: () -> Void
-  @State private var hovering = false
-
-  var body: some View {
-    let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
-    Button(action: open) {
-      HStack(spacing: Spacing.m) {
-        if next.writing {
-          PulsingBead(filled: false)
-        } else {
-          Circle().strokeBorder(Palette.inkMuted, lineWidth: 1).frame(width: Size.bead, height: Size.bead)
-        }
-        Group {
-          if next.writing {
-            ShimmerText(text: Text(serif: next.title, Serif.Face(size: 19, weight: .semibold)))
-          } else {
-            Text(serif: next.title, Serif.Face(size: 19, weight: .semibold)).foregroundStyle(Palette.ink)
-          }
-        }
-        .lineLimit(1)
-        Spacer(minLength: 0)
-        Image(systemName: Symbols.next).font(.system(size: 15)).foregroundStyle(Palette.inkMuted)
-      }
-      .padding(.horizontal, 22)
-      .padding(.vertical, 20)
-      .background(shape.fill(Palette.surface))
-      .overlay { shape.strokeBorder(Palette.cardEdge, lineWidth: Size.hairline) }
-      .shadow(color: Palette.warmShadow.opacity(0.16), radius: 18, y: 10)
-      .offset(y: hovering ? -2 : 0)
-      .contentShape(shape)
-    }
-    .buttonStyle(AnswerPress())
-    .onHover { hovering = $0 }
-    .animation(.spring(duration: 0.3, bounce: 0.3), value: hovering)
-    .frame(maxWidth: Size.lessonColumn)
-    .padding(.horizontal, Spacing.xl)
-    .padding(.bottom, Spacing.l)
   }
 }

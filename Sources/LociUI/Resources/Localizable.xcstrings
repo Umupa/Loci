@@ -7732,13 +7732,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Loci · %lld min"
+            "value": "%lld min read"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Loci · %lld 分钟"
+            "value": "约 %lld 分钟"
           }
         }
       }

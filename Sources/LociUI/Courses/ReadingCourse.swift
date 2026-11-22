@@ -59,8 +59,7 @@ struct ReadingCourse: View {
   private func shown(_ page: CoursePage, current: Lesson.ID) -> ReadingShown {
     let writing = page.activity.writingLesson
     let lessons = page.lessons
-    let index = lessons.firstIndex { $0.id == current }
-    let open = index.map { lessons[$0] }
+    let open = lessons.first { $0.id == current }
     let lesson: ShownLesson =
       if let open, open.body == .written, case .value(let markdown?) = text {
         .written(current, title: open.lesson.title, minutes: LessonFacts.minutes(markdown), markdown: markdown)
@@ -69,12 +68,10 @@ struct ReadingCourse: View {
       } else {
         .unwritten(current, title: open?.lesson.title ?? "", writing: writing == current)
       }
-    let next = index.flatMap { lessons.indices.contains($0 + 1) ? lessons[$0 + 1] : nil }
     return ReadingShown(
       course: course, title: page.course.goal.title ?? page.course.title,
       lessons: lessons.map { row($0, current: current, writing: writing) },
-      sources: page.course.sources.map { SourceShown($0, reading: false) }, lesson: lesson,
-      next: next.map { NextLesson(id: $0.id, title: $0.lesson.title, writing: writing == $0.id) })
+      sources: page.course.sources.map { SourceShown($0, reading: false) }, lesson: lesson)
   }
 
   private func row(_ lesson: CourseLesson, current: Lesson.ID, writing: Lesson.ID?) -> LessonThread.Row {

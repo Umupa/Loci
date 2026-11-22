@@ -43,11 +43,11 @@ enum ReadingSamples {
 
   static func first(nextWriting: Bool = false) -> ReadingShown {
     let ids = BuilderSamples.lessonIDs
+    let writing = nextWriting ? 1 : 3
     return ReadingShown(
-      course: BuilderSamples.raft, title: "Raft", lessons: rows(current: 0, writing: nextWriting ? 1 : 3),
+      course: BuilderSamples.raft, title: "Raft", lessons: rows(current: 0, written: writing, writing: writing),
       sources: sources,
-      lesson: .written(ids[0], title: BuilderSamples.titles[0], minutes: 8, markdown: markdown),
-      next: NextLesson(id: ids[1], title: BuilderSamples.titles[1], writing: nextWriting))
+      lesson: .written(ids[0], title: BuilderSamples.titles[0], minutes: 8, markdown: markdown))
   }
 
   static func unwritten() -> ReadingShown {

@@ -3,9 +3,8 @@ import LociModel
 import SwiftUI
 
 /// Markdown to read — an item's text or a lesson — with Loci's panel beside it. It opens where the reader last
-/// was, remembers where they go and whether they reached the end, and shows the highlights left on it. Once the
-/// end has been in view, `ending` rises at the foot of the text.
-struct ContentReader<Ending: View>: View {
+/// was, remembers where they go and whether they reached the end, and shows the highlights left on it.
+struct ContentReader: View {
   @Environment(\.host) private var host
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.openPage) private var openPage
@@ -31,8 +30,6 @@ struct ContentReader<Ending: View>: View {
   /// Whether a thin amber line along the top shows how far down the text has been read.
   let showsProgress: Bool
   @State private var progress = 0.0
-  let ending: Ending
-  @State private var ended = false
   @AppStorage(SubtitleMode.key) private var mode = SubtitleMode.both
   @AppStorage(SubtitleStyle.key) private var style = SubtitleStyle.standard
   @State private var keyPoints: Feed<KeyPointsPage>?
@@ -59,11 +56,10 @@ struct ContentReader<Ending: View>: View {
     content: ContentRef, title: String?, markdown: String, byline: NSAttributedString? = nil,
     images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel, language: ArticleLanguage? = nil,
     openingQuote: TextQuote? = nil, placeholder: FetchingItem? = nil, cite: ((URL) -> Int?)? = nil,
-    showsProgress: Bool = false, @ViewBuilder ending: () -> Ending
+    showsProgress: Bool = false
   ) {
     self.cite = cite
     self.showsProgress = showsProgress
-    self.ending = ending()
     self.language = language
     self.openingQuote = openingQuote
     self.placeholder = placeholder
@@ -162,11 +158,6 @@ struct ContentReader<Ending: View>: View {
       .overlay(alignment: .top) {
         if showsProgress { ReadingLine(share: standIns?.readThrough ?? progress) }
       }
-      .overlay(alignment: .bottom) {
-        if ended || standIns?.endInView == true {
-          ending.transition(.offset(y: 30).combined(with: .opacity))
-        }
-      }
     } else if let placeholder {
       placeholder
     } else {
@@ -254,7 +245,6 @@ struct ContentReader<Ending: View>: View {
         Task { _ = try? await host.run(SaveReadingPosition(content: content, position: Locator(quote, in: content))) }
       },
       reachedEnd: {
-        withAnimation(Motion.rise) { ended = true }
         Task { _ = try? await host.run(MarkRead(content: content)) }
       },
       scrolledThrough: { share in if showsProgress { progress = share } },
@@ -300,19 +290,6 @@ struct ContentReader<Ending: View>: View {
   private func passage(_ range: NSRange) -> (locator: Locator, excerpt: String)? {
     guard let passage = text?.quote(range) else { return nil }
     return (Locator(passage.quote, in: content), passage.excerpt)
-  }
-}
-
-extension ContentReader where Ending == EmptyView {
-  init(
-    content: ContentRef, title: String?, markdown: String, byline: NSAttributedString? = nil,
-    images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel, language: ArticleLanguage? = nil,
-    openingQuote: TextQuote? = nil, placeholder: FetchingItem? = nil
-  ) {
-    self.init(
-      content: content, title: title, markdown: markdown, byline: byline, images: images, serif: serif, pane: pane,
-      language: language, openingQuote: openingQuote, placeholder: placeholder
-    ) { EmptyView() }
   }
 }
 

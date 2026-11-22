@@ -25,9 +25,8 @@ struct StandIns {
   var galleryAtEnd = false
   /// The episode playing in the play bar.
   var listening: EntityID?
-  /// How far down the reading text is, and whether its end has been in view.
+  /// How far down the reading text is.
   var readThrough: Double?
-  var endInView = false
 }
 
 /// A reader of a video or audio item caught part way through.
