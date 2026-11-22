@@ -9,6 +9,7 @@ struct GeneralSettingsPage: View {
   @Environment(\.host) private var host
   @Environment(\.signIns) private var signIns
   @Environment(\.browser) private var browserSession
+  @Environment(\.dataReset) private var dataReset
   @AppStorage(AppearanceChoice.key) private var appearance = AppearanceChoice.auto
   @AppStorage(ReadingWidth.key) private var readingWidth = ReadingWidth.comfortable
   @State private var interface = InterfaceLanguage.current
@@ -74,6 +75,7 @@ struct GeneralSettingsPage: View {
           .buttonStyle(PushStyle())
           .disabled(revealable == nil)
         }
+        if let dataReset { ResetRow(reset: dataReset) }
       }
       SettingsGroup(title: nil) {
         SettingsRow {

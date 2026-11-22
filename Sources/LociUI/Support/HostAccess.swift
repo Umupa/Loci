@@ -18,6 +18,11 @@ public final class DeferredHost: LociModel.Host {
     await ready.resolve(host)
   }
 
+  /// Makes commands and subscriptions wait again, until the next host is handed over.
+  public func suspend() async {
+    await ready.suspend()
+  }
+
   public func run<C: Command>(_ command: C) async throws(HostError) -> C.Reply {
     try await ready.host().run(command)
   }
@@ -52,6 +57,10 @@ public final class DeferredHost: LociModel.Host {
       resolved = host
       for waiter in waiting { waiter.resume(returning: host) }
       waiting = []
+    }
+
+    func suspend() {
+      resolved = nil
     }
 
     func host() async -> any LociModel.Host {

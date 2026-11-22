@@ -16,7 +16,12 @@ final class Launch {
   }
 
   private(set) var state = State.running
+  /// Moves on each time the host starts over, so the window is built again over the new one.
+  private(set) var generation = 0
+  /// Why the last reset did not go through.
+  var resetFailure: HostError?
   let host = DeferredHost()
+  private var local: LocalHost?
   /// The Macs the window can show: this one and the ones paired through the relay, or only this one in a build
   /// without a relay or when the device key cannot be kept.
   let machines: any Machines
@@ -71,6 +76,21 @@ final class Launch {
     start(replacingDatabase: true)
   }
 
+  /// Resets the data folder (`LocalHost.reset()`) and starts again over it. Nothing reaches the old host
+  /// meanwhile; a reset that fails leaves the folder as it was, and the host starts over it all the same.
+  func reset() async {
+    guard let current = local else { return }
+    local = nil
+    await host.suspend()
+    do throws(HostError) {
+      try await current.reset()
+    } catch {
+      resetFailure = error
+    }
+    await open(replacingDatabase: false)
+    generation += 1
+  }
+
   /// Records how long the process took to reach a main conversation that can be typed into.
   func talkShown() {
     guard !reportedStart, let elapsed = ProcessClock.millisecondsSinceStart() else { return }
@@ -79,22 +99,25 @@ final class Launch {
   }
 
   private func start(replacingDatabase: Bool) {
+    Task { await open(replacingDatabase: replacingDatabase) }
+  }
+
+  private func open(replacingDatabase: Bool) async {
     let root = folder
     let database = DataFolder.database(in: root)
     let cache = DataFolder.sourceCache(
       in: .cachesDirectory, appName: Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)
     let environment = HostEnvironment.system(
       defaultRuntime: Runtime(provider: .pi), tool: Self.tool(root: root), sourceCache: cache)
-    Task {
-      do throws(HostStartError) {
-        let local =
-          replacingDatabase
-          ? try await LocalHost.startReplacingDatabase(root: root, database: database, environment: environment)
-          : try await LocalHost.start(root: root, database: database, environment: environment)
-        await host.resolve(local)
-      } catch {
-        state = .problem(.database(error))
-      }
+    do throws(HostStartError) {
+      let started =
+        replacingDatabase
+        ? try await LocalHost.startReplacingDatabase(root: root, database: database, environment: environment)
+        : try await LocalHost.start(root: root, database: database, environment: environment)
+      local = started
+      await host.resolve(started)
+    } catch {
+      state = .problem(.database(error))
     }
   }
 }

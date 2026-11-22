@@ -10,6 +10,7 @@ public struct RootView: View {
   private let memory: @MainActor (MachineID?) -> WindowMemory
   private let talkShown: () -> Void
   private let updates: any Updates
+  private let reset: DataReset?
   @State private var roster: Roster?
   /// `nil` is this Mac.
   @State private var current: MachineID?
@@ -23,16 +24,18 @@ public struct RootView: View {
   /// `folder` is the data folder this Mac serves, so each folder reopens where it was left. `talkShown` runs
   /// when the main conversation first appears, which is when Loci can be typed into. `updates` keeps this copy of
   /// Loci up to date, whichever Mac the window shows. `signIns` are this Mac's other browsers, which the built-in
-  /// browser can start signed in to, whichever Mac the window shows.
+  /// browser can start signed in to, whichever Mac the window shows. `reset` starts this Mac's Loci over; another
+  /// Mac's cannot be reset from here.
   public init(
     folder: URL, machines: any Machines, updates: any Updates = NoUpdates(), signIns: (any BrowserSignIns)? = nil,
-    talkShown: @escaping () -> Void = {}
+    reset: DataReset? = nil, talkShown: @escaping () -> Void = {}
   ) {
     self.init(
       machines: machines,
       memory: { machine in
         machine.map { .preferences(.standard, remote: $0) } ?? .preferences(.standard, folder: folder)
-      }, updates: updates, talkShown: talkShown, browser: BrowserSession(signIns: signIns), signIns: signIns)
+      }, updates: updates, talkShown: talkShown, browser: BrowserSession(signIns: signIns), signIns: signIns,
+      reset: reset)
   }
 
   /// Opens each Mac where `memory` says it was last. `current`, `menuOpen` and `sheet` start the window
@@ -41,7 +44,8 @@ public struct RootView: View {
     machines: any Machines, memory: @escaping @MainActor (MachineID?) -> WindowMemory,
     updates: any Updates = NoUpdates(), talkShown: @escaping () -> Void = {}, current: MachineID? = nil,
     menuOpen: Bool = false,
-    sheet: RemoteSheetState? = nil, browser: BrowserSession = BrowserSession(), signIns: (any BrowserSignIns)? = nil
+    sheet: RemoteSheetState? = nil, browser: BrowserSession = BrowserSession(), signIns: (any BrowserSignIns)? = nil,
+    reset: DataReset? = nil
   ) {
     self.machines = machines
     self.memory = memory
@@ -52,6 +56,7 @@ public struct RootView: View {
     _sheet = State(initialValue: sheet)
     _browser = State(initialValue: browser)
     self.signIns = signIns
+    self.reset = reset
   }
 
   public var body: some View {
@@ -66,6 +71,7 @@ public struct RootView: View {
         .environment(\.machineChoice, choice(roster, shown: shown))
         .environment(\.updates, updates)
         .environment(\.signIns, signIns)
+        .environment(\.dataReset, shown == roster.this ? reset : nil)
       } else {
         Palette.canvas
       }

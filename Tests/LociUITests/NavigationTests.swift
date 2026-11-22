@@ -148,4 +148,18 @@ struct NavigationTests {
 
     #expect(try await runtime == sample.runtime)
   }
+
+  @Test func commandsSentWhileTheHostStartsOverGoToTheNextOne() async throws {
+    let deferred = DeferredHost()
+    let old = Activity()
+    let next = Activity()
+    await deferred.resolve(FakeHost(try Sample(), activity: old))
+    await deferred.suspend()
+    async let runtime = deferred.run(ReadRuntime())
+    await deferred.resolve(FakeHost(try Sample(), activity: next))
+    _ = try await runtime
+
+    #expect(old.now.begun == 0)
+    #expect(next.now.begun == 1)
+  }
 }

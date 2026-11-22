@@ -11,7 +11,10 @@ struct LociApp: App {
       case .running:
         RootView(
           folder: launch.folder, machines: launch.machines, updates: launch.updater, signIns: launch.signIns,
-          talkShown: launch.talkShown)
+          reset: DataReset { [launch] in await launch.reset() }, talkShown: launch.talkShown
+        )
+        .id(launch.generation)
+        .resetFailure($launch.resetFailure)
       case .problem(let problem):
         StartupProblemView(problem: problem, rebuild: launch.rebuild)
       }

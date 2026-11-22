@@ -159,10 +159,11 @@ struct ScreenSnapshots {
     try await Self.shoot("startup-unreadable", view, appearance: appearance)
   }
 
-  /// UI-S10.
+  /// UI-S10, RS-S1.
   @Test(arguments: Snapshot.Appearance.allCases)
   func generalSettings(appearance: Snapshot.Appearance) async throws {
     let view = GeneralSettingsPage(version: AppVersion(number: "1.1.0", build: "412")).lociHost(FakeHost(try Sample()))
+      .environment(\.dataReset, DataReset {})
     try await Self.shoot("settings-general", view, appearance: appearance, size: CGSize(width: 800, height: 600))
   }
 
