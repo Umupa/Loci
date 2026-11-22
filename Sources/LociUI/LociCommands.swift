@@ -2,12 +2,20 @@ import SwiftUI
 
 /// The menu bar items Loci adds to the system's.
 public struct LociCommands: Commands {
+  @Environment(\.openWindow) private var openWindow
   @FocusedValue(\.navigator) private var navigator
   @FocusedValue(\.browserCommands) private var browser
 
   public init() {}
 
   public var body: some Commands {
+    CommandGroup(after: .appInfo) {
+      Button {
+        openWindow(id: AppUpdateWindow.id)
+      } label: {
+        Text(.loci("update.menu"))
+      }
+    }
     CommandGroup(replacing: .appSettings) {
       Button {
         navigator?.showSettings()

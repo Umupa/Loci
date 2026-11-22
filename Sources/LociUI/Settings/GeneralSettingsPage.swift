@@ -5,6 +5,7 @@ import SwiftUI
 /// How the app looks, which language it speaks, and where its data is.
 struct GeneralSettingsPage: View {
   var version = AppVersion(of: .main)
+  @Environment(\.openWindow) private var openWindow
   @Environment(\.host) private var host
   @Environment(\.signIns) private var signIns
   @Environment(\.browser) private var browserSession
@@ -79,6 +80,12 @@ struct GeneralSettingsPage: View {
           Text(.loci("settings.version"))
         } trailing: {
           Text(verbatim: version.text).foregroundStyle(Palette.inkMuted).textSelection(.enabled)
+          Button {
+            openWindow(id: AppUpdateWindow.id)
+          } label: {
+            Text(AppUpdateWindow.title)
+          }
+          .buttonStyle(PushStyle())
         }
       }
     }

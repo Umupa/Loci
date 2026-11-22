@@ -13,6 +13,15 @@ struct UpdateSnapshots {
     version: ReleaseVersion("1.2.0")!, package: URL(string: "https://example.com/Loci-Beta-1.2.0.dmg")!)
 
   @Test(arguments: Snapshot.Appearance.allCases)
+  func manualChecksShowTheVersionAndNextAction(appearance: Snapshot.Appearance) async throws {
+    for (name, state) in [("current", AppUpdate.current), ("available", .available(Self.release))] {
+      try await Snapshot.render(
+        AppUpdateWindow(updates: FixedUpdates(state: state), version: "1.1.1"),
+        named: "update-check-\(name)", size: CGSize(width: 352, height: 128), appearance: appearance)
+    }
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
   func sidebarWithAnUpdate(appearance: Snapshot.Appearance) async throws {
     let window = ScreenSnapshots.root(try Sample(problems: false), at: WindowState(place: .library(nil)))
       .environment(\.updates, FixedUpdates(state: .available(Self.release)))
@@ -48,6 +57,8 @@ struct UpdateSnapshots {
 
 private struct FixedUpdates: Updates {
   let state: AppUpdate
+
+  func check() async throws(UpdateCheckError) {}
 
   func states() -> AsyncStream<AppUpdate> {
     AsyncStream { $0.yield(state) }

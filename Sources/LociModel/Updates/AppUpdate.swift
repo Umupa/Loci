@@ -26,6 +26,8 @@ public enum AppUpdate: Hashable, Sendable {
 
 /// Updating the copy of Loci that is running on this Mac.
 public protocol Updates: Sendable {
+  /// Looks for a newer release and offers it unless an update is already in progress.
+  func check() async throws(UpdateCheckError)
   /// The state now, then again whenever it changes.
   func states() -> AsyncStream<AppUpdate>
   /// Downloads and checks an available or failed release. Returns when it is ready or has failed.
@@ -35,9 +37,16 @@ public protocol Updates: Sendable {
   func install() async -> Bool
 }
 
+public enum UpdateCheckError: Error {
+  case unsupported
+  case unavailable
+}
+
 /// Nothing to update: previews, snapshots, and builds that do not know their own version.
 public struct NoUpdates: Updates {
   public init() {}
+
+  public func check() async throws(UpdateCheckError) { throw .unsupported }
 
   public func states() -> AsyncStream<AppUpdate> {
     AsyncStream { $0.yield(.current) }

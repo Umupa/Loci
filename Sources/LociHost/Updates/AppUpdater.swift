@@ -12,6 +12,7 @@ public actor AppUpdater: Updates {
 
   private let environment: UpdateEnvironment
   private var requirement: String?
+  private var checking: Task<Result<Void, UpdateCheckError>, Never>?
   private var staged: URL?
   private var listeners: [UUID: AsyncStream<AppUpdate>.Continuation] = [:]
   private var state = AppUpdate.current {
@@ -25,20 +26,39 @@ public actor AppUpdater: Updates {
   /// Looks for a newer release now and whenever the environment's ticks say, until the task is cancelled. A
   /// copy that does not know its version, or is not signed with a certificate, never looks.
   public func watch() async {
-    guard environment.running != nil,
-      let found = try? await AppImage(runner: environment.runner).requirement(of: environment.installed)
-    else { return }
-    requirement = found
-    await look()
-    for await _ in environment.ticks() { await look() }
+    do {
+      try await check()
+    } catch {
+      if error == .unsupported { return }
+    }
+    for await _ in environment.ticks() { try? await check() }
   }
 
-  private func look() async {
-    guard let running = environment.running, isIdle,
-      let latest = try? await ReleaseFeed(network: environment.network, address: environment.feed).latest(),
-      isIdle
-    else { return }
-    state = latest.version > running ? .available(latest) : .current
+  public func check() async throws(UpdateCheckError) {
+    guard isIdle else { return }
+    if let checking {
+      return try await checking.value.get()
+    }
+    let task = Task {
+      let result = await look()
+      checking = nil
+      return result
+    }
+    checking = task
+    try await task.value.get()
+  }
+
+  private func look() async -> Result<Void, UpdateCheckError> {
+    guard let running = environment.running else { return .failure(.unsupported) }
+    if requirement == nil {
+      guard let found = try? await AppImage(runner: environment.runner).requirement(of: environment.installed)
+      else { return .failure(.unsupported) }
+      requirement = found
+    }
+    guard let latest = try? await ReleaseFeed(network: environment.network, address: environment.feed).latest()
+    else { return .failure(.unavailable) }
+    if isIdle { state = latest.version > running ? .available(latest) : .current }
+    return .success(())
   }
 
   private var isIdle: Bool {

@@ -15,7 +15,7 @@ public struct ReleaseFeed: Sendable {
 
   /// The latest release with a disk image, or `nil` when its tag is not a version or it has no disk image.
   public func latest() async throws(FetchError) -> AppRelease? {
-    var request = URLRequest(url: address)
+    var request = URLRequest(url: address, cachePolicy: .reloadIgnoringLocalCacheData)
     request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
     let (data, _) = try await network.data(for: request)
     let release: Published

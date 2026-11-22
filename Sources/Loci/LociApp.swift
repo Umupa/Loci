@@ -18,5 +18,13 @@ struct LociApp: App {
     }
     .windowStyle(.hiddenTitleBar)
     .commands { LociCommands() }
+
+    Window(Text(AppUpdateWindow.title), id: AppUpdateWindow.id) {
+      AppUpdateWindow(updates: launch.updater)
+    }
+    .defaultLaunchBehavior(.suppressed)
+    .restorationBehavior(.disabled)
+    .windowResizability(.contentSize)
+    .commandsRemoved()
   }
 }

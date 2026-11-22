@@ -28,6 +28,67 @@ struct AppUpdaterTests {
     #expect(world.network.asked.isEmpty)
   }
 
+  @Test func checkingFindsAnUpdateWithoutWaitingForTheBackgroundCheck() async throws {
+    let world = try UpdateWorld(latest: "v1.2.0")
+    try await world.updater.check()
+    #expect(await world.state() == .available(world.release))
+    #expect(world.network.asked == [ReleaseFeed.loci])
+  }
+
+  @Test func checkingTheLatestVersionSucceeds() async throws {
+    let world = try UpdateWorld(latest: "v1.1.1")
+    try await world.updater.check()
+    #expect(await world.state() == .current)
+    #expect(world.network.asked == [ReleaseFeed.loci])
+  }
+
+  @Test func aFailedCheckCanBeRetriedWithoutClaimingTheAppIsUpToDate() async throws {
+    let world = try UpdateWorld(latest: "v1.2.0")
+    world.network.offline = true
+    await #expect(throws: UpdateCheckError.unavailable) { try await world.updater.check() }
+    world.network.offline = false
+    try await world.updater.check()
+    #expect(await world.state() == .available(world.release))
+  }
+
+  @Test func aManualCheckReportsWhenTheCopyCannotUpdate() async throws {
+    let world = try UpdateWorld(latest: "v1.2.0", signature: #"cdhash H"0123""#)
+    await #expect(throws: UpdateCheckError.unsupported) { try await world.updater.check() }
+    #expect(world.network.asked.isEmpty)
+  }
+
+  @Test func aManualCheckSharesTheRequestAlreadyRunningInTheBackground() async throws {
+    let requested = Latch(open: false)
+    let reply = Latch(open: false)
+    let world = try UpdateWorld(latest: "v1.2.0") {
+      await requested.open()
+      await reply.wait()
+    }
+    async let watching: Void = world.updater.watch()
+    await requested.wait()
+
+    func openReply(on updater: isolated AppUpdater) async { await reply.open() }
+    func check(on updater: isolated AppUpdater) async throws {
+      async let response: Void = openReply(on: updater)
+      try await updater.check()
+      await response
+    }
+    try await check(on: world.updater)
+    await watching
+    #expect(world.network.asked == [ReleaseFeed.loci])
+    #expect(await world.state() == .available(world.release))
+  }
+
+  @Test func checkingWhileAnUpdateIsReadyKeepsTheDownload() async throws {
+    let world = try UpdateWorld(latest: "v1.2.0")
+    try await world.updater.check()
+    await world.updater.download()
+    let requests = world.network.asked
+    try await world.updater.check()
+    #expect(await world.state() == .ready(world.release))
+    #expect(world.network.asked == requests)
+  }
+
   @Test func aDownloadedReleaseReplacesThisCopyAndOpensOnceItQuits() async throws {
     let world = try UpdateWorld(latest: "v1.2.0")
     await world.updater.watch()
@@ -78,7 +139,7 @@ private struct UpdateWorld {
 
   init(
     latest tag: String, signature: String = #"identifier "com.loci.native.dev" and certificate leaf = H"ab""#,
-    verifies: Bool = true
+    verifies: Bool = true, beforeReply: @escaping @Sendable () async -> Void = {}
   ) throws {
     folder = FileManager.default.temporaryDirectory.appending(path: "loci-update-\(UUID().uuidString)")
     installed = folder.appending(path: "Applications/Loci (Beta).app")
@@ -86,7 +147,7 @@ private struct UpdateWorld {
     try Data("old".utf8).write(to: installed.appending(path: "marker"))
     let image = URL(string: "https://github.com/Umupa/Loci/releases/download/\(tag)/Loci-Beta.dmg")!
     release = AppRelease(version: ReleaseVersion(tag)!, package: image)
-    network = ReleaseNetwork(folder: folder, tag: tag, image: image)
+    network = ReleaseNetwork(folder: folder, tag: tag, image: image, beforeReply: beforeReply)
     programs = UpdatePrograms(signature: signature, verifies: verifies)
     updater = AppUpdater(
       environment: UpdateEnvironment(
@@ -106,21 +167,31 @@ private struct UpdateWorld {
 
 private final class ReleaseNetwork: Network {
   private let requests = Mutex<[URL]>([])
+  private let disconnected = Mutex(false)
   let folder: URL
   let tag: String
   let image: URL
+  let beforeReply: @Sendable () async -> Void
 
-  init(folder: URL, tag: String, image: URL) {
+  init(folder: URL, tag: String, image: URL, beforeReply: @escaping @Sendable () async -> Void) {
     self.folder = folder
     self.tag = tag
     self.image = image
+    self.beforeReply = beforeReply
   }
 
   var asked: [URL] { requests.withLock { $0 } }
 
+  var offline: Bool {
+    get { disconnected.withLock { $0 } }
+    set { disconnected.withLock { $0 = newValue } }
+  }
+
   func data(for request: URLRequest) async throws(FetchError) -> (Data, HTTPURLResponse) {
     let url = request.url ?? URL(filePath: "/")
     requests.withLock { $0.append(url) }
+    if offline { throw FetchError(reason: "offline") }
+    await beforeReply()
     let body = """
       {"tag_name": "\(tag)", "draft": false, "prerelease": false, "assets": [
         {"name": "Loci-Beta.dmg.sha256", "browser_download_url": "\(image.absoluteString).sha256"},

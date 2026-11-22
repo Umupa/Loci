@@ -20,12 +20,16 @@ struct UpdateButton: View {
     case .available, .failed:
       Task { await updates.download() }
     case .ready:
-      Task {
-        if await updates.install() { NSApplication.shared.terminate(nil) }
-      }
+      Task { await updates.installAndRestart() }
     case .current, .downloading:
       break
     }
+  }
+}
+
+extension Updates {
+  @MainActor func installAndRestart() async {
+    if await install() { NSApplication.shared.terminate(nil) }
   }
 }
 
