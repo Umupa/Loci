@@ -3,12 +3,11 @@ import LociModel
 import Network
 
 /// The unix socket the `loci` command reaches the app through. Each connection carries one `LocalCall`
-/// and the replies to it, one framed JSON message each. Only this Mac's user can reach it: the folder it
+/// and the replies to it, each encoded as JSON. Only this Mac's user can reach it: the folder it
 /// is in is theirs alone.
 public enum LocalSocket {
   /// Answers calls at `path` until the calling task is cancelled. `answer` sends its replies through the
-  /// function it is given; the connection ends when `answer` returns, and `answer` is cancelled when the
-  /// caller hangs up first.
+  /// function it is given. The connection stays until the caller acknowledges a reply or hangs up.
   public static func serve(
     at path: URL,
     answer: @escaping @Sendable (LocalCall, _ reply: @Sendable (LocalReply) async throws -> Void) async -> Void
@@ -16,14 +15,13 @@ public enum LocalSocket {
     do {
       let listener = try NetworkListener(using: .parameters { TLV { TCP() } }.localEndpoint(.unix(path: path.path)))
       try await listener.run { connection in
-        let message = try await connection.receive()
-        let call = try JSONDecoder().decode(LocalCall.self, from: message.content)
+        let call = try JSONDecoder().decode(LocalCall.self, from: try await receive(on: connection))
         await withTaskGroup(of: Void.self) { group in
           group.addTask {
-            await answer(call) { reply in try await connection.send(try JSONEncoder().encode(reply), type: 0) }
+            await answer(call) { reply in try await connection.send(JSONEncoder().encode(reply), type: 0) }
+            try? await connection.send(Data([0]), type: endFrame)
           }
-          group.addTask { _ = try? await connection.receive() }
-          await group.next()
+          _ = try? await connection.receive()
           group.cancelAll()
         }
       }
@@ -52,10 +50,13 @@ public enum LocalSocket {
     do {
       return try await withThrowingTaskGroup(of: LocalReply?.self) { group in
         group.addTask {
-          try await connection.send(try JSONEncoder().encode(call), type: 0)
+          try await connection.send(JSONEncoder().encode(call), type: 0)
           while true {
-            let reply = try JSONDecoder().decode(LocalReply.self, from: try await connection.receive().content)
-            if accepts(reply) { return reply }
+            let reply = try JSONDecoder().decode(LocalReply.self, from: try await receive(on: connection))
+            if accepts(reply) {
+              try? await connection.send(Data([0]), type: endFrame, lastMessage: true)
+              return reply
+            }
           }
         }
         group.addTask {
@@ -75,6 +76,24 @@ public enum LocalSocket {
       throw error
     } catch {
       throw Self.failure(error)
+    }
+  }
+
+  private static let endFrame = 1
+
+  private static func receive(on connection: NetworkConnection<TLV>) async throws -> Data {
+    var data = Data()
+    while true {
+      let frame = try await connection.receive()
+      data.append(frame.content)
+      switch frame.metadata.type {
+      case 0:
+        if frame.metadata.isComplete { return data }
+      case endFrame:
+        throw LocalSocketError.closed
+      default:
+        throw LocalSocketError.failed("The app sent an invalid local message frame.")
+      }
     }
   }
 

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Where the host keeps its files, to show. Revealing the folder goes through `Host.localFile`.
-public struct DataLocation: Command {
+public struct DataLocation: RemoteCommand {
   public static let name = "settings.dataLocation"
 
   public init() {}

@@ -33,6 +33,7 @@ public struct FileProblem: Hashable, Codable, Sendable {
 
   public enum Subject: Hashable, Codable, Sendable {
     case item(EntityID)
+    case course(EntityID)
     case notes(ContentRef)
   }
 }

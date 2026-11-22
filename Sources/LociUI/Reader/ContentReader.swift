@@ -2,15 +2,16 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// An item's Markdown in the reader with Loci's panel beside it. It opens where the reader last was,
-/// remembers where they go and whether they reached the end, and shows the highlights left on it.
-struct ContentReader: View {
+/// Markdown to read — an item's text or a lesson — with Loci's panel beside it. It opens where the reader last
+/// was, remembers where they go and whether they reached the end, and shows the highlights left on it. Once the
+/// end has been in view, `ending` rises at the foot of the text.
+struct ContentReader<Ending: View>: View {
   @Environment(\.host) private var host
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.openPage) private var openPage
   @Environment(\.standIns) private var standIns
   @Environment(\.changesAllowed) private var changesAllowed
-  let item: EntityID
+  let content: ContentRef
   /// Set over the text, unless the text starts with a title of its own.
   let title: String?
   let markdown: String
@@ -24,6 +25,15 @@ struct ContentReader: View {
   let language: ArticleLanguage?
   let openingQuote: TextQuote?
   let placeholder: FetchingItem?
+  /// The number of the source a link cites, for text whose links to its sources are citations.
+  let cite: ((URL) -> Int?)?
+  /// Where a web link opens; the system's browser when `nil`.
+  let openWeb: ((URL) -> Void)?
+  /// Whether a thin amber line along the top shows how far down the text has been read.
+  let showsProgress: Bool
+  @State private var progress = 0.0
+  let ending: Ending
+  @State private var ended = false
   @AppStorage(SubtitleMode.key) private var mode = SubtitleMode.both
   @AppStorage(SubtitleStyle.key) private var style = SubtitleStyle.standard
   @State private var keyPoints: Feed<KeyPointsPage>?
@@ -36,6 +46,8 @@ struct ContentReader: View {
   @State private var tab = SideTab.conversation
   @State private var chosen: ChosenNote?
   @AppStorage(PanelMemory.key) private var panelShown = PanelMemory.shownAtFirst
+  /// The panel laid over the text, asked for where there is no room for it beside the text.
+  @State private var floating = false
   @State private var available = CGFloat.infinity
   @AppStorage private var panelWidth: Double
   @AppStorage(ReadingWidth.key) private var readingWidth = ReadingWidth.comfortable
@@ -45,10 +57,15 @@ struct ContentReader: View {
   @State private var placedNotes: [PlacedNote] = []
 
   init(
-    item: EntityID, title: String?, markdown: String, byline: NSAttributedString? = nil,
+    content: ContentRef, title: String?, markdown: String, byline: NSAttributedString? = nil,
     images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel, language: ArticleLanguage? = nil,
-    openingQuote: TextQuote? = nil, placeholder: FetchingItem? = nil
+    openingQuote: TextQuote? = nil, placeholder: FetchingItem? = nil, cite: ((URL) -> Int?)? = nil,
+    openWeb: ((URL) -> Void)? = nil, showsProgress: Bool = false, @ViewBuilder ending: () -> Ending
   ) {
+    self.cite = cite
+    self.openWeb = openWeb
+    self.showsProgress = showsProgress
+    self.ending = ending()
     self.language = language
     self.openingQuote = openingQuote
     self.placeholder = placeholder
@@ -57,42 +74,40 @@ struct ContentReader: View {
     self.serif = serif
     self.pane = pane
     _panelWidth = AppStorage(wrappedValue: Double(pane.ideal), pane.key)
-    self.item = item
+    self.content = content
     self.title = title
     self.markdown = Self.titled(markdown, title)
   }
 
-  private var content: ContentRef { .item(item) }
+  private var item: EntityID? { content.item }
+
+  /// Only an item has key points to open.
+  private var keyPointOpener: ((KeyPoint) -> Void)? {
+    guard item != nil else { return nil }
+    return { open($0) }
+  }
 
   var body: some View {
-    HStack(spacing: 0) {
+    let width = beside ? pane.fitting(panelWidth, in: available) : pane.overlaid(panelWidth, in: available)
+    SidePanel(open: panelOpen, beside: beside, width: width, expand: openPanel) {
       reader
         .animation(placeholder != nil && !reduceMotion ? Motion.standard : nil, value: text != nil)
-      if panelShown {
-        ReaderPanel(
-          item: item, notes: placedNotes, keyPoints: keyPoints?.value, openKeyPoint: open, tab: $tab, draft: $draft,
-          chosen: chosen, reveal: show,
-          revealPassage: show, ask: { placed in ask(placed.note.locator, excerpt: placed.note.excerpt) },
-          collapse: { withAnimation(Motion.fold) { panelShown = false } }
-        )
-        .frame(width: pane.fitting(panelWidth, in: available))
-        .overlay(alignment: .leading) {
+    } panel: {
+      ReaderPanel(
+        content: content, notes: placedNotes, keyPoints: keyPoints?.value, openKeyPoint: keyPointOpener, tab: $tab,
+        draft: $draft, chosen: chosen, reveal: show, revealPassage: show,
+        ask: { placed in ask(placed.note.locator, excerpt: placed.note.excerpt) }, collapse: closePanel
+      )
+      .overlay(alignment: .leading) {
+        if beside {
           PaneResizer(pane: pane, width: $panelWidth, maximum: pane.fitting(.infinity, in: available))
         }
-        .transition(.move(edge: .trailing))
       }
     }
     .onGeometryChange(for: CGFloat.self) {
       $0.size.width
     } action: {
       available = $0
-    }
-    .overlay(alignment: .topTrailing) {
-      if !panelShown {
-        PanelButton(title: .loci("panel.expand")) { withAnimation(Motion.fold) { panelShown = true } }
-          .glassEffect(.regular, in: .capsule)
-          .padding(Spacing.s)
-      }
     }
     .task(id: content) {
       if standIns?.moment?.panel == .highlights { tab = .highlights }
@@ -126,7 +141,10 @@ struct ContentReader: View {
     }
     .onChange(of: notes) { remark() }
     .subscribing(NotesOn(content: content), into: $notes)
-    .subscribing(ItemKeyPoints(item: item), into: $keyPoints)
+    .task(id: item) {
+      guard let item else { return }
+      for await delivered in host.subscribe(ItemKeyPoints(item: item)) { keyPoints = delivered }
+    }
   }
 
   private var points: [KeyPoint] { keyPoints?.value?.keyPoints?.points ?? [] }
@@ -143,6 +161,14 @@ struct ContentReader: View {
       .transition(.opacity)
       .onDisappear { passageBar.close() }
       .overlay(alignment: .topTrailing) { corner }
+      .overlay(alignment: .top) {
+        if showsProgress { ReadingLine(share: standIns?.readThrough ?? progress) }
+      }
+      .overlay(alignment: .bottom) {
+        if ended || standIns?.endInView == true {
+          ending.transition(.offset(y: 30).combined(with: .opacity))
+        }
+      }
     } else if let placeholder {
       placeholder
     } else {
@@ -156,12 +182,30 @@ struct ContentReader: View {
       if !points.isEmpty { OnlyKeyPointsPill(on: $onlyKeyPoints) }
       if let language, !onlyKeyPoints {
         TranslateButton(language: language, mode: $mode) {
-          Task { _ = try? await host.run(TranslateArticle(item: item)) }
+          if let item { Task { _ = try? await host.run(TranslateArticle(item: item)) } }
         }
       }
     }
     .padding(.top, Spacing.xs)
-    .padding(.trailing, panelShown ? Spacing.s : Spacing.s * 2 + Size.iconButton)
+    .padding(.trailing, panelOpen ? Spacing.s : Spacing.s * 2 + Size.iconButton)
+  }
+
+  private var beside: Bool { pane.fitsBeside(in: available) }
+
+  private var panelOpen: Bool { beside ? panelShown : floating }
+
+  private func openPanel() {
+    withAnimation(Motion.fold) {
+      panelShown = true
+      floating = true
+    }
+  }
+
+  private func closePanel() {
+    withAnimation(Motion.fold) {
+      if beside { panelShown = false }
+      floating = false
+    }
   }
 
   private var shownTranslation: ShownTranslation? {
@@ -181,7 +225,8 @@ struct ContentReader: View {
   }
 
   private func setText() -> ReadingText {
-    ReadingText(markdown: markdown, byline: byline, images: images, serif: serif, translation: shownTranslation)
+    ReadingText(
+      markdown: markdown, byline: byline, images: images, serif: serif, translation: shownTranslation, cite: cite)
   }
 
   private static func titled(_ markdown: String, _ title: String?) -> String {
@@ -211,18 +256,20 @@ struct ContentReader: View {
         Task { _ = try? await host.run(SaveReadingPosition(content: content, position: Locator(quote, in: content))) }
       },
       reachedEnd: {
+        withAnimation(Motion.rise) { ended = true }
         Task { _ = try? await host.run(MarkRead(content: content)) }
       },
+      scrolledThrough: { share in if showsProgress { progress = share } },
       openLink: { url in
         if let locator = Locator(url.absoluteString) {
-          openPage.follow(locator, in: .item(item), reveal: show)
+          openPage.follow(locator, in: content.conversation, reveal: show)
         } else if url.isWebLink {
-          NSWorkspace.shared.open(url)
+          if let openWeb { openWeb(url) } else { NSWorkspace.shared.open(url) }
         }
       },
       passage: passageActions,
       noteClicked: { note in
-        withAnimation(Motion.fold) { panelShown = true }
+        openPanel()
         tab = .highlights
         chosen = ChosenNote(note: note, serial: (chosen?.serial ?? 0) + 1)
         if let range = placedNotes.first(where: { $0.id == note })?.range { show(range) }
@@ -249,7 +296,7 @@ struct ContentReader: View {
   private func ask(_ locator: Locator, excerpt: String?) {
     draft = PassageDraft(content: content, locator: locator, excerpt: excerpt ?? locator.quote?.text ?? "")
     tab = .conversation
-    withAnimation(Motion.fold) { panelShown = true }
+    openPanel()
   }
 
   private func passage(_ range: NSRange) -> (locator: Locator, excerpt: String)? {
@@ -258,11 +305,45 @@ struct ContentReader: View {
   }
 }
 
-extension Page {
-  init(_ content: ContentRef) {
-    switch content {
-    case .item(let item): self = .item(item)
+extension ContentReader where Ending == EmptyView {
+  init(
+    content: ContentRef, title: String?, markdown: String, byline: NSAttributedString? = nil,
+    images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel, language: ArticleLanguage? = nil,
+    openingQuote: TextQuote? = nil, placeholder: FetchingItem? = nil
+  ) {
+    self.init(
+      content: content, title: title, markdown: markdown, byline: byline, images: images, serif: serif, pane: pane,
+      language: language, openingQuote: openingQuote, placeholder: placeholder
+    ) { EmptyView() }
+  }
+}
+
+extension ContentRef {
+  /// The item this is, when it is one.
+  var item: EntityID? {
+    if case .item(let item) = self { return item }
+    return nil
+  }
+
+  /// The lesson this is, when it is one.
+  var lesson: Lesson.ID? {
+    if case .lesson(_, let lesson) = self { return lesson }
+    return nil
+  }
+
+  /// The conversation about it: an item's own, or its course's.
+  var conversation: ConversationRef {
+    switch self {
+    case .item(let item): .item(item)
+    case .lesson(let course, _): .course(course)
     }
+  }
+}
+
+extension Page {
+  init?(_ content: ContentRef) {
+    guard case .item(let item) = content else { return nil }
+    self = .item(item)
   }
 }
 
@@ -275,11 +356,17 @@ struct OpenPage {
   }
 
   @MainActor func follow(_ locator: Locator, in conversation: ConversationRef, reveal: @MainActor (Locator) -> Void) {
-    let page = Page.passage(locator)
-    if conversation == .item(page.itemID) {
+    switch locator.content {
+    case .item(let item):
+      if conversation == .item(item) {
+        reveal(locator)
+      } else {
+        action(.passage(locator))
+      }
+    case .lesson(let course, _) where conversation == .course(course):
       reveal(locator)
-    } else {
-      action(page)
+    case .lesson:
+      break
     }
   }
 

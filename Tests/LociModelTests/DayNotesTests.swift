@@ -38,7 +38,7 @@ struct DayNotesTests {
   }
 
   @Test func everyPlaceWritesTheTagItIsReadBackFrom() {
-    for source in [NoteSource.main, .review, .item(Fixture.item, title: "Pingora")] {
+    for source in [NoteSource.main, .review, .item(Fixture.item, title: "Pingora"), .course(Fixture.item)] {
       #expect(NoteSource(tag: source.tag, title: { _ in "Pingora" }) == source)
     }
   }

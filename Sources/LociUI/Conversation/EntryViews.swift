@@ -3,7 +3,9 @@ import SwiftUI
 
 /// What the person said, under the passage it asks about; the passage shows where it was read.
 struct AskedMessage: View {
+  @Environment(\.locale) private var locale
   let prompt: Prompt
+  let courseLessons: [Lesson]
   let revealPassage: @MainActor (Locator) -> Void
 
   var body: some View {
@@ -17,7 +19,7 @@ struct AskedMessage: View {
         .buttonStyle(.plain)
         .padding(.top, 2)
       }
-      Text(verbatim: prompt.text).textSelection(.enabled)
+      Text(verbatim: prompt.bubbleText(in: locale, courseLessons: courseLessons)).textSelection(.enabled)
     }
   }
 }

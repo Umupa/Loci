@@ -6,7 +6,7 @@ import GRDB
 /// Mirrors of the files are rebuilt instead: when `mirrorVersion` changes they are dropped and created
 /// again, empty, until the next rebuild fills them.
 enum Schema {
-  static let mirrorVersion = 2
+  static let mirrorVersion = 3
 
   static var migrator: DatabaseMigrator {
     var migrator = DatabaseMigrator()
@@ -125,7 +125,7 @@ enum Schema {
     return migrator
   }
 
-  static let mirrorTables = ["item", "note", "search", "search_owner"]
+  static let mirrorTables = ["course_lesson", "course", "item", "note", "search", "search_owner"]
   /// Mirrors an earlier version kept, dropped with the others when `mirrorVersion` changes.
   static let retiredMirrorTables = ["mentor", "lesson", "citation"]
 
@@ -154,6 +154,18 @@ enum Schema {
           kind TEXT NOT NULL,
           title TEXT NOT NULL,
           document TEXT NOT NULL
+        );
+        CREATE TABLE course (
+          id TEXT PRIMARY KEY NOT NULL,
+          created_at TEXT NOT NULL,
+          document TEXT NOT NULL
+        );
+        CREATE TABLE course_lesson (
+          course_id TEXT NOT NULL REFERENCES course(id),
+          id TEXT NOT NULL,
+          position INTEGER NOT NULL,
+          document TEXT NOT NULL,
+          PRIMARY KEY (course_id, id)
         );
         CREATE TABLE note (
           id TEXT PRIMARY KEY NOT NULL,

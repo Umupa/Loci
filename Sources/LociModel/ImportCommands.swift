@@ -2,7 +2,7 @@ import Foundation
 
 /// Reads what is behind a video or episode link before it is taken in: the item already in the library
 /// for that link, or the title, cover and sizes to choose from.
-public struct ProbeLink: Command {
+public struct ProbeLink: RemoteCommand {
   public static let name = "library.probeLink"
   public let url: URL
 
@@ -16,7 +16,7 @@ public struct ProbeLink: Command {
 }
 
 /// The last way something was taken in, or the first default before any.
-public struct ReadImportChoice: Command {
+public struct ReadImportChoice: RemoteCommand {
   public static let name = "library.importChoice"
 
   public init() {}

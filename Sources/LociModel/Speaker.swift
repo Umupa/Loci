@@ -5,7 +5,7 @@ public struct Speaker: Hashable, Sendable, Identifiable {
   public var id: Int { number }
 }
 
-public struct RenameSpeaker: Command {
+public struct RenameSpeaker: RemoteCommand {
   public static let name = "item.renameSpeaker"
   public let item: EntityID
   public let speaker: Int

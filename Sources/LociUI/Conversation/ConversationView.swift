@@ -2,8 +2,8 @@ import LociModel
 import SwiftUI
 
 /// A conversation with Loci, sending through the host. A passage put in `draft` is asked about with the
-/// next message; `revealPassage` shows a quoted passage where it was read.
-struct ConversationScreen: View {
+/// next message; `revealPassage` shows a quoted passage where it was read. `tail` follows the last message.
+struct ConversationScreen<Tail: View>: View {
   @Environment(\.host) private var host
   @Environment(\.openPage) private var openPage
   let ref: ConversationRef
@@ -12,6 +12,10 @@ struct ConversationScreen: View {
   var attach: (() -> Void)?
   var focusRequest = 0
   var panelRequest = PanelRequest()
+  /// The lesson being read beside a course's conversation, which what is sent is about.
+  var lesson: Lesson.ID?
+  var courseLessons: [Lesson] = []
+  @ViewBuilder var tail: () -> Tail
   @State private var conversation: Feed<Conversation>?
 
   var body: some View {
@@ -19,11 +23,12 @@ struct ConversationScreen: View {
       conversation: conversation?.value, draft: $draft,
       revealPassage: { openPage.follow($0, in: ref, reveal: revealPassage) },
       send: { (text: String, passage: Passage?) async throws(HostError) -> Done in
-        try await host.run(SendMessage(to: ref, text: text, passage: passage))
+        try await host.run(SendMessage(to: ref, text: text, passage: passage, lesson: lesson))
       },
       stop: { _ = try? await host.run(StopTurn(in: ref)) },
       startOver: { () async throws(HostError) -> Done in try await host.run(StartOver(in: ref)) },
-      scale: ref == .main ? .main : .companion, attach: attach, focusRequest: focusRequest, panelRequest: panelRequest
+      scale: ref == .main ? .main : .companion, attach: attach, focusRequest: focusRequest, panelRequest: panelRequest,
+      courseLessons: courseLessons, tail: tail
     )
     .id(ref)
     .modifier(FollowingLinks(ref: ref, revealPassage: revealPassage))
@@ -53,12 +58,27 @@ private struct FollowingLinks: ViewModifier {
   }
 }
 
-/// Everything said with Loci as a chat, newest at the bottom, with the input field floating over its foot.
+extension ConversationScreen where Tail == EmptyView {
+  init(
+    ref: ConversationRef, draft: Binding<PassageDraft?>,
+    revealPassage: @escaping @MainActor (Locator) -> Void = { _ in },
+    attach: (() -> Void)? = nil, focusRequest: Int = 0, panelRequest: PanelRequest = PanelRequest(),
+    lesson: Lesson.ID? = nil, courseLessons: [Lesson] = []
+  ) {
+    self.init(
+      ref: ref, draft: draft, revealPassage: revealPassage, attach: attach, focusRequest: focusRequest,
+      panelRequest: panelRequest, lesson: lesson, courseLessons: courseLessons
+    ) { EmptyView() }
+  }
+}
+
+/// Everything said with Loci as a chat, newest at the bottom, with the input field floating over its foot and
+/// `tail` after the last message.
 ///
 /// Each row is its own view keyed by its message and part, so a reply that grows while it streams redraws
 /// only its last bubble. What was said before the running turn is laid out once, not again as the reply
 /// grows.
-struct ConversationView: View {
+struct ConversationView<Tail: View>: View {
   let conversation: Conversation?
   @Binding var draft: PassageDraft?
   let revealPassage: @MainActor (Locator) -> Void
@@ -74,6 +94,8 @@ struct ConversationView: View {
   var panelRequest = PanelRequest()
   /// How long the reply being written waits, with no tool after it, before it shows.
   var replyHold = Motion.replyHold
+  var courseLessons: [Lesson] = []
+  @ViewBuilder var tail: () -> Tail
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.standIns) private var standIns
   /// Starts keeping the newest line in view.
@@ -97,10 +119,11 @@ struct ConversationView: View {
     let live = going(LiveSoFar(conversation?.turn, hold: ReplyHold(now: now, wait: replyHold)))
     let start = min(hidden ?? RowWindow.latest(in: said), said.count)
     return ScrollView {
-      LazyVStack(alignment: .leading, spacing: Self.gap) {
+      LazyVStack(alignment: .leading, spacing: Size.messageGap) {
         ForEach(TalkRow.offered(Array(said[start...]) + live, composing: composing)) { row in
           view(of: row).arriving()
         }
+        tail()
       }
       .animatingArrivals(said.count(where: \.arrives) + live.count(where: \.arrives))
       .frame(maxWidth: scale == .main ? Size.talkColumn : .infinity)
@@ -194,15 +217,14 @@ struct ConversationView: View {
     return said + (conversation?.turn == nil ? 0 : 1)
   }
 
-  /// The room between one message and the next.
-  static let gap: CGFloat = 10
-
   @ViewBuilder private func view(of row: TalkRow) -> some View {
     switch row.kind {
     case .day(let day):
       DayDivider(label: Sitting.label(day, now: Date()))
     case .asked(let prompt):
-      BubbleRow(speaker: .person, scale: scale) { AskedMessage(prompt: prompt, revealPassage: revealPassage) }
+      BubbleRow(speaker: .person, scale: scale) {
+        AskedMessage(prompt: prompt, courseLessons: courseLessons, revealPassage: revealPassage)
+      }
     case .said(let words, let answer):
       BubbleRow(
         speaker: .loci, scale: scale,
@@ -239,6 +261,21 @@ struct ConversationView: View {
     case .links(let links):
       LinkCards(links: links)
     }
+  }
+}
+
+extension ConversationView where Tail == EmptyView {
+  init(
+    conversation: Conversation?, draft: Binding<PassageDraft?>, revealPassage: @escaping @MainActor (Locator) -> Void,
+    send: @escaping (String, Passage?) async throws(HostError) -> Done, stop: @escaping () async -> Void,
+    startOver: (() async throws(HostError) -> Done)? = nil, scale: TalkScale = .main, attach: (() -> Void)? = nil,
+    focusRequest: Int = 0, panelRequest: PanelRequest = PanelRequest(), replyHold: Duration = Motion.replyHold,
+    follow: Following = Following(), courseLessons: [Lesson] = []
+  ) {
+    self.init(
+      conversation: conversation, draft: draft, revealPassage: revealPassage, send: send, stop: stop,
+      startOver: startOver, scale: scale, attach: attach, focusRequest: focusRequest, panelRequest: panelRequest,
+      replyHold: replyHold, courseLessons: courseLessons, tail: { EmptyView() }, follow: follow)
   }
 }
 

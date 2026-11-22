@@ -1,6 +1,8 @@
 /// Every command and subscription another Mac may use, and how each travels. A type missing here cannot be
 /// used remotely, and the architecture check fails until it is added.
 public enum Wire {
+  public static let toolCommands: [any LocalToolCommand.Type] = [ReadSource.self, FetchSourceRepository.self]
+
   public static let commands: [CommandRoute] = [
     .writes(SendMessage.self), .writes(StopTurn.self), .writes(StartOver.self),
     .reads(ReadRuntime.self), .writes(SetRuntime.self), .reads(DetectAgents.self), .reads(AgentModels.self),
@@ -18,7 +20,7 @@ public enum Wire {
     .reads(DetectComponents.self), .writes(InstallComponent.self),
     .writes(DownloadSpeechModel.self), .writes(DeleteSpeechModel.self), .writes(SetSpeechModel.self),
     .writes(SetBrowserLogin.self), .writes(HandOverBrowserCookies.self), .writes(FreeMediaSpace.self),
-    .writes(SaveMediaLocally.self),
+    .writes(SaveMediaLocally.self), .writes(ClearSourceCache.self),
     .reads(ReadCover.self, lane: .data), .reads(ReadItemPDF.self, lane: .data),
     .reads(ReadItemImage.self, lane: .data), .streams(ReadMediaFileInfo.self, lane: .data),
     .reads(ReadLinkPreview.self), .reads(ReadLinkImage.self, lane: .data), .reads(ReadWebPicture.self, lane: .data),
@@ -26,12 +28,16 @@ public enum Wire {
     .writes(PickKeyPoints.self),
     .reads(ListPanels.self), .writes(SavePanel.self), .writes(RefreshPanel.self), .writes(MovePanelToTop.self),
     .writes(RemovePanel.self),
+    .reads(ListCourses.self), .writes(StartCourse.self), .writes(AnswerCourseQuestion.self),
+    .writes(BeginCourseSources.self), .writes(AddCourseSource.self), .writes(RemoveCourseSource.self),
+    .writes(BeginCourseWriting.self), .reads(ReadLesson.self), .writes(OpenLesson.self),
+    .writes(WriteLessonNow.self), .writes(DeleteCourse.self), .writes(RestoreDeletedCourse.self),
   ]
 
   public static let subscriptions: [any Subscription.Type] = [
     OneConversation.self, LociWorking.self, CurrentRuntime.self, LociHome.self, OneDiary.self, LociAvatar.self,
     AllItems.self, OneItem.self, ItemCover.self, NotesOn.self, AllJobs.self, ItemJob.self, SavingNow.self,
-    ItemMedia.self,
+    ItemMedia.self, WatchCourses.self, WatchCourse.self, WatchLesson.self,
     MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self, WatchPanelColumn.self,
   ]
 
@@ -43,21 +49,21 @@ public enum Wire {
 
 /// How one command travels between Macs.
 public struct CommandRoute: Sendable {
-  public let command: any Command.Type
+  public let command: any RemoteCommand.Type
   public let effect: Effect
   public let lane: Lane
 
   public var name: String { command.name }
 
-  public static func reads<C: Command>(_ command: C.Type, lane: Lane = .control) -> CommandRoute {
+  public static func reads<C: RemoteCommand>(_ command: C.Type, lane: Lane = .control) -> CommandRoute {
     CommandRoute(command: command, effect: .reads, lane: lane)
   }
 
-  public static func writes<C: Command>(_ command: C.Type, lane: Lane = .control) -> CommandRoute {
+  public static func writes<C: RemoteCommand>(_ command: C.Type, lane: Lane = .control) -> CommandRoute {
     CommandRoute(command: command, effect: .writes, lane: lane)
   }
 
-  public static func streams<C: Command>(_ command: C.Type, lane: Lane = .control) -> CommandRoute {
+  public static func streams<C: RemoteCommand>(_ command: C.Type, lane: Lane = .control) -> CommandRoute {
     CommandRoute(command: command, effect: .streams, lane: lane)
   }
 

@@ -30,7 +30,7 @@ struct ScreenSnapshots {
     let text = ReadingText(markdown: sample.text)
     let notes = PlacedNote.place(sample.notes, in: text)
     let panel = ReaderPanel(
-      item: sample.borg.id, notes: notes, keyPoints: nil, openKeyPoint: { _ in }, tab: .constant(.highlights),
+      content: .item(sample.borg.id), notes: notes, keyPoints: nil, openKeyPoint: { _ in }, tab: .constant(.highlights),
       draft: .constant(nil),
       chosen: ChosenNote(note: notes[1].id, serial: 1), reveal: { _ in }, revealPassage: { _ in }, ask: { _ in },
       collapse: {}
@@ -114,7 +114,7 @@ struct ScreenSnapshots {
     let endings: [TurnEnding] = [
       .unstarted(.codex, .notInstalled), .unstarted(.codex, .wouldNotStart), .failed("exit 1: panic"), .interrupted,
     ]
-    let lines = VStack(spacing: ConversationView.gap) {
+    let lines = VStack(spacing: Size.messageGap) {
       ForEach(endings, id: \.self) { ending in
         BubbleRow(speaker: .loci) { EndedTurn(ending: ending) }
       }

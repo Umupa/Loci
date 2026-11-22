@@ -63,10 +63,13 @@ struct TalkRow: Identifiable {
   {
     let answers = ConversationEntry.answers(entries)
     var rows: [TalkRow] = []
+    var previous = earlier
     for (index, entry) in entries.enumerated() {
-      if let day = Sitting.start(of: entry, after: index > 0 ? entries[index - 1] : earlier) {
+      if case .asked(_, let prompt) = entry, !prompt.showsPersonBubble { continue }
+      if let day = Sitting.start(of: entry, after: previous) {
         rows.append(TalkRow(id: ID(message: entry.id, part: -1), kind: .day(day)))
       }
+      previous = entry
       switch entry {
       case .asked(let message, let prompt):
         rows.append(TalkRow(id: ID(message: message.id, part: 0), kind: .asked(prompt)))

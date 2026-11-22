@@ -38,7 +38,7 @@ public struct MemoryEntry: Hashable, Codable, Sendable {
         let (words, locator) = SourceLink.take(from: rest)
         guard !words.isEmpty || locator != nil else { return .text(line) }
         let source = locator.map { locator in
-          Source(locator: locator, itemTitle: title(locator.item))
+          Source(locator: locator, itemTitle: locator.item.flatMap(title))
         }
         return .entry(MemoryEntry(day: day, text: words, source: source, line: line))
       }
@@ -62,10 +62,11 @@ public struct MemoryEntry: Hashable, Codable, Sendable {
 }
 
 extension Locator {
-  /// The item this locator points into.
-  public var item: EntityID {
+  /// The item this locator points into, if it points into the library.
+  public var item: EntityID? {
     switch self {
     case .item(let item, _): item
+    case .lesson: nil
     }
   }
 }

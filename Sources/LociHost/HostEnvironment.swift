@@ -37,6 +37,8 @@ public struct HostEnvironment: Sendable {
   /// The `loci` command Loci puts things in the library with, and the socket the host answers it on;
   /// `nil` when the app has none, such as outside its bundle.
   public let tool: AgentTool?
+  public let sourceCache: URL?
+  public let gitExecutable: URL
 
   public init(
     newID: @escaping @Sendable () -> EntityID, now: @escaping @Sendable () -> Timestamp, timeZone: TimeZone = .gmt,
@@ -49,7 +51,7 @@ public struct HostEnvironment: Sendable {
     wait: (@Sendable (Duration) async -> Void)? = nil,
     tool: AgentTool? = nil,
     modelKeys: (any ModelKeyStore)? = nil, modelClient: ModelClient = ModelClient(), modelParallelism: Int = 3,
-    bundledPi: BundledPiEnvironment? = nil
+    bundledPi: BundledPiEnvironment? = nil, sourceCache: URL? = nil, gitExecutable: URL = URL(filePath: "/usr/bin/git")
   ) {
     self.newID = newID
     self.now = now
@@ -68,10 +70,13 @@ public struct HostEnvironment: Sendable {
     self.modelClient = modelClient
     self.modelParallelism = max(1, modelParallelism)
     self.bundledPi = bundledPi
+    self.sourceCache = sourceCache
+    self.gitExecutable = gitExecutable
   }
 
   /// The real clock and time zone, fresh identifiers, the Trash, and the agent programs installed on this Mac.
-  public static func system(defaultRuntime: Runtime, tool: AgentTool? = nil) -> HostEnvironment {
+  public static func system(defaultRuntime: Runtime, tool: AgentTool? = nil, sourceCache: URL? = nil) -> HostEnvironment
+  {
     let installed = InstalledAgents(tool: tool)
     return HostEnvironment(
       newID: { EntityID() }, now: { Timestamp(.now) }, timeZone: .current, defaultRuntime: defaultRuntime,
@@ -79,7 +84,8 @@ public struct HostEnvironment: Sendable {
       unavailability: { await installed.unavailability(of: $0) },
       detectAgents: { await installed.detect(again: $0) }, models: { await installed.models(of: $0) },
       ticks: { everyMinute() }, media: .system(agents: { await installed.driver(for: $0) }), tool: tool,
-      modelKeys: ModelKeychain(serviceName: "com.loci.native.dev.model-service"), bundledPi: BundledPiEnvironment())
+      modelKeys: ModelKeychain(serviceName: "com.loci.native.dev.model-service"), bundledPi: BundledPiEnvironment(),
+      sourceCache: sourceCache)
   }
 
   private static func everyMinute() -> AsyncStream<Void> {

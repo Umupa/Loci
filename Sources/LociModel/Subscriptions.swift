@@ -14,7 +14,9 @@ public struct AllItems: Subscription {
     changes.contains { change in
       switch change {
       case .item, .everything: true
-      case .notes, .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
+      case .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci,
+        .runtime:
+        false
       }
     }
   }
@@ -38,7 +40,9 @@ public struct OneItem: Subscription {
       switch change {
       case .item(let id), .job(let id): id == item
       case .everything: true
-      case .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
+      case .course, .courseActivity, .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci,
+        .runtime:
+        false
       }
     }
   }

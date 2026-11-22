@@ -34,15 +34,22 @@ extension LocalHost {
     guard store.notes(on: command.content).value.contains(where: { $0.id == command.note }) else {
       throw .notFound(command.note.description)
     }
-    try attempt { try store.append(.deleted(command.note, at: environment.now()), on: command.content) }
-    await follow([.notes(command.content)])
+    try await appendNote(.deleted(command.note, at: environment.now()), on: command.content)
     return Done()
   }
 
   private func save(_ note: Note) async throws(HostError) -> Note {
-    try attempt { try store.append(.saved(note), on: note.locator.content) }
-    await follow([.notes(note.locator.content)])
+    try await appendNote(.saved(note), on: note.locator.content)
     return note
+  }
+
+  private func appendNote(_ entry: NoteEntry, on content: ContentRef) async throws(HostError) {
+    if case .lesson(let course, _) = content {
+      try await courses.append(entry, on: content, course: course)
+    } else {
+      try attempt { try store.append(entry, on: content) }
+    }
+    await follow([.notes(content)])
   }
 
   /// Text with something in it, trimmed; blank text means none.

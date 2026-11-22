@@ -57,6 +57,8 @@ actor JobQueue {
     for task in running { await task.value }
   }
 
+  var isWorking: Bool { !work.isEmpty }
+
   var all: [Job] {
     jobs.values.filter { $0.state != .done }.sorted { $0.item < $1.item }
   }

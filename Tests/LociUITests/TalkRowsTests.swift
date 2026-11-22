@@ -45,6 +45,22 @@ struct TalkRowsTests {
     #expect(Self.kinds(rows) == ["day", "asked 看到哪了", "said 都快十二点了", "said 看到哪了"])
   }
 
+  @Test func automaticCourseWritingKeepsTheAnswerWithoutAPersonBubble() throws {
+    let lesson = try #require(Lesson.ID("raft-map"))
+    for reason in [CourseEvent.WriteReason.firstLessons, .openedLastWritten] {
+      let background = Self.message(
+        3600, .prompt(Prompt(text: "Write raft-map", purpose: .course(.writeLesson(lesson, reason: reason)))))
+      let reply = Self.message(3602, .reply("课文写好了。"))
+      #expect(Self.kinds(Self.rows([background])) == [])
+      let rows = Self.rows([Self.asked(0, "上一条"), Self.message(1, .reply("上一条回答")), background, reply])
+      #expect(Self.kinds(rows) == ["day", "asked 上一条", "said 上一条回答", "day", "said 课文写好了。"])
+      let answers = rows.compactMap { if case .said(_, let answer) = $0.kind { answer } else { nil } }
+      #expect(answers == ["上一条回答", "课文写好了。"])
+      let turn = LiveTurn(startedAt: background.at, messages: [background])
+      #expect(TalkRow.settled(SaidSoFar([], turn: turn)).isEmpty)
+    }
+  }
+
   @Test func aNewSittingAfterAnHourIsHeadedByItsTime() {
     let rows = Self.rows([Self.asked(0, "一"), Self.message(1, .reply("嗯")), Self.asked(4000, "二")])
 

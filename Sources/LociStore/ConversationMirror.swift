@@ -53,7 +53,9 @@ enum ConversationMirror {
       let quoted = prompt.passage.map { "> " + $0.excerpt.replacing("\n", with: "\n> ") + "\n\n" } ?? ""
       switch prompt.purpose {
       case .chat: return ("You", quoted + prompt.text)
-      case .review, .panel: return ("App", prompt.text)
+      case .course(.started), .course(.answered), .course(.confirmedGoal), .course(.askedToReviseGoal):
+        return ("You", prompt.text)
+      case .review, .panel, .course: return ("App", prompt.text)
       }
     case .reply(let text):
       return ("Loci", text)
@@ -73,6 +75,18 @@ enum ConversationMirror {
       return ("Loci", "- saved to the library: library/\(item)")
     case .thinking, .savedToNote, .notice:
       return nil
+    }
+  }
+}
+
+extension Store {
+  public func discardCourseConversation(_ course: EntityID) throws {
+    let folder = agentFolder.appending(path: Self.conversationsFolder)
+    let prefix = SessionOwner.conversation(.course(course)).key + "-"
+    for day in subfolders(of: folder) {
+      for file in files(in: day, withExtension: "md") where file.lastPathComponent.hasPrefix(prefix) {
+        try discard(file)
+      }
     }
   }
 }

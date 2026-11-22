@@ -23,7 +23,7 @@ public struct LinkPreview: Codable, Hashable, Sendable {
 
 /// What the page behind a link says about itself, fetched once and kept while the app runs. A page that
 /// cannot be fetched gives a preview with only its site.
-public struct ReadLinkPreview: Command {
+public struct ReadLinkPreview: RemoteCommand {
   public static let name = "link.preview"
   public let url: URL
 
@@ -38,7 +38,7 @@ public struct ReadLinkPreview: Command {
 
 /// The picture of the page behind a link, as its preview names it; `nil` when it has none or it cannot be
 /// fetched.
-public struct ReadLinkImage: Command {
+public struct ReadLinkImage: RemoteCommand {
   public static let name = "link.image"
   public let url: URL
 
@@ -53,7 +53,7 @@ public struct ReadLinkImage: Command {
 
 /// A picture on the web read by its own address, such as a cover or a picture in a panel; `nil` when it is not an
 /// image, is too large, or cannot be fetched.
-public struct ReadWebPicture: Command {
+public struct ReadWebPicture: RemoteCommand {
   public static let name = "link.picture"
   public let url: URL
 

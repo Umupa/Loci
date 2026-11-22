@@ -16,14 +16,27 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   private let webView: WKWebView
   private var loading: CheckedContinuation<Result<Void, FetchError>, Never>?
   private var status: Int?
+  private var pdf: URL?
+  private let purpose: Purpose
+
+  private enum Purpose {
+    case article
+    case source
+  }
+
+  enum Document {
+    case page(Extraction)
+    case pdf(URL)
+  }
 
   private static let world = WKContentWorld.world(name: "loci-reader")
   private static let ready = "lociReady"
 
   /// defuddle is added to every page as soon as its document is parsed, in a world of its own that the
   /// page's scripts cannot see, and says when it is there.
-  private init(source: Source, store: WKWebsiteDataStore) throws(FetchError) {
+  private init(source: Source, store: WKWebsiteDataStore, purpose: Purpose) throws(FetchError) {
     self.source = source
+    self.purpose = purpose
     let configuration = WKWebViewConfiguration()
     configuration.websiteDataStore = store
     configuration.mediaTypesRequiringUserActionForPlayback = .all
@@ -55,7 +68,22 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   static func open(
     _ source: Source, timeout: Duration, store: WKWebsiteDataStore = .default()
   ) async throws(FetchError) -> PageReader {
-    let reader = try PageReader(source: source, store: store)
+    try await open(source, timeout: timeout, store: store, purpose: .article)
+  }
+
+  static func source(at url: URL, timeout: Duration) async throws(FetchError) -> Document {
+    let reader = try await open(.url(url), timeout: timeout, store: .nonPersistent(), purpose: .source)
+    if let pdf = reader.pdf {
+      reader.webView.stopLoading()
+      return .pdf(pdf)
+    }
+    return .page(try await reader.extract())
+  }
+
+  private static func open(
+    _ source: Source, timeout: Duration, store: WKWebsiteDataStore, purpose: Purpose
+  ) async throws(FetchError) -> PageReader {
+    let reader = try PageReader(source: source, store: store, purpose: purpose)
     defer { reader.webView.configuration.userContentController.removeAllScriptMessageHandlers() }
     let timer = Task { @MainActor [weak reader] in
       try await Task.sleep(for: timeout)
@@ -125,11 +153,12 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     defer { webView.stopLoading() }
     if case .url = source { await waitForTextToSettle() }
     try checkSignIn()
-    let arguments: [String: Any] =
+    var arguments: [String: Any] =
       switch source {
       case .url: ["html": NSNull(), "base": NSNull()]
       case .html(let html, let base): ["html": html, "base": base.absoluteString]
       }
+    arguments["preferCompleteText"] = purpose == .source
     let reply: Any?
     do {
       reply = try await webView.callAsyncJavaScript(Self.extraction, arguments: arguments, contentWorld: Self.world)
@@ -150,17 +179,45 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
 
   /// defuddle takes the page's cover image out of the text, expecting it to be shown above the article. Loci
   /// shows no cover there, so the cover is not named and a figure that is also the cover stays where it is.
-  private static let extraction = """
+  private static let extraction = #"""
     const page = html === null ? document : new DOMParser().parseFromString(html, 'text/html');
     for (const meta of page.querySelectorAll(
       'meta[property="og:image"], meta[name="twitter:image"], meta[name="sailthru.image.full"]')) meta.remove();
-    const result = new Defuddle(page, { url: base ?? location.href, separateMarkdown: true }).parse();
+    const url = base ?? location.href;
+    const result = new Defuddle(page, { url, separateMarkdown: true }).parse();
+    let markdown = result.contentMarkdown || "";
+    if (preferCompleteText) {
+      const root = page.querySelector('main, [role="main"]') ?? page.body;
+      const visible = root?.innerText ?? "";
+      const extracted = new DOMParser().parseFromString(result.content || "", "text/html").body.textContent;
+      const length = text => text.replace(/\s/g, "").length;
+      if (root && length(extracted) * 3 < length(visible)) {
+        const copy = root.cloneNode(true);
+        const copies = copy.querySelectorAll("*");
+        for (const [index, element] of root.querySelectorAll("*").entries()) {
+          const kept = copies[index];
+          if (!copy.contains(kept)) continue;
+          const style = getComputedStyle(element);
+          if (element.matches("nav, aside, footer, script, style, noscript, template, " +
+                              '[role="navigation"], [role="complementary"], [role="contentinfo"]') ||
+              style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse" ||
+              style.contentVisibility === "hidden") {
+            kept.remove();
+            continue;
+          }
+          if (element instanceof HTMLAnchorElement && element.hasAttribute("href") &&
+              !element.getAttribute("href").startsWith("#")) kept.setAttribute("href", element.href);
+          if (element instanceof HTMLImageElement && element.hasAttribute("src")) kept.setAttribute("src", element.src);
+        }
+        markdown = Defuddle.createMarkdownContent(copy.innerHTML, url) || markdown;
+      }
+    }
     return JSON.stringify({
       title: result.title, author: result.author, site: result.site, published: result.published,
       language: result.language || page.documentElement.lang || "", domain: result.domain,
-      markdown: result.contentMarkdown || ""
+      markdown
     });
-    """
+    """#
 
   /// defuddle's browser build, bundled with the app; see `Resources/defuddle.LICENSE`.
   private static func defuddle() throws(FetchError) -> String {
@@ -193,8 +250,24 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   ) async -> WKNavigationResponsePolicy {
     if navigationResponse.isForMainFrame, let response = navigationResponse.response as? HTTPURLResponse {
       status = response.statusCode
+      if purpose == .source, response.mimeType == "application/pdf", let url = response.url,
+        Self.failure(status: response.statusCode) == nil
+      {
+        pdf = url
+        finishLoading(.success(()))
+        return .cancel
+      }
     }
     return .allow
+  }
+
+  func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge)
+    async -> (URLSession.AuthChallengeDisposition, URLCredential?)
+  {
+    if purpose == .source, challenge.protectionSpace.authenticationMethod != NSURLAuthenticationMethodServerTrust {
+      return (.cancelAuthenticationChallenge, nil)
+    }
+    return (.performDefaultHandling, nil)
   }
 
   /// A page whose document never said it was parsed, such as one that is not HTML, has loaded by now.

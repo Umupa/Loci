@@ -1,4 +1,4 @@
-public struct Search: Command {
+public struct Search: RemoteCommand {
   public static let name = "search"
   public let text: String
   public let limit: Int
@@ -13,7 +13,7 @@ public struct Search: Command {
   }
 }
 
-public struct ReadReadingState: Command {
+public struct ReadReadingState: RemoteCommand {
   public static let name = "reading.read"
   public let content: ContentRef
 
@@ -28,7 +28,7 @@ public struct ReadReadingState: Command {
 
 /// Remembers where the reader is. The position must point into the same content. Whether the content
 /// was read to the end stays as it was.
-public struct SaveReadingPosition: Command {
+public struct SaveReadingPosition: RemoteCommand {
   public static let name = "reading.position"
   public let content: ContentRef
   public let position: Locator
@@ -44,7 +44,7 @@ public struct SaveReadingPosition: Command {
 }
 
 /// Marks content as read to the end. It stays read when the reader goes back up.
-public struct MarkRead: Command {
+public struct MarkRead: RemoteCommand {
   public static let name = "reading.finish"
   public let content: ContentRef
 

@@ -1,5 +1,5 @@
 /// The media section of the settings as it is now.
-public struct ReadMediaSetup: Command {
+public struct ReadMediaSetup: RemoteCommand {
   public static let name = "media.setup"
 
   public init() {}
@@ -10,7 +10,7 @@ public struct ReadMediaSetup: Command {
 }
 
 /// Where each component is and which version; `again` looks afresh, for one installed since.
-public struct DetectComponents: Command {
+public struct DetectComponents: RemoteCommand {
   public static let name = "media.components"
   public let again: Bool
 
@@ -25,7 +25,7 @@ public struct DetectComponents: Command {
 
 /// Downloads the latest version into Loci's own folder, installing or updating it. Returns at once; the
 /// progress is in `MediaSettings`, and jobs waiting for it carry on when it is done.
-public struct InstallComponent: Command {
+public struct InstallComponent: RemoteCommand {
   public static let name = "media.installComponent"
   public let component: Component
 
@@ -40,7 +40,7 @@ public struct InstallComponent: Command {
 
 /// Downloads a speech model. Returns at once; the progress is in `MediaSettings`, and jobs waiting for it
 /// carry on when it is done.
-public struct DownloadSpeechModel: Command {
+public struct DownloadSpeechModel: RemoteCommand {
   public static let name = "media.downloadModel"
   public let model: SpeechModel
 
@@ -53,7 +53,7 @@ public struct DownloadSpeechModel: Command {
   }
 }
 
-public struct DeleteSpeechModel: Command {
+public struct DeleteSpeechModel: RemoteCommand {
   public static let name = "media.deleteModel"
   public let model: SpeechModel
 
@@ -67,7 +67,7 @@ public struct DeleteSpeechModel: Command {
 }
 
 /// The model recognition uses from now on.
-public struct SetSpeechModel: Command {
+public struct SetSpeechModel: RemoteCommand {
   public static let name = "media.setModel"
   public let model: SpeechModel
 
@@ -81,7 +81,7 @@ public struct SetSpeechModel: Command {
 }
 
 /// Which browser's signed-in cookies fetching borrows; jobs waiting for a sign-in try again.
-public struct SetBrowserLogin: Command {
+public struct SetBrowserLogin: RemoteCommand {
   public static let name = "media.setBrowserLogin"
   public let login: BrowserLogin
 
@@ -96,7 +96,7 @@ public struct SetBrowserLogin: Command {
 
 /// The built-in browser's cookies, so fetching signs in as the reader did there. Replaces those handed over
 /// before; jobs waiting for a sign-in try again.
-public struct HandOverBrowserCookies: Command {
+public struct HandOverBrowserCookies: RemoteCommand {
   public static let name = "media.cookies"
   public let cookies: [BrowserCookie]
 

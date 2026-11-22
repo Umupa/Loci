@@ -1,6 +1,6 @@
 /// Starts picking an item's key points with `choice`, replacing any picked before, and remembers the choice
 /// for next time. Returns at once; `ItemKeyPoints` shows the picking and then the key points.
-public struct PickKeyPoints: Command {
+public struct PickKeyPoints: RemoteCommand {
   public static let name = "library.pickKeyPoints"
   public let item: EntityID
   public let choice: KeyPointChoice
@@ -33,7 +33,9 @@ public struct ItemKeyPoints: Subscription {
       switch change {
       case .item(let id): id == item
       case .everything: true
-      case .job, .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
+      case .course, .courseActivity, .job, .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci,
+        .runtime:
+        false
       }
     }
   }

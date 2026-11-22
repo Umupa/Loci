@@ -1,4 +1,5 @@
 import Foundation
+import LociMedia
 import Testing
 
 @testable import LociMedia
@@ -45,6 +46,64 @@ struct PageReaderTests {
     #expect(extraction.markdown.contains("![The flow](https://blog.example.com/img/flow.png)"))
     #expect(!extraction.markdown.contains("Privacy policy"))
     #expect(!extraction.markdown.contains("newsletter"))
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func sourceReadingKeepsTheWholeVisibleDocumentWhenTheArticlePickerMissesMostOfIt() async throws {
+    let terms = """
+      A message has one or more fields. A sender can combine fields with identical names when the grammar
+      permits this. A recipient treats each field as described by the specification for that field.
+      """
+    let html = """
+      <!doctype html>
+      <style>.for-print { display: none }</style>
+      <nav>Site navigation</nav>
+      <main>
+        <section>
+          <h2>First section of the specification</h2>
+          <pre>\(String(repeating: terms + "\n", count: 20))</pre>
+        </section>
+        <article class="article-content">
+          <h2>The featured section</h2>
+          <p>\(terms)</p><p>\(terms)</p>
+        </article>
+        <section>
+          <h2>Last section of the specification</h2>
+          <pre>\(String(repeating: terms + "\n", count: 20))</pre>
+          <p class="for-print">Hidden print instructions</p>
+          <p>The final requirement is that the recipient must check the last field.</p>
+        </section>
+      </main>
+      <footer>Site legal notice</footer>
+      """
+    let markdown = try await sourceMarkdown(html)
+
+    #expect(markdown.contains("## First section of the specification"))
+    #expect(markdown.contains("## The featured section"))
+    #expect(markdown.contains("## Last section of the specification"))
+    #expect(markdown.contains("The final requirement is that the recipient must check the last field."))
+    #expect(!markdown.contains("Hidden print instructions"))
+    #expect(!markdown.contains("Site navigation"))
+    #expect(!markdown.contains("Site legal notice"))
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func sourceReadingKeepsTheExtractedArticleWhenItCoversMostVisibleText() async throws {
+    let markdown = try await sourceMarkdown(Self.html)
+
+    #expect(markdown.contains("## Filtering"))
+    #expect(markdown.contains("## Scoring"))
+    #expect(!markdown.contains("Privacy policy"))
+    #expect(!markdown.contains("newsletter"))
+  }
+
+  private func sourceMarkdown(_ html: String) async throws -> String {
+    let encoded = Data(html.utf8).base64EncodedString()
+    let url = try #require(URL(string: "data:text/html;charset=utf-8;base64,\(encoded)"))
+    guard case .page(let page) = try await PageReader.source(at: url, timeout: .seconds(20)) else {
+      throw FetchError(reason: "Expected HTML, got PDF")
+    }
+    return page.markdown
   }
 
   /// L-S1: a figure that is also the page's cover image stays in the text, where the page shows it. Martin

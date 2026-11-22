@@ -8,6 +8,8 @@ actor Gate {
     self.limit = limit
   }
 
+  var isBusy: Bool { inside > 0 }
+
   func enter() async {
     guard inside >= limit else {
       inside += 1

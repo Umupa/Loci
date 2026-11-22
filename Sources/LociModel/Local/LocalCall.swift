@@ -28,6 +28,7 @@ public struct LocalCall: Hashable, Codable, Sendable {
     case upload(path: String)
     /// Where an item's folder is, relative to Loci's `agent` folder. The reply is a `String`.
     case itemFolder(EntityID)
+    case course(CourseToolRequest)
   }
 }
 
@@ -37,14 +38,17 @@ public enum LocalSession: Hashable, Codable, Sendable {
   /// One background refresh of a panel, by an id of its own: once the refresh is over or the panel is
   /// removed, nothing it asks to save is kept.
   case panelRefresh(EntityID)
+  case course(EntityID, access: EntityID)
 
   static let refreshPrefix = "panel-refresh/"
+  static let coursePrefix = "course-tool/"
 
-  /// A conversation's note tag, or `panel-refresh/<id>`.
+  /// A conversation tag, panel refresh or course tool scope.
   public var tag: String {
     switch self {
     case .conversation(let conversation): conversation.tag
     case .panelRefresh(let refresh): Self.refreshPrefix + refresh.description
+    case .course(let course, let access): "\(Self.coursePrefix)\(course)/\(access)"
     }
   }
 
@@ -52,6 +56,12 @@ public enum LocalSession: Hashable, Codable, Sendable {
     if tag.hasPrefix(Self.refreshPrefix) {
       guard let refresh = EntityID(canonical: String(tag.dropFirst(Self.refreshPrefix.count))) else { return nil }
       self = .panelRefresh(refresh)
+    } else if tag.hasPrefix(Self.coursePrefix) {
+      let parts = tag.dropFirst(Self.coursePrefix.count).split(separator: "/", omittingEmptySubsequences: false)
+      guard parts.count == 2, let course = EntityID(canonical: String(parts[0])),
+        let access = EntityID(canonical: String(parts[1]))
+      else { return nil }
+      self = .course(course, access: access)
     } else {
       guard let conversation = ConversationRef(tag: tag) else { return nil }
       self = .conversation(conversation)
@@ -60,7 +70,11 @@ public enum LocalSession: Hashable, Codable, Sendable {
 
   /// The conversation, when the session is one.
   public var conversation: ConversationRef? {
-    if case .conversation(let conversation) = self { conversation } else { nil }
+    switch self {
+    case .conversation(let conversation): conversation
+    case .course(let id, _): .course(id)
+    case .panelRefresh: nil
+    }
   }
 }
 
@@ -72,11 +86,12 @@ public enum LocalReply: Hashable, Codable, Sendable {
 }
 
 extension ConversationRef {
-  /// The tag the conversation's notes carry: `main` or `library/<item id>`.
+  /// The tag the conversation’s notes carry.
   public var tag: String {
     switch self {
     case .main: NoteSource.main.tag
     case .item(let item): NoteSource.item(item, title: nil).tag
+    case .course(let id): NoteSource.course(id).tag
     }
   }
 
@@ -85,6 +100,7 @@ extension ConversationRef {
     switch NoteSource(tag: tag, title: { _ in nil }) {
     case .main: self = .main
     case .item(let item, _): self = .item(item)
+    case .course(let id): self = .course(id)
     case .review, nil: return nil
     }
   }

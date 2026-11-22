@@ -14,6 +14,7 @@ public enum SessionOwner: Hashable, Sendable {
     switch self {
     case .conversation(.main): "main"
     case .conversation(.item(let item)): "library-\(item)"
+    case .conversation(.course(let course)): "courses-\(course)"
     case .review(let day): "review-\(day)"
     case .panel(let name): "panel-\(name)"
     }
@@ -24,6 +25,8 @@ public enum SessionOwner: Hashable, Sendable {
       self = .conversation(.main)
     } else if key.hasPrefix("library-"), let item = EntityID(canonical: String(key.dropFirst(8))) {
       self = .conversation(.item(item))
+    } else if key.hasPrefix("courses-"), let course = EntityID(canonical: String(key.dropFirst(8))) {
+      self = .conversation(.course(course))
     } else if key.hasPrefix("review-"), let day = Day(String(key.dropFirst(7))) {
       self = .review(day)
     } else if key.hasPrefix("panel-"), key.count > 6 {
@@ -135,7 +138,11 @@ extension StoreDatabase {
 
   /// An item's conversation goes with the item.
   public func deleteConversation(on item: EntityID) throws {
-    let owner = SessionOwner.conversation(.item(item)).key
+    try deleteConversation(.item(item))
+  }
+
+  public func deleteConversation(_ conversation: ConversationRef) throws {
+    let owner = SessionOwner.conversation(conversation).key
     try queue.write { db in
       try db.execute(
         sql: "DELETE FROM message WHERE session_id IN (SELECT id FROM session WHERE owner = ?)", arguments: [owner])

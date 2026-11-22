@@ -96,9 +96,9 @@ private struct MemoryRow: View {
       if let day = entry.day {
         Text(verbatim: day.short).font(.system(size: 10.5).monospaced()).foregroundStyle(Palette.inkFaint)
       }
-      if let source = entry.source, let title = source.itemTitle {
+      if let source = entry.source, let title = source.itemTitle, let page = Page(source.locator.content) {
         Button {
-          openPage(Page(source.locator.content))
+          openPage(page)
         } label: {
           Text(verbatim: title)
             .lineLimit(1)
@@ -178,7 +178,7 @@ private struct TodayNotes: View {
       case .main: Text(.loci("loci.fromMain"))
       case .item(_, let title?): Text(verbatim: title)
       case .review: Text(.loci("loci.fromReview"))
-      case .item(_, nil), nil: nil
+      case .course, .item(_, nil), nil: nil
       }
     guard let name else { return Text(verbatim: "") }
     return Text(joining: Text(verbatim: " · "), name).foregroundStyle(Palette.inkMuted)

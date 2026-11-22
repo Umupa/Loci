@@ -24,13 +24,16 @@ final class FakeHost: LociModel.Host, CommandHandler {
   let lastChoice: ImportChoice?
   /// How far the library's key points have got.
   let keyPoints: SampleKeyPoints
+  /// The courses this host serves; none unless a test gives them.
+  let courses: SampleCourses?
 
   init(
     _ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false, working: Bool = false,
     avatar: Avatar? = nil, panels: PanelColumn = PanelColumn(slots: []), activity: Activity = Activity(),
     lastChoice: ImportChoice? = nil, keyPoints: SampleKeyPoints = .picked,
-    modelSettings: (any ModelSettingsAccess)? = nil, piWork: Transfer? = nil
+    modelSettings: (any ModelSettingsAccess)? = nil, piWork: Transfer? = nil, courses: SampleCourses? = nil
   ) {
+    self.courses = courses
     self.lastChoice = lastChoice
     self.modelSettings = modelSettings
     self.piWork = piWork
@@ -93,6 +96,7 @@ final class FakeHost: LociModel.Host, CommandHandler {
   func saveReadingPosition(_ command: SaveReadingPosition) async throws(HostError) -> Done { Done() }
   func markRead(_ content: ContentRef) async throws(HostError) -> Done { Done() }
   func notes(on content: ContentRef) async throws(HostError) -> [Note] {
+    if case .lesson(_, let lesson) = content { return (try? courses?.notes(on: lesson)) ?? [] }
     if let library, case .item(let item) = content { return (try? library.notes(on: item)) ?? [] }
     return sample.notes
   }

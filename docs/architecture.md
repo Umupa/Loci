@@ -17,9 +17,9 @@
 | 模块 | 职责 | 可以引用 |
 |---|---|---|
 | `LociModel` | 值类型、定位符、Host 协议与命令的请求和响应、线路注册表；系统框架可用 CryptoKit（`MachineID` 是公钥的指纹，邀请链接带校验和） | 无 |
-| `LociStore` | 文件读写与监听、SQLite、全文索引、Loci 的 `agent/` 文件夹；配对名单与别的 Mac 的缓存；系统框架可用 Security（设备私钥、读其他浏览器 cookie 的密钥）、CryptoKit（缓存文件名）、CommonCrypto（解密 Chromium 浏览器的 cookie：AES-CBC 与 PBKDF2，CryptoKit 没有） | `LociModel`；第三方：GRDB |
+| `LociStore` | 文件读写与监听、SQLite、全文索引、Loci 的 `agent/` 文件夹；配对名单与别的 Mac 的缓存；系统框架可用 Security（设备私钥、读其他浏览器 cookie 的密钥）、CryptoKit（缓存文件名）、Darwin（按目录描述符访问取材缓存）、CommonCrypto（解密 Chromium 浏览器的 cookie：AES-CBC 与 PBKDF2，CryptoKit 没有） | `LociModel`；第三方：GRDB |
 | `LociAgents` | 各家 agent CLI 的协议驱动、会话、权限 | `LociModel` |
-| `LociMedia` | 取回链接（yt-dlp、网页正文、PDF）、组件、Loci 自己的新版本（GitHub release、挂载 dmg、核对签名）、转录、断句、区分说话人；系统框架可用 AVFoundation、CoreMedia、CoreGraphics（PDF 元数据）、NaturalLanguage、WebKit（在不显示的网页里取正文）、Synchronization | `LociModel`；第三方：swift-markdown、FluidAudio |
+| `LociMedia` | 取回链接（yt-dlp、网页正文、PDF）、组件、Loci 自己的新版本（GitHub release、挂载 dmg、核对签名）、转录、断句、区分说话人；系统框架可用 AVFoundation、CoreMedia、CoreGraphics（PDF 元数据）、PDFKit（PDF 正文）、NaturalLanguage、WebKit（在不显示的网页里取正文）、Synchronization | `LociModel`；第三方：swift-markdown、FluidAudio |
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |
 | `LociRemote` | 配对、加密通道（Noise）、中继（alma-relay 协议）、局域网发现（Bonjour）、`loci` 命令连进来的本机 unix socket；系统框架可用 CryptoKit、Network | `LociModel` |
 | `LociHost` | 命令层的实现：本机和远程；Loci 的会话、上下文拼装与每日回顾；系统框架可用 IOKit（有已配对的 Mac 时阻止空闲睡眠，读机型） | 以上全部 |

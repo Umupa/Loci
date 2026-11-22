@@ -9,7 +9,7 @@ enum LociCommand {
       Array(CommandLine.arguments.dropFirst()), environment: ProcessInfo.processInfo.environment,
       folder: URL.currentDirectory())
     let output = outcome.status == 0 ? FileHandle.standardOutput : FileHandle.standardError
-    output.write(Data((outcome.text + "\n").utf8))
+    output.write(Data(outcome.output.utf8))
     exit(outcome.status)
   }
 

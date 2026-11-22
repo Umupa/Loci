@@ -9,6 +9,7 @@ public struct MediaEnvironment: Sendable {
   public let support: URL
   public let runner: any ProgramRunner
   public let network: any Network
+  public let sourceNetwork: any Network
   public let transcriber: any Transcribing
   public let diarizer: (any Diarizing)?
   /// Folders searched for components already on this Mac.
@@ -29,11 +30,13 @@ public struct MediaEnvironment: Sendable {
     support: URL, runner: any ProgramRunner, network: any Network, transcriber: any Transcribing,
     searchPaths: [URL], proxy: @escaping @Sendable () -> String? = { nil }, readerLanguage: String,
     arm: Bool = true, textFetching: (any TextFetching)? = nil,
-    transcriptAgent: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)? = nil, diarizer: (any Diarizing)? = nil
+    transcriptAgent: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)? = nil, diarizer: (any Diarizing)? = nil,
+    sourceNetwork: (any Network)? = nil
   ) {
     self.support = support
     self.runner = runner
     self.network = network
+    self.sourceNetwork = sourceNetwork ?? network
     self.transcriber = transcriber
     self.diarizer = diarizer
     self.searchPaths = searchPaths
@@ -60,7 +63,8 @@ public struct MediaEnvironment: Sendable {
       searchPaths: ComponentLocator.systemSearchPaths(environment: ProcessInfo.processInfo.environment),
       proxy: { SystemProxy.current() }, readerLanguage: Locale.preferredLanguages.first ?? "en", arm: arm,
       textFetching: WebTextFetcher(network: SystemNetwork()),
-      transcriptAgent: { runtime in AgentTranscriptAgent(runtime: runtime, agents: agents) }, diarizer: FluidDiarizer())
+      transcriptAgent: { runtime in AgentTranscriptAgent(runtime: runtime, agents: agents) }, diarizer: FluidDiarizer(),
+      sourceNetwork: SystemNetwork.anonymous())
   }
 
   /// Nothing outside: no program starts, nothing downloads, nothing is recognized. For hosts that never

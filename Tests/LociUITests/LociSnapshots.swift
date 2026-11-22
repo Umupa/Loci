@@ -117,7 +117,7 @@ struct LociSnapshots {
   func talkPieces(appearance: Snapshot.Appearance) async throws {
     let library = try SampleLibrary()
     let video = library.video
-    let pieces = VStack(alignment: .leading, spacing: ConversationView.gap) {
+    let pieces = VStack(alignment: .leading, spacing: Size.messageGap) {
       DayDivider(label: Text(verbatim: "今天 09:12"))
       BubbleRow(speaker: .loci) { ReplyText(text: "早", streaming: false, size: 15) }
       BubbleRow(speaker: .loci) { ReplyText(text: "图画好了，挂在 Pingora 第二条划线旁边", streaming: false, size: 15) }

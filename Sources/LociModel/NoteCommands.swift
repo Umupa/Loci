@@ -12,12 +12,13 @@ public struct NotesOn: Subscription {
   }
 
   public func isAffected(by changes: Set<ContentChange>) -> Bool {
-    changes.contains(.notes(content)) || changes.contains(.everything)
+    if case .lesson(let course, _) = content, changes.contains(.course(course)) { return true }
+    return changes.contains(.notes(content)) || changes.contains(.everything)
   }
 }
 
 /// Leaves a note on a passage: a highlight, with a thought if there is one.
-public struct AddNote: Command {
+public struct AddNote: RemoteCommand {
   public static let name = "note.add"
   public let locator: Locator
   /// The words that were marked, as the reader saw them.
@@ -36,7 +37,7 @@ public struct AddNote: Command {
 }
 
 /// Writes, changes or, with `nil`, removes a note's thought. Its place and questions stay as they are.
-public struct SetNoteThought: Command {
+public struct SetNoteThought: RemoteCommand {
   public static let name = "note.thought"
   public let content: ContentRef
   public let note: EntityID
@@ -53,7 +54,7 @@ public struct SetNoteThought: Command {
   }
 }
 
-public struct DeleteNote: Command {
+public struct DeleteNote: RemoteCommand {
   public static let name = "note.delete"
   public let content: ContentRef
   public let note: EntityID

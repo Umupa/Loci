@@ -26,7 +26,9 @@ public struct SavingNow: Subscription {
     changes.contains { change in
       switch change {
       case .job, .item, .everything: true
-      case .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
+      case .course, .courseActivity, .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci,
+        .runtime:
+        false
       }
     }
   }
@@ -34,7 +36,7 @@ public struct SavingNow: Subscription {
 
 /// Deletes the items of the batch Loci is saving whose work has not started yet, as `DeleteItems` does, so
 /// `RestoreDeleted` brings them back. Replies with how many were deleted.
-public struct StopSaving: Command {
+public struct StopSaving: RemoteCommand {
   public static let name = "jobs.stopSaving"
 
   public init() {}

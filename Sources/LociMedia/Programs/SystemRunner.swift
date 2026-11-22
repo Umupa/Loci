@@ -12,6 +12,7 @@ public struct SystemRunner: ProgramRunner {
     let diagnostics = Pipe()
     process.executableURL = call.executable
     process.arguments = call.arguments
+    process.environment = call.environment
     process.standardInput = FileHandle.nullDevice
     process.standardOutput = output
     process.standardError = diagnostics

@@ -69,7 +69,7 @@ extension Runtime: Codable {
 }
 
 /// What Loci runs on now.
-public struct ReadRuntime: Command {
+public struct ReadRuntime: RemoteCommand {
   public static let name = "runtime.read"
 
   public init() {}
@@ -81,7 +81,7 @@ public struct ReadRuntime: Command {
 
 /// Changes what Loci runs on. Every conversation's next turn opens a new session on it; a turn already
 /// running finishes as it began.
-public struct SetRuntime: Command {
+public struct SetRuntime: RemoteCommand {
   public static let name = "runtime.set"
   public let runtime: Runtime
 
@@ -96,7 +96,7 @@ public struct SetRuntime: Command {
 
 /// What each provider is on the host's Mac, in `Provider.allCases` order. Looking takes a few seconds, so
 /// the host remembers what it found until asked to look `again`.
-public struct DetectAgents: Command {
+public struct DetectAgents: RemoteCommand {
   public static let name = "agents.detect"
   public let again: Bool
 
@@ -111,7 +111,7 @@ public struct DetectAgents: Command {
 
 /// The models a provider's program offers, as it names them; empty when it cannot list them. Asked once
 /// and then remembered.
-public struct AgentModels: Command {
+public struct AgentModels: RemoteCommand {
   public static let name = "agents.models"
   public let provider: Provider
 

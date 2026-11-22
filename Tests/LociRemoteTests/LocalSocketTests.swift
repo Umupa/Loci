@@ -55,6 +55,34 @@ import Testing
     }
   }
 
+  @Test func aLargeReplyIsWholeWhenTheAppFinishesSending() async throws {
+    let path = Self.path()
+    defer { unlink(path.path) }
+    let payload = Data(repeating: 42, count: 3_000_000) + Data([1, 2, 3])
+    let serving = Task {
+      try await LocalSocket.serve(at: path) { _, reply in try? await reply(.value(payload)) }
+    }
+    defer { serving.cancel() }
+
+    let reply = try await Self.retrying { try await LocalSocket.call(Self.call, at: path) }
+
+    #expect(reply == .value(payload))
+  }
+
+  @Test func theClientKnowsWhenTheAppHasNoMoreReplies() async throws {
+    let path = Self.path()
+    defer { unlink(path.path) }
+    let serving = Task {
+      try await LocalSocket.serve(at: path) { _, reply in try? await reply(.value(Data("one reply".utf8))) }
+    }
+    defer { serving.cancel() }
+    _ = try await Self.retrying { try await LocalSocket.call(Self.call, at: path) }
+
+    await #expect(throws: LocalSocketError.closed) {
+      try await LocalSocket.call(Self.call, at: path) { _ in false }
+    }
+  }
+
   @Test func aCallWithNoAppListeningSaysSo() async {
     await #expect(throws: LocalSocketError.notListening) {
       try await LocalSocket.call(Self.call, at: Self.path())

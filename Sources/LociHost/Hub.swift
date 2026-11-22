@@ -59,7 +59,11 @@ actor Hub {
       return
     }
     let reread = Set(changes.compactMap(\.problemSubject))
-    let kept = health.fileProblems.filter { $0.subject.map { !reread.contains($0) } ?? true }
+    let kept = health.fileProblems.filter {
+      guard let subject = $0.subject else { return true }
+      if case .notes(.lesson(let course, _)) = subject, reread.contains(.course(course)) { return false }
+      return !reread.contains(subject)
+    }
     health = Health(database: health.database, readingStateLost: health.readingStateLost, fileProblems: kept + problems)
   }
 
@@ -81,6 +85,8 @@ extension ContentChange {
   var problemSubject: FileProblem.Subject? {
     switch self {
     case .item(let id): .item(id)
+    case .course(let id): .course(id)
+    case .courseActivity: nil
     case .notes(let content): .notes(content)
     case .everything, .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: nil
     }

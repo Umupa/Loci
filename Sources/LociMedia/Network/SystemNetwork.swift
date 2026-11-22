@@ -9,6 +9,14 @@ public struct SystemNetwork: Network {
     self.session = session
   }
 
+  public static func anonymous() -> Self {
+    let config = URLSessionConfiguration.ephemeral
+    config.httpCookieStorage = nil
+    config.httpShouldSetCookies = false
+    config.urlCredentialStorage = nil
+    return Self(session: URLSession(configuration: config))
+  }
+
   public func data(for request: URLRequest) async throws(FetchError) -> (Data, HTTPURLResponse) {
     let (data, response): (Data, URLResponse)
     do {

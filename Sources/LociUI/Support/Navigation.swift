@@ -12,6 +12,8 @@ enum Place: Codable, Hashable {
   case library(LibraryCategory?)
   /// The built-in browser, for finding things to add.
   case browser
+  /// The courses Loci writes: the gallery, or the course being read.
+  case courses(EntityID?)
   case settings(SettingsSection)
 }
 
@@ -47,9 +49,10 @@ enum Page: Codable, Hashable {
   case item(EntityID)
   case passage(Locator)
 
-  var itemID: EntityID {
+  var itemID: EntityID? {
     switch self {
-    case .item(let item), .passage(.item(let item, _)): item
+    case .item(let item): item
+    case .passage(let locator): locator.item
     }
   }
 
@@ -74,14 +77,14 @@ struct WindowState: Codable, Equatable {
   }
 
   var text: String {
-    let remembered = WindowState(place: place, pages: pages.map { .item($0.itemID) })
+    let remembered = WindowState(place: place, pages: pages.compactMap { $0.itemID.map(Page.item) })
     return (try? String(decoding: JSONEncoder().encode(remembered), as: UTF8.self)) ?? ""
   }
 
   /// Drops the pages of items that no longer exist, so the window goes back to the place they were opened
   /// from, such as the library an item was deleted from, and a remembered place never opens onto a blank page.
   func keeping(items: Set<EntityID>) -> WindowState {
-    let kept = pages.filter { items.contains($0.itemID) }
+    let kept = pages.filter { $0.itemID.map(items.contains) == true }
     return kept == pages ? self : WindowState(place: place, pages: kept)
   }
 

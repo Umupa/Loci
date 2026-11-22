@@ -22,11 +22,12 @@ final class FakeAgent: AgentDriver, Sendable {
     case compact(reply: String)
   }
 
-  let provider = Provider.pi
+  let provider: Provider
   private let behave: @Sendable (String) -> Behavior
   private let state = Mutex<(prompts: [String], opened: [SessionConfiguration], sessions: Int)>(([], [], 0))
 
-  init(_ behave: @escaping @Sendable (String) -> Behavior = { _ in .reply("Hello there.") }) {
+  init(provider: Provider = .pi, _ behave: @escaping @Sendable (String) -> Behavior = { _ in .reply("Hello there.") }) {
+    self.provider = provider
     self.behave = behave
   }
 
@@ -40,7 +41,7 @@ final class FakeAgent: AgentDriver, Sendable {
       state.sessions += 1
       return state.sessions
     }
-    let handle = configuration.resume ?? SessionHandle(provider: .pi, value: "fake-\(number)")
+    let handle = configuration.resume ?? SessionHandle(provider: provider, value: "fake-\(number)")
     return FakeSession(handle: handle, folder: configuration.workingDirectory, agent: self)
   }
 

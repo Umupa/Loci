@@ -45,9 +45,10 @@ extension LocalHost {
 
   /// Items read partway, most recently read first, leaving out what cannot be told how far along it is.
   private func readingNow() -> [ReadingNow] {
-    let partway = ((try? database.readingPartway()) ?? []).map { entry in
+    let partway = ((try? database.readingPartway()) ?? []).compactMap { entry -> (id: EntityID, position: Locator?)? in
       switch entry.content {
       case .item(let id): (id: id, position: entry.state.position)
+      case .lesson: nil
       }
     }
     let items = store.items(withIDs: Set(partway.map(\.id)))

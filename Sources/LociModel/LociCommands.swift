@@ -12,7 +12,7 @@ public struct LociWorking: Subscription {
     changes.contains { change in
       switch change {
       case .conversation, .turnEnded, .review, .job, .loci(.panels), .everything: true
-      case .item, .notes, .reading, .media, .events, .loci, .runtime: false
+      case .course, .courseActivity, .item, .notes, .reading, .media, .events, .loci, .runtime: false
       }
     }
   }
@@ -34,7 +34,7 @@ public struct LociHome: Subscription {
       switch change {
       case .loci(let file): file != .avatar && file != .panels
       case .turnEnded, .item, .everything: true
-      case .notes, .reading, .job, .media, .conversation, .review, .events, .runtime: false
+      case .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .review, .events, .runtime: false
       }
     }
   }
@@ -75,7 +75,7 @@ public struct LociAvatar: Subscription {
 
 /// Rewrites the core of `SOUL.md`; the evolved traits stay as they are. Refused when the text is blank
 /// or holds a `## Evolved Traits` heading of its own. Every conversation's next turn opens a new session.
-public struct SaveSoul: Command {
+public struct SaveSoul: RemoteCommand {
   public static let name = "loci.saveSoul"
   public let core: String
 
@@ -90,7 +90,7 @@ public struct SaveSoul: Command {
 
 /// Removes one entry, and the lines continuing it, from `MEMORY.md` or `USER.md`. `notFound` when no
 /// entry starts with that line any more.
-public struct Forget: Command {
+public struct Forget: RemoteCommand {
   public static let name = "loci.forget"
   public let file: MemoryFile
   /// `MemoryEntry.line`.
@@ -107,7 +107,7 @@ public struct Forget: Command {
 }
 
 /// Shows the picture as Loci everywhere, keeping it as `agent/avatar.<format>` in place of any other.
-public struct SetAvatar: Command {
+public struct SetAvatar: RemoteCommand {
   public static let name = "loci.setAvatar"
   public let avatar: Avatar
 
@@ -121,7 +121,7 @@ public struct SetAvatar: Command {
 }
 
 /// Goes back to the app's own picture of Loci.
-public struct ResetAvatar: Command {
+public struct ResetAvatar: RemoteCommand {
   public static let name = "loci.resetAvatar"
 
   public init() {}

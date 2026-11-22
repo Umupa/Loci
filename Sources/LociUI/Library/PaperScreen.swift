@@ -26,7 +26,7 @@ struct PaperScreen: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       if panelShown {
         ReaderPanel(
-          item: page.item.id,
+          content: .item(page.item.id),
           notes: (notes?.value ?? []).map { PlacedNote(note: $0, range: NSRange(location: 0, length: 0)) },
           keyPoints: nil, openKeyPoint: nil, tab: $tab, draft: $draft, chosen: nil, reveal: { _ in },
           revealPassage: { _ in }, ask: { _ in },

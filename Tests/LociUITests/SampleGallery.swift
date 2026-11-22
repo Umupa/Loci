@@ -53,7 +53,7 @@ extension SampleLibrary {
       items: try sizes.map { ItemSpace(item: try named($0.0), isAudio: $0.1, bytes: $0.2, fromLink: true) },
       speechModels: [
         ModelSpace(model: .largeV3TurboQuantized, bytes: 574_000_000), ModelSpace(model: .tiny, bytes: 78_000_000),
-      ])
+      ], sourceCacheBytes: 24_000_000)
     return library
   }
 }

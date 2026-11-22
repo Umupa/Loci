@@ -4,7 +4,7 @@ import LociHost
 import LociModel
 
 actor ManualAgent: AgentDriver {
-  nonisolated let provider = Provider.pi
+  nonisolated let provider: Provider
   private(set) var opened: [SessionConfiguration] = []
   private(set) var sessions: [ManualSession] = []
   let openingFailure: AgentError?
@@ -12,7 +12,8 @@ actor ManualAgent: AgentDriver {
   private var opensFreely: Int
   private var held: [CheckedContinuation<Void, Never>] = []
 
-  init(openingFailure: AgentError? = nil, opensFreely: Int = .max) {
+  init(openingFailure: AgentError? = nil, opensFreely: Int = .max, provider: Provider = .pi) {
+    self.provider = provider
     self.openingFailure = openingFailure
     self.opensFreely = opensFreely
   }
@@ -24,6 +25,11 @@ actor ManualAgent: AgentDriver {
     held = []
   }
 
+  func openFreely() {
+    opensFreely = .max
+    letOpen()
+  }
+
   func open(_ configuration: SessionConfiguration) async throws(AgentError) -> any AgentSession {
     if opensFreely > 0 {
       opensFreely -= 1
@@ -33,7 +39,7 @@ actor ManualAgent: AgentDriver {
     opened.append(configuration)
     if let openingFailure { throw openingFailure }
     if configuration.resume != nil { throw .sessionNotFound }
-    let session = ManualSession(number: sessions.count + 1)
+    let session = ManualSession(number: sessions.count + 1, provider: provider)
     sessions.append(session)
     return session
   }
@@ -46,8 +52,8 @@ actor ManualSession: AgentSession {
   private(set) var answers: [PermissionAnswer] = []
   private(set) var closed = false
 
-  init(number: Int) {
-    handle = SessionHandle(provider: .pi, value: "manual-\(number)")
+  init(number: Int, provider: Provider = .pi) {
+    handle = SessionHandle(provider: provider, value: "manual-\(number)")
   }
 
   func send(_ text: String) async throws(AgentError) -> Turn {

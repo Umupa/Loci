@@ -41,7 +41,7 @@ enum WireCodec {
     return try await run(route.command, body: body, on: host)
   }
 
-  private static func run<C: Command>(_ type: C.Type, body: Data, on host: any LociModel.Host) async throws(HostError)
+  static func run<C: Command>(_ type: C.Type, body: Data, on host: any LociModel.Host) async throws(HostError)
     -> Data
   {
     let command = try decode(type, from: body)

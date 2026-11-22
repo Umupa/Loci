@@ -9,11 +9,12 @@ struct Prompts: Sendable {
   let rules: String
   let review: String
   let panel: String
+  let course: String
 
   static func bundled() throws(HostError) -> Prompts {
     Prompts(
       soul: try resource("soul"), rules: try resource("rules"), review: try resource("review"),
-      panel: try resource("panel"))
+      panel: try resource("panel"), course: try resource("course"))
   }
 
   private static func resource(_ name: String) throws(HostError) -> String {

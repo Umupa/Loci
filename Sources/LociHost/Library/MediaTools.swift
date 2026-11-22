@@ -6,16 +6,20 @@ import LociStore
 extension LibraryContext {
   /// yt-dlp set up with the components, the reader's sign-in and the system proxy. A component that is
   /// missing makes the stage wait for it.
-  func ytDlp(needing needed: [Component]) async throws(StageStop) -> YtDlp {
+  func ytDlp(needing needed: [Component], anonymous: Bool = false) async throws(StageStop) -> YtDlp {
     for component in needed where await equipment.executable(component) == nil {
       throw .wait(.component(component))
     }
     guard let executable = await equipment.executable(.ytDlp) else { throw .wait(.component(.ytDlp)) }
+    let signIn: YtDlp.SignIn =
+      if anonymous {
+        .init(browser: .none, cookies: nil)
+      } else {
+        .init(browser: settings.browserLogin, cookies: await equipment.cookies)
+      }
     return YtDlp(
       executable: executable, ffmpeg: await equipment.executable(.ffmpeg),
-      quickJS: await equipment.executable(.quickJS),
-      signIn: .init(browser: settings.browserLogin, cookies: await equipment.cookies), proxy: media.proxy(),
-      runner: media.runner)
+      quickJS: await equipment.executable(.quickJS), signIn: signIn, proxy: media.proxy(), runner: media.runner)
   }
 
   /// What the reader can do about a failed fetch.

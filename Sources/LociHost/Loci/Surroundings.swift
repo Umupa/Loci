@@ -52,6 +52,9 @@ extension AgentContext {
     case .item(let id):
       guard let item = try? store.item(id) else { return nil }
       return "\"\(item.title)\", \(Self.kind(of: item)) (library/\(id))"
+    case .course(let course):
+      guard let document = try? store.course(course) else { return nil }
+      return "\"\(document.title)\" (courses/\(course))"
     case .main:
       guard let (content, at) = try? database.latestReading(), case .item(let id) = content,
         now.millisecondsSince1970 - at.millisecondsSince1970 <= Self.recentReading,

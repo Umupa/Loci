@@ -9,7 +9,7 @@ import Testing
 
 /// Identifiers in a fixed sequence, a clock that moves only when told, and ticks that come only when sent.
 final class TestWorld: Sendable {
-  private let created = Mutex<UInt64>(0)
+  private let created: Mutex<UInt64>
   private let looks = Mutex<[Bool]>([])
   private let clock = Mutex<Timestamp>(TestWorld.instant)
   private let ticking = AsyncStream.makeStream(of: Void.self)
@@ -26,20 +26,24 @@ final class TestWorld: Sendable {
   static let timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .gmt
   let agent: FakeAgent
 
-  init(agent: FakeAgent = FakeAgent()) {
+  init(agent: FakeAgent = FakeAgent(), idOffset: UInt64 = 0) {
+    created = Mutex(idOffset)
     self.agent = agent
   }
 
   var environment: HostEnvironment {
-    environment(running: { [agent] provider in provider == .pi ? agent : nil })
+    environment(
+      running: { [agent] provider in provider == agent.provider ? agent : nil },
+      runtime: Runtime(provider: agent.provider))
   }
 
   func environment(
-    running agents: @escaping @Sendable (Provider) async -> (any AgentDriver)?, tool: AgentTool? = nil
+    running agents: @escaping @Sendable (Provider) async -> (any AgentDriver)?, tool: AgentTool? = nil,
+    runtime: Runtime = Runtime(provider: .pi)
   ) -> HostEnvironment {
     HostEnvironment(
       newID: { [self] in self.nextID() }, now: { [self] in self.now }, timeZone: Self.timeZone,
-      defaultRuntime: Runtime(provider: .pi), discard: .permanently, agents: agents,
+      defaultRuntime: runtime, discard: .permanently, agents: agents,
       detectAgents: { [self] again in
         self.looks.withLock { $0.append(again) }
         return Self.installed
@@ -86,8 +90,8 @@ struct Place {
   var database: URL { root.appending(path: "loci.sqlite") }
   var store: Store { Store(root: root, discard: .permanently) }
 
-  init() {
-    root = FileManager.default.temporaryDirectory.appending(path: "loci-host-\(UUID().uuidString)")
+  init(root: URL = FileManager.default.temporaryDirectory.appending(path: "loci-host-\(UUID().uuidString)")) {
+    self.root = root
   }
 
   func remove() {

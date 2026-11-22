@@ -1,7 +1,8 @@
-/// Which conversation: the one main conversation, or the one on an item.
+/// Which conversation: the one main conversation, or the one on an item or course.
 public enum ConversationRef: Hashable, Codable, Sendable {
   case main
   case item(EntityID)
+  case course(EntityID)
 }
 
 /// Everything said in one conversation, oldest first, and the turn running now.
@@ -108,11 +109,14 @@ public struct Prompt: Hashable, Codable, Sendable {
   public let purpose: Purpose
   /// The passage the person asked about, when they asked about one.
   public let passage: QuotedPassage?
+  /// The title of the lesson when the person asked for it to be written.
+  public let lessonTitle: String?
 
-  public init(text: String, purpose: Purpose, passage: QuotedPassage? = nil) {
+  public init(text: String, purpose: Purpose, passage: QuotedPassage? = nil, lessonTitle: String? = nil) {
     self.text = text
     self.purpose = purpose
     self.passage = passage
+    self.lessonTitle = lessonTitle
   }
 
   /// Why the prompt was sent.
@@ -123,6 +127,7 @@ public struct Prompt: Hashable, Codable, Sendable {
     case review(Day)
     /// The app asking Loci to refresh the panel by this name. It belongs to no conversation.
     case panel(String)
+    case course(CourseEvent)
   }
 }
 

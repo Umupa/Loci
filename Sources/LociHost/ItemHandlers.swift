@@ -20,19 +20,29 @@ extension LocalHost {
     return item
   }
 
-  /// Sets the items aside, so they leave the library at once and can still come back. What was set aside
-  /// by the deletion before goes for good first: only the latest deletion can be undone.
+  /// Sets the items aside, so they leave the library at once and can still come back.
   public func deleteItems(_ command: DeleteItems) async throws(HostError) -> Done {
-    await discardSetAside()
+    try await deletions.through { () async throws(HostError) in
+      try await setAsideItems(command.items)
+    }
+  }
+
+  private func setAsideItems(_ items: [EntityID]) async throws(HostError) -> Done {
+    let previous = setAsideDeletion()
     var changes: Set<ContentChange> = [.events]
-    for item in command.items {
-      await loci.forget(item: item)
+    var replacedUndo = false
+    for item in items {
+      await loci.forget(.item(item))
       await library.queue.setAside(item)
       do throws(HostError) {
         try attempt { try store.setAside(item) }
-        await loci.forgotten(item: item)
+        await loci.forgotten(.item(item))
+        if !replacedUndo {
+          replacedUndo = true
+          await discardSetAside(previous)
+        }
       } catch {
-        await loci.forgotten(item: item)
+        await loci.forgotten(.item(item))
         await library.queue.putBack(item)
         await follow(changes)
         throw error
@@ -44,6 +54,12 @@ extension LocalHost {
   }
 
   public func restoreDeleted() async throws(HostError) -> [Item] {
+    try await deletions.through { () async throws(HostError) in
+      try await restoreSetAsideItems()
+    }
+  }
+
+  private func restoreSetAsideItems() async throws(HostError) -> [Item] {
     var restored: [Item] = []
     var changes: Set<ContentChange> = [.events]
     for id in store.setAsideItems() {
@@ -56,10 +72,15 @@ extension LocalHost {
     return restored
   }
 
-  /// Gets rid of what was set aside, with what the database still keeps of it: its conversation, its
-  /// events and its job.
-  func discardSetAside() async {
-    for item in store.setAsideItems() {
+  func setAsideDeletion() -> (items: [EntityID], courses: [EntityID]) {
+    (store.setAsideItems(), store.setAsideCourses())
+  }
+
+  /// Retires the previous undo and finishes cleanup of deletions that have expired.
+  func discardSetAside(_ deletion: (items: [EntityID], courses: [EntityID])? = nil) async {
+    let deletion = deletion ?? setAsideDeletion()
+    await discardSetAsideCourses(deletion.courses)
+    for item in deletion.items {
       do {
         try store.discardSetAside(item)
       } catch {

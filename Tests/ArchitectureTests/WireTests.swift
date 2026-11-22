@@ -1,6 +1,7 @@
+import Foundation
 import Testing
 
-/// Every command and subscription crosses to other Macs only through the registry, so none may be missing.
+/// Commands declare which registry may carry them. Subscriptions are always remote.
 struct WireTests {
   @Test func everyCommandAndSubscriptionIsRegistered() throws {
     let model = try Repository.files(in: "Sources").filter { $0.module == "LociModel" }
@@ -9,32 +10,87 @@ struct WireTests {
   }
 
   @Test func flagsATypeMissingFromTheRegistry() {
-    let commands = SourceFile(
-      path: "Sources/LociModel/Example.swift", module: "LociModel",
-      text: """
-        public struct Listed: Command {}
-        public struct Forgotten: Command {}
-        public struct Watched: Subscription {}
-        """)
-    let registry = SourceFile(
-      path: Architecture.wireRegistry, module: "LociModel",
-      text: "let commands = [.reads(Listed.self)]\nlet subscriptions = [Watched.self]")
+    let declarations = """
+      public struct Listed: RemoteCommand {}
+      public struct Forgotten: RemoteCommand {}
+      public struct Watched: Subscription {}
+      """
+    let registry = "let commands = [.reads(Listed.self)]\nlet subscriptions = [Watched.self]"
+    #expect(Self.problems(declarations, registry).map(\.found) == ["Forgotten"])
+  }
 
-    #expect(Self.unregistered(in: [commands, registry], registry: registry).map(\.found) == ["Forgotten"])
+  @Test func aRemoteCommandRegisteredOnlyForTheLocalToolIsRejected() {
+    let declarations = "public struct OpenLesson: RemoteCommand {}"
+    let registry = "let toolCommands = [OpenLesson.self]\nlet commands = []\nlet subscriptions = []"
+    #expect(Self.problems(declarations, registry).map(\.found) == ["OpenLesson"])
+  }
+
+  @Test func duplicateAndCrossRegisteredCommandsAreRejected() {
+    let declarations = """
+      public struct OpenLesson: RemoteCommand {}
+      public struct ReadSource: LocalToolCommand {}
+      """
+    let registry = """
+      let commands = [.writes(OpenLesson.self), .reads(ReadSource.self)]
+      let toolCommands = [ReadSource.self]
+      let subscriptions = [OpenLesson.self]
+      """
+    #expect(Self.problems(declarations, registry).map(\.found) == ["OpenLesson", "ReadSource"])
+    #expect(
+      Self.problems(
+        "public struct ReadSource: LocalToolCommand {}", "let toolCommands = [ReadSource.self, ReadSource.self]"
+      ).map(\.found) == ["ReadSource"])
+  }
+
+  @Test func registrationDoesNotReplaceAnExplicitCommandScope() {
+    let declarations = """
+      public final class OpenLesson:
+        Command, Sendable {}
+      """
+    #expect(Self.problems(declarations, "let commands = [.writes(OpenLesson.self)]").map(\.found) == ["OpenLesson"])
+  }
+
+  private static func problems(_ declarations: String, _ registry: String) -> [Violation] {
+    let model = SourceFile(path: "Sources/LociModel/Example.swift", module: "LociModel", text: declarations)
+    let wire = SourceFile(path: Architecture.wireRegistry, module: "LociModel", text: registry)
+    return unregistered(in: [model], registry: wire)
   }
 
   static func unregistered(in files: [SourceFile], registry: SourceFile) -> [Violation] {
-    let listed = Set(
-      registry.lines.flatMap { line in line.code.matches(of: /\b(\w+)\.self\b/).map { String($0.1) } })
+    let wire = registry.lines.map(\.code).joined(separator: "\n")
+    var registrations: [String: [String]] = [:]
+    for table in wire.matches(of: /\blet\s+(commands|toolCommands|subscriptions)\b[^=\n]*=\s*\[([^\]]*)\]/) {
+      for registered in table.2.matches(of: /\b(\w+)\.self\b/) {
+        registrations[String(registered.1), default: []].append(String(table.1))
+      }
+    }
     return files.flatMap { file in
-      file.lines.compactMap { line -> Violation? in
-        guard let match = line.code.firstMatch(of: /\bstruct\s+(\w+)\s*:\s*(?:Command|Subscription)\b/),
-          !listed.contains(String(match.1))
-        else { return nil }
+      let code = file.lines.map(\.code).joined(separator: "\n")
+      let declarations = code.matches(
+        of: /\bpublic\s+(?:final\s+)?(?:struct|enum|class)\s+(\w+)\s*:\s*([^{}]+)\{/
+      )
+      return declarations.compactMap { declaration -> Violation? in
+        let line = code[..<declaration.range.lowerBound].reduce(1) { $0 + ($1 == "\n" ? 1 : 0) }
+        let conformances = declaration.2.split(separator: ",").map {
+          $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let name = String(declaration.1)
+        let allowed = [
+          "RemoteCommand": "commands", "LocalToolCommand": "toolCommands", "Subscription": "subscriptions",
+        ]
+        let tables = conformances.compactMap { allowed[$0] }
+        if tables.isEmpty {
+          guard conformances.contains("Command") else { return nil }
+          return Violation(
+            file: file.path, line: line, found: name,
+            fix: "Declare `\(name)` as `RemoteCommand` or `LocalToolCommand`.")
+        }
+        guard tables.count != 1 || registrations[name] != tables else { return nil }
         return Violation(
-          file: file.path, line: line.number, found: String(match.1),
-          fix: "Add `\(match.1).self` to \(Architecture.wireRegistry): commands as `.reads` or `.writes`, "
-            + "on the `.data` lane when the reply is bytes such as a PDF or a picture.")
+          file: file.path, line: line, found: name,
+          fix:
+            "Register `\(name).self` exactly once in the corresponding `Wire` table: \(tables.joined(separator: ", "))."
+        )
       }
     }
   }

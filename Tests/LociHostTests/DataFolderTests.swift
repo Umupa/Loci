@@ -10,6 +10,14 @@ struct DataFolderTests {
     #expect(DataFolder.choose(environment: [:], home: Self.home) == .use(root: Self.home.appending(path: "Loci-Beta")))
   }
 
+  @Test func betaAndDevKeepSourcesInSeparateSystemCacheFolders() {
+    let caches = Self.home.appending(path: "Library/Caches", directoryHint: .isDirectory)
+    let beta = DataFolder.sourceCache(in: caches, appName: "Loci (Beta)")
+    let dev = DataFolder.sourceCache(in: caches, appName: nil)
+    #expect(beta.path == "/Users/someone/Library/Caches/Loci-Beta/sources")
+    #expect(dev.path == "/Users/someone/Library/Caches/Loci-Dev/sources")
+  }
+
   @Test func theEnvironmentCanPointElsewhere() {
     #expect(
       DataFolder.choose(environment: ["LOCI_ROOT": "/tmp/loci-test"], home: Self.home)

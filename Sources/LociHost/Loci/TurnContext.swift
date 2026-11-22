@@ -81,6 +81,7 @@ struct TurnContext: Sendable {
     switch conversation {
     case .main: "main"
     case .item(let item): "on the item library/\(item)"
+    case .course(let id): "on the course courses/\(id)"
     }
   }
 }

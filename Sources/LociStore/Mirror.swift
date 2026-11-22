@@ -27,7 +27,9 @@ extension StoreDatabase {
           })
       }
       + snapshot.notes.map { MirrorUpdate.notes($0.key, $0.value) }
-    return (updates, snapshot.problems)
+    var problems = snapshot.problems
+    let courses = store.courseIDs().map { Self.courseUpdate($0, from: store, problems: &problems) }
+    return (updates + courses, problems)
   }
 
   func replaceMirrors(with updates: [MirrorUpdate]) throws {
@@ -49,10 +51,14 @@ extension StoreDatabase {
         let item = Self.item(id, in: store, problems: &problems)
         updates.append(.item(id, item, content: item.flatMap { Self.text(of: $0) { try store.content(of: id) } }))
       case .notes(let content):
+        if case .lesson(let id, _) = content, changes.contains(.course(id)) { continue }
         let notes = store.notes(on: content)
         problems += notes.problems
         updates.append(.notes(content, notes.value))
-      case .everything, .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime:
+      case .course(let id):
+        updates.append(Self.courseUpdate(id, from: store, problems: &problems))
+      case .courseActivity, .everything, .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci,
+        .runtime:
         continue
       }
     }

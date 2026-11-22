@@ -9,7 +9,7 @@ actor LociAgent {
   private var runs: [ConversationRef: AgentRun] = [:]
   /// Items being deleted. Their files are still on disk for a moment, so without this a refresh in that
   /// moment would make them a new run that outlives the deletion.
-  private var leaving: Set<EntityID> = []
+  private var leaving: Set<ConversationRef> = []
   private var review: Task<Void, Never>?
   private var reviewRun: AgentRun?
   private var closing = false
@@ -19,12 +19,22 @@ actor LociAgent {
   }
 
   func run(of conversation: ConversationRef) throws(HostError) -> AgentRun {
-    if case .item(let item) = conversation {
-      guard !leaving.contains(item) else { throw .notFound(item.description) }
+    let tool: LocalSession
+    switch conversation {
+    case .main:
+      tool = .conversation(conversation)
+    case .item(let item):
+      guard !leaving.contains(conversation) else { throw .notFound(item.description) }
       _ = try attempt { try context.store.item(item) }
+      tool = .conversation(conversation)
+    case .course(let course):
+      guard !leaving.contains(conversation) else { throw .notFound(course.description) }
+      _ = try attempt { try context.store.course(course) }
+      if let run = runs[conversation] { return run }
+      tool = .conversation(conversation)
     }
     if let run = runs[conversation] { return run }
-    let run = try AgentRun(owner: .conversation(conversation), session: .conversation(conversation), context: context)
+    let run = try AgentRun(owner: .conversation(conversation), session: tool, context: context)
     runs[conversation] = run
     return run
   }
@@ -63,13 +73,13 @@ actor LociAgent {
 
   /// Stops Loci answering on an item that is being deleted. Until `forgotten(item:)`, the item's
   /// conversation gets no run. The conversation itself stays until the deletion can no longer be undone.
-  func forget(item: EntityID) async {
-    leaving.insert(item)
-    if let run = runs.removeValue(forKey: .item(item)) { await run.close() }
+  func forget(_ conversation: ConversationRef) async {
+    leaving.insert(conversation)
+    if let run = runs.removeValue(forKey: conversation) { await run.close() }
   }
 
-  func forgotten(item: EntityID) {
-    leaving.remove(item)
+  func forgotten(_ conversation: ConversationRef) {
+    leaving.remove(conversation)
   }
 
   /// Starts looking back on a day when one is due. Returns at once; the review goes on in the background.

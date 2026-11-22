@@ -15,8 +15,11 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   let hub: Hub
   let loci: LociAgent
   let panels: PanelKeeper
+  let courses: CourseKeeper
+  let deletions = Gate(limit: 1)
   let library: LibraryRuntime
   let agents: HostAgents
+  let sources: SourceService
   /// Previews of the links Loci's replies show as cards.
   let links: LinkPreviewReader
 
@@ -38,7 +41,9 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       store: store, database: database, environment: environment, follower: follower, prompts: prompts, agents: agents)
     let loci = LociAgent(context: context)
     self.loci = loci
+    courses = CourseKeeper(context: context, loci: loci)
     panels = PanelKeeper(context: context) { await loci.isWorking }
+    sources = SourceService(context: library.context)
     links = LinkPreviewReader(network: environment.media.network)
   }
 
@@ -103,7 +108,15 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     }
     let ticks = environment.ticks()
     let reviews = Task {
+      let started = Day(containing: environment.now(), in: environment.timeZone)
+      var lastPurge: Day? = await host.sources.purge() ? started : nil
       for await _ in ticks {
+        let today = Day(containing: environment.now(), in: environment.timeZone)
+        if lastPurge != today, !(await host.loci.isWorking), await host.panels.refreshingNames.isEmpty,
+          !(await host.library.queue.isWorking), await host.sources.purge(whenIdle: true)
+        {
+          lastPurge = today
+        }
         await host.loci.considerReview()
         await host.panels.consider()
       }
@@ -115,6 +128,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       await host.hub.hold(Task { await ToolGateway.serve(host, at: tool.socket) })
     }
     await host.discardSetAside()
+    await host.courses.recoverWork()
     await host.library.queue.resume()
     if let coverFolders {
       await host.hub.hold(Task { await host.library.context.backfillCovers(in: coverFolders) })
@@ -127,6 +141,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   public func close() async {
     await library.queue.close()
     await library.picker.close()
+    await courses.close()
     await discardSetAside()
     await panels.close()
     await loci.close()

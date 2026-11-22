@@ -9,19 +9,24 @@ struct ItemScreen: View {
   @State private var feed: Feed<ItemPage>?
 
   var body: some View {
-    Group {
-      if let page = feed?.value {
-        switch page.item.kind {
-        case .video, .audio:
-          MediaScreen(item: page.item, initialTime: destination.locator?.time?.start).id(page.item.id)
-        case .paper: PaperScreen(page: page)
-        case .article, .repository: ItemView(page: page, openingQuote: destination.locator?.quote)
-        }
-      } else {
-        Palette.canvas
-      }
+    if let item = destination.itemID {
+      screen.subscribing(OneItem(item: item), into: $feed)
+    } else {
+      Palette.canvas
     }
-    .subscribing(OneItem(item: destination.itemID), into: $feed)
+  }
+
+  @ViewBuilder private var screen: some View {
+    if let page = feed?.value {
+      switch page.item.kind {
+      case .video, .audio:
+        MediaScreen(item: page.item, initialTime: destination.locator?.time?.start).id(page.item.id)
+      case .paper: PaperScreen(page: page)
+      case .article, .repository: ItemView(page: page, openingQuote: destination.locator?.quote)
+      }
+    } else {
+      Palette.canvas
+    }
   }
 }
 
@@ -38,7 +43,8 @@ struct ItemView: View {
     Group {
       if let text = page.text {
         ContentReader(
-          item: page.item.id, title: page.item.title, markdown: text, byline: Byline.of(page.item), images: images,
+          content: .item(page.item.id), title: page.item.title, markdown: text, byline: Byline.of(page.item),
+          images: images,
           serif: true, pane: .itemPanel,
           language: page.translatable
             ? ArticleLanguage(translation: page.translation, progress: page.translating) : nil,

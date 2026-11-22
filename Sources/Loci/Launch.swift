@@ -81,7 +81,10 @@ final class Launch {
   private func start(replacingDatabase: Bool) {
     let root = folder
     let database = DataFolder.database(in: root)
-    let environment = HostEnvironment.system(defaultRuntime: Runtime(provider: .pi), tool: Self.tool(root: root))
+    let cache = DataFolder.sourceCache(
+      in: .cachesDirectory, appName: Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)
+    let environment = HostEnvironment.system(
+      defaultRuntime: Runtime(provider: .pi), tool: Self.tool(root: root), sourceCache: cache)
     Task {
       do throws(HostStartError) {
         let local =

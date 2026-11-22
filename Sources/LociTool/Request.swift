@@ -6,9 +6,12 @@ enum Request: Hashable, Sendable {
   case search(String)
   case show(EntityID)
   case save(URL)
+  case read(URL)
+  case repo(URL, commit: CommitID?)
   case importFile(path: String, title: String?)
   case wait(EntityID)
   case panel(PanelRequest)
+  case course(CourseRequest)
   case help
 
   /// The request in `arguments` (without the program's name), and whether to print the app's replies as
@@ -30,13 +33,34 @@ enum Request: Hashable, Sendable {
         throw UsageError("loci save takes one http or https link: loci save <url>")
       }
       return (.save(url), json)
+    case "read":
+      guard words.count == 1, let url = URL(string: words[0]), url.isWebLink, url.user == nil else {
+        throw UsageError("loci read takes one http or https link without credentials: loci read <url>")
+      }
+      return (.read(url), json)
+    case "repo": return (try repository(words), json)
     case "import": return (try importing(words), json)
     case "panel": return (.panel(try PanelRequest.parse(words)), json)
+    case "course": return (.course(try CourseRequest.parse(words)), json)
+    case "lesson": return (.course(try CourseRequest.lesson(words)), json)
     case "help", "--help", "-h":
       return (.help, json)
     default:
       throw UsageError("loci has no command \"\(verb)\". Run `loci help` to see the commands.")
     }
+  }
+
+  private static func repository(_ words: [String]) throws(UsageError) -> Request {
+    let usage =
+      "loci repo takes one http or https repository link and an optional full commit SHA: "
+      + "loci repo <url> [--commit <sha>]"
+    guard let first = words.first, let url = URL(string: first), url.isWebLink, url.user == nil
+    else { throw UsageError(usage) }
+    if words.count == 1 { return .repo(url, commit: nil) }
+    guard words.count == 3, words[1] == "--commit", let commit = CommitID(words[2].lowercased()) else {
+      throw UsageError(usage)
+    }
+    return .repo(url, commit: commit)
   }
 
   private static func id(_ words: [String], verb: String) throws(UsageError) -> EntityID {

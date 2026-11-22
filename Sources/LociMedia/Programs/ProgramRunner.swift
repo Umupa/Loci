@@ -16,10 +16,12 @@ extension ProgramRunner {
 public struct ProgramCall: Hashable, Sendable {
   public var executable: URL
   public var arguments: [String]
+  public var environment: [String: String]?
 
-  public init(executable: URL, arguments: [String]) {
+  public init(executable: URL, arguments: [String], environment: [String: String]? = nil) {
     self.executable = executable
     self.arguments = arguments
+    self.environment = environment
   }
 }
 

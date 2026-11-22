@@ -3,6 +3,8 @@
 public enum ContentChange: Hashable, Codable, Sendable {
   /// `item.json` or `content.md`, or the whole folder.
   case item(EntityID)
+  case course(EntityID)
+  case courseActivity(EntityID)
   case notes(ContentRef)
   /// What the reader has read or seen of this content changed. It lives in the database only.
   case reading(ContentRef)

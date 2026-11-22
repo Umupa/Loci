@@ -26,7 +26,8 @@ extension ContentChange {
   var leavesMirrorsAlone: Bool {
     switch self {
     case .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: true
-    case .item, .notes, .everything: false
+    case .courseActivity: true
+    case .item, .notes, .course, .everything: false
     }
   }
 }

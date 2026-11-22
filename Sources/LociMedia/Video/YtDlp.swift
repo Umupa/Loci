@@ -62,11 +62,19 @@ public struct YtDlp: Sendable {
 
   /// Saves the site's subtitles in `language` as WebVTT into `folder` and returns the file.
   public func subtitles(info: URL, language: String, into folder: URL) async throws(MediaError) -> URL {
-    _ = try await run([
-      "--load-info-json", info.path(percentEncoded: false), "--skip-download", "--write-subs", "--sub-langs",
-      language, "--sub-format", "vtt/srt/best", "--convert-subs", "vtt", "-P", folder.path(percentEncoded: false),
-      "-o", "subs.%(ext)s",
-    ])
+    try await subtitles(from: ["--load-info-json", info.path(percentEncoded: false)], language: language, into: folder)
+  }
+
+  public func subtitles(at url: URL, language: String, into folder: URL) async throws(MediaError) -> URL {
+    try await subtitles(from: ["--no-playlist", "--", url.absoluteString], language: language, into: folder)
+  }
+
+  private func subtitles(from source: [String], language: String, into folder: URL) async throws(MediaError) -> URL {
+    _ = try await run(
+      [
+        "--skip-download", "--write-subs", "--sub-langs", language, "--sub-format", "vtt/srt/best",
+        "--convert-subs", "vtt", "-P", folder.path(percentEncoded: false), "-o", "subs.%(ext)s",
+      ] + source)
     return folder.appending(path: "subs.\(language).vtt")
   }
 

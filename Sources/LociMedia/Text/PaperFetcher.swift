@@ -21,7 +21,7 @@ struct PaperFetcher: Sendable {
       title: info?.title ?? PDFInfo.title(fromFileIn: url), authors: info?.authors ?? [], published: nil, pdf: pdf)
   }
 
-  private func pdf(at url: URL) async throws(FetchError) -> Data {
+  func pdf(at url: URL) async throws(FetchError) -> Data {
     let (data, response) = try await network.data(for: URLRequest(url: url))
     if let failure = PageReader.failure(status: response.statusCode) { throw failure }
     guard data.starts(with: Data("%PDF-".utf8)) else {

@@ -49,6 +49,8 @@ struct ReaderEvents {
   var moved: (TextQuote) -> Void = { _ in }
   /// The end of the text has been on screen.
   var reachedEnd: () -> Void = {}
+  /// How far down the text the reader has scrolled, from 0 at the top to 1 at the end.
+  var scrolledThrough: (Double) -> Void = { _ in }
   var openLink: (URL) -> Void = { _ in }
   /// What a selected passage offers; `nil` offers nothing.
   var passage: PassageActions?
@@ -287,6 +289,10 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
       release()
     }
     passageBar.close()
+    if let scrollView, let textView {
+      let room = textView.frame.height - scrollView.documentVisibleRect.height
+      events.scrolledThrough(room > 0 ? min(max(scrollView.documentVisibleRect.minY / room, 0), 1) : 1)
+    }
     if let selected, selecting == nil {
       selecting = selected
       Task { selectWanted() }

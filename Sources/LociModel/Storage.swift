@@ -8,11 +8,17 @@ public struct StorageReport: Hashable, Codable, Sendable {
   /// Every speech model on the disk.
   public let speechModels: [ModelSpace]
 
-  public init(capacity: Int64?, available: Int64?, items: [ItemSpace], speechModels: [ModelSpace]) {
+  public let sourceCacheBytes: Int64?
+
+  public init(
+    capacity: Int64?, available: Int64?, items: [ItemSpace], speechModels: [ModelSpace],
+    sourceCacheBytes: Int64? = nil
+  ) {
     self.capacity = capacity
     self.available = available
     self.items = items
     self.speechModels = speechModels
+    self.sourceCacheBytes = sourceCacheBytes
   }
 
   /// What the media of `kind` and the speech models take, together.
@@ -67,7 +73,9 @@ public struct StorageUse: Subscription {
     changes.contains { change in
       switch change {
       case .item, .media, .everything: true
-      case .notes, .reading, .job, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
+      case .course, .courseActivity, .notes, .reading, .job, .conversation, .turnEnded, .review, .events, .loci,
+        .runtime:
+        false
       }
     }
   }
@@ -75,7 +83,7 @@ public struct StorageUse: Subscription {
 
 /// Deletes a video's or episode's media file and keeps it as watched online from then on; its transcript,
 /// translations, notes, chapters and highlights stay. Only for an item that came from a link.
-public struct FreeMediaSpace: Command {
+public struct FreeMediaSpace: RemoteCommand {
   public static let name = "media.free"
   public let item: EntityID
 
@@ -89,7 +97,7 @@ public struct FreeMediaSpace: Command {
 }
 
 /// Keeps a video or episode watched online on this Mac from then on, and downloads its media.
-public struct SaveMediaLocally: Command {
+public struct SaveMediaLocally: RemoteCommand {
   public static let name = "media.saveLocally"
   public let item: EntityID
 

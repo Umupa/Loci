@@ -21,12 +21,13 @@ struct ReadingText {
 
   /// `byline` goes under the title. Pictures named in `images` by their address in the Markdown stand on lines of
   /// their own; the rest show their description. An article reads in the serif. `translation` shows each
-  /// translated passage beside its original or in its place.
+  /// translated passage beside its original or in its place. A link `cite` numbers is a citation: its words stay
+  /// plain and a small numbered badge after them opens it.
   init(
     markdown: String, byline: NSAttributedString? = nil, images: [String: NSImage] = [:], serif: Bool = false,
-    translation: ShownTranslation? = nil
+    translation: ShownTranslation? = nil, cite: ((URL) -> Int?)? = nil
   ) {
-    var renderer = MarkdownRenderer(byline: byline, images: images, serif: serif, translation: translation)
+    var renderer = MarkdownRenderer(byline: byline, images: images, serif: serif, translation: translation, cite: cite)
     renderer.render(Document(parsing: markdown))
     string = renderer.finished()
     headings = renderer.headings
@@ -42,6 +43,8 @@ struct MarkdownRenderer {
   let images: [String: NSImage]
   let serif: Bool
   let translation: ShownTranslation?
+  /// The number of the source a link cites, for a link that is a citation.
+  var cite: ((URL) -> Int?)?
   var body: NSFont { serif ? NSFont.serif(ofSize: ReadingStyle.bodySize) : ReadingStyle.body }
   let output = NSMutableAttributedString()
   let tracker = TranslationMap.Builder()
@@ -313,7 +316,11 @@ struct MarkdownRenderer {
     case let link as Markdown.Link:
       let text = NSMutableAttributedString(attributedString: inline(link.children, font: font))
       if let destination = link.destination, let url = URL(string: destination) {
-        text.addAttribute(.link, value: url, range: text.fullRange)
+        if let number = cite?(url) {
+          text.append(Citation.badge(number, opening: url, beside: font))
+        } else {
+          text.addAttribute(.link, value: url, range: text.fullRange)
+        }
       }
       return text
     case let image as Markdown.Image:

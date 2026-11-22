@@ -23,6 +23,12 @@ public protocol Command: Codable, Sendable {
   func run(on handler: any CommandHandler) async throws(HostError) -> Reply
 }
 
+/// A command offered to a paired Mac through the remote Host protocol.
+public protocol RemoteCommand: Command {}
+
+/// A command offered to agents through the local tool socket.
+public protocol LocalToolCommand: Command {}
+
 /// The data one view needs, kept current.
 public protocol Subscription: Codable, Hashable, Sendable {
   associatedtype Value: Codable, Equatable, Sendable
@@ -132,6 +138,9 @@ public protocol CommandHandler: Sendable {
   func downloadSpeechModel(_ model: SpeechModel) async throws(HostError) -> Done
   func deleteSpeechModel(_ model: SpeechModel) async throws(HostError) -> Done
   func setSpeechModel(_ model: SpeechModel) async throws(HostError) -> MediaSetup
+  func readSource(_ url: URL) async throws(HostError) -> String
+  func fetchSourceRepository(_ command: FetchSourceRepository) async throws(HostError) -> SourceCheckout
+  func clearSourceCache() async throws(HostError) -> Done
   func storage() async throws(HostError) -> StorageReport
   func freeMediaSpace(_ item: EntityID) async throws(HostError) -> Done
   func saveMediaLocally(_ item: EntityID) async throws(HostError) -> Job
@@ -143,4 +152,17 @@ public protocol CommandHandler: Sendable {
   func refreshPanel(_ command: RefreshPanel) async throws(HostError) -> Done
   func movePanelToTop(_ command: MovePanelToTop) async throws(HostError) -> Done
   func removePanel(_ command: RemovePanel) async throws(HostError) -> Done
+  func listCourses() async throws(HostError) -> [CourseEntry]
+  func coursePage(_ course: EntityID) async throws(HostError) -> CoursePage
+  func readLesson(_ course: EntityID, lesson: Lesson.ID) async throws(HostError) -> String?
+  func restoreDeletedCourse() async throws(HostError) -> Course?
+  func startCourse(_ command: StartCourse) async throws(HostError) -> Course
+  func answerCourseQuestion(_ command: AnswerCourseQuestion) async throws(HostError) -> Done
+  func beginCourseSources(_ command: BeginCourseSources) async throws(HostError) -> Done
+  func addCourseSource(_ command: AddCourseSource) async throws(HostError) -> CourseSource
+  func removeCourseSource(_ command: RemoveCourseSource) async throws(HostError) -> Done
+  func beginCourseWriting(_ command: BeginCourseWriting) async throws(HostError) -> Done
+  func openLesson(_ command: OpenLesson) async throws(HostError) -> Done
+  func writeLessonNow(_ command: WriteLessonNow) async throws(HostError) -> Done
+  func deleteCourse(_ command: DeleteCourse) async throws(HostError) -> Done
 }

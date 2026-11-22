@@ -114,7 +114,7 @@ final class FakePrograms: ProgramRunner {
     if arguments.contains("--write-subs"), let folder = value(after: "-P"), let language = value(after: "--sub-langs") {
       let info = value(after: "--load-info-json").flatMap { try? Data(contentsOf: URL(filePath: $0)) }
       let title = info.flatMap { try? JSONDecoder().decode(Titled.self, from: $0) }?.title
-      let subtitles = state.withLock { $0.sites.values.first { $0.title == title }?.subtitles }
+      let subtitles = site?.subtitles ?? state.withLock { $0.sites.values.first { $0.title == title }?.subtitles }
       if let subtitles {
         try? Data(subtitles.utf8).write(to: URL(filePath: folder).appending(path: "subs.\(language).vtt"))
       }

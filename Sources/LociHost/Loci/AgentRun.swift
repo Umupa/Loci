@@ -30,8 +30,8 @@ struct AgentContext: Sendable {
 /// starts; the person sees one conversation either way.
 actor AgentRun {
   let owner: SessionOwner
-  /// What the `loci` command is told about the session it runs in.
   let toolSession: LocalSession?
+  private var courseToolAccess: EntityID?
   let context: AgentContext
   private var stored: [Message]
   /// The session to go on with; `nil` when there is none, or the person started over.
@@ -72,6 +72,10 @@ actor AgentRun {
   static let busy = "Loci is still answering the last message here"
 
   var isIdle: Bool { turn == nil }
+
+  func acceptsCourseTools(_ access: EntityID) -> Bool {
+    turn != nil && !stopping && courseToolAccess == access
+  }
 
   /// What was said, the turn running now, and how full the session's context window last was.
   var snapshot: (messages: [Message], turn: LiveTurn?, context: ContextUsage?) { (stored, turn?.live, wear.usage) }
@@ -195,6 +199,7 @@ actor AgentRun {
     if opening != nil, case .item(let item) = conversation, let introduction = context.introduction(to: item) {
       parts.append(introduction)
     }
+    if case .course(let id) = conversation { parts += context.courseBriefing(id, opening: opening != nil) }
     if let opening, opening.carriesOver, let recap = Recap.of(stored) { parts.append(recap) }
     parts.append(text)
     return parts.joined()
@@ -221,9 +226,10 @@ actor AgentRun {
     }
     let store = context.store
     try TurnFailure.from { () throws(HostError) in try attempt { try store.writeInstructions(instructions) } }
+    var tool = context.tool(for: owner, else: toolSession)
     var configuration = SessionConfiguration(
       workingDirectory: store.agentFolder, model: runtime.model, effort: runtime.effort,
-      environment: toolSession.map { [LocalCall.sessionVariable: $0.tag] } ?? [:])
+      environment: tool.map { [LocalCall.sessionVariable: $0.tag] } ?? [:])
     if reason == nil, let handle = session?.handle {
       configuration.resume = SessionHandle(provider: runtime.provider, value: handle)
     }
@@ -235,6 +241,8 @@ actor AgentRun {
         throw TurnFailure(starting: runtime.provider, error)
       }
       configuration.resume = nil
+      tool = context.tool(for: owner, else: toolSession)
+      configuration.environment = tool.map { [LocalCall.sessionVariable: $0.tag] } ?? [:]
       reason = .lost
       do {
         opened = try await driver.open(configuration)
@@ -255,6 +263,7 @@ actor AgentRun {
     }
     live = opened
     liveCredentialRevision = selection.credential?.revision
+    if case .course(_, let access) = tool { courseToolAccess = access }
     return (opened, reason)
   }
 
@@ -312,6 +321,7 @@ actor AgentRun {
   private func dropLive() async {
     let closing = live
     live = nil
+    courseToolAccess = nil
     await closing?.close()
   }
 

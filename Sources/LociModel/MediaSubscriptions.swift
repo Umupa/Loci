@@ -12,7 +12,9 @@ public struct AllJobs: Subscription {
     changes.contains { change in
       switch change {
       case .job, .item, .everything: true
-      case .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
+      case .course, .courseActivity, .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci,
+        .runtime:
+        false
       }
     }
   }
@@ -36,7 +38,9 @@ public struct ItemJob: Subscription {
       switch change {
       case .job(let id), .item(let id): id == item
       case .everything: true
-      case .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
+      case .course, .courseActivity, .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci,
+        .runtime:
+        false
       }
     }
   }
@@ -61,7 +65,9 @@ public struct ItemMedia: Subscription {
       switch change {
       case .job(let id), .item(let id): id == item
       case .everything: true
-      case .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
+      case .course, .courseActivity, .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci,
+        .runtime:
+        false
       }
     }
   }
@@ -81,7 +87,9 @@ public struct MediaSettings: Subscription {
     changes.contains { change in
       switch change {
       case .media, .everything: true
-      case .item, .notes, .reading, .job, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
+      case .course, .courseActivity, .item, .notes, .reading, .job, .conversation, .turnEnded, .review, .events, .loci,
+        .runtime:
+        false
       }
     }
   }

@@ -1,7 +1,7 @@
 import Foundation
 
 /// How big a downloaded media file is and what kind, for a player that reads it in ranges.
-public struct ReadMediaFileInfo: Command {
+public struct ReadMediaFileInfo: RemoteCommand {
   public static let name = "media.fileInfo"
   public let item: EntityID
 
@@ -15,7 +15,7 @@ public struct ReadMediaFileInfo: Command {
 }
 
 /// Part of a downloaded media file. A range past the end gives the bytes up to the end.
-public struct ReadMediaBytes: Command {
+public struct ReadMediaBytes: RemoteCommand {
   public static let name = "media.bytes"
   public let item: EntityID
   public let offset: Int64

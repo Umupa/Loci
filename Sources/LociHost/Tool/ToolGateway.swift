@@ -5,8 +5,7 @@ import LociStore
 import os
 
 /// Answers the `loci` command. Only the few commands and the one subscription it needs are open to it;
-/// everything else in the Host protocol is refused. A panel's refresh only looks: it may read and save its
-/// own panel, and nothing else.
+/// everything else in the Host protocol is refused. A panel's refresh may read sources and save its own panel.
 enum ToolGateway {
   /// The commands that only read, run as any caller runs them. The three that put an item into the
   /// library, `AddLink`, `AddTextItem` and `ImportMediaFile`, are run as Loci's; `SavePanel` goes through
@@ -32,6 +31,11 @@ enum ToolGateway {
     _ call: LocalCall, on host: LocalHost, reply: @Sendable (LocalReply) async throws -> Void
   ) async {
     switch call.request {
+    case .course(let request):
+      try? await reply(
+        await once { () async throws(HostError) in
+          try await runCourse(request, from: call.session, on: host)
+        })
     case .command(let name, let body):
       try? await reply(await once { () async throws(HostError) in try await run(name, body, for: call, on: host) })
     case .follow(let name, let body):
@@ -55,6 +59,9 @@ enum ToolGateway {
   private static func run(_ name: String, _ body: Data, for call: LocalCall, on host: LocalHost)
     async throws(HostError) -> Data
   {
+    if let command = Wire.toolCommands.first(where: { $0.name == name }) {
+      return try await WireCodec.run(command, body: body, on: host)
+    }
     let saver = Saver.loci(call.session?.conversation)
     switch name {
     case SavePanel.name:

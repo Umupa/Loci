@@ -73,6 +73,8 @@ enum Size {
   /// The column the main conversation is read in, and the widest a message gets in it.
   static let talkColumn: CGFloat = 512
   static let messageWidest: CGFloat = 424
+  /// The room between one message and the next.
+  static let messageGap: CGFloat = 10
   static let problemListWidth: CGFloat = 380
   static let settingsWidth: CGFloat = 600
   static let wideSettingsWidth: CGFloat = 640

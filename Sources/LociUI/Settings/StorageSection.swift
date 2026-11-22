@@ -21,6 +21,11 @@ struct StorageSection: View {
     Group {
       VStack(alignment: .leading, spacing: 18) {
         summary(report)
+        if let bytes = report.sourceCacheBytes {
+          SettingsGroup(title: nil) {
+            sourceCacheRow(bytes)
+          }
+        }
         SettingsGroup(title: .loci("storage.items"), inset: 66) {
           ForEach(report.items, id: \.item) { space in
             if let item = byID[space.item] { itemRow(item, space) }
@@ -74,6 +79,23 @@ struct StorageSection: View {
       .font(.system(size: 12))
     }
     .padding(.horizontal, 10)
+  }
+
+  private func sourceCacheRow(_ bytes: Int64) -> some View {
+    SettingsRow {
+      Text(.loci("storage.sourceCache"))
+    } trailing: {
+      HStack(spacing: 12) {
+        Text(verbatim: Bytes.text(bytes)).font(.system(size: 11.5).monospaced()).foregroundStyle(Palette.inkMuted)
+          .fixedSize()
+        Button {
+          run(ClearSourceCache())
+        } label: {
+          Text(.loci("storage.clearCache"))
+        }
+        .buttonStyle(PushStyle()).fixedSize().disabled(bytes == 0)
+      }
+    }
   }
 
   private func itemRow(_ item: Item, _ space: ItemSpace) -> some View {

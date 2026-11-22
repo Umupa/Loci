@@ -33,6 +33,12 @@ public enum DataFolder: Equatable, Sendable {
     root.appending(path: "run/loci.sock")
   }
 
+  public static func sourceCache(in caches: URL, appName: String?) -> URL {
+    let name = appName == "Loci (Beta)" ? Self.name : "Loci-Dev"
+    return caches.appending(path: name, directoryHint: .isDirectory).appending(
+      path: "sources", directoryHint: .isDirectory)
+  }
+
   private static func canonical(_ url: URL) -> String {
     let path = url.standardizedFileURL.resolvingSymlinksInPath().path(percentEncoded: false)
     return path.count > 1 && path.hasSuffix("/") ? String(path.dropLast()) : path

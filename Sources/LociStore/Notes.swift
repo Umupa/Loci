@@ -8,6 +8,8 @@ extension Store {
   func notesFile(on content: ContentRef) -> URL {
     switch content {
     case .item(let item): notesFolder.appending(path: Self.libraryNotesFolder).appending(path: "\(item).jsonl")
+    case .lesson(let course, let lesson):
+      courseFolder(course).appending(path: Self.lessonNotesFolder).appending(path: "\(lesson).jsonl")
     }
   }
 
@@ -18,7 +20,17 @@ extension Store {
     let path = relativePath(of: url)
     let text: String
     do {
-      text = try readText(url)
+      if case .lesson(let course, let lesson) = content {
+        let bytes = try inCourseDirectory(course) { directory in
+          try directory.directory(Self.lessonNotesFolder) { try $0.read("\(lesson).jsonl") }
+        }
+        guard let decoded = String(data: bytes, encoding: .utf8) else {
+          throw StoreError.invalid(FileProblem(path: path, kind: .unreadable, reason: "not UTF-8 text"))
+        }
+        text = decoded
+      } else {
+        text = try readText(url)
+      }
     } catch StoreError.notFound {
       return Loaded(value: [], problems: [])
     } catch {
@@ -52,9 +64,16 @@ extension Store {
     if case .saved(let note) = entry, note.locator.content != content {
       throw StoreError.misplacedNote(note.id)
     }
+    var line = try Formats.line(entry)
+    if case .lesson(let course, let lesson) = content {
+      guard try lessonText(in: course, lesson: lesson) != nil else { throw StoreError.notFound(lesson.description) }
+      try inCourseDirectory(course) { directory in
+        try directory.directory(Self.lessonNotesFolder, create: true) { try $0.append(line, to: "\(lesson).jsonl") }
+      }
+      return
+    }
     let url = notesFile(on: content)
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-    var line = try Formats.line(entry)
     if try !endsWithNewline(url) { line.insert(UInt8(ascii: "\n"), at: 0) }
     let descriptor = open(url.path(percentEncoded: false), O_WRONLY | O_APPEND | O_CREAT, 0o644)
     guard descriptor >= 0 else { throw CocoaError(.fileWriteUnknown) }

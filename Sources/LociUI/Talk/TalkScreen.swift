@@ -28,7 +28,7 @@ struct TalkScreen: View {
   var body: some View {
     HStack(spacing: 0) {
       ConversationScreen(
-        ref: .main, draft: $draft, revealPassage: { openPage(Page($0.content)) }, attach: attach,
+        ref: .main, draft: $draft, revealPassage: { if let page = Page($0.content) { openPage(page) } }, attach: attach,
         focusRequest: focusRequest, panelRequest: panelRequest
       )
       if let column, fit.shows(columnPreferred) {
@@ -128,8 +128,8 @@ struct TalkScreen: View {
 
   /// A web page opens in the built-in browser; a `loci://` place opens that item.
   private func open(_ url: URL) {
-    if let locator = Locator(url.absoluteString) {
-      openPage(Page(locator.content))
+    if let locator = Locator(url.absoluteString), let page = Page(locator.content) {
+      openPage(page)
     } else if url.isWebLink {
       OpenLink(browser: browser, openPlace: openPlace)(url)
     }

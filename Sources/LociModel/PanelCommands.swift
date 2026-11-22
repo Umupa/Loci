@@ -45,14 +45,14 @@ public struct WatchPanelColumn: Subscription {
       switch change {
       case .loci(let file): file == .panels
       case .reading, .item, .everything: true
-      case .notes, .job, .media, .conversation, .turnEnded, .review, .events, .runtime: false
+      case .course, .courseActivity, .notes, .job, .media, .conversation, .turnEnded, .review, .events, .runtime: false
       }
     }
   }
 }
 
 /// Refreshes a panel in the background as soon as no other panel is being refreshed.
-public struct RefreshPanel: Command {
+public struct RefreshPanel: RemoteCommand {
   public static let name = "panels.refresh"
   public let panel: String
 
@@ -66,7 +66,7 @@ public struct RefreshPanel: Command {
 }
 
 /// Puts a slot at the top of the column; the rest keep their order.
-public struct MovePanelToTop: Command {
+public struct MovePanelToTop: RemoteCommand {
   public static let name = "panels.moveToTop"
   public let place: PanelPlace
 
@@ -84,7 +84,7 @@ public struct MovePanelToTop: Command {
 }
 
 /// Deletes the panel's file. 「接着读」 cannot be removed.
-public struct RemovePanel: Command {
+public struct RemovePanel: RemoteCommand {
   public static let name = "panels.remove"
   public let panel: String
 
@@ -99,7 +99,7 @@ public struct RemovePanel: Command {
 
 /// Writes `agent/panels/<name>.json`, refused with every `PanelProblem` when the panel cannot be shown. A
 /// new panel goes to the bottom of the column.
-public struct SavePanel: Command {
+public struct SavePanel: RemoteCommand {
   public static let name = "panels.save"
   public let panel: Panel
 
@@ -113,7 +113,7 @@ public struct SavePanel: Command {
 }
 
 /// Every panel file, by name, broken ones too.
-public struct ListPanels: Command {
+public struct ListPanels: RemoteCommand {
   public static let name = "panels.list"
 
   public init() {}

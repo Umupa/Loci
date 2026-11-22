@@ -41,6 +41,7 @@ struct ToolTests {
     case .command(let name, _), .follow(let name, _): name
     case .upload: "upload"
     case .itemFolder: "itemFolder"
+    case .course: "course"
     }
   }
 
@@ -69,6 +70,47 @@ struct ToolTests {
 
     #expect(outcome == .worked(#"[{"field":"title"}]"#))
     #expect(line.requests.count == 1)
+  }
+
+  @Test func readPrintsTheFullSourceExactlyAsTheAppReturnedIt() async throws {
+    let url = try #require(URL(string: "https://example.com/long"))
+    let text = String(repeating: "正文\n", count: 100_000) + "Last line"
+    let reply = Self.json(text)
+    let line = ScriptedLine { _ in [.success(reply)] }
+
+    let plain = await tool(line).run(.read(url), json: false)
+    let json = await tool(line).run(.read(url), json: true)
+
+    #expect(plain.status == 0)
+    #expect(plain.output == text)
+    #expect(json == .worked(Tool.text(reply)))
+    #expect(line.requests.first == .command(name: ReadSource.name, body: Self.json(ReadSource(url: url))))
+  }
+
+  @Test func repoPrintsTheAbsolutePathAndCommitSeparatedByATab() async throws {
+    let url = try #require(URL(string: "https://example.com/repository"))
+    let commit = try #require(CommitID(String(repeating: "a", count: 40)))
+    let checkout = SourceCheckout(
+      path: "/Users/reader/Library/Caches/Loci-Beta/sources/repo with spaces", commit: commit)
+    let line = ScriptedLine { _ in [.success(Self.json(checkout))] }
+
+    let result = await tool(line).run(.repo(url, commit: commit), json: false)
+
+    #expect(result == .worked("\(checkout.path)\t\(commit)"))
+    #expect(
+      line.requests == [
+        .command(name: FetchSourceRepository.name, body: Self.json(FetchSourceRepository(url: url, commit: commit)))
+      ])
+  }
+
+  @Test func readSaysWhyTheSourceCannotBeRead() async throws {
+    let url = try #require(URL(string: "https://example.com/missing"))
+    let line = ScriptedLine { _ in [.failure(.host(.invalidRequest("The source could not be found (HTTP 404).")))] }
+
+    let result = await tool(line).run(.read(url), json: false)
+
+    #expect(result.status == 1)
+    #expect(result.text.contains("HTTP 404"))
   }
 
   @Test func saveIsALinkAddedAndPrintsTheIdAtOnce() async throws {

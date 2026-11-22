@@ -2,20 +2,22 @@
 ///
 /// With a passage, the message is a question about it: the passage gets a note unless it has one, and
 /// when the turn ends with a reply, the question and the reply are saved in that note. A passage is
-/// taken only in an item's conversation, and only from that item.
+/// taken only in the conversation of that item or course.
 ///
 /// Refused while the conversation has a turn running. A runtime that cannot start still takes the
 /// message; the turn then ends at once with `.failed` saying why.
-public struct SendMessage: Command {
+public struct SendMessage: RemoteCommand {
   public static let name = "conversation.send"
   public let conversation: ConversationRef
   public let text: String
   public let passage: Passage?
+  public let lesson: Lesson.ID?
 
-  public init(to conversation: ConversationRef, text: String, passage: Passage? = nil) {
+  public init(to conversation: ConversationRef, text: String, passage: Passage? = nil, lesson: Lesson.ID? = nil) {
     self.conversation = conversation
     self.text = text
     self.passage = passage
+    self.lesson = lesson
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
@@ -24,7 +26,7 @@ public struct SendMessage: Command {
 }
 
 /// Stops the conversation's running turn and returns once it has stopped. Does nothing when none runs.
-public struct StopTurn: Command {
+public struct StopTurn: RemoteCommand {
   public static let name = "conversation.stop"
   public let conversation: ConversationRef
 
@@ -40,7 +42,7 @@ public struct StopTurn: Command {
 /// `/new`: the conversation's next message opens a fresh session that remembers nothing said before.
 /// Every message stays, with a `.startedOver` line. Does nothing on an empty conversation or right after
 /// another start over; refused while a turn runs.
-public struct StartOver: Command {
+public struct StartOver: RemoteCommand {
   public static let name = "conversation.startOver"
   public let conversation: ConversationRef
 
@@ -75,7 +77,8 @@ public struct OneConversation: Subscription {
       case .everything: true
       case .events, .job: conversation == .main
       case .item(let item): conversation == .main || conversation == .item(item)
-      case .notes, .reading, .media, .review, .loci, .runtime: false
+      case .course(let id): conversation == .course(id)
+      case .courseActivity, .notes, .reading, .media, .review, .loci, .runtime: false
       }
     }
   }

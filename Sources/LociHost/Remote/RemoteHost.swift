@@ -35,10 +35,18 @@ public struct RemoteHost: LociModel.Host {
     }
     let request = try WireCodec.encode(command)
     let answer = await link()?.session(for: route.lane)?.call(C.name, body: request) ?? .failure(.offline)
+    if let lesson = command as? ReadLesson {
+      return try await courseLesson(lesson, answer: answer, legacyKey: request, reply: C.Reply.self)
+    }
     switch answer {
     case .success(let body):
       let reply = try WireCodec.reply(C.Reply.self, from: body)
       if route.effect == .reads { await keep(body, C.name, request) }
+      if let deletion = command as? DeleteCourse {
+        await RemoteCourseCache.mark(deletion.course, missing: true, keep: keep)
+      } else if command is RestoreDeletedCourse, let course = try WireCodec.decode(Course?.self, from: body) {
+        await RemoteCourseCache.mark(course.id, missing: false, keep: keep)
+      }
       return reply
     case .failure(.offline) where route.effect == .reads:
       guard let kept = folder.cached(C.name, request: request, on: machine) else { throw .offline }
@@ -58,7 +66,9 @@ public struct RemoteHost: LociModel.Host {
       }
       let kept = folder.cached(S.name, request: request, on: machine)
       guard let current = await link() else {
-        continuation.yield(kept.flatMap(RemoteFollower<S>.decode) ?? .unavailable(.offline))
+        continuation.yield(
+          RemoteFollower<S>.missingCourse(request, in: folder, on: machine)
+            ?? kept.flatMap(RemoteFollower<S>.decode) ?? .unavailable(.offline))
         continuation.finish()
         return
       }
@@ -70,6 +80,40 @@ public struct RemoteHost: LociModel.Host {
     }
     continuation.onTermination = { _ in following.cancel() }
     return feeds
+  }
+
+  private func courseLesson<Reply: Codable>(
+    _ lesson: ReadLesson, answer: Result<Data, HostError>, legacyKey: Data, reply: Reply.Type
+  ) async throws(HostError) -> Reply {
+    let key = try WireCodec.encode(WatchLesson(course: lesson.course, lesson: lesson.lesson))
+    switch answer {
+    case .success(let body):
+      let markdown = try WireCodec.decode(String?.self, from: body)
+      await RemoteCourseCache.mark(lesson.course, missing: false, keep: keep)
+      await keep(try WireCodec.encode(Feed<String?>.value(markdown)), WatchLesson.name, key)
+      return try WireCodec.reply(reply, from: body)
+    case .failure(.offline):
+      if RemoteCourseCache.isMissing(lesson.course, in: folder, machine: machine) {
+        throw .notFound(lesson.course.description)
+      }
+      if let body = folder.cached(WatchLesson.name, request: key, on: machine),
+        let feed = RemoteFollower<WatchLesson>.decode(body)
+      {
+        switch feed {
+        case .value(let markdown): return try WireCodec.reply(reply, from: WireCodec.encode(markdown))
+        case .unavailable(let error): throw error
+        }
+      }
+      guard let kept = folder.cached(ReadLesson.name, request: legacyKey, on: machine) else { throw .offline }
+      return try WireCodec.reply(reply, from: kept)
+    case .failure(let error):
+      switch error {
+      case .notFound, .invalidFile:
+        await keep(try WireCodec.encode(Feed<String?>.unavailable(error)), WatchLesson.name, key)
+      default: break
+      }
+      throw error
+    }
   }
 
   public func upload(_ file: LocalFile) async throws(HostError) -> Upload {
@@ -101,7 +145,9 @@ struct RemoteFollower<S: Subscription>: Sendable {
   let deliver: @Sendable (Feed<S.Value>) -> Void
 
   func follow() async {
-    let kept = folder.cached(S.name, request: request, on: machine).flatMap(Self.decode)
+    let kept =
+      Self.missingCourse(request, in: folder, on: machine)
+      ?? folder.cached(S.name, request: request, on: machine).flatMap(Self.decode)
     if let kept { deliver(kept) }
     var shown = kept != nil
     while !Task.isCancelled {
@@ -138,12 +184,57 @@ struct RemoteFollower<S: Subscription>: Sendable {
         return
       }
       guard let current, let body = try? current.data(), let feed = Self.decode(body) else { continue }
+      if S.name == WatchCourses.name || S.name == WatchCourse.name {
+        await RemoteCourseCache.observe(
+          body, as: S.name, request: request, previous: folder.cached(S.name, request: request, on: machine), keep: keep
+        )
+      }
       await keep(body, S.name, request)
       deliver(feed)
     }
   }
 
+  static func missingCourse(_ request: Data, in folder: MachineFolder, on machine: MachineID) -> Feed<S.Value>? {
+    guard S.name == WatchLesson.name, let lesson = try? WireCodec.decode(WatchLesson.self, from: request),
+      RemoteCourseCache.isMissing(lesson.course, in: folder, machine: machine)
+    else { return nil }
+    return .unavailable(.notFound(lesson.course.description))
+  }
+
   static func decode(_ body: Data) -> Feed<S.Value>? {
     try? JSONDecoder().decode(Feed<S.Value>.self, from: body)
+  }
+}
+
+private enum RemoteCourseCache {
+  static let missing = "course.missing"
+
+  static func mark(_ course: EntityID, missing: Bool, keep: RemoteHost.Keep) async {
+    await keep(Data([missing ? 1 : 0]), Self.missing, Data(course.description.utf8))
+  }
+
+  static func observe(
+    _ body: Data, as name: String, request: Data, previous: Data?, keep: RemoteHost.Keep
+  ) async {
+    if name == WatchCourse.name, let watch = try? WireCodec.decode(WatchCourse.self, from: request),
+      let feed = RemoteFollower<WatchCourse>.decode(body)
+    {
+      switch feed {
+      case .value: await mark(watch.course, missing: false, keep: keep)
+      case .unavailable(.notFound): await mark(watch.course, missing: true, keep: keep)
+      case .unavailable: break
+      }
+    } else if name == WatchCourses.name, let old = previous.flatMap(RemoteFollower<WatchCourses>.decode),
+      case .value(let before) = old, case .value(let now) = RemoteFollower<WatchCourses>.decode(body)
+    {
+      let previousIDs = Set(before.map(\.id))
+      let currentIDs = Set(now.map(\.id))
+      for course in previousIDs.subtracting(currentIDs) { await mark(course, missing: true, keep: keep) }
+      for course in currentIDs.subtracting(previousIDs) { await mark(course, missing: false, keep: keep) }
+    }
+  }
+
+  static func isMissing(_ course: EntityID, in folder: MachineFolder, machine: MachineID) -> Bool {
+    folder.cached(missing, request: Data(course.description.utf8), on: machine) == Data([1])
   }
 }

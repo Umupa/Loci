@@ -19,14 +19,33 @@ struct ChangeMap {
 
   private mutating func change(at path: String, identify: (String) -> EntityID?) -> ContentChange? {
     let parts = path.split(separator: "/").map(String.init)
+    if parts == [Store.coursesFolder] { return .everything }
     guard parts.count >= 2 else { return nil }
     let rest = Array(parts.dropFirst(2))
     switch parts[0] {
     case Store.agentFolderName:
+      if parts[1] == "workspace", rest.count >= 4, rest[0] == Store.coursesFolder,
+        rest.last?.hasSuffix(".md") == true, let id = EntityID(canonical: rest[1])
+      {
+        return .courseActivity(id)
+      }
       return Self.lociFile(parts[1], rest)
     case "library":
       guard rest.isEmpty || Self.isItemFile(rest) else { return nil }
       return id(ofFolder: "library/\(parts[1])", identify: identify).map(ContentChange.item) ?? .everything
+    case Store.coursesFolder:
+      guard let id = EntityID(canonical: parts[1]) else { return nil }
+      if rest.count == 2, rest[0] == Store.lessonNotesFolder, rest[1].hasSuffix(".jsonl"),
+        let lesson = Lesson.ID(String(rest[1].dropLast(6)))
+      {
+        return .notes(.lesson(course: id, lesson: lesson))
+      }
+      if rest.isEmpty || rest == [Store.courseFile] || rest == [Store.lessonNotesFolder]
+        || rest.first == Store.lessonsFolder
+      {
+        return .course(id)
+      }
+      return nil
     case "notes":
       return Self.notes(Array(parts.dropFirst())).map(ContentChange.notes)
     default:

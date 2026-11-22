@@ -24,6 +24,11 @@ extension FakeHost {
 
   func savingBatch() async -> SavingBatch? { library?.saving }
   func stopSaving() async throws(HostError) -> Int { 0 }
+  func readSource(_ url: URL) async throws(HostError) -> String { throw .invalidRequest("No source in this sample.") }
+  func fetchSourceRepository(_ command: FetchSourceRepository) async throws(HostError) -> SourceCheckout {
+    throw .invalidRequest("No repository in this sample.")
+  }
+  func clearSourceCache() async throws(HostError) -> Done { Done() }
   func storage() async throws(HostError) -> StorageReport {
     library?.storage ?? StorageReport(capacity: nil, available: nil, items: [], speechModels: [])
   }

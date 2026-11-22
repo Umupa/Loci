@@ -19,7 +19,7 @@ extension LocalHost {
     let disk = store.disk()
     return StorageReport(
       capacity: disk.capacity, available: disk.available, items: spaces,
-      speechModels: await library.context.equipment.modelSpace())
+      speechModels: await library.context.equipment.modelSpace(), sourceCacheBytes: sources.bytes())
   }
 
   public func freeMediaSpace(_ item: EntityID) async throws(HostError) -> Done {

@@ -3,7 +3,7 @@ import Foundation
 /// Adds the material behind a link to the library and starts making it readable. The item is there at once,
 /// titled after the link until its real title is known; its job does the rest. A link probed a moment ago
 /// with `ProbeLink` is not read again.
-public struct AddLink: Command {
+public struct AddLink: RemoteCommand {
   public static let name = "library.addLink"
   public static let maximumArticleBytes = 2 * 1024 * 1024
   public let url: URL
@@ -27,7 +27,7 @@ public struct AddLink: Command {
 }
 
 /// Adds a video or audio file on the host to the library, and starts recognizing what is said in it.
-public struct ImportMediaFile: Command {
+public struct ImportMediaFile: RemoteCommand {
   public static let name = "library.importMedia"
   public let upload: Upload
   public let mode: ImportMode
@@ -50,7 +50,7 @@ public struct ImportMediaFile: Command {
 
 /// Starts an item's job again from what its files already hold: after a failure, after it was paused, or
 /// to stop waiting and look again.
-public struct RetryJob: Command {
+public struct RetryJob: RemoteCommand {
   public static let name = "library.retryJob"
   public let item: EntityID
 
@@ -65,7 +65,7 @@ public struct RetryJob: Command {
 
 /// Pauses an item's job. What it made so far is kept, a download's part among it, and `RetryJob` carries on
 /// from there.
-public struct PauseJob: Command {
+public struct PauseJob: RemoteCommand {
   public static let name = "library.pauseJob"
   public let item: EntityID
 
@@ -80,7 +80,7 @@ public struct PauseJob: Command {
 
 /// Translates an article into the reader's language, passage by passage, keeping what was translated before.
 /// The page shows each passage as it arrives.
-public struct TranslateArticle: Command {
+public struct TranslateArticle: RemoteCommand {
   public static let name = "library.translateArticle"
   public let item: EntityID
 
@@ -95,7 +95,7 @@ public struct TranslateArticle: Command {
 
 /// Where a video or audio item plays from now. `refresh` asks the site for a new address, for when the
 /// one given before has stopped working.
-public struct ReadPlayback: Command {
+public struct ReadPlayback: RemoteCommand {
   public static let name = "library.playback"
   public let item: EntityID
   public let refresh: Bool
@@ -111,7 +111,7 @@ public struct ReadPlayback: Command {
 }
 
 /// The item's cover picture; `nil` when it has none.
-public struct ReadCover: Command {
+public struct ReadCover: RemoteCommand {
   public static let name = "item.cover"
   public let item: EntityID
 
@@ -125,7 +125,7 @@ public struct ReadCover: Command {
 }
 
 /// A paper's PDF.
-public struct ReadItemPDF: Command {
+public struct ReadItemPDF: RemoteCommand {
   public static let name = "item.pdf"
   public let item: EntityID
 
@@ -139,7 +139,7 @@ public struct ReadItemPDF: Command {
 }
 
 /// A picture in an article, by the name its text refers to it with: `images/<name>` or just `<name>`.
-public struct ReadItemImage: Command {
+public struct ReadItemImage: RemoteCommand {
   public static let name = "item.image"
   public let item: EntityID
   public let name: String
@@ -155,7 +155,7 @@ public struct ReadItemImage: Command {
 }
 
 /// Every job that is not done, oldest first.
-public struct ListJobs: Command {
+public struct ListJobs: RemoteCommand {
   public static let name = "library.jobs"
 
   public init() {}
@@ -166,7 +166,7 @@ public struct ListJobs: Command {
 }
 
 /// What a video or audio item shows beside its player, once; `ItemMedia` keeps it current.
-public struct ReadMediaPage: Command {
+public struct ReadMediaPage: RemoteCommand {
   public static let name = "item.media"
   public let item: EntityID
 

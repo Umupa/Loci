@@ -197,6 +197,7 @@ struct MachineWindow: View {
   }
 
   private var shownPlace: Place {
+    if case .courses = window.place { return .courses(nil) }
     guard case .library = window.place, case .item(let id)? = window.pages.last,
       let item = items?.value?.first(where: { $0.id == id })
     else { return window.place }
@@ -219,6 +220,8 @@ struct MachineWindow: View {
         failed: { dialogs.failure = $0 })
     case .browser:
       BrowserScreen(session: browser, failed: { dialogs.failure = $0 })
+    case .courses(let open):
+      CoursesScreen(open: open)
     case .settings(.general):
       GeneralSettingsPage()
     case .settings(.agents):
@@ -266,7 +269,7 @@ struct MachineWindow: View {
     guard window.pages.isEmpty, changesAllowed else { return false }
     switch window.place {
     case .talk, .library: return true
-    case .loci, .browser, .settings: return false
+    case .loci, .browser, .settings, .courses: return false
     }
   }
 

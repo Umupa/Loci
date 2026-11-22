@@ -10,6 +10,8 @@ enum Words {
     case .item(let id):
       item = id
       note = ""
+    case .note(_, on: .lesson(_, let lesson)):
+      return "\(lesson)  (the person's lesson note)\n    \(hit.snippet)"
     case .note(_, on: .item(let id)):
       item = id
       note = " (the person's note)"

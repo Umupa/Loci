@@ -13,6 +13,7 @@ enum Symbols {
   static let thought = "text.bubble"
   static let ask = "bubble.left"
   static let panel = "sidebar.right"
+  static let contents = "list.bullet"
   static let stop = "stop.fill"
   static let done = "checkmark"
   static let browser = "globe"

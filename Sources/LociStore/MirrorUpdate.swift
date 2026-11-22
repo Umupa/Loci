@@ -7,6 +7,7 @@ import LociModel
 enum MirrorUpdate: Sendable {
   case item(EntityID, Item?, content: String?)
   case notes(ContentRef, [Note])
+  case course(EntityID, CoursePage?, notes: [ContentRef: [Note]])
 
   func write(_ db: Database) throws {
     switch self {
@@ -14,6 +15,8 @@ enum MirrorUpdate: Sendable {
       try db.execute(sql: "DELETE FROM item WHERE id = ?", arguments: [id.description])
       try Self.unindex(owner: ContentKey.key(.item(id)), db)
       if let item { try Self.insert(item, content: content, db) }
+    case .course(let id, let page, let notes):
+      try Self.updateCourse(id, page: page, notes: notes, in: db)
     case .notes(let content, let notes):
       let key = ContentKey.key(content)
       try db.execute(sql: "DELETE FROM note WHERE content = ?", arguments: [key])

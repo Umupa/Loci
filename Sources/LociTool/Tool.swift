@@ -14,6 +14,9 @@ struct Tool: Sendable {
     let text: String
     /// 0 when it worked, 1 when it did not, 2 when the command was written wrong.
     let status: Int32
+    var addsNewline = true
+
+    var output: String { addsNewline ? text + "\n" : text }
 
     static func worked(_ text: String) -> Outcome { Outcome(text: text, status: 0) }
     static func failed(_ text: String) -> Outcome { Outcome(text: text, status: 1) }
@@ -32,10 +35,20 @@ struct Tool: Sendable {
     case .help: return .worked(ToolGuide.text)
     case .search(let text): return try await search(text, json: json)
     case .show(let id): return try await show(id, json: json)
+    case .read(let url):
+      let reply = try await line.run(ReadSource(url: url))
+      if json { return .worked(Self.text(reply)) }
+      return Outcome(text: try Failure.decoding(String.self, from: reply), status: 0, addsNewline: false)
+    case .repo(let url, let commit):
+      let reply = try await line.run(FetchSourceRepository(url: url, commit: commit))
+      if json { return .worked(Self.text(reply)) }
+      let checkout = try Failure.decoding(SourceCheckout.self, from: reply)
+      return .worked("\(checkout.path)\t\(checkout.commit)")
     case .save(let url): return saved(try await line.run(AddLink(url: url)), json: json)
     case .importFile(let path, let title): return try await importing(path, title: title, json: json)
     case .wait(let id): return try await wait(id, json: json)
     case .panel(let request): return try await panel(request, json: json)
+    case .course(let request): return await course(request, json: json)
     }
   }
 

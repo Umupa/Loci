@@ -7,10 +7,10 @@ enum SideTab: Hashable {
   case keyPoints, conversation, highlights
 }
 
-/// Beside an item: its key points, Loci reading along with the conversation on the item, or every highlight
-/// left on it.
+/// Beside an item or a lesson: an item's key points, Loci reading along with the conversation on it, or every
+/// highlight left on it.
 struct ReaderPanel: View {
-  let item: EntityID
+  let content: ContentRef
   let notes: [PlacedNote]
   let keyPoints: KeyPointsPage?
   /// `nil` for what has no key points, such as a paper; the panel then has no page for them.
@@ -31,9 +31,12 @@ struct ReaderPanel: View {
         collapse: collapse)
       switch tab {
       case .keyPoints:
-        KeyPointsPanel(item: item, media: nil, page: keyPoints, current: nil, frames: nil) { openKeyPoint?($0) }
+        if let item = content.item {
+          KeyPointsPanel(item: item, media: nil, page: keyPoints, current: nil, frames: nil) { openKeyPoint?($0) }
+        }
       case .conversation:
-        ConversationScreen(ref: .item(item), draft: $draft, revealPassage: revealPassage)
+        ConversationScreen(
+          ref: content.conversation, draft: $draft, revealPassage: revealPassage, lesson: content.lesson)
       case .highlights:
         highlights
       }
@@ -54,7 +57,7 @@ struct ReaderPanel: View {
         LazyVStack(alignment: .leading, spacing: Spacing.xs) {
           ForEach(notes) { placed in
             NoteCard(
-              content: .item(item), placed: placed, chosen: chosen?.note == placed.id ? chosen?.serial : nil,
+              content: content, placed: placed, chosen: chosen?.note == placed.id ? chosen?.serial : nil,
               ask: placed.range == nil ? nil : { ask(placed) }
             ) {
               if let range = placed.range { reveal(range) }

@@ -49,6 +49,17 @@ struct PaneWidth {
     max(range.lowerBound, min(clamped(width), available - Size.readerMinimum))
   }
 
+  /// Whether the pane at its narrowest fits beside the text in `available` points and leaves the text room to be
+  /// read; where it does not, it lies over the text instead.
+  func fitsBeside(in available: CGFloat) -> Bool {
+    available - range.lowerBound >= Size.readerMinimum
+  }
+
+  /// The width the pane takes laid over the text in `available` points.
+  func overlaid(_ width: CGFloat, in available: CGFloat) -> CGFloat {
+    min(clamped(width), available)
+  }
+
   /// The width after dragging the pane's inner edge by `distance` points to the right.
   func width(from start: CGFloat, dragged distance: CGFloat) -> CGFloat {
     clamped(side == .leading ? start + distance : start - distance)

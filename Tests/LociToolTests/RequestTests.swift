@@ -23,6 +23,27 @@ struct RequestTests {
     #expect(try Request.parse(["help"]) == (.help, false))
   }
 
+  @Test func sourceCommandsTakeAWebLinkAndAnOptionalFullCommit() throws {
+    let link = "https://example.com/owner/repo"
+    let url = try #require(URL(string: link))
+    let sha = String(repeating: "a", count: 40)
+    let commit = try #require(CommitID(sha))
+    #expect(try Request.parse(["read", link]) == (.read(url), false))
+    #expect(try Request.parse(["repo", link]) == (.repo(url, commit: nil), false))
+    #expect(try Request.parse(["repo", link, "--commit", sha, "--json"]) == (.repo(url, commit: commit), true))
+  }
+
+  @Test(arguments: [
+    ["read"], ["read", "https://person@example.com/private"], ["read", "file:///paper.pdf"],
+    ["read", "https://example.com", "extra"],
+    ["repo"], ["repo", "https://example.com", "--commit"], ["repo", "https://example.com", "--commit", "deadbee"],
+    ["repo", "https://person@example.com/repo"], ["repo", "git@example.com:repo"],
+  ])
+  func invalidSourceArgumentsExitWithTwo(arguments: [String]) async {
+    let result = await LociCommand.run(arguments, environment: [:], folder: URL(filePath: "/"))
+    #expect(result.status == 2)
+  }
+
   @Test(arguments: [
     ["search"], ["show"], ["show", "not-an-id"], ["wait", "a", "b"], ["save", "example.com"], ["save", "ftp://x/y"],
     ["import"], ["import", "a.md", "--title"], ["import", "talk.mp4", "--title", "Talk"], ["delete", "x"],
@@ -34,6 +55,8 @@ struct RequestTests {
   @Test func helpNeedsNoApp() async {
     let outcome = await LociCommand.run(["help"], environment: [:], folder: URL(filePath: "/"))
     #expect(outcome == .worked(ToolGuide.text))
+    #expect(outcome.text.contains("loci read <url>"))
+    #expect(outcome.text.contains("loci repo <url> [--commit <sha>]"))
   }
 
   @Test func outsideALociSessionItSaysSo() async {

@@ -25,6 +25,7 @@ struct Sidebar: View {
       ForEach(LibraryCategory.allCases, id: \.self) { category in
         row(.library(category), Text(Messages.name(of: category)), symbol: Symbols.category(category))
       }
+      row(.courses(nil), Text(.loci("sidebar.courses")), symbol: Symbols.course)
       row(.browser, Text(.loci("sidebar.browser")), symbol: Symbols.browser)
       Spacer(minLength: 0)
       SidebarLabel(text: Text(.loci("sidebar.settings")))

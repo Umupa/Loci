@@ -42,7 +42,7 @@ extension StoreDatabase {
     }
     switch ContentKey.content(text) {
     case .item(let item): return .item(item)
-    case nil: return nil
+    case .lesson, nil: return nil
     }
   }
 
