@@ -34,7 +34,6 @@ enum Symbols {
   static let backToPlaying = "play.circle"
   static let chapterPlaying = "waveform"
   static let download = "arrow.down.to.line"
-  static let openPanel = "chevron.down"
   static let layout = "rectangle.split.3x1"
   static let update = "arrow.up"
   static let translate = "translate"

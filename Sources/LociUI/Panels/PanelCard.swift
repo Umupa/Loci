@@ -2,7 +2,7 @@ import LociModel
 import SwiftUI
 
 /// A panel's frame: its sites' marks and title over what it shows. A panel taller than `panelTallest` is cut
-/// where a row ends, never through one, with a round button under it that opens it out and folds it back.
+/// where a row ends, never through one, and two corner marks beside its title open it out and fold it back.
 struct PanelFrame<Marks: View, Content: View>: View {
   let title: Text
   let menu: [PanelMenu]
@@ -43,13 +43,6 @@ struct PanelFrame<Marks: View, Content: View>: View {
         }
         .frame(height: long && !open ? PanelCut.height(edges: edges) : nil, alignment: .top)
         .clipped()
-      if long {
-        OpenOutButton(open: open) {
-          withAnimation(reduceMotion ? nil : Motion.standard) { open.toggle() }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.bottom, Spacing.s)
-      }
     }
     .padding(.horizontal, 20)
     .padding(.top, 20)
@@ -75,6 +68,12 @@ struct PanelFrame<Marks: View, Content: View>: View {
       marks
       title.font(.system(size: 14, weight: .medium)).foregroundStyle(Palette.ink).lineLimit(1)
       Spacer(minLength: 0)
+      if PanelCut.isLong(height) {
+        OpenOutButton(open: open) {
+          withAnimation(reduceMotion ? nil : Motion.standard) { open.toggle() }
+        }
+        .transition(.opacity)
+      }
     }
     .frame(height: Size.siteMark)
   }
@@ -115,7 +114,8 @@ extension View {
   }
 }
 
-/// The round button under a cut panel: a chevron that turns over once the panel is open.
+/// The corner marks beside a cut panel's title: two corners that point out while it is cut and fold in once it
+/// is open.
 private struct OpenOutButton: View {
   let open: Bool
   let action: () -> Void
@@ -123,20 +123,40 @@ private struct OpenOutButton: View {
 
   var body: some View {
     Button(action: action) {
-      Image(systemName: Symbols.openPanel)
-        .font(.system(size: 10, weight: .semibold))
-        .foregroundStyle(pointed ? Palette.ink : Palette.inkMuted)
-        .rotationEffect(.degrees(open ? 180 : 0))
-        .frame(width: 44, height: 22)
-        .background(Palette.surface, in: .capsule)
-        .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
-        .shadow(color: Palette.liftShadow.opacity(0.35), radius: 5, y: 3)
-        .contentShape(.capsule)
+      OpenOutCorners(folded: open ? 1 : 0)
+        .stroke(style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+        .foregroundStyle(pointed ? Palette.ink : Palette.inkFaint)
+        .frame(width: 14, height: 14)
+        .frame(width: Size.iconButton, height: Size.iconButton)
+        .background(Palette.ink.opacity(pointed ? 0.06 : 0), in: .circle)
+        .contentShape(.circle)
     }
-    .buttonStyle(PressStyle(scale: 0.94))
+    .buttonStyle(PressStyle(scale: 0.9))
     .onHover { pointed = $0 }
-    .padding(.top, Spacing.xxs)
     .accessibilityLabel(Text(.loci(open ? "panels.close" : "panels.open")))
+  }
+}
+
+/// A top-left and a bottom-right corner. Each corner's ends stay put while its point moves across, from the
+/// outside of the square (`folded` 0) to the inside (1).
+private struct OpenOutCorners: Shape {
+  var folded: CGFloat
+  var animatableData: CGFloat {
+    get { folded }
+    set { folded = newValue }
+  }
+
+  func path(in rect: CGRect) -> Path {
+    let arm = rect.width * 0.34
+    let reach = arm * folded
+    var path = Path()
+    path.move(to: CGPoint(x: rect.minX, y: rect.minY + arm))
+    path.addLine(to: CGPoint(x: rect.minX + reach, y: rect.minY + reach))
+    path.addLine(to: CGPoint(x: rect.minX + arm, y: rect.minY))
+    path.move(to: CGPoint(x: rect.maxX, y: rect.maxY - arm))
+    path.addLine(to: CGPoint(x: rect.maxX - reach, y: rect.maxY - reach))
+    path.addLine(to: CGPoint(x: rect.maxX - arm, y: rect.maxY))
+    return path
   }
 }
 
