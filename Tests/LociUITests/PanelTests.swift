@@ -84,16 +84,6 @@ struct PanelTests {
         == "**Firecracker 逃逸链复盘**: 12 min left.")
   }
 
-  @Test func thePanelColumnStepsAsideInANarrowWindow() {
-    var fit = PaneFit.panelColumn
-    fit.fit(width: 1200)
-    #expect(fit.shows(true))
-    fit.fit(width: 760)
-    #expect(!fit.shows(true))
-    let opened = fit.toggle(true)
-    #expect(fit.shows(opened))
-  }
-
   @Test func turningAPageForwardSlidesInFromTheRight() {
     #expect(PageTurn(from: 0, to: 1) == .forward)
     #expect(PageTurn(from: 1, to: 0) == .back)

@@ -1,8 +1,8 @@
 import LociModel
 import SwiftUI
 
-/// A panel's frame: its sites' marks and title over what it shows, cut off at `panelTallest` with the foot
-/// fading out. Pointing at a panel that is cut off shows the button that opens it out.
+/// A panel's frame: its sites' marks and title over what it shows. A panel taller than `panelTallest` is cut
+/// where a row ends, never through one, with a round button under it that opens it out and folds it back.
 struct PanelFrame<Marks: View, Content: View>: View {
   let title: Text
   let menu: [PanelMenu]
@@ -12,7 +12,7 @@ struct PanelFrame<Marks: View, Content: View>: View {
   @Environment(\.reducesMotion) private var reduceMotion
   @State private var open: Bool
   @State private var height: CGFloat = 0
-  @State private var pointed = false
+  @State private var edges: [CGFloat] = []
 
   /// `open` starts the panel opened out, for a snapshot.
   init(
@@ -29,33 +29,35 @@ struct PanelFrame<Marks: View, Content: View>: View {
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
-    let cut = height > Size.panelTallest && !open
+    let long = PanelCut.isLong(height)
     VStack(alignment: .leading, spacing: 0) {
       header.padding(.bottom, 14)
       content
+        .fixedSize(horizontal: false, vertical: true)
+        .coordinateSpace(.named(PanelRowEdges.space))
+        .onPreferenceChange(PanelRowEdges.self) { edges = $0 }
+        .onGeometryChange(for: CGFloat.self) {
+          $0.size.height
+        } action: {
+          height = $0
+        }
+        .frame(height: long && !open ? PanelCut.height(edges: edges) : nil, alignment: .top)
+        .clipped()
+      if long {
+        OpenOutButton(open: open) {
+          withAnimation(reduceMotion ? nil : Motion.standard) { open.toggle() }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, Spacing.s)
+      }
     }
     .padding(.horizontal, 20)
     .padding(.top, 20)
     .padding(.bottom, Spacing.xxs)
-    .fixedSize(horizontal: false, vertical: true)
-    .onGeometryChange(for: CGFloat.self) {
-      $0.size.height
-    } action: {
-      height = $0
-    }
-    .frame(height: cut ? Size.panelTallest : nil, alignment: .top)
-    .overlay(alignment: .bottom) {
-      if cut {
-        LinearGradient(colors: [Palette.surface.opacity(0), Palette.surface], startPoint: .top, endPoint: .bottom)
-          .frame(height: 70)
-          .allowsHitTesting(false)
-      }
-    }
     .background(Palette.surface)
     .clipShape(shape)
     .overlay(shape.strokeBorder(Palette.bubbleEdge, lineWidth: Size.hairline))
     .contentShape(shape)
-    .onHover { pointed = $0 }
     .contextMenu {
       ForEach(menu, id: \.self) { entry in
         if entry == .moveToTop, menu.count > 1 { Divider() }
@@ -73,33 +75,67 @@ struct PanelFrame<Marks: View, Content: View>: View {
       marks
       title.font(.system(size: 14, weight: .medium)).foregroundStyle(Palette.ink).lineLimit(1)
       Spacer(minLength: 0)
-      if height > Size.panelTallest {
-        OpenOutButton(open: open) {
-          withAnimation(reduceMotion ? nil : Motion.standard) { open.toggle() }
-        }
-        .opacity(pointed || open ? 1 : 0)
-        .scaleEffect(pointed || open ? 1 : 0.85)
-        .animation(reduceMotion ? nil : Motion.quick, value: pointed)
-      }
     }
     .frame(height: Size.siteMark)
   }
 }
 
+/// Where a long panel is cut: at the lowest row's end that still fits.
+enum PanelCut {
+  /// How much taller than `panelTallest` a panel must be before it is cut, so it never hides a sliver.
+  static let slack: CGFloat = 40
+
+  static func isLong(_ height: CGFloat) -> Bool {
+    height > Size.panelTallest + slack
+  }
+
+  static func height(edges: [CGFloat]) -> CGFloat {
+    edges.filter { $0 <= Size.panelTallest }.max() ?? Size.panelTallest
+  }
+}
+
+/// Where each row of a panel ends, measured from the top of its rows.
+struct PanelRowEdges: PreferenceKey {
+  static let space = "panelRows"
+  static let defaultValue: [CGFloat] = []
+
+  static func reduce(value: inout [CGFloat], nextValue: () -> [CGFloat]) {
+    value += nextValue()
+  }
+}
+
+extension View {
+  /// Lets a long panel be cut where this row ends.
+  func panelRow() -> some View {
+    background {
+      GeometryReader { proxy in
+        Color.clear.preference(key: PanelRowEdges.self, value: [proxy.frame(in: .named(PanelRowEdges.space)).maxY])
+      }
+    }
+  }
+}
+
+/// The round button under a cut panel: a chevron that turns over once the panel is open.
 private struct OpenOutButton: View {
   let open: Bool
   let action: () -> Void
+  @State private var pointed = false
 
   var body: some View {
     Button(action: action) {
-      Image(systemName: open ? Symbols.collapse : Symbols.openOut)
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(Palette.ink)
-        .frame(width: Size.iconButton, height: Size.iconButton)
-        .background(Palette.ink.opacity(0.07), in: .circle)
-        .contentShape(.circle)
+      Image(systemName: Symbols.openPanel)
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(pointed ? Palette.ink : Palette.inkMuted)
+        .rotationEffect(.degrees(open ? 180 : 0))
+        .frame(width: 44, height: 22)
+        .background(Palette.surface, in: .capsule)
+        .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+        .shadow(color: Palette.liftShadow.opacity(0.35), radius: 5, y: 3)
+        .contentShape(.capsule)
     }
     .buttonStyle(PressStyle(scale: 0.94))
+    .onHover { pointed = $0 }
+    .padding(.top, Spacing.xxs)
     .accessibilityLabel(Text(.loci(open ? "panels.close" : "panels.open")))
   }
 }
@@ -173,6 +209,7 @@ struct PanelPager: View {
       }
       .padding(.top, -2)
       .padding(.bottom, Spacing.s)
+      .panelRow()
       if pages.indices.contains(shown) {
         PanelRows(rows: pages[shown].rows, actions: actions)
           .id(shown)

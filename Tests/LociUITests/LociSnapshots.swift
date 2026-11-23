@@ -124,7 +124,7 @@ struct LociSnapshots {
       LatestButton {}.padding(.leading, 40)
     }
     .padding(28)
-    .frame(width: Size.talkColumn + 56)
+    .frame(width: TalkLayout.standard.conversationWidth)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .background(Palette.canvas)
     .environment(\.standIns, StandIns(conversationAt: Date(timeIntervalSince1970: 5)))

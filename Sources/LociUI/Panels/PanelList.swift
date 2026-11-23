@@ -16,6 +16,7 @@ struct PanelList: View {
         ) {
           if let cover = item.cover { PanelCover(url: cover) }
         }
+        .panelRow()
       }
     }
   }

@@ -13,28 +13,61 @@ import Testing
 struct PanelSnapshots {
   /// The design's window.
   static let window = CGSize(width: 1440, height: 900)
-  static let column = CGSize(width: Size.panelColumn, height: 900)
+  static let lane = CGSize(width: 380, height: 900)
 
   static let actions = PanelActions(
     open: { _ in }, openItem: { _ in }, ask: { _ in }, create: {}, revise: { _ in }, refresh: { _ in },
     moveToTop: { _ in }, remove: { _ in })
 
   /// Where the window remembers the column folded or not, apart from the app's own preferences.
-  static func defaults(columnShown: Bool, sidebarShown: Bool) -> UserDefaults {
+  static func defaults(columnShown: Bool, sidebarShown: Bool, layout: TalkLayout?) -> UserDefaults {
     let defaults = UserDefaults(suiteName: "loci-panel-snapshots") ?? .standard
     defaults.set(columnShown, forKey: "panelColumnShown")
     defaults.set(sidebarShown, forKey: "sidebarShown")
+    if let layout, let data = try? JSONEncoder().encode(layout) {
+      defaults.set(data, forKey: TalkLayout.key)
+    } else {
+      defaults.removeObject(forKey: TalkLayout.key)
+    }
     return defaults
   }
 
   static func shoot(
     _ name: String, columnShown: Bool = true, sidebarShown: Bool = true, english: Bool = false,
-    appearance: Snapshot.Appearance
+    layout: TalkLayout? = nil, size: CGSize = window, reads: Bool = false, appearance: Snapshot.Appearance
   ) async throws {
     try await LibrarySnapshots.shoot(
-      name, try SampleLibrary(), at: WindowState(), appearance: appearance, english: english, size: window,
-      panels: try SamplePanels.column(reads: false),
-      defaults: defaults(columnShown: columnShown, sidebarShown: sidebarShown))
+      name, try SampleLibrary(), at: WindowState(), appearance: appearance, english: english, size: size,
+      panels: try SamplePanels.column(reads: reads),
+      defaults: defaults(columnShown: columnShown, sidebarShown: sidebarShown, layout: layout))
+  }
+
+  /// The sample panels by key, as the column lists them.
+  static func keys(reads: Bool) throws -> [String] {
+    try SamplePanels.column(reads: reads).slots.map(\.key)
+  }
+
+  /// P-S12, P-S15: panels on both sides of the conversation in a wide window.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func bothSides(appearance: Snapshot.Appearance) async throws {
+    let layout = TalkLayout.standard.holding(try Self.keys(reads: true)).arranged(.panelsBothSides)
+    try await Self.shoot(
+      "talk-both-sides", layout: layout, size: CGSize(width: 1800, height: 1000), reads: true, appearance: appearance)
+  }
+
+  /// P-S12: the panels moved to the left of the conversation.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func panelsOnTheLeft(appearance: Snapshot.Appearance) async throws {
+    let layout = TalkLayout.standard.holding(try Self.keys(reads: true)).arranged(.panelsLeft)
+    try await Self.shoot("talk-panels-left", layout: layout, reads: true, appearance: appearance)
+  }
+
+  /// P-S16: in a narrow window the lanes fold to their marks.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func foldedToRails(appearance: Snapshot.Appearance) async throws {
+    let layout = TalkLayout.standard.holding(try Self.keys(reads: true)).arranged(.panelsBothSides)
+    try await Self.shoot(
+      "talk-rails", layout: layout, size: CGSize(width: 1100, height: 860), reads: true, appearance: appearance)
   }
 
   /// The column alone, read through the host.
@@ -72,12 +105,11 @@ struct PanelSnapshots {
   /// numbers, covers and a picture.
   @Test(arguments: Snapshot.Appearance.allCases)
   func pagedAndOpenedOut(appearance: Snapshot.Appearance) async throws {
-    let view = PanelColumnView(
-      column: try SamplePanels.column(), actions: Self.actions, opened: ["sandbox-radar", "sandbox-reads"],
+    let view = PanelLaneView(
+      slots: try SamplePanels.column().slots, actions: Self.actions, opened: ["sandbox-radar", "sandbox-reads"],
       pages: ["sandbox-radar": 1, "job-radar": 1])
     try await ScreenSnapshots.shoot(
-      "panels-pages", try Self.alone(view), appearance: appearance,
-      size: CGSize(width: Size.panelColumn, height: 3000))
+      "panels-pages", try Self.alone(view), appearance: appearance, size: CGSize(width: 380, height: 3000))
   }
 
   /// P-S6: the composer asking for a new panel over the blurred conversation.
@@ -88,7 +120,7 @@ struct PanelSnapshots {
       ConversationScreen(
         ref: .main, draft: .constant(nil), revealPassage: { _ in },
         panelRequest: PanelRequest(making: .constant(true)))
-      PanelColumnView(column: column, making: true, actions: Self.actions).frame(width: Size.panelColumn)
+      PanelLaneView(slots: column.slots, foot: true, making: true, actions: Self.actions).frame(width: 380)
     }
     .overlay(alignment: .topTrailing) {
       PanelButton(title: .loci("panels.hideColumn"), action: {}).padding(Spacing.s)
@@ -104,10 +136,10 @@ struct PanelSnapshots {
   func building(appearance: Snapshot.Appearance) async throws {
     let request = PanelSources.named(
       in: "每周从 Hacker News 挑三篇和我资料库有关的文章", locale: Locale(identifier: "zh-Hans"))
-    let view = PanelColumnView(
-      column: try SamplePanels.column(reads: false), building: request, actions: Self.actions
+    let view = PanelLaneView(
+      slots: try SamplePanels.column(reads: false).slots, foot: true, building: request, actions: Self.actions
     )
     .environment(\.standIns, StandIns())
-    try await ScreenSnapshots.shoot("panels-building", try Self.alone(view), appearance: appearance, size: Self.column)
+    try await ScreenSnapshots.shoot("panels-building", try Self.alone(view), appearance: appearance, size: Self.lane)
   }
 }

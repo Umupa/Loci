@@ -125,9 +125,8 @@ struct ConversationView<Tail: View>: View {
         tail()
       }
       .animatingArrivals(said.count(where: \.arrives) + live.count(where: \.arrives))
-      .frame(maxWidth: scale == .main ? Size.talkColumn : .infinity)
-      .padding(.horizontal, scale == .main ? 28 : Spacing.m)
-      .padding(.top, scale == .main ? 40 : 0)
+      .padding(.horizontal, Spacing.m)
+      .padding(.top, scale == .main ? Spacing.s : 0)
       .frame(maxWidth: .infinity)
     }
     .defaultScrollAnchor(.top, for: .alignment)
@@ -182,9 +181,8 @@ struct ConversationView<Tail: View>: View {
         }
       }
       .animation(reduceMotion ? nil : Motion.quick, value: follow.offersLatest)
-      .frame(maxWidth: scale == .main ? Size.talkColumn : .infinity)
-      .padding(.horizontal, scale == .main ? 28 : 14)
-      .padding(.bottom, scale == .main ? 24 : 14)
+      .padding(.horizontal, 14)
+      .padding(.bottom, scale == .main ? Spacing.s : 14)
       .padding(.top, Spacing.l)
       .background {
         LinearGradient(

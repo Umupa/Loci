@@ -20,6 +20,8 @@ enum Palette {
     startPoint: .top, endPoint: .bottom)
   /// Cards and input fields.
   static let surface = Color(nsColor: Tones.surface)
+  /// Under what is lifted while it is dragged.
+  static let liftShadow = Color(nsColor: NSColor(dark: 0x000000, light: 0x3C2A0E, alpha: (dark: 0.55, light: 0.22)))
   static let ink = Color(nsColor: Tones.ink)
   static let inkMuted = Color(nsColor: Tones.inkMuted)
   /// Neutral symbols and text in the sidebar.
@@ -130,7 +132,8 @@ enum Palette {
 
   /// The pairs of text and background the interface uses, for checking contrast.
   static let readablePairs: [(text: Color, background: Color, name: String)] = [
-    (ink, canvas, "ink on canvas"), (ink, surface, "ink on surface"), (ink, well, "ink on well"),
+    (ink, canvas, "ink on canvas"), (ink, surface, "ink on surface"),
+    (ink, well, "ink on well"),
     (ink, Color(nsColor: Tones.sidebarTop), "ink on the sidebar's top"),
     (ink, Color(nsColor: Tones.sidebarBottom), "ink on the sidebar's bottom"),
     (sidebarInkMuted, Color(nsColor: Tones.sidebarTop), "muted on the sidebar's top"),

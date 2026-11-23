@@ -6,7 +6,7 @@ enum TalkScale {
 
   var fontSize: CGFloat { self == .main ? 15 : 14 }
   /// The most of the column a bubble takes, and the widest it gets.
-  var share: CGFloat { self == .main ? 1 : 0.86 }
+  var share: CGFloat { self == .main ? 0.84 : 0.86 }
   var widest: CGFloat { Size.messageWidest }
 }
 
@@ -17,6 +17,7 @@ struct BubbleRow<Words: View, Beside: View>: View {
   let words: Words
   /// Next to the bubble, on the side away from the edge, such as copying the answer.
   let beside: Beside
+  @Environment(\.messageWidest) private var messageWidest
 
   init(speaker: Speaker, scale: TalkScale = .main, @ViewBuilder words: () -> Words, @ViewBuilder beside: () -> Beside) {
     self.speaker = speaker
@@ -28,7 +29,7 @@ struct BubbleRow<Words: View, Beside: View>: View {
   var body: some View {
     HStack(alignment: .bottom, spacing: Spacing.xs) {
       if speaker == .person { beside }
-      CappedWidth(share: scale.share, widest: scale.widest) { bubble }
+      CappedWidth(share: scale.share, widest: scale == .main ? messageWidest : scale.widest) { bubble }
       if speaker == .loci { beside }
     }
     .frame(maxWidth: .infinity, alignment: speaker == .loci ? .leading : .trailing)

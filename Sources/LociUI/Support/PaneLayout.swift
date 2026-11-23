@@ -101,8 +101,6 @@ struct PaneFit: Equatable {
 
   /// The sidebar steps aside for a page with text and the panel beside it.
   static let sidebar = PaneFit(narrow: 1000)
-  /// The panel column steps aside for the main conversation, measured without the sidebar.
-  static let panelColumn = PaneFit(narrow: Size.talkColumn + Size.panelColumn + Spacing.xxl)
 
   private(set) var stepsAside = false
   private var keptOpen = false

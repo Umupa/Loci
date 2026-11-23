@@ -14,7 +14,7 @@ struct ReadingPanel: View {
       LociAvatar(size: Size.siteMark)
     } content: {
       VStack(alignment: .leading, spacing: 0) {
-        PanelSentence(text: Self.summary(readings, locale: locale)).padding(.bottom, 14)
+        PanelSentence(text: Self.summary(readings, locale: locale)).padding(.bottom, 14).panelRow()
         VStack(spacing: Spacing.xs) {
           ForEach(readings, id: \.item.id) { reading in
             PanelLine(
@@ -24,6 +24,7 @@ struct ReadingPanel: View {
               Cover(item: reading.item, corner: 9, backdrop: Palette.ink.opacity(0.08))
                 .frame(width: Size.panelCover, height: Size.panelCover)
             }
+            .panelRow()
           }
         }
         .padding(.bottom, Spacing.m)

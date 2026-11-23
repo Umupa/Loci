@@ -34,6 +34,19 @@ struct LociPageTests {
     }
   }
 
+  /// P-S6, P-S12: the person arranges the panels, so Loci never says which side a new one is on.
+  @Test func aNewPanelIsAnnouncedWithoutNamingASide() async throws {
+    try await withHost { host, place, _ in
+      _ = try await host.run(SendMessage(to: .main, text: "帮我做个面板"))
+      _ = try #require(await settled(host))
+
+      let instructions = try String(contentsOf: place.root.appending(path: "agent/AGENTS.md"), encoding: .utf8)
+      #expect(instructions.contains("never say which side it is on"))
+      #expect(!instructions.contains("放在右边"))
+      #expect(!instructions.contains("it is on the right"))
+    }
+  }
+
   @Test func aCompanionCanBeNamedRenamedAndLeftUnnamedWithoutChangingItsSoul() async throws {
     try await withHost { host, place, _ in
       let soul = try await host.lociPage().soul

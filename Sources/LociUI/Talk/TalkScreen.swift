@@ -1,8 +1,8 @@
 import LociModel
 import SwiftUI
 
-/// The main conversation with Loci, where the window opens, with the panel column on its right. A link or a
-/// file dropped anywhere on it goes into the library.
+/// The main conversation with Loci, where the window opens, among lanes of panels laid out as the person left
+/// them on this Mac. A link or a file dropped anywhere on it goes into the library.
 struct TalkScreen: View {
   @Environment(\.openPage) private var openPage
   @Environment(\.peekLink) private var peekLink
@@ -14,48 +14,50 @@ struct TalkScreen: View {
   let attach: () -> Void
   let opened: (WindowState) -> Void
   let failed: (HostError) -> Void
-  /// Whether the person left the panel column showing.
+  /// Whether the person left the panels showing.
   @Binding var columnPreferred: Bool
+  @AppStorage(TalkLayout.key) private var storedLayout = Data()
   @State private var draft: PassageDraft?
   @State private var newPanel: NewPanel?
   @State private var fill: ComposerFill?
   @State private var working = false
-  @State private var fit = PaneFit.panelColumn
   /// The panel column, once the host has it; without it the conversation has the room to itself.
   @State private var panelColumn: Feed<PanelColumn>?
 
   var body: some View {
-    HStack(spacing: 0) {
+    TalkBoard(
+      layout: layout, column: column, showsPanels: columnPreferred, building: building, making: newPanel == .asking,
+      actions: actions
+    ) {
       ConversationScreen(
         ref: .main, draft: $draft, revealPassage: { if let page = Page($0.content) { openPage(page) } }, attach: attach,
         focusRequest: focusRequest, panelRequest: panelRequest
       )
-      if let column, fit.shows(columnPreferred) {
-        PanelColumnView(column: column, building: building, making: newPanel == .asking, actions: actions)
-          .frame(width: Size.panelColumn)
-          .transition(reduceMotion ? .identity : .move(edge: .trailing).combined(with: .opacity))
-      }
     }
+    .padding(.top, Size.boardTop)
+    .padding(.horizontal, Spacing.m)
+    .padding(.bottom, Spacing.s)
     .overlay(alignment: .topTrailing) {
       if column != nil {
-        let shown = fit.shows(columnPreferred)
-        PanelButton(title: .loci(shown ? "panels.hideColumn" : "panels.showColumn"), action: toggleColumn)
-          .glassEffect(shown ? .identity : .regular, in: .capsule)
-          .padding(Spacing.s)
+        HStack(spacing: Spacing.xxs) {
+          LayoutButton(layout: layout, panelsShown: $columnPreferred)
+          PanelButton(title: .loci(columnPreferred ? "panels.hideColumn" : "panels.showColumn"), action: toggleColumn)
+            .glassEffect(columnPreferred ? .identity : .regular, in: .capsule)
+        }
+        .padding(Spacing.s)
       }
-    }
-    .onGeometryChange(for: CGFloat.self) {
-      $0.size.width
-    } action: { width in
-      var next = fit
-      next.fit(width: width)
-      guard next != fit else { return }
-      withAnimation(reduceMotion ? nil : Motion.fold) { fit = next }
     }
     .onChange(of: column?.panelNames) { settle() }
     .onChange(of: working) { settle() }
     .acceptingDrops()
     .subscribing(WatchPanelColumn(), into: $panelColumn)
+  }
+
+  /// The layout this Mac keeps, as JSON in its preferences; the standard one until the person changes it.
+  private var layout: Binding<TalkLayout> {
+    Binding(
+      get: { (try? JSONDecoder().decode(TalkLayout.self, from: storedLayout)) ?? .standard },
+      set: { storedLayout = (try? JSONEncoder().encode($0)) ?? storedLayout })
   }
 
   private var column: PanelColumn? { panelColumn?.value }
@@ -66,7 +68,7 @@ struct TalkScreen: View {
   }
 
   private func toggleColumn() {
-    withAnimation(reduceMotion ? nil : Motion.fold) { columnPreferred = fit.toggle(columnPreferred) }
+    withAnimation(reduceMotion ? nil : Motion.standard) { columnPreferred.toggle() }
   }
 
   private func settle() {
@@ -99,7 +101,13 @@ struct TalkScreen: View {
       ask: ask,
       create: { newPanel = .asking },
       revise: { panel in fill = .revising(panel, serial: (fill?.serial ?? 0) + 1, locale: locale) },
-      refresh: { panel in send(RefreshPanel(panel.name)) }, moveToTop: { send(MovePanelToTop($0)) },
+      refresh: { panel in send(RefreshPanel(panel.name)) },
+      moveToTop: { slot in
+        withAnimation(reduceMotion ? nil : Motion.standard) {
+          layout.wrappedValue = layout.wrappedValue.raising(slot.key)
+        }
+        send(MovePanelToTop(slot))
+      },
       remove: { panel in send(RemovePanel(panel.name)) })
   }
 

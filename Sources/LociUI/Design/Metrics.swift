@@ -20,6 +20,8 @@ enum Radius {
   static let group: CGFloat = 12
   /// Cards and blocks inside panels. Inputs and segmented controls are capsules.
   static let card: CGFloat = 14
+  /// A lane of panels on the main page, and the conversation lifted while it moves.
+  static let lane: CGFloat = 24
   /// A message bubble and the composer.
   static let bubble: CGFloat = 20
   /// A cover in a list, and a menu's rows.
@@ -69,9 +71,9 @@ enum Size {
   /// The round buttons in the field at the foot of a conversation.
   static let composerButton: CGFloat = 32
   static let composerHeight: CGFloat = 48
-  /// The column the main conversation is read in, and the widest a message gets in it.
-  static let talkColumn: CGFloat = 512
+  /// The widest a message gets beside something read, and in the main conversation at its widest.
   static let messageWidest: CGFloat = 424
+  static let talkMessageWidest: CGFloat = 540
   /// The room between one message and the next.
   static let messageGap: CGFloat = 10
   static let problemListWidth: CGFloat = 380
@@ -136,9 +138,18 @@ enum Size {
   /// Where the field of a conversation would be, while its Mac is offline.
   static let offlineLine: CGFloat = 56
 
-  /// The column of panels beside the main conversation, and the tallest a panel is until it is opened out.
-  static let panelColumn: CGFloat = 420
-  static let panelTallest: CGFloat = 380
+  /// The tallest a panel's rows stand until it is opened out.
+  static let panelTallest: CGFloat = 300
+  /// The room over the main page's lanes, where the window's buttons and the conversation's grip sit.
+  static let boardTop: CGFloat = 52
+  /// How far above the conversation its grip sits, in the room over the lanes and below the strip that drags
+  /// the window.
+  static let gripLift: CGFloat = 22
+  /// The panels of a folded lane, opened over the page.
+  static let railSheet: CGFloat = 372
+  /// A panel's mark on a folded lane.
+  static let railMark: CGFloat = 30
+  static let railSheetTallest: CGFloat = 640
   /// A site's small round mark before a panel's title.
   static let siteMark: CGFloat = 22
   static let panelCover: CGFloat = 40

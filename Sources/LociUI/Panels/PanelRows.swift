@@ -9,7 +9,7 @@ struct PanelRows: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-        view(of: row)
+        view(of: row).panelRow()
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
