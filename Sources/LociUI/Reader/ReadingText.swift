@@ -88,7 +88,8 @@ struct MarkdownRenderer {
       let title = inline(
         heading.children,
         font: heading.level == 1 && serif
-          ? NSFont.serif(ofSize: ReadingStyle.articleTitleSize, weight: .semibold) : ReadingStyle.heading(heading.level)
+          ? NSFont.serif(ofSize: ReadingStyle.articleTitleSize, weight: .semibold)
+          : ReadingStyle.heading(heading.level, serif: serif)
       )
       headings.append(ReadingText.Heading(level: heading.level, title: title.string, offset: output.length))
       let spacing = ReadingStyle.headingSpacing(heading.level)
@@ -172,7 +173,9 @@ struct MarkdownRenderer {
     if let marker = setting.marker {
       paragraphStyle.firstLineHeadIndent = setting.indent - ReadingStyle.listIndent
       paragraphStyle.tabStops = [NSTextTab(textAlignment: .left, location: setting.indent)]
-      line.append(NSAttributedString(string: marker + "\t", attributes: attributes(font: body)))
+      var markerAttributes = attributes(font: body)
+      markerAttributes[.foregroundColor] = Tones.inkMuted
+      line.append(NSAttributedString(string: marker + "\t", attributes: markerAttributes))
     }
     line.append(text)
     line.append(NSAttributedString(string: "\n", attributes: attributes(font: body)))
@@ -235,7 +238,19 @@ struct MarkdownRenderer {
     let attachment = MermaidAttachment(image: image, source: String(line.dropLast()))
     var setting = setting
     setting.marker = nil
+    let start = output.length
     paragraph(NSAttributedString(attachment: attachment), in: setting, as: .instead(original))
+    centre(NSRange(location: start, length: output.length - start))
+  }
+
+  /// A diagram narrower than the column stands in its middle.
+  private func centre(_ shown: NSRange) {
+    guard shown.length > 0,
+      let style = output.attribute(.paragraphStyle, at: shown.location, effectiveRange: nil) as? NSParagraphStyle,
+      let centred = style.mutableCopy() as? NSMutableParagraphStyle
+    else { return }
+    centred.alignment = .center
+    output.addAttribute(.paragraphStyle, value: centred, range: shown)
   }
 
   private func codeBlock(_ code: String, language: String?, in setting: Setting) {
@@ -268,13 +283,15 @@ struct MarkdownRenderer {
   }
 
   private func table(_ table: Markdown.Table, in setting: Setting) {
-    let header = Array(table.head.cells.map { inline($0.children, font: ReadingStyle.bold(body)) })
+    let cell = NSFont(descriptor: body.fontDescriptor, size: ReadingStyle.tableSize) ?? body
+    let header = Array(
+      table.head.cells.map { inline($0.children, font: NSFont.systemFont(ofSize: cell.pointSize, weight: .semibold)) })
     guard !header.isEmpty else { return }
-    let rows = [header] + table.body.rows.map { row in row.cells.map { inline($0.children, font: body) } }
+    let rows = [header] + table.body.rows.map { row in row.cells.map { inline($0.children, font: cell) } }
     let source = rows.map { $0.map(\.string).joined(separator: "\t") }.joined(separator: "\n") + "\n"
     let original = tracker.add(NSAttributedString(string: source), as: .hidden, to: output)
     let attachment = ReaderTableAttachment(
-      rows: rows, source: String(source.dropLast()), original: original, font: body)
+      rows: rows, source: String(source.dropLast()), original: original, font: cell)
     var setting = setting
     setting.marker = nil
     paragraph(NSAttributedString(attachment: attachment), in: setting, as: .instead(original))

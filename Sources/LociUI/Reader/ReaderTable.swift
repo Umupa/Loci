@@ -41,6 +41,8 @@ final class ReaderTableContent {
   let content: NSAttributedString
   let columns: Int
   let rowStarts: [Int]
+  /// The part of the table's width each column takes.
+  let shares: [CGFloat]
 
   init(rows: [[NSAttributedString]], original: NSRange, font: NSFont) {
     self.original = original
@@ -50,33 +52,39 @@ final class ReaderTableContent {
       defer { position += row.reduce(0) { $0 + $1.length + 1 } }
       return position
     }
-    content = Self.makeTable(rows: rows, columns: columns, font: font)
+    let natural = (0..<columns).map { index in
+      rows.compactMap { $0.indices.contains(index) ? $0[index].size().width : nil }.max() ?? 0
+    }
+    let weights = natural.map { min(max($0, 40), 240) }
+    let total = weights.reduce(0, +)
+    shares = weights.map { $0 / total }
+    content = Self.makeTable(rows: rows, columns: columns, shares: shares, font: font)
   }
 
-  private static func makeTable(rows: [[NSAttributedString]], columns: Int, font: NSFont) -> NSAttributedString {
+  /// The header row sits on a tint and every row is ruled off from the next.
+  private static func makeTable(rows: [[NSAttributedString]], columns: Int, shares: [CGFloat], font: NSFont)
+    -> NSAttributedString
+  {
     let table = NSTextTable()
     table.numberOfColumns = columns
     table.layoutAlgorithm = .fixedLayoutAlgorithm
     let content = NSMutableAttributedString()
-    let weights = (0..<columns).map { index in
-      let width = rows.compactMap { $0.indices.contains(index) ? $0[index].size().width : nil }.max() ?? 0
-      return min(max(width, 52), 148)
-    }
-    let total = weights.reduce(0, +)
     for (row, cells) in rows.enumerated() {
       for (column, cell) in cells.enumerated() {
         let block = NSTextTableBlock(table: table, startingRow: row, rowSpan: 1, startingColumn: column, columnSpan: 1)
-        block.setContentWidth(weights[column] / total * 100, type: .percentageValueType)
-        if column + 1 < columns { block.setWidth(8, type: .absoluteValueType, for: .padding, edge: .maxX) }
-        block.setWidth(4, type: .absoluteValueType, for: .padding, edge: .minY)
-        block.setWidth(4, type: .absoluteValueType, for: .padding, edge: .maxY)
-        if row == 0 {
+        block.setContentWidth(shares[column] * 100, type: .percentageValueType)
+        block.setWidth(ReaderTableContent.padding.width, type: .absoluteValueType, for: .padding, edge: .minX)
+        block.setWidth(ReaderTableContent.padding.width, type: .absoluteValueType, for: .padding, edge: .maxX)
+        block.setWidth(ReaderTableContent.padding.height, type: .absoluteValueType, for: .padding, edge: .minY)
+        block.setWidth(ReaderTableContent.padding.height, type: .absoluteValueType, for: .padding, edge: .maxY)
+        if row == 0 { block.backgroundColor = Tones.fill }
+        if row + 1 < rows.count {
           block.setWidth(1, type: .absoluteValueType, for: .border, edge: .maxY)
-          block.setBorderColor(Tones.line, for: .maxY)
+          block.setBorderColor(row == 0 ? Tones.lineStrong : Tones.line, for: .maxY)
         }
         let style = NSMutableParagraphStyle()
         style.textBlocks = [block]
-        style.lineSpacing = 4
+        style.lineSpacing = 3
         let paragraph = NSMutableAttributedString(attributedString: cell)
         paragraph.append(NSAttributedString(string: "\n", attributes: [.font: font, .foregroundColor: Tones.ink]))
         paragraph.addAttribute(.paragraphStyle, value: style, range: paragraph.fullRange)
@@ -86,6 +94,19 @@ final class ReaderTableContent {
     Serif.setCJKFonts(in: content)
     return content
   }
+
+  /// Columns share the width by how much they hold, up to a bound, so a column of short labels keeps room for
+  /// them beside a column of sentences. Each cell's padding comes out of the width first.
+  static func contentWidths(shares: [CGFloat], in width: CGFloat) -> [CGFloat] {
+    let room = max(width - CGFloat(shares.count) * padding.width * 2, 0)
+    return shares.map { (room * $0).rounded(.down) }
+  }
+
+  /// Room inside each cell.
+  static let padding = CGSize(width: 12, height: 8)
+  static let radius = Radius.row
+  /// The narrowest a column gets before the table scrolls sideways instead.
+  static let minimumColumn: CGFloat = 96
 }
 
 private final class ReaderTableProvider: NSTextAttachmentViewProvider {
@@ -163,6 +184,7 @@ final class ReaderTableView: NSTextView, NSTextViewDelegate {
   weak var reader: ReaderTextView?
   private(set) var original = NSRange()
   private var rowStarts: [Int] = []
+  private var shares: [CGFloat] = []
   private var minimumWidth: CGFloat = 0
   private var measuredWidth: CGFloat = 0
   private var marked: [(note: EntityID, range: NSRange, dot: Bool)] = []
@@ -171,7 +193,8 @@ final class ReaderTableView: NSTextView, NSTextViewDelegate {
   func configure(_ table: ReaderTableContent) {
     original = table.original
     rowStarts = table.rowStarts
-    minimumWidth = CGFloat(table.columns) * 75
+    shares = table.shares
+    minimumWidth = CGFloat(table.columns) * ReaderTableContent.minimumColumn
     isEditable = false
     isSelectable = true
     isRichText = true
@@ -188,11 +211,26 @@ final class ReaderTableView: NSTextView, NSTextViewDelegate {
     delegate = self
   }
 
+  /// A rounded hairline frames the table, and the header's tint keeps inside its corners.
+  override func draw(_ dirtyRect: NSRect) {
+    let frame = NSBezierPath(
+      roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: ReaderTableContent.radius,
+      yRadius: ReaderTableContent.radius)
+    NSGraphicsContext.saveGraphicsState()
+    frame.addClip()
+    super.draw(dirtyRect)
+    NSGraphicsContext.restoreGraphicsState()
+    Tones.lineStrong.setStroke()
+    frame.lineWidth = 1
+    frame.stroke()
+  }
+
   func measure(_ viewportWidth: CGFloat) {
     guard let container = textContainer, let layoutManager else { return }
     let width = max(viewportWidth, minimumWidth)
     guard width != measuredWidth || frame.width != width else { return }
     measuredWidth = width
+    fitColumns(to: width)
     container.size = CGSize(width: width, height: .greatestFiniteMagnitude)
     layoutManager.ensureLayout(for: container)
     let used = layoutManager.usedRect(for: container)
@@ -201,6 +239,18 @@ final class ReaderTableView: NSTextView, NSTextViewDelegate {
       ? min(used.maxY, layoutManager.extraLineFragmentRect.minY) : used.maxY
     setFrameSize(CGSize(width: width, height: ceil(bottom)))
     placeDots()
+  }
+
+  private func fitColumns(to width: CGFloat) {
+    guard let textStorage, let layoutManager else { return }
+    let widths = ReaderTableContent.contentWidths(shares: shares, in: width)
+    textStorage.enumerateAttribute(.paragraphStyle, in: textStorage.fullRange) { value, _, _ in
+      guard let block = (value as? NSParagraphStyle)?.textBlocks.first as? NSTextTableBlock,
+        widths.indices.contains(block.startingColumn)
+      else { return }
+      block.setContentWidth(widths[block.startingColumn], type: .absoluteValueType)
+    }
+    layoutManager.invalidateLayout(forCharacterRange: textStorage.fullRange, actualCharacterRange: nil)
   }
 
   func rects(of range: NSRange) -> [CGRect] {

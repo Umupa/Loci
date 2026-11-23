@@ -1,14 +1,17 @@
 import AppKit
 
-/// How the reader sets text. Sizes follow `Typography`; AppKit needs fonts and paragraph styles, not SwiftUI fonts.
+/// How the reader sets text. AppKit needs fonts and paragraph styles, not SwiftUI fonts.
 enum ReadingStyle {
-  static let bodySize = Typography.readingSize
+  /// A size up from conversation text: a lesson or an article is read at length, Chinese at about 33 characters a line.
+  static let bodySize: CGFloat = 17
   static var body: NSFont { NSFont.systemFont(ofSize: bodySize) }
   static var code: NSFont { NSFont.monospacedSystemFont(ofSize: 13, weight: .regular) }
   static let lineSpacing: CGFloat = 10
   /// An article's title.
   static let articleTitleSize: CGFloat = 30
-  static let paragraphSpacing: CGFloat = 18
+  static let paragraphSpacing: CGFloat = 20
+  /// A table's cells, a step down from the text so columns fit more.
+  static let tableSize: CGFloat = 14.5
   static let itemSpacing: CGFloat = 4
   static let listIndent: CGFloat = 22
   static let quoteIndent: CGFloat = 18
@@ -16,12 +19,14 @@ enum ReadingStyle {
   /// Room above and below the column, so the first and last lines do not touch the window's edges.
   static let inset = CGSize(width: 0, height: Size.readingTop)
 
-  /// Titles and sections are set in the serif; smaller headings in the sans-serif.
-  static func heading(_ level: Int) -> NSFont {
-    switch level {
-    case 1: NSFont.serif(ofSize: 32, weight: .semibold)
-    case 2: NSFont.serif(ofSize: 20, weight: .semibold)
-    case 3: NSFont.systemFont(ofSize: 17, weight: .semibold)
+  /// Titles are set in the serif. Sections follow the text: in the serif beside serif text, in the sans-serif
+  /// beside sans-serif text, so a section heading never reads lighter than the headings under it.
+  static func heading(_ level: Int, serif: Bool) -> NSFont {
+    switch (level, serif) {
+    case (1, _): NSFont.serif(ofSize: 32, weight: .semibold)
+    case (2, true): NSFont.serif(ofSize: 21, weight: .semibold)
+    case (2, false): NSFont.systemFont(ofSize: 21, weight: .semibold)
+    case (3, _): NSFont.systemFont(ofSize: 18, weight: .semibold)
     default: NSFont.systemFont(ofSize: bodySize, weight: .semibold)
     }
   }
@@ -30,7 +35,8 @@ enum ReadingStyle {
   static func headingSpacing(_ level: Int) -> (before: CGFloat, after: CGFloat) {
     switch level {
     case 1: (paragraphSpacing, 30)
-    case 2: (22, 10)
+    case 2: (26, 12)
+    case 3: (10, 8)
     default: (6, 6)
     }
   }

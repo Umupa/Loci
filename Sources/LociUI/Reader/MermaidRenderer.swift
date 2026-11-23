@@ -68,7 +68,8 @@ final class MermaidRenderer: NSObject, WKNavigationDelegate {
   private func image(source: String, dark: Bool) async throws -> NSImage? {
     let size =
       try await webView.callAsyncJavaScript(
-        Self.draw, arguments: ["source": source, "dark": dark], contentWorld: .page) as? [Double]
+        Self.draw, arguments: ["source": source, "colours": MermaidTheme.colours(dark: dark)], contentWorld: .page)
+      as? [Double]
     guard let size, size.count == 2, size.allSatisfy({ $0.isFinite && $0 > 0 && $0 <= 12_000 }) else { return nil }
     let configuration = WKPDFConfiguration()
     configuration.rect = CGRect(x: 0, y: 0, width: size[0].rounded(.up), height: size[1].rounded(.up))
@@ -81,8 +82,30 @@ final class MermaidRenderer: NSObject, WKNavigationDelegate {
     const output = document.querySelector('main');
     output.replaceChildren();
     mermaid.initialize({
-      startOnLoad: false, securityLevel: 'strict', suppressErrorRendering: true,
-      theme: dark ? 'dark' : 'neutral', fontFamily: 'system-ui, sans-serif',
+      startOnLoad: false, securityLevel: 'strict', suppressErrorRendering: true, theme: 'base',
+      fontFamily: '-apple-system, "PingFang SC", sans-serif', fontSize: 15,
+      flowchart: { curve: 'basis', padding: 12, minNodeWidth: 0, nodeSpacing: 28, rankSpacing: 36, diagramPadding: 4 },
+      themeVariables: {
+        background: colours.canvas, fontSize: '15px',
+        primaryColor: colours.node, primaryBorderColor: colours.border, primaryTextColor: colours.ink,
+        secondaryColor: colours.group, secondaryBorderColor: colours.border, secondaryTextColor: colours.ink,
+        tertiaryColor: colours.group, tertiaryBorderColor: colours.line, tertiaryTextColor: colours.ink,
+        mainBkg: colours.node, nodeBorder: colours.border, nodeTextColor: colours.ink, textColor: colours.ink,
+        titleColor: colours.ink, lineColor: colours.muted, arrowheadColor: colours.muted,
+        clusterBkg: colours.group, clusterBorder: colours.line,
+        edgeLabelBackground: colours.canvas, labelBackground: colours.canvas,
+        actorBkg: colours.node, actorBorder: colours.border, actorTextColor: colours.ink, actorLineColor: colours.line,
+        signalColor: colours.muted, signalTextColor: colours.ink, noteBkgColor: colours.group,
+        noteBorderColor: colours.line, noteTextColor: colours.ink,
+      },
+      themeCSS: `
+        .node rect, .node polygon, .node circle, .node path { stroke-width: 1px; }
+        .node rect { rx: 7px; ry: 7px; }
+        .cluster rect { rx: 10px; ry: 10px; stroke-width: 1px; }
+        .cluster-label, .cluster-label span { color: ${colours.muted}; font-size: 13px; }
+        .flowchart-link { stroke-width: 1.25px; }
+        .edgeLabel, .edgeLabel p, .edgeLabel span { color: ${colours.muted}; font-size: 13px; }
+      `,
     });
     const { svg } = await mermaid.render('loci-diagram', source);
     output.innerHTML = svg;
@@ -93,6 +116,37 @@ final class MermaidRenderer: NSObject, WKNavigationDelegate {
     diagram.setAttribute('height', height);
     return [width, height];
     """#
+}
+
+/// The reader's colours for a diagram, as CSS colours Mermaid can mix: translucent tones are laid over the page
+/// first, since Mermaid works out shades from opaque colours.
+enum MermaidTheme {
+  @MainActor static func colours(dark: Bool) -> [String: String] {
+    var colours: [String: String] = [:]
+    let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+    appearance?.performAsCurrentDrawingAppearance {
+      let canvas = Tones.canvas
+      colours = [
+        "canvas": css(canvas, over: canvas), "node": css(Tones.surface, over: canvas),
+        "group": css(Tones.well, over: canvas), "border": css(Tones.lineStrong, over: canvas),
+        "line": css(Tones.line, over: canvas), "ink": css(Tones.ink, over: canvas),
+        "muted": css(Tones.inkMuted, over: canvas),
+      ]
+    }
+    return colours
+  }
+
+  private static func css(_ colour: NSColor, over page: NSColor) -> String {
+    guard let top = colour.usingColorSpace(.sRGB), let bottom = page.usingColorSpace(.sRGB) else { return "#888888" }
+    let alpha = top.alphaComponent
+    let channels = [
+      (top.redComponent, bottom.redComponent), (top.greenComponent, bottom.greenComponent),
+      (top.blueComponent, bottom.blueComponent),
+    ]
+    return "#"
+      + channels.map { String(format: "%02X", Int((($0.0 * alpha + $0.1 * (1 - alpha)) * 255).rounded())) }
+      .joined()
+  }
 }
 
 final class MermaidAttachment: NSTextAttachment {
