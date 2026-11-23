@@ -69,7 +69,6 @@ extension LociWork {
   /// What the line under Loci's name says: an answer the way the conversation says it (C-S1).
   var words: LocalizedStringResource {
     switch said {
-    case .unspecified: .loci("sidebar.working")
     case .doing(let doing): doing.words
     case .refreshing(let title): .loci("sidebar.refreshing \(title)")
     case .reviewing: .loci("sidebar.reviewing")
@@ -80,7 +79,7 @@ extension LociWork {
   /// What is said, without what does not change the words, such as whether the last tool has finished.
   var said: Said {
     switch self {
-    case .unspecified: .unspecified
+    case .unspecified: .doing(.working)
     case .answering(let tool): .doing(tool.map(Doing.init) ?? .thinking)
     case .refreshing(let title): .refreshing(title)
     case .reviewing: .reviewing
@@ -91,6 +90,6 @@ extension LociWork {
   enum Said: Hashable {
     case doing(Doing)
     case refreshing(String)
-    case reviewing, saving, unspecified
+    case reviewing, saving
   }
 }

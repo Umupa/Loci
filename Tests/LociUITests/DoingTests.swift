@@ -19,6 +19,20 @@ struct DoingTests {
     Doing(messages)
   }
 
+  @Test func activityLabelsStayInEnglishWhenTheAppIsInChinese() {
+    let activities: [Doing] = [
+      .thinking, .searching("raft"), .site("github.com"), .pullRequests(nil), .pullRequests("CubeSandbox"),
+      .issues(nil), .issues("CubeSandbox"), .history, .reading(nil), .reading("Pingora"), .lookingThrough,
+      .library, .saving, .writing, .tidying, .working,
+    ]
+    for var label in activities.map(\.words) + [LociWork.unspecified.words] {
+      label.locale = Locale(identifier: "en")
+      let english = String(localized: label)
+      label.locale = Locale(identifier: "zh-Hans")
+      #expect(String(localized: label) == english)
+    }
+  }
+
   @Test func beforeAnyToolLociIsThinking() {
     #expect(Self.doing() == .thinking)
     #expect(Self.doing(Self.message(.thinking("先查文档"))) == .thinking)
@@ -51,6 +65,8 @@ struct DoingTests {
   @Test func theLibraryCommandSaysWhatItDoesToTheLibrary() {
     #expect(Self.doing(Self.tool(.execute, "loci search jailer")) == .library)
     #expect(Self.doing(Self.tool(.execute, "/bin/zsh -lc 'loci save https://a.example/x'")) == .saving)
+    #expect(Self.doing(Self.tool(.execute, #""$LOCI" search jailer"#)) == .library)
+    #expect(Self.doing(Self.tool(.execute, #"/bin/zsh -lc '"$LOCI" save https://a.example/x'"#)) == .saving)
   }
 
   @Test func otherWorkSaysWhatKindOfWorkItIs() {
@@ -58,7 +74,7 @@ struct DoingTests {
     #expect(Self.doing(Self.tool(.create, "/w/workspace/a.md")) == .writing)
     #expect(Self.doing(Self.tool(.execute, "git log --oneline -20")) == .history)
     #expect(Self.doing(Self.tool(.search, "jailer", name: "grep")) == .lookingThrough)
-    #expect(Self.doing(Self.tool(.execute, "python3 check.py")) == .trying)
+    #expect(Self.doing(Self.tool(.execute, "python3 check.py")) == .working)
   }
 
   @Test func theLastThingDoneIsWhatLociIsDoingNow() {

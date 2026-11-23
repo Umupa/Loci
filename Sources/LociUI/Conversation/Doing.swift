@@ -20,7 +20,7 @@ enum Doing: Hashable {
   case lookingThrough
   case writing
   case tidying
-  case trying
+  case working
 
   /// What the last thought or tool among `messages` was about; thinking until there is one.
   init(_ messages: [Message]) {
@@ -45,7 +45,7 @@ enum Doing: Hashable {
     }
     switch tool.kind {
     case .execute:
-      self = subject.map { Self.command(Self.unwrapped($0)) } ?? .trying
+      self = subject.map { Self.command(Self.unwrapped($0)) } ?? .working
     case .search where Self.isWebSearch(tool.name):
       self = subject.map { .searching(Self.short(Self.sitesOnly($0))) } ?? .thinking
     case .search:
@@ -57,7 +57,7 @@ enum Doing: Hashable {
     case .delete:
       self = .tidying
     case .other:
-      self = .trying
+      self = .working
     }
   }
 
@@ -78,13 +78,18 @@ enum Doing: Hashable {
     case .lookingThrough: .loci("doing.lookingThrough")
     case .writing: .loci("doing.writing")
     case .tidying: .loci("doing.tidying")
-    case .trying: .loci("doing.trying")
+    case .working: .loci("doing.working")
     }
   }
 
   private static func command(_ line: String) -> Doing {
     let words = line.split(whereSeparator: \.isWhitespace).map(String.init)
-    let program = words.first.map { URL(filePath: $0).lastPathComponent }
+    let program = words.first.map { executable in
+      switch executable {
+      case "$LOCI", #""$LOCI""#: "loci"
+      default: URL(filePath: executable).lastPathComponent
+      }
+    }
     if program == "curl" || program == "wget", let site = words.lazy.compactMap(site).first {
       return .site(site)
     }
@@ -95,7 +100,7 @@ enum Doing: Hashable {
     case ("loci", "save"), ("loci", "import"), ("loci", "add"): return .saving
     case ("loci", _): return .library
     case ("rg", _), ("grep", _), ("find", _), ("fd", _), ("ls", _): return .lookingThrough
-    default: return .trying
+    default: return .working
     }
   }
 

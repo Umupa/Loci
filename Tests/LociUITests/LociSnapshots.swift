@@ -119,6 +119,7 @@ struct LociSnapshots {
       BubbleRow(speaker: .loci) { ReplyText(text: "早", streaming: false, size: 15) }
       BubbleRow(speaker: .loci) { ReplyText(text: "图画好了，挂在 Pingora 第二条划线旁边", streaming: false, size: 15) }
       DoingLine(doing: .reading("Pingora 第二条划线"))
+      DoingLine(doing: .working)
       QuickReplyChips(replies: ["好，存进去", "先不用"]) { _ in }
       LatestButton {}.padding(.leading, 40)
     }

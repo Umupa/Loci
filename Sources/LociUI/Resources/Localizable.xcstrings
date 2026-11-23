@@ -1520,13 +1520,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Looking at the issues"
+            "value": "Checking issues"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在看 issue"
+            "value": "Checking issues"
           }
         }
       }
@@ -1537,13 +1537,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Looking at recent PRs"
+            "value": "Checking pull requests"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在看最近的 PR"
+            "value": "Checking pull requests"
           }
         }
       }
@@ -1554,13 +1554,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Going through recent changes"
+            "value": "Checking changes"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在看最近的改动"
+            "value": "Checking changes"
           }
         }
       }
@@ -1571,13 +1571,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Looking at %@'s issues"
+            "value": "Checking issues in %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在看 %@ 的 issue"
+            "value": "Checking issues in %@"
           }
         }
       }
@@ -1588,13 +1588,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Looking through your library"
+            "value": "Searching the library"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在翻资料库"
+            "value": "Searching the library"
           }
         }
       }
@@ -1605,13 +1605,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Looking through files"
+            "value": "Searching files"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在翻找"
+            "value": "Searching files"
           }
         }
       }
@@ -1622,13 +1622,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Looking at %@'s recent PRs"
+            "value": "Checking PRs in %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在看 %@ 最近的 PR"
+            "value": "Checking PRs in %@"
           }
         }
       }
@@ -1639,13 +1639,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reading %@"
+            "value": "Reading “%@”"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在读 %@"
+            "value": "Reading “%@”"
           }
         }
       }
@@ -1656,13 +1656,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reading"
+            "value": "Reading a file"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在读"
+            "value": "Reading a file"
           }
         }
       }
@@ -1673,13 +1673,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Saving to your library"
+            "value": "Saving to Library"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在存进资料库"
+            "value": "Saving to Library"
           }
         }
       }
@@ -1690,13 +1690,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Searching for %@"
+            "value": "Searching for “%@”"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在搜「%@」"
+            "value": "Searching for “%@”"
           }
         }
       }
@@ -1707,13 +1707,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Looking at %@"
+            "value": "Opening %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在看 %@"
+            "value": "Opening %@"
           }
         }
       }
@@ -1724,13 +1724,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thinking"
+            "value": "Thinking it through"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在想"
+            "value": "Thinking it through"
           }
         }
       }
@@ -1741,30 +1741,30 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tidying up"
+            "value": "Removing content"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在收拾"
+            "value": "Removing content"
           }
         }
       }
     },
-    "doing.trying": {
+    "doing.working": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trying something"
+            "value": "Working"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在动手试"
+            "value": "Working"
           }
         }
       }
@@ -1775,13 +1775,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Writing notes"
+            "value": "Updating content"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在写笔记"
+            "value": "Updating content"
           }
         }
       }
@@ -8130,23 +8130,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "在收资料"
-          }
-        }
-      }
-    },
-    "sidebar.working": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Working"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在干活"
           }
         }
       }
