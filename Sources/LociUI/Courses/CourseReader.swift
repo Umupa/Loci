@@ -125,17 +125,19 @@ struct CourseReader<Conversation: View>: View {
     }
   }
 
+  private func expandPanel() {
+    withAnimation(Motion.fold) {
+      panelShown = true
+      panelFloating = true
+    }
+  }
+
   /// `content` with the course's conversation in the panel beside it, folded away where there is no room.
   @ViewBuilder private func beside(room: CGFloat, @ViewBuilder content: @escaping () -> some View) -> some View {
     let beside = PaneWidth.panel.fitsBeside(in: room)
     SidePanel(
       open: beside ? panelShown : panelFloating, beside: beside, width: min(Size.mediaPanel, room),
-      expand: {
-        withAnimation(Motion.fold) {
-          panelShown = true
-          panelFloating = true
-        }
-      }
+      expand: expandPanel
     ) {
       content()
     } panel: {

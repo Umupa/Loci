@@ -78,7 +78,6 @@ enum AtlasSamples {
     ]}
     """#
 
-
   static func shown() throws -> AtlasShown {
     let atlas = try JSONDecoder().decode(CourseAtlas.self, from: Data(json.utf8))
     let lessons = lessons.enumerated().compactMap { index, lesson -> AtlasLesson? in

@@ -123,13 +123,13 @@ public enum AtlasBlock: Hashable, Codable, Sendable {
     case .figures(let figures): try Self.count(figures, 2...5, "figures")
     case .flow(let flow):
       try Self.count(flow.steps, 2...6, "steps")
-      try flow.steps.forEach { try Self.count($0.points, 0...4, "points in a step") }
+      for step in flow.steps { try Self.count(step.points, 0...4, "points in a step") }
     case .layers(let layers):
       try Self.count(layers.columns, 2...4, "columns")
-      try layers.columns.forEach { try Self.count($0.layers, 2...6, "layers in a column") }
+      for column in layers.columns { try Self.count(column.layers, 2...6, "layers in a column") }
     case .cards(let cards):
       try Self.count(cards.cards, 1...4, "cards")
-      try cards.cards.forEach { try Self.count($0.points, 1...5, "points in a card") }
+      for card in cards.cards { try Self.count(card.points, 1...5, "points in a card") }
     case .dive(let dive):
       try Self.count(dive.steps, 2...6, "steps")
       try Self.count(dive.keep, 0...3, "things to keep")
