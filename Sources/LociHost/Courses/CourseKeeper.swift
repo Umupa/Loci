@@ -89,25 +89,18 @@ actor CourseKeeper {
       throw .notFound(lesson.description)
     }
     guard opened.body == .written else { return }
-    let (next, atlas) = try attempt {
-      try store.editCourse(id) { course in
+    let atlas = try attempt {
+      try store.editCourse(id) { course -> Course.PendingEvent? in
         let latest = try store.coursePage(id)
         guard latest.lessons.contains(where: { $0.id == lesson && $0.body == .written }) else {
-          return (nil as Lesson.ID?, nil as Course.PendingEvent?)
+          return nil
         }
         let firstRead = !course.readLessons.contains(lesson)
         try course.markLessonRead(lesson)
-        let atlas =
-          firstRead && latest.atlas != nil
-          ? course.keepEvent(.drawAtlas(lesson), id: context.environment.newID()) : nil
-        guard latest.lastWrittenLesson?.id == lesson, let next = latest.nextLessonAfterLastWritten else {
-          return (nil, atlas)
-        }
-        course.setWorkPaused(false)
-        return (next, atlas)
+        guard firstRead, latest.atlas != nil else { return nil }
+        return course.keepEvent(.drawAtlas(lesson), id: context.environment.newID())
       }
     }
-    if let next { enqueue(.event(.writeLesson(next, reason: .openedLastWritten)), for: id) }
     if let atlas { enqueue(atlas, for: id) }
     await changed(id)
   }
@@ -160,9 +153,7 @@ actor CourseKeeper {
     case .writeLesson(let lesson, let markdown):
       switch active.request {
       case .event(.writeLesson(let target, _)) where lesson == target: break
-      case .message(_, _, nil): break
-      case .message(_, _, let target) where lesson == target:
-        break
+      case .message: break
       default:
         throw .invalidRequest("write the lesson requested in this turn")
       }
@@ -318,10 +309,9 @@ actor CourseKeeper {
       var settled = false
       do {
         let page = try store.coursePage(id)
-        if shouldSend(active.request, in: page) {
+        if let (prompt, text) = context.coursePrompt(active, in: page) {
           let run = try await loci.run(of: .course(id))
           if Task.isCancelled { break }
-          let (prompt, text) = context.coursePrompt(active, in: page)
           try await run.send(prompt, saying: text)
           if Task.isCancelled { await run.stop() }
           let messages = await run.settle()
@@ -348,11 +338,6 @@ actor CourseKeeper {
     works[id] = nil
     tasks[id] = nil
     await changed(id, files: false)
-  }
-
-  private func shouldSend(_ request: CourseWork.Request, in page: CoursePage) -> Bool {
-    guard case .event(let event) = request else { return true }
-    return !event.isSatisfied(by: page)
   }
 
   private func changed(_ id: EntityID, files: Bool = true) async {

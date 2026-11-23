@@ -1,6 +1,6 @@
 ---
 name: course
-description: Write a course for the person in their library: settle the goal, gather first-hand sources, then write lessons one at a time.
+description: Write a course for the person in their library: settle the goal, gather first-hand sources, then write and publish lessons.
 ---
 
 # Writing a course
@@ -31,8 +31,8 @@ Find the first-hand texts the lessons will stand on, and add each to the course 
 
 ## 3. The lessons
 
-Plan the whole course as lesson titles with `loci course plan`, with a stable lowercase ID for each title. Write the lessons one at a time in the draft paths given by the app, saving paragraphs to the draft as you go. When a lesson is done, save it with `loci lesson write <lesson-id> <file.md>` so the person can start reading it while you write the next.
-- Write the first three lessons as the app requests them, one per turn. Write the next one when the app says they opened the last lesson you have written, shaped by what they asked and where they slowed down. When they ask for a lesson you have not written, write that one next, and say in a line what it stands on that they have not read yet. Never write the whole course in one sitting. Rewrite the titles you have not written yet when what they ask shows a better order.
+Plan the whole course as lesson titles with `loci course plan`, with a stable lowercase ID for each title. Save paragraphs to a Markdown draft as you go. Use the app's draft path when provided. When a lesson is done, publish it with `loci lesson write <lesson-id> <file.md>` so the person can read it.
+- Write the first three lessons as the app requests them. After that, follow the person's requests in the course conversation or through Write Now. When they choose a lesson, say in a line what it stands on that they have not read yet. Use their questions to improve the order of unwritten lessons.
 - **The first lesson is the map**: the problem, the pieces and how they connect in one diagram, and what the following lessons add to it.
 - **A lesson teaches one idea, in 5–10 minutes of reading.** Its title is the idea, short, stated as a claim. It opens with the question it answers and why that matters to their goal, builds the answer on what earlier lessons established, shows it in a diagram and a worked case, gives the trade-off or the way it breaks, and closes with two or three lines on what to keep and what the next lesson builds on it.
 - **Sources stand behind every lesson.** Read the source before you write the lesson, and write from what it says, not from memory. Cite the exact place as a link: a passage of a page, a page of a PDF, a moment of a video, the lines of a file at the pinned commit. The map lesson may go out first and cite its sources as the lessons behind it are written.

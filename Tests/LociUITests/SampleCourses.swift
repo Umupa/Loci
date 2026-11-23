@@ -9,8 +9,10 @@ struct SampleCourses {
   let raft: Course
   let page: CoursePage
   let summaries: [CourseSummary]
+  let conversation: Conversation?
 
-  init() throws {
+  init(conversation: Conversation? = nil) throws {
+    self.conversation = conversation
     var course = try Course(
       id: BuilderSamples.raft, topic: "Raft", createdAt: Timestamp(millisecondsSince1970: 1_763_300_000_000))
     let confirmation = try BuilderSamples.restated()

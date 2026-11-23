@@ -14,7 +14,7 @@ extension CourseScenarioTests {
     return try JSONDecoder().decode(CourseAtlas.self, from: Data(json.utf8))
   }
 
-  @Test("Opening a lesson for the first time asks Loci to add it to the atlas, after the next lesson is written")
+  @Test("Opening a lesson for the first time updates the atlas without starting the next lesson")
   func growsTheAtlas() async throws {
     try await withCourseHost { host, place, agent in
       let course = try seed(stage: .writing, in: place, id: EntityID())
@@ -27,14 +27,12 @@ extension CourseScenarioTests {
       let session = try await turn(for: course.id, on: agent)
       let access = try await tag(for: course.id, on: agent)
       guard
-        case .failed(.invalidRequest) = await answer(.atlas(try atlas(pointingAt: plan[0].id)), from: access, on: host)
+        case .failed(.invalidRequest) = await answer(
+          .writeLesson(plan[1].id, markdown: "Second text."), from: access, on: host)
       else {
-        Issue.record("The atlas was drawn in a lesson's writing turn")
+        Issue.record("Opening the lesson started a writing turn")
         return
       }
-      try await run(.writeLesson(plan[1].id, markdown: "Second text."), in: access, on: host)
-      await session.finish()
-      _ = try await turn(for: course.id, on: agent, number: 2)
       #expect(await session.prompts.last?.contains("The person opened lesson \(plan[0].id)") == true)
       let stray = await answer(.atlas(try atlas(pointingAt: #require(Lesson.ID("paxos")))), from: access, on: host)
       guard case .failed(.invalidRequest(let reason)) = stray else {
@@ -47,6 +45,7 @@ extension CourseScenarioTests {
       try await idle(course.id, on: host)
       let page = try await host.coursePage(course.id)
       #expect(page.atlas == (try atlas(pointingAt: plan[1].id)))
+      #expect(page.lessons[1].body == .unwritten)
       #expect(page.course.pendingEvents.isEmpty)
       _ = try await host.run(OpenLesson(course: course.id, lesson: plan[0].id))
       #expect(try await host.coursePage(course.id).course.pendingEvents.isEmpty)

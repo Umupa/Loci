@@ -5,15 +5,6 @@ extension CoursePage {
   var initialLessonsToWrite: [Lesson.ID] {
     Array(lessons.prefix(3)).filter { $0.body == .unwritten }.map(\.id)
   }
-
-  var lastWrittenLesson: CourseLesson? { lessons.last { $0.body == .written } }
-
-  var nextLessonAfterLastWritten: Lesson.ID? {
-    guard let last = lessons.lastIndex(where: { $0.body == .written }), lessons.indices.contains(last + 1),
-      lessons[last + 1].body == .unwritten
-    else { return nil }
-    return lessons[last + 1].id
-  }
 }
 
 extension CourseEvent {
@@ -31,6 +22,7 @@ extension CourseEvent {
       page.course.question != nil || page.course.stage != .goal || page.course.goalStatus == .ready
     case .confirmedGoal: page.course.goalStatus == .ready
     case .beganWriting: !page.lessons.isEmpty
+    case .writeLesson(_, .openedLastWritten): true
     case .writeLesson(let lesson, _): !page.lessons.contains { $0.id == lesson && $0.body != .written }
     case .beganSources: page.course.stage != .sources
     case .drawAtlas(nil): page.atlas != nil
@@ -57,9 +49,6 @@ extension CourseKeeper {
       }
     case .writing:
       for lesson in page.initialLessonsToWrite { enqueue(.event(.writeLesson(lesson, reason: .firstLessons)), for: id) }
-      if let last = page.lastWrittenLesson, last.isRead, let next = page.nextLessonAfterLastWritten {
-        enqueue(.event(.writeLesson(next, reason: .openedLastWritten)), for: id)
-      }
     case .goal, .sources: break
     }
   }

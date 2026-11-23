@@ -89,7 +89,9 @@ struct TalkRow: Identifiable {
       }
     }
     rows = Self.joiningLinks(rows)
-    if let turn, !Self.isSaying(turn, rows) {
+    if let turn, case .prompt(let prompt) = turn.messages.first?.body, prompt.showsPersonBubble,
+      !Self.isSaying(turn, rows)
+    {
       rows.append(TalkRow(id: ID(message: nil, part: 0), kind: .doing(Doing(turn.messages))))
     }
     return rows

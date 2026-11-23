@@ -3,21 +3,28 @@ import LociModel
 import LociStore
 
 extension AgentContext {
-  func coursePrompt(_ active: CourseWork.Active, in page: CoursePage) -> (Prompt, String) {
+  func coursePrompt(_ active: CourseWork.Active, in page: CoursePage) -> (Prompt, String)? {
     let course = page.course
     let prompt: Prompt
     let text: String
     switch active.request {
     case .message(let message, let saying, let lesson):
       prompt = message
+      let publishing = """
+        You can save multiple planned lessons in this turn with one `loci lesson write <lesson-id> <file.md>` per lesson.
+        Publish the requested lessons as they are ready, regardless of reading progress. Report a lesson as available
+        after it has been saved.
+
+
+        """
       if let lesson {
         let title = course.lessons.first { $0.id == lesson }?.title ?? lesson.description
-        text = "The person is reading the lesson \"\(title)\" (ID: \(lesson)).\n\n" + saying
+        text = publishing + "The person is reading the lesson \"\(title)\" (ID: \(lesson)).\n\n" + saying
       } else {
-        text = saying
+        text = publishing + saying
       }
     case .event(let event):
-      let words = event.words
+      guard !event.isSatisfied(by: page), let words = event.words else { return nil }
       let lessonTitle: String?
       if case .writeLesson(let lesson, let reason) = event {
         lessonTitle = reason == .requested ? course.lessons.first { $0.id == lesson }?.title : nil
@@ -81,7 +88,7 @@ extension CourseEvent {
     }
   }
 
-  fileprivate var words: (display: String, instruction: String) {
+  fileprivate var words: (display: String, instruction: String)? {
     switch self {
     case .started(let topic):
       (topic, "The person wants to learn: \(topic). Start the goal interview and publish the first follow-up.")
@@ -121,7 +128,7 @@ extension CourseEvent {
       case .firstLessons:
         ("Write \(lesson)", "Write the initial lesson \(lesson). Finish only this lesson in this turn.")
       case .openedLastWritten:
-        ("Continue writing", "The person opened the last written lesson. Write the next lesson, \(lesson).")
+        nil
       case .requested:
         ("Write \(lesson) now", "The person asked to write lesson \(lesson) now. Write that lesson in this turn.")
       }

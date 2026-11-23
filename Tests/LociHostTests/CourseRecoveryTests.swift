@@ -19,8 +19,8 @@ extension CourseScenarioTests {
     }
   }
 
-  @Test("Reopening schedules the missing initial lessons and the successor of the last lesson read")
-  func recoversInitialAndContinuingWork() async throws {
+  @Test("Reopening resumes the first three lessons and waits for a request to write later lessons")
+  func resumesInitialWritingOnly() async throws {
     try await withCourseHost { host, place, _ in
       let initial = try seed(stage: .writing, in: place, id: EntityID())
       let continuing = try seed(stage: .writing, in: place, id: EntityID())
@@ -38,10 +38,9 @@ extension CourseScenarioTests {
           await coursePrompt(
             on: resumed, course: initial.id,
             event: .writeLesson(initial.lessons[1].id, reason: .firstLessons)) != nil)
-        #expect(
-          await coursePrompt(
-            on: resumed, course: continuing.id,
-            event: .writeLesson(continuing.lessons[3].id, reason: .openedLastWritten)) != nil)
+        let reopened = try await resumed.coursePage(continuing.id)
+        #expect(reopened.activity == .idle)
+        #expect(reopened.lessons[3].body == .unwritten)
         let first = try await resumed.run(ReadLesson(course: initial.id, lesson: initial.lessons[0].id))
         #expect(first == "The first lesson.")
       }

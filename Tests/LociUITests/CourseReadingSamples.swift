@@ -51,9 +51,10 @@ enum ReadingSamples {
   }
 
   static func unwritten() -> ReadingShown {
-    ReadingShown(
-      course: BuilderSamples.raft, title: "Raft", lessons: rows(current: 6), sources: sources,
-      lesson: .unwritten(BuilderSamples.lessonIDs[6], title: BuilderSamples.titles[6], writing: false))
+    let next = 3
+    return ReadingShown(
+      course: BuilderSamples.raft, title: "Raft", lessons: rows(current: next, writing: nil), sources: sources,
+      lesson: .unwritten(BuilderSamples.lessonIDs[next], title: BuilderSamples.titles[next], writing: false))
   }
 }
 

@@ -1,9 +1,8 @@
 import LociModel
 import SwiftUI
 
-/// One course being read, kept current with it: it opens on its atlas when it has one; the lesson chosen is
-/// opened — which counts it read, and has Loci write the next one when it is the last written — and its text
-/// follows each rewrite.
+/// One course being read, opening on its atlas when it has one. Opening a written lesson marks it read, and
+/// its text follows each rewrite.
 struct ReadingCourse: View {
   @Environment(\.host) private var host
   @Environment(\.peekLink) private var peekLink

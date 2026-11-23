@@ -55,7 +55,28 @@ struct TalkRowsTests {
       #expect(answers == ["上一条回答", "课文写好了。"])
       let turn = LiveTurn(startedAt: background.at, messages: [background])
       #expect(TalkRow.settled(SaidSoFar([], turn: turn)).isEmpty)
+      let hold = ReplyHold(now: Date(timeIntervalSince1970: 3601), wait: .seconds(1))
+      #expect(TalkRow.live(turn, hold: hold).isEmpty)
     }
+  }
+
+  @Test func automaticAtlasUpdatesDoNotShowAnActivityLine() throws {
+    let lesson = try #require(Lesson.ID("raft-map"))
+    for target in [nil, lesson] {
+      let background = Self.message(10, .prompt(Prompt(text: "Draw atlas", purpose: .course(.drawAtlas(target)))))
+      let turn = LiveTurn(startedAt: background.at, messages: [background])
+      let hold = ReplyHold(now: Date(timeIntervalSince1970: 10), wait: .seconds(1))
+      #expect(TalkRow.live(turn, hold: hold).isEmpty)
+    }
+  }
+
+  @Test func askingToWriteALessonNowShowsAnActivityLine() throws {
+    let lesson = try #require(Lesson.ID("raft-map"))
+    let request = Self.message(
+      10, .prompt(Prompt(text: "Write now", purpose: .course(.writeLesson(lesson, reason: .requested)))))
+    let turn = LiveTurn(startedAt: request.at, messages: [request])
+    let hold = ReplyHold(now: Date(timeIntervalSince1970: 10), wait: .seconds(1))
+    #expect(Self.kinds(TalkRow.live(turn, hold: hold)) == ["doing thinking"])
   }
 
   @Test func aNewSittingAfterAnHourIsHeadedByItsTime() {

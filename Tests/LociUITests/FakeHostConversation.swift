@@ -12,7 +12,9 @@ extension FakeHost {
     case .main:
       if let library { return library.mainConversation(working: working) }
       return (try? sample.chat()) ?? empty
-    case .course: return empty
+    case .course:
+      if let supplied = courses?.conversation, supplied.ref == conversation { return supplied }
+      return empty
     case .item(let item):
       if let library { return (try? library.conversation(on: item)) ?? empty }
       return item == sample.borg.id ? (try? sample.conversation()) ?? empty : empty

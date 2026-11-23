@@ -66,4 +66,24 @@ struct LessonPageSnapshots {
       })
     #expect(try Data(contentsOf: file).count > 20_000)
   }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func readingWhileTheNextLessonIsWritten(appearance: Snapshot.Appearance) async throws {
+    let shown = ReadingSamples.first(nextWriting: true)
+    let lesson = try #require(shown.lessons.first { $0.mark == .writing }?.id)
+    let at = Timestamp(millisecondsSince1970: 1_763_340_100_000)
+    let prompt = Prompt(text: "Write \(lesson)", purpose: .course(.writeLesson(lesson, reason: .firstLessons)))
+    let turn = LiveTurn(startedAt: at, messages: [Message(id: EntityID(), at: at, body: .prompt(prompt))])
+    let conversation = Conversation(ref: .course(shown.course), entries: [], turn: turn)
+    let view = CourseReader(shown: shown, actions: ReadingActions()) {
+      EmptyView()
+    }
+    .defaultAppStorage(LibrarySnapshots.defaults(panel: true))
+    .environment(\.standIns, StandIns())
+    .lociHost(FakeHost(try Sample(problems: false), courses: try SampleCourses(conversation: conversation)))
+    let file = try await Snapshot.render(
+      view, named: "course-reader-auto-writing", size: CourseSnapshots.wide, appearance: appearance,
+      settle: .milliseconds(700))
+    #expect(try Data(contentsOf: file).count > 20_000)
+  }
 }

@@ -12,6 +12,8 @@ public enum CourseEvent: Hashable, Codable, Sendable {
   case drawAtlas(Lesson.ID?)
 
   public enum WriteReason: String, Hashable, Codable, Sendable {
-    case firstLessons, openedLastWritten, requested
+    case firstLessons, requested
+    /// Retained for reading course turns stored by earlier versions.
+    case openedLastWritten
   }
 }

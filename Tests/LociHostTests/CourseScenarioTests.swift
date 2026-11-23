@@ -121,27 +121,28 @@ struct CourseScenarioTests {
     }
   }
 
-  @Test("Reading the last written lesson queues one successor and now-write takes the next turn")
-  func opensAndWrites() async throws {
+  @Test("Reading the last written lesson leaves the next one unwritten until Write Now")
+  func continuesOnlyOnRequest() async throws {
     try await withCourseHost { host, place, agent in
       let course = try seed(stage: .writing, in: place, id: EntityID())
       let plan = course.lessons
-      try place.store.writeLesson("First text.", in: course.id, lesson: plan[0].id)
-      _ = try await host.run(OpenLesson(course: course.id, lesson: plan[0].id))
+      for lesson in plan.prefix(3) {
+        try place.store.writeLesson("A lesson.", in: course.id, lesson: lesson.id)
+      }
+      _ = try await host.run(OpenLesson(course: course.id, lesson: plan[2].id))
+      _ = try await host.run(OpenLesson(course: course.id, lesson: plan[3].id))
+      let opened = try await host.coursePage(course.id)
+      try #require(opened.activity == .idle)
+      #expect(opened.course.readLessons == [plan[2].id])
+      #expect(opened.lessons[3].body == .unwritten)
+
+      _ = try await host.run(WriteLessonNow(course: course.id, lesson: plan[3].id))
       let session = try await turn(for: course.id, on: agent)
       let access = try await tag(for: course.id, on: agent)
-      let updated = Array(plan.dropFirst())
-      guard case .failed(.invalidRequest) = await answer(.plan(updated), from: access, on: host) else {
+      guard case .failed(.invalidRequest) = await answer(.plan(Array(plan.dropFirst())), from: access, on: host) else {
         Issue.record("The new plan removed a lesson written to disk")
         return
       }
-      _ = try await host.run(OpenLesson(course: course.id, lesson: plan[0].id))
-      _ = try await host.run(OpenLesson(course: course.id, lesson: plan[3].id))
-      _ = try await host.run(WriteLessonNow(course: course.id, lesson: plan[3].id))
-      #expect(try await host.coursePage(course.id).course.readLessons == [plan[0].id])
-      try await run(.writeLesson(plan[1].id, markdown: "Second text."), in: access, on: host)
-      await session.finish()
-      _ = try await turn(for: course.id, on: agent, number: 2)
       let pending = try await host.conversation(.course(course.id)).turn?.messages.first
       guard case .prompt(let prompt) = pending?.body else {
         Issue.record("The writing request did not start a course turn")
@@ -155,7 +156,42 @@ struct CourseScenarioTests {
       try await run(.writeLesson(plan[3].id, markdown: "Fourth text."), in: access, on: host)
       await session.finish()
       try await idle(course.id, on: host)
-      #expect(await session.prompts.count == 2)
+      #expect(
+        try await host.coursePage(course.id).lessons.map(\.body) == [
+          .written, .written, .written, .written, .unwritten,
+        ])
+      #expect(await session.prompts.count == 1)
+    }
+  }
+
+  @Test("A request from the reading page can publish multiple lessons while the latest written lesson is unread")
+  func publishesSeveralLessons() async throws {
+    try await withCourseHost { host, place, agent in
+      let course = try seed(stage: .writing, in: place, id: EntityID())
+      let plan = course.lessons
+      for lesson in plan.prefix(3) {
+        try place.store.writeLesson("A lesson.", in: course.id, lesson: lesson.id)
+      }
+      let reading = plan[0].id
+      _ = try await host.run(OpenLesson(course: course.id, lesson: reading))
+      _ = try await host.run(SendMessage(to: .course(course.id), text: "How far along is the course?", lesson: reading))
+      let session = try await turn(for: course.id, on: agent)
+      let access = try await tag(for: course.id, on: agent)
+      await session.finish()
+      try await idle(course.id, on: host)
+
+      _ = try await host.run(SendMessage(to: .course(course.id), text: "Publish the remaining lessons.", lesson: reading))
+      _ = try await turn(for: course.id, on: agent, number: 2)
+      for lesson in plan.dropFirst(3) {
+        let markdown = "A lesson about \(lesson.title)."
+        try await run(.writeLesson(lesson.id, markdown: markdown), in: access, on: host)
+        #expect(try await host.run(ReadLesson(course: course.id, lesson: lesson.id)) == markdown)
+      }
+      let published = await value(host.subscribe(WatchCourse(course.id))) { $0.lessons.allSatisfy { $0.body == .written } }
+      #expect(published?.course.readLessons == [reading])
+      #expect(await session.prompts.last?.contains("save multiple planned lessons in this turn") == true)
+      await session.finish()
+      try await idle(course.id, on: host)
     }
   }
 
@@ -280,6 +316,9 @@ struct CourseScenarioTests {
       let progress = remote.subscribe(WatchCourse(course.id))
       let reading = remote.subscribe(WatchLesson(course: course.id, lesson: second.id))
       _ = try await remote.run(OpenLesson(course: course.id, lesson: first.id))
+      let opened = try #require(await value(progress) { $0.course.readLessons == [first.id] })
+      try #require(opened.activity == .idle)
+      _ = try await remote.run(WriteLessonNow(course: course.id, lesson: second.id))
       let live = await value(remote.subscribe(OneConversation(.course(course.id)))) {
         $0.turn?.messages.contains { if case .reply("Working") = $0.body { true } else { false } } == true
       }
