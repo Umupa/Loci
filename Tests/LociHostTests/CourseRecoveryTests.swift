@@ -139,7 +139,7 @@ extension CourseScenarioTests {
   }
 
   private func coursePrompt(on host: LocalHost, course: EntityID, event: CourseEvent) async -> Conversation? {
-    await value(host.subscribe(OneConversation(.course(course))), within: .seconds(2)) {
+    await value(host.subscribe(OneConversation(.course(course)))) {
       $0.turn?.messages.contains {
         if case .prompt(let prompt) = $0.body { return prompt.purpose == .course(event) }
         return false

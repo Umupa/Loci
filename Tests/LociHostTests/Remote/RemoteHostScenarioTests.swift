@@ -167,7 +167,7 @@ struct RemoteHostScenarioTests {
   /// R-S6: bytes go on their own connection (after the invite and the control connection), so a large
   /// reply does not hold up the conversation.
   @Test func bytesAndCommandsTravelOnSeparateConnections() async throws {
-    try await TwoMacs.with { macs in
+    try await TwoMacs.with(setting: TwoMacs.Setting(clock: ManualClock())) { macs in
       try await macs.pair()
       let remote = macs.laptop.service.open(macs.studio.machine.id)
       let item = try await remote.run(AddTextItem(fileName: "cfs.md", text: "# CFS"))
@@ -176,7 +176,8 @@ struct RemoteHostScenarioTests {
       for _ in 0..<5 { _ = try await remote.run(ListItems()) }
       _ = await image
 
-      #expect(await macs.relay.clientDials(to: macs.studio.key.routeToken) == 3)
+      let dials = await macs.relay.clientDials(to: macs.studio.key.routeToken)
+      #expect(dials == 3)
     }
   }
 }
