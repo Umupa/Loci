@@ -105,51 +105,6 @@ import Testing
     #expect(podcast.byline == "1:12:03 · Latent Space")
   }
 
-  @Test func aYouTubeWatchPageOffersToDownloadTheVideo() throws {
-    #expect(offer("https://www.youtube.com/watch?v=abc") == .video)
-    #expect(offer("https://www.bilibili.com/video/BV1xx411c7mD") == .video)
-  }
-
-  @Test func aChannelPageOffersTheVideosOnIt() throws {
-    let videos = (1...3).map {
-      FoundVideo(url: URL(string: "https://youtube.com/watch?v=\($0)")!, title: "v\($0)", thumbnail: nil, duration: nil)
-    }
-    #expect(offer("https://www.youtube.com/@cncf/videos", PageFacts(videos: videos)) == .videos(videos))
-  }
-
-  /// L-S15: picking a few videos from a long channel starts from none rather than unchecking the rest.
-  @Test func theSwitchChecksEveryVideoOrClearsThemAll() throws {
-    let videos = (1...3).map {
-      FoundVideo(url: URL(string: "https://youtube.com/watch?v=\($0)")!, title: "v\($0)", thumbnail: nil, duration: nil)
-    }
-    let all = Set(videos.map(\.url))
-
-    #expect(VideoPicker.toggledAll(all, of: videos).isEmpty)
-    #expect(VideoPicker.toggledAll([videos[0].url], of: videos) == all)
-    #expect(VideoPicker.toggledAll([], of: videos) == all)
-  }
-
-  @Test func episodesPapersPDFsAndArticlesOfferToBeAdded() {
-    #expect(offer("https://www.xiaoyuzhoufm.com/episode/123") == .add)
-    #expect(offer("https://arxiv.org/abs/1706.03762") == .add)
-    #expect(offer("https://example.com/download", PageFacts(isPDF: true)) == .add)
-    #expect(offer("https://example.com/post", PageFacts(hasArticle: true)) == .add)
-  }
-
-  @Test func aPageThatIsNoneOfTheseOffersNothing() {
-    #expect(offer("https://example.com/") == nil)
-  }
-
-  @Test func aPageAlreadyInTheLibraryOffersToShowIt() {
-    #expect(offer("https://youtube.com/watch?v=O_zcc6XI12g&si=share") == .inLibrary(video.id))
-    #expect(offer("https://blog.cloudflare.com/pingora#intro", PageFacts(hasArticle: true)) == .inLibrary(article.id))
-  }
-
-  private func offer(_ address: String, _ facts: PageFacts = PageFacts()) -> PageOffer? {
-    guard let url = URL(string: address) else { return nil }
-    return PageOffer(at: url, facts: facts, library: [video, article, podcast])
-  }
-
   private func state(at seconds: Int, updated: Int) throws -> ReadingState {
     ReadingState(
       position: .item(video.id, .time(try TimeSpan(start: .seconds(seconds)))), finished: false,

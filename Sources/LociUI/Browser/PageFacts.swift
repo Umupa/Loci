@@ -32,37 +32,6 @@ struct FoundPaper: Hashable, Identifiable {
   var id: URL { url }
 }
 
-/// The button beside the address bar: what the page in front can become in the library.
-enum PageOffer: Equatable {
-  /// The page is already an item.
-  case inLibrary(EntityID)
-  /// The page is one video; it goes into the library at once.
-  case video
-  /// The page lists videos; the reader picks which.
-  case videos([FoundVideo])
-  /// An episode, a paper or PDF, or an article.
-  case add
-
-  /// `nil` when the page is none of these, and the button is not shown.
-  init?(at url: URL, facts: PageFacts, library: [Item]) {
-    let address = PageAddress(url)
-    if let item = library.first(where: { $0.source.map(PageAddress.init) == address }) {
-      self = .inLibrary(item.id)
-      return
-    }
-    let kind = LinkKind(url)
-    if kind == .video {
-      self = .video
-    } else if facts.videos.count > 1 {
-      self = .videos(facts.videos)
-    } else if kind == .audio || kind == .paper || facts.isPDF || facts.hasArticle {
-      self = .add
-    } else {
-      return nil
-    }
-  }
-}
-
 /// An address with what does not change the page taken off: `www.`, a trailing slash, the fragment and
 /// tracking parameters. Two addresses of the same page compare equal.
 struct PageAddress: Hashable {

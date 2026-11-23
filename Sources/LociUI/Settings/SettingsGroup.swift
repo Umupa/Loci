@@ -95,11 +95,11 @@ struct PushStyle: ButtonStyle {
       .foregroundStyle(isEnabled ? Palette.ink : Palette.inkFaint)
       .padding(.horizontal, 11)
       .frame(height: 22)
-      .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Palette.thumb))
+      .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(isEnabled ? Palette.thumb : Palette.fill))
       .overlay {
         RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline)
       }
-      .shadow(color: .black.opacity(0.1), radius: 1, y: 1)
+      .shadow(color: .black.opacity(isEnabled ? 0.1 : 0), radius: 1, y: 1)
       .scaleEffect(configuration.isPressed ? Motion.pressScale : 1)
       .animation(Motion.quick, value: configuration.isPressed)
   }

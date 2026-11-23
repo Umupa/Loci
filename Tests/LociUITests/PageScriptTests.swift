@@ -83,6 +83,22 @@ struct PageScriptTests {
     #expect(facts.videos.isEmpty)
   }
 
+  /// A hand-written page such as raft.github.io keeps its text straight in the body, with no article around it.
+  @Test func aLongBodyOfTextWithNoArticleAroundItStillReportsAnArticle() async throws {
+    let paragraph = "<p>" + String(repeating: "Raft is a consensus algorithm. ", count: 20) + "</p>"
+    let facts = try await Self.facts(
+      of: "<html><body><h1>Raft</h1>\(String(repeating: paragraph, count: 4))</body></html>",
+      at: "https://raft.github.io/")
+    #expect(facts.hasArticle)
+  }
+
+  @Test func aPageOfShortLinesIsNoArticle() async throws {
+    let line = "<p>Sign in to continue.</p>"
+    let facts = try await Self.facts(
+      of: "<html><body>\(String(repeating: line, count: 10))</body></html>", at: "https://example.com/")
+    #expect(!facts.hasArticle)
+  }
+
   /// H-S7: papers and PDFs a page links to are reported once each, named by their link, and the page's own
   /// address is not.
   @Test func aPageReportsThePapersItLinksTo() async throws {

@@ -53,8 +53,7 @@ struct GeneralSettingsPage: View {
               Text(.loci("browser.useSignIns \(browser.name)"))
             }
             .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.small)
+            .toggleStyle(AmberSwitch(small: true))
           }
         }
       }

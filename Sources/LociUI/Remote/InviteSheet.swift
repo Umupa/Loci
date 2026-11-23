@@ -51,7 +51,7 @@ struct InviteSheet: View {
         } label: {
           Text(.loci("remote.done"))
         }
-        .buttonStyle(SheetButtonStyle(prominent: true))
+        .buttonStyle(AmberButtonStyle())
       }
     }
     .remoteSheet(close: { go(nil) })

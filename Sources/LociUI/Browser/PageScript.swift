@@ -59,7 +59,8 @@ enum PageScript {
     }
     """#
 
-  /// Text this long or longer in one block reads as an article; Chinese and Japanese say more per character.
+  /// Text this long or longer in one block, or in the body of a page with no block, reads as an article; Chinese
+  /// and Japanese say more per character.
   static let source = #"""
     (() => {
       if (window.__lociWatching) return;
@@ -147,7 +148,8 @@ enum PageScript {
           papers.set(key, { url: key, title });
           if (papers.size >= 30) break;
         }
-        const blocks = [...document.querySelectorAll('article, main, [role=main], .post-content, .entry-content, #content')];
+        const framed = [...document.querySelectorAll('article, main, [role=main], .post-content, .entry-content, #content')];
+        const blocks = framed.length ? framed : [document.body];
         const longest = Math.max(0, ...blocks.map((b) => [...b.querySelectorAll('p')].map(textOf).join('').length));
         const cjk = /[぀-ヿ㐀-鿿]/.test(document.title + textOf(document.querySelector('p')));
         window.webkit.messageHandlers.loci.postMessage({

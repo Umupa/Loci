@@ -175,7 +175,7 @@ private struct Radio: View {
       ZStack {
         if on {
           Circle().fill(Palette.accent)
-          Circle().fill(.white).frame(width: 6, height: 6)
+          Circle().fill(Palette.onAccent).frame(width: 6, height: 6)
         } else {
           Circle().fill(Palette.thumb)
           Circle().strokeBorder(Palette.lineStrong, lineWidth: 1)

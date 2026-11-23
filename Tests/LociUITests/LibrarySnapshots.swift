@@ -266,7 +266,7 @@ struct LibrarySnapshots {
     try await Self.shoot("browser-start", try SampleLibrary(), at: WindowState(place: .browser), appearance: appearance)
   }
 
-  /// L-S15: a channel page offers its videos, picked in a list.
+  /// H-S7: a channel page offers its videos, picked in the list under the library button.
   @Test(arguments: Snapshot.Appearance.allCases)
   func browserChannel(appearance: Snapshot.Appearance) async throws {
     let browser = BrowserSession()
@@ -288,7 +288,7 @@ struct LibrarySnapshots {
         }))
     try await Self.shoot(
       "browser-video", try SampleLibrary(), at: WindowState(place: .browser), appearance: appearance,
-      standIns: StandIns(webPage: Self.webPage("video", appearance), videoPickerOpen: true), browser: browser)
+      standIns: StandIns(webPage: Self.webPage("video", appearance), keepListOpen: true), browser: browser)
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)

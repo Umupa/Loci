@@ -82,6 +82,22 @@ import Testing
     #expect(finds.all.count == 1)
   }
 
+  @Test func episodesPapersAndPDFsAreThemselvesThePageToKeep() throws {
+    for address in ["https://www.xiaoyuzhoufm.com/episode/123", "https://arxiv.org/abs/1706.03762"] {
+      #expect(finds(address, PageFacts(), library: [])?.click == .keepPage)
+    }
+    #expect(finds("https://example.com/download", PageFacts(isPDF: true), library: [])?.click == .keepPage)
+  }
+
+  /// A long channel: one switch checks every row left, or clears them all once all are checked.
+  @Test func theSwitchChecksEveryRowLeftOrClearsThemAll() throws {
+    let finds = try #require(finds("https://www.youtube.com/@cncf/videos", PageFacts(videos: Self.talks), library: []))
+    let all = Set(finds.left.map(\.url))
+    #expect(KeepList.toggled([], of: finds) == all)
+    #expect(KeepList.toggled([Self.talks[0].url], of: finds).isEmpty)
+    #expect(KeepList.toggled(all, of: finds).isEmpty)
+  }
+
   @Test func aPageWithNothingToKeepHasNoButton() {
     #expect(finds("https://example.com/", PageFacts(), library: []) == nil)
   }

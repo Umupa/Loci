@@ -38,10 +38,11 @@ enum Palette {
   static let fill = Color(nsColor: Tones.fill)
   /// The track of a segmented control, and behind a button under the pointer.
   static let fillStrong = Color(nsColor: Tones.fillStrong)
-  /// Amber, for fills and marks. Use `accentInk` when amber is the color of text.
+  /// Amber, for marks and controls: progress, highlights, where you are, and the face of a button, a switch or a
+  /// choice that is on. Use `accentInk` when amber is the color of text.
   static let accent = Color(nsColor: Tones.accent)
   static let accentInk = Color(nsColor: Tones.accentInk)
-  /// Text on an amber fill.
+  /// Words and glyphs on an amber fill, such as a button's.
   static let onAccent = Color(nsColor: Tones.onAccent)
   /// Loci's messages, and the person's, a shade apart.
   static let bubble = Color(nsColor: Tones.bubble)

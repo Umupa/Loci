@@ -68,18 +68,18 @@ struct GlassMenu<ID: Hashable>: View {
         if let symbol = item.symbol {
           Image(systemName: symbol)
             .font(.system(size: 13))
-            .foregroundStyle(lit ? Palette.onAccent : item.enabled ? Palette.inkMuted : Palette.inkFaint)
+            .foregroundStyle(item.enabled ? Palette.inkMuted : Palette.inkFaint)
             .frame(width: 16)
         }
         item.title.lineLimit(1)
         Spacer(minLength: 0)
       }
       .font(Typography.body)
-      .foregroundStyle(lit ? Palette.onAccent : item.enabled ? Palette.ink : Palette.inkFaint)
+      .foregroundStyle(item.enabled ? Palette.ink : Palette.inkFaint)
       .padding(.leading, 6)
       .padding(.trailing, Spacing.xs)
       .frame(height: 26)
-      .background(RoundedRectangle(cornerRadius: Radius.thumbnail).fill(lit ? Palette.accent : .clear))
+      .background(RoundedRectangle(cornerRadius: Radius.thumbnail).fill(lit ? Palette.fillStrong : .clear))
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)

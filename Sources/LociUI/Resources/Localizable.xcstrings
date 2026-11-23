@@ -392,23 +392,6 @@
         }
       }
     },
-    "browser.add": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add to Library"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "加入资料库"
-          }
-        }
-      }
-    },
     "browser.address": {
       "extractionState": "manual",
       "localizations": {
@@ -473,40 +456,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "不用"
-          }
-        }
-      }
-    },
-    "browser.downloadSome": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Download"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下载"
-          }
-        }
-      }
-    },
-    "browser.downloadVideo": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Download Video"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下载视频"
           }
         }
       }
@@ -630,23 +579,6 @@
         }
       }
     },
-    "browser.showInLibrary": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show in Library"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在资料库中查看"
-          }
-        }
-      }
-    },
     "browser.useSignIns %@": {
       "extractionState": "manual",
       "localizations": {
@@ -660,23 +592,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "使用 %@ 的登录"
-          }
-        }
-      }
-    },
-    "browser.videos": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "videos"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "个"
           }
         }
       }

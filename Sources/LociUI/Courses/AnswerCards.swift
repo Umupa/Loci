@@ -122,15 +122,9 @@ struct AnswerCards: View {
         pick(ticked.sorted())
       } label: {
         Text(.loci("course.answerContinue"))
-          .font(.system(size: 13.5, weight: .semibold))
-          .foregroundStyle(Palette.onAccent)
-          .padding(.horizontal, 18).padding(.vertical, 9)
-          .background(Capsule().fill(Palette.accent))
       }
-      .buttonStyle(AnswerPress(scale: 0.95))
+      .buttonStyle(AmberButtonStyle(large: true))
       .disabled(ticked.isEmpty)
-      .opacity(ticked.isEmpty ? 0.45 : 1)
-      .animation(Motion.quick, value: ticked.isEmpty)
     }
     .padding(.leading, 14)
     .opacity(chosen.isEmpty ? 1 : 0.25)
@@ -151,7 +145,7 @@ struct AnswerCards: View {
           .padding(.horizontal, 15).padding(.vertical, 10)
           .overlay {
             Capsule().strokeBorder(
-              index == 0 ? Palette.accent.opacity(0.55) : Palette.inkFaint.opacity(0.6),
+              index == 0 ? Palette.accent.opacity(0.7) : Palette.inkFaint.opacity(0.6),
               lineWidth: index == 0 ? 1 : Size.hairline)
           }
           .contentShape(Capsule())
@@ -175,7 +169,7 @@ private struct AnswerCard: View {
     HStack(alignment: .top, spacing: 11) {
       Circle()
         .strokeBorder(recommended ? Palette.accent : Palette.inkFaint, lineWidth: 1.2)
-        .overlay { if recommended { Circle().fill(Palette.accent.opacity(0.55)).padding(4.5) } }
+        .overlay { if recommended { Circle().fill(Palette.accent).padding(4.5) } }
         .frame(width: 16, height: 16)
         .padding(.top, 1)
       VStack(alignment: .leading, spacing: 2) {
@@ -192,7 +186,7 @@ private struct AnswerCard: View {
     .background(shape.fill(hovering ? Palette.fillStrong : Palette.bubble))
     .overlay {
       shape.strokeBorder(
-        recommended ? Palette.accent.opacity(0.6) : Palette.lineStrong, lineWidth: recommended ? 1 : Size.hairline)
+        recommended ? Palette.accentLine : Palette.lineStrong, lineWidth: recommended ? 1 : Size.hairline)
     }
     .contentShape(shape)
     .offset(x: hovering ? -2 : 0)
@@ -201,7 +195,7 @@ private struct AnswerCard: View {
   }
 }
 
-/// A box to tick in a capsule; ticked, it fills amber and the capsule takes an amber wash.
+/// A box to tick in a capsule; ticked, it fills with ink and the capsule takes a gray wash.
 private struct TickChip: View {
   let title: String
   let ticked: Bool
@@ -226,7 +220,7 @@ private struct TickChip: View {
     .background(Capsule().fill(ticked ? Palette.tint : Palette.bubble))
     .overlay {
       Capsule().strokeBorder(
-        ticked ? Palette.accent.opacity(0.55) : Palette.lineStrong, lineWidth: ticked ? 1 : Size.hairline)
+        ticked ? Palette.accentLine : Palette.lineStrong, lineWidth: ticked ? 1 : Size.hairline)
     }
     .contentShape(Capsule())
     .animation(Motion.quick, value: ticked)

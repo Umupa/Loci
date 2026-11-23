@@ -64,7 +64,7 @@ struct RoundIconButton: View {
   let title: LocalizedStringResource
   var size: CGFloat = Size.controlButton
   var symbolSize: CGFloat = 17
-  /// Shows what it opens is open: amber on an amber wash.
+  /// Shows what it opens is open: a dark glyph on an amber circle.
   var on = false
   let action: () -> Void
   @State private var hovering = false
@@ -73,10 +73,10 @@ struct RoundIconButton: View {
     Button(action: action) {
       Image(systemName: symbol)
         .font(.system(size: symbolSize, weight: .regular))
-        .foregroundStyle(on ? Palette.accentInk : Palette.ink)
+        .foregroundStyle(on ? Palette.onAccent : Palette.ink)
         .environment(\.locale, Locale(identifier: "en"))
         .frame(width: size, height: size)
-        .background(Circle().fill(on ? Palette.tint : hovering ? Palette.fillStrong : .clear))
+        .background(Circle().fill(on ? Palette.accent : hovering ? Palette.fillStrong : .clear))
         .contentShape(Circle())
     }
     .buttonStyle(PressStyle())

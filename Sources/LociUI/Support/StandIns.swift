@@ -10,11 +10,9 @@ struct StandIns {
   var overlayPage: URL?
   /// What the page open over the conversation reports about itself.
   var overlayFacts: PageFacts?
-  /// The list under the page's library button is open.
+  /// The list under the library button, over a page or beside the browser's address, is open.
   var keepListOpen = false
   var moment: MediaMoment?
-  /// The list of a page's videos is open.
-  var videoPickerOpen = false
   /// The pointer rests on the sidebar's foot, or on the first Mac in settings' list.
   var pointerOnMachineFoot = false
   var pointerOnFirstPairedMac = false

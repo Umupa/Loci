@@ -35,17 +35,16 @@ public struct StartupProblemView: View {
         } label: {
           Text(.loci("startup.quit"))
         }
+        .buttonStyle(QuietButtonStyle(large: true))
         if canRebuild {
           Button(action: rebuild) { Text(.loci("startup.rebuild")) }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(AmberButtonStyle(large: true))
         }
       }
-      .controlSize(.large)
     }
     .padding(Spacing.xxl)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Palette.canvas)
-    .tint(Palette.accent)
     .help(Text(verbatim: detail))
   }
 

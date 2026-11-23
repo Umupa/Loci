@@ -136,15 +136,15 @@ struct OnlyKeyPointsPill: View {
       HStack(spacing: 6) {
         Image(systemName: Symbols.keyPoints)
           .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(on ? Palette.accent : Palette.inkMuted)
+          .foregroundStyle(on ? Palette.onAccent : Palette.inkMuted)
         if !compact { Text(.loci("keypoints.only")) }
       }
       .font(.system(size: 12, weight: .semibold))
-      .foregroundStyle(on ? Palette.accentInk : Palette.inkMuted)
+      .foregroundStyle(on ? Palette.onAccent : Palette.inkMuted)
       .padding(.horizontal, 10)
       .frame(height: 26)
-      .background(Capsule().fill(on ? Palette.tint : hovering ? Palette.fill : .clear))
-      .overlay(Capsule().strokeBorder(on ? Palette.accent.opacity(0.45) : Palette.lineStrong, lineWidth: 1))
+      .background(Capsule().fill(on ? Palette.accent : hovering ? Palette.fill : .clear))
+      .overlay(Capsule().strokeBorder(on ? .clear : Palette.lineStrong, lineWidth: 1))
       .contentShape(Capsule())
       .fixedSize()
     }
@@ -239,7 +239,7 @@ private struct SubtitleMenu: View {
   }
 }
 
-/// A row of a small menu: a check when on, amber under the pointer.
+/// A row of a small menu: a check when on, a gray wash under the pointer.
 private struct MenuEntry: View {
   let title: LocalizedStringResource
   let on: Bool
@@ -249,16 +249,14 @@ private struct MenuEntry: View {
   var body: some View {
     Button(action: choose) {
       HStack(spacing: Spacing.xs) {
-        Text(verbatim: on ? "✓" : "").font(.system(size: 12)).foregroundStyle(
-          hovering ? Palette.onAccent : Palette.accent
-        )
+        Text(verbatim: on ? "✓" : "").font(.system(size: 12)).foregroundStyle(Palette.ink)
         .frame(width: 12)
-        Text(title).font(.system(size: 13)).foregroundStyle(hovering ? Palette.onAccent : Palette.ink)
+        Text(title).font(.system(size: 13)).foregroundStyle(Palette.ink)
         Spacer(minLength: 0)
       }
       .padding(.horizontal, Spacing.xs)
       .frame(height: 26)
-      .background(RoundedRectangle(cornerRadius: Radius.thumbnail).fill(hovering ? Palette.accent : .clear))
+      .background(RoundedRectangle(cornerRadius: Radius.thumbnail).fill(hovering ? Palette.fillStrong : .clear))
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)

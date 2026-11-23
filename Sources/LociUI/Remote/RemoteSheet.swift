@@ -40,41 +40,6 @@ struct SheetTitle: View {
   }
 }
 
-/// The capsule buttons along the foot of a `RemoteSheet`: amber for the answer it asks for, a gray wash
-/// for the rest.
-struct SheetButtonStyle: ButtonStyle {
-  var prominent = false
-  /// Shares the row's width with the others.
-  var fills = false
-
-  func makeBody(configuration: Configuration) -> some View {
-    configuration.label
-      .font(Typography.buttonStrong)
-      .foregroundStyle(prominent ? Palette.onAccent : Palette.ink)
-      .lineLimit(1)
-      .padding(.horizontal, Spacing.m)
-      .frame(maxWidth: fills ? .infinity : nil)
-      .frame(height: Size.primaryHeight)
-      .background {
-        if prominent {
-          Capsule()
-            .fill(
-              LinearGradient(
-                colors: [Palette.accent.mix(with: .white, by: 0.18), Palette.accent], startPoint: .top,
-                endPoint: .bottom)
-            )
-            .shadow(color: .black.opacity(0.18), radius: 1.5, y: 1)
-        } else {
-          Capsule().fill(Palette.fillStrong)
-        }
-      }
-      .overlay(Capsule().strokeBorder(prominent ? .black.opacity(0.12) : Palette.line, lineWidth: Size.hairline))
-      .contentShape(Capsule())
-      .scaleEffect(configuration.isPressed ? Motion.pressScale : 1)
-      .animation(Motion.quick, value: configuration.isPressed)
-  }
-}
-
 /// A thin ring turning while something is being looked for or waited on.
 struct Spinner: View {
   @Environment(\.reducesMotion) private var reduceMotion

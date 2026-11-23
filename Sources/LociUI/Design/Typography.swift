@@ -39,6 +39,7 @@ enum Typography {
   /// A small button's words.
   static let button = Font.system(size: 12.5, weight: .medium)
   static let buttonStrong = Font.system(size: 13, weight: .semibold)
+  static let buttonLarge = Font.system(size: 13.5, weight: .semibold)
 
   /// Plain text of items.
   static let reading = Font.system(size: readingSize)

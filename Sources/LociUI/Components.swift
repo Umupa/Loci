@@ -80,7 +80,7 @@ struct PressStyle: ButtonStyle {
 }
 
 /// A pop-up button as System Settings draws one: the chosen title in ink on a light face, sized to that title,
-/// with an amber square holding the up and down arrows. The system's own takes the tint for its text and
+/// with an ink square holding the up and down arrows. The system's own takes the tint for its text and
 /// sizes itself to its longest choice.
 struct PopupPicker<Value: Hashable>: View {
   @Binding var selection: Value

@@ -2,7 +2,7 @@ import LociModel
 import SwiftUI
 
 /// The button over a web page that puts what it holds into the library: the library's books, filled once the
-/// page is kept, with a small ink number when there is more on the page to choose from.
+/// page is kept, with a small amber number when there is more on the page to choose from.
 struct KeepButton: View {
   let finds: PageFinds
   let choosing: Bool
@@ -14,7 +14,7 @@ struct KeepButton: View {
     Button(action: action) {
       Image(systemName: finds.kept ? Symbols.libraryKept : Symbols.library)
         .font(.system(size: 14))
-        .foregroundStyle(Palette.ink)
+        .foregroundStyle(Palette.accent)
         .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace.downUp))
         .frame(width: Size.iconButton, height: Size.iconButton)
         .background(Circle().fill(hovering || choosing ? Palette.fillStrong : .clear))
@@ -22,10 +22,10 @@ struct KeepButton: View {
           if let count = finds.count {
             Text(verbatim: "\(count)")
               .font(.system(size: 9.5, weight: .semibold).monospacedDigit())
-              .foregroundStyle(Palette.menuFace)
+              .foregroundStyle(Palette.onAccent)
               .padding(.horizontal, 3)
               .frame(minWidth: 13, minHeight: 13)
-              .background(Capsule().fill(Palette.ink))
+              .background(Capsule().fill(Palette.accent))
               .overlay(Capsule().strokeBorder(Palette.menuFace, lineWidth: 1.5).padding(-1.5))
               .offset(x: 4, y: -1)
               .transition(reduceMotion ? .identity : .scale.combined(with: .opacity))
@@ -47,7 +47,8 @@ struct KeepButton: View {
 }
 
 /// What the page holds, under its button: the page first, then the videos and papers it links to, each with a
-/// check; those not in the library yet start checked, even when the library or the page reports them late. Resting the pointer on a row rings that link on the page.
+/// check; those not in the library yet start checked, even when the library or the page reports them late. A
+/// long list has a switch that checks them all, or clears them all once all are checked. Resting the pointer on a row rings that link on the page.
 struct KeepList: View {
   let finds: PageFinds
   let site: String?
@@ -74,19 +75,23 @@ struct KeepList: View {
       .scrollBounceBehavior(.basedOnSize)
       .frame(maxHeight: 380)
       .fixedSize(horizontal: false, vertical: true)
-      Button {
-        keep(chosen)
-      } label: {
-        Text(.loci("overlay.saveSome \(chosen.count)"))
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(Palette.menuFace)
-          .frame(maxWidth: .infinity, minHeight: 30)
-          .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Palette.ink))
-          .contentShape(Rectangle())
+      HStack(spacing: Spacing.xs) {
+        if finds.left.count > Self.longList {
+          Button {
+            unchecked = Self.toggled(unchecked, of: finds)
+          } label: {
+            Text(chosen.count == finds.left.count ? .loci("browser.selectNone") : .loci("browser.selectAll"))
+          }
+          .buttonStyle(QuietButtonStyle())
+        }
+        Button {
+          keep(chosen)
+        } label: {
+          Text(.loci("overlay.saveSome \(chosen.count)"))
+        }
+        .buttonStyle(AmberButtonStyle(fills: true))
+        .disabled(chosen.isEmpty)
       }
-      .buttonStyle(PressStyle(scale: 0.985))
-      .disabled(chosen.isEmpty)
-      .opacity(chosen.isEmpty ? 0.3 : 1)
       .padding(.horizontal, 3)
       .padding(.top, Spacing.xxs)
       .padding(.bottom, 3)
@@ -107,6 +112,15 @@ struct KeepList: View {
         point(nil)
       }
     }
+  }
+
+  /// More rows than this to choose from, and the list has its switch.
+  static let longList = 5
+
+  /// Every row left when any is unchecked; none when all are checked. Takes and gives the rows unchecked.
+  nonisolated static func toggled(_ unchecked: Set<URL>, of finds: PageFinds) -> Set<URL> {
+    let left = finds.left.map(\.url)
+    return left.contains(where: unchecked.contains) ? [] : Set(left)
   }
 
   private func row(_ find: PageFinds.Find) -> some View {
@@ -161,7 +175,7 @@ struct KeepList: View {
   }
 }
 
-/// A square check in ink; a kept row shows only a faint tick.
+/// A square check in amber; a kept row shows only a faint tick.
 private struct Box: View {
   let on: Bool
   let kept: Bool
@@ -171,8 +185,8 @@ private struct Box: View {
       if kept {
         Image(systemName: Symbols.done).font(.system(size: 10, weight: .semibold)).foregroundStyle(Palette.inkFaint)
       } else if on {
-        RoundedRectangle(cornerRadius: 4.5, style: .continuous).fill(Palette.ink)
-        Image(systemName: Symbols.done).font(.system(size: 9, weight: .bold)).foregroundStyle(Palette.menuFace)
+        RoundedRectangle(cornerRadius: 4.5, style: .continuous).fill(Palette.accent)
+        Image(systemName: Symbols.done).font(.system(size: 9, weight: .bold)).foregroundStyle(Palette.onAccent)
       } else {
         RoundedRectangle(cornerRadius: 4.5, style: .continuous).fill(Palette.thumb)
         RoundedRectangle(cornerRadius: 4.5, style: .continuous).strokeBorder(Palette.lineStrong, lineWidth: 1)

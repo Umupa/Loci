@@ -159,7 +159,7 @@ struct ModelSettingsPage: View {
         Text(.loci("models.smart"))
       } trailing: {
         Toggle(isOn: $translation.smart) { Text(.loci("models.smart")) }
-          .labelsHidden().toggleStyle(.switch).controlSize(.small)
+          .labelsHidden().toggleStyle(AmberSwitch(small: true))
       }
       prompt(
         .loci("models.transcriptPrompt"), value: $translation.transcriptPrompt,

@@ -73,7 +73,7 @@ struct PassageBar: View {
         Text(title)
       }
       .font(Typography.bodyEmphasis)
-      .foregroundStyle(actions.changes ? Palette.ink : Palette.inkFaint)
+      .foregroundStyle(actions.changes ? Palette.accent : Palette.inkFaint)
       .padding(.horizontal, Spacing.s)
       .frame(height: Size.iconButton)
       .contentShape(Capsule())

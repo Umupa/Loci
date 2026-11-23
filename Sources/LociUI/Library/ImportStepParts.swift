@@ -46,7 +46,7 @@ private struct StepDot: View {
       .frame(width: 32, height: 32)
       .background(Circle().fill(on ? Palette.tint : Palette.menuFace))
       .background(Circle().fill(Palette.menuFace))
-      .overlay(Circle().strokeBorder(on ? Palette.accent.opacity(0.55) : Palette.lineStrong, lineWidth: 1.5))
+      .overlay(Circle().strokeBorder(on ? Palette.accentLine : Palette.lineStrong, lineWidth: 1.5))
       .animation(Motion.quick, value: on)
   }
 }
@@ -59,29 +59,6 @@ struct StepSwitch: View {
     Toggle(isOn: $on) { EmptyView() }
       .labelsHidden()
       .toggleStyle(AmberSwitch())
-  }
-}
-
-/// The system's switch in amber: the knob springs across and the track fills.
-private struct AmberSwitch: ToggleStyle {
-  func makeBody(configuration: Configuration) -> some View {
-    let on = configuration.isOn
-    Capsule()
-      .fill(on ? Palette.accent : Palette.fillStrong)
-      .overlay(Capsule().strokeBorder(on ? .black.opacity(0.08) : Palette.lineStrong, lineWidth: Size.hairline))
-      .overlay(alignment: on ? .trailing : .leading) {
-        Circle()
-          .fill(.white)
-          .shadow(color: .black.opacity(0.28), radius: 1.5, y: 1)
-          .padding(2)
-      }
-      .frame(width: 36, height: 21)
-      .contentShape(Capsule())
-      .onTapGesture { withAnimation(.spring(duration: 0.3, bounce: 0.35)) { configuration.isOn.toggle() } }
-      .accessibilityElement()
-      .accessibilityAddTraits(.isToggle)
-      .accessibilityValue(on ? Text(verbatim: "1") : Text(verbatim: "0"))
-      .accessibilityAction { configuration.isOn.toggle() }
   }
 }
 
@@ -183,7 +160,7 @@ extension View {
   fileprivate func cardFace(chosen: Bool) -> some View {
     let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
     return background(shape.fill(chosen ? Palette.tint : Palette.fill))
-      .overlay(shape.strokeBorder(chosen ? Palette.accent.opacity(0.6) : Palette.line, lineWidth: chosen ? 1.5 : 1))
+      .overlay(shape.strokeBorder(chosen ? Palette.accent : Palette.line, lineWidth: chosen ? 1.5 : 1))
       .contentShape(shape)
       .animation(Motion.quick, value: chosen)
   }

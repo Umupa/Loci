@@ -105,13 +105,8 @@ struct UnwrittenLesson: View {
           } icon: {
             Image(systemName: Symbols.pencil)
           }
-          .font(.system(size: 14, weight: .semibold))
-          .foregroundStyle(Palette.onAccent)
-          .padding(.horizontal, 20)
-          .padding(.vertical, 11)
-          .background(Capsule().fill(Palette.accent))
         }
-        .buttonStyle(AnswerPress(scale: 0.95))
+        .buttonStyle(AmberButtonStyle(large: true))
         .changesData()
         .padding(.top, Spacing.m)
         .transition(.opacity.combined(with: .scale(scale: 0.9)))

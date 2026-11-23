@@ -98,7 +98,7 @@ struct ImportSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
       Button(action: close) { Text(.loci("dialog.cancel")) }
-        .buttonStyle(SheetButtonStyle())
+        .buttonStyle(QuietButtonStyle())
         .keyboardShortcut(.cancelAction)
       if case .saved(let item) = reading {
         Button {
@@ -107,11 +107,11 @@ struct ImportSheet: View {
         } label: {
           Text(.loci("import.open"))
         }
-        .buttonStyle(SheetButtonStyle(prominent: true))
+        .buttonStyle(AmberButtonStyle())
         .keyboardShortcut(.defaultAction)
       } else {
         Button(action: add) { Text(.loci("import.add")) }
-          .buttonStyle(SheetButtonStyle(prominent: true))
+          .buttonStyle(AmberButtonStyle())
           .keyboardShortcut(.defaultAction)
           .disabled(draft == nil)
           .changesData()

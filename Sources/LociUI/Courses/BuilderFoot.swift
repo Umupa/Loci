@@ -18,26 +18,16 @@ struct BuilderFoot: View {
       Spacer(minLength: 0)
       Button(action: later) {
         Text(.loci("course.later"))
-          .font(.system(size: 13.5, weight: .medium))
-          .foregroundStyle(Palette.ink)
-          .padding(.horizontal, 18)
-          .frame(height: 34)
-          .background(Capsule().fill(Palette.fillStrong))
       }
-      .buttonStyle(AnswerPress(scale: 0.96))
+      .buttonStyle(QuietButtonStyle(large: true))
       Button(action: goOn) {
         Text(stage.next)
           .id(stage)
           .transition(.opacity.combined(with: .offset(y: 6)))
-          .font(.system(size: 13.5, weight: .semibold))
-          .foregroundStyle(canGoOn ? Palette.onAccent : Palette.inkFaint)
-          .padding(.horizontal, 18)
-          .frame(minWidth: 110)
-          .frame(height: 34)
-          .background(Capsule().fill(canGoOn ? Palette.accent : Palette.fillStrong))
-          .background { invitationRing }
+          .frame(minWidth: 74)
       }
-      .buttonStyle(AnswerPress(scale: 0.96))
+      .buttonStyle(AmberButtonStyle(large: true))
+      .background { invitationRing }
       .disabled(!canGoOn)
       .changesData()
       .animation(Motion.swap, value: stage)

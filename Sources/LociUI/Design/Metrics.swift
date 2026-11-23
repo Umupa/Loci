@@ -113,12 +113,11 @@ enum Size {
   static let addressHeight: CGFloat = 32
   static let tabHeight: CGFloat = 28
   static let primaryHeight: CGFloat = 30
+  static let largeButtonHeight: CGFloat = 34
   static let browserField = CGSize(width: 560, height: 52)
   static let linkField: CGFloat = 44
   static let siteTile: CGFloat = 58
-  static let videoPicker: CGFloat = 372
   static let keepList: CGFloat = 340
-  static let pickerThumbnail: CGFloat = 96
 
   static let settingsTile: CGFloat = 38
   static let componentTile: CGFloat = 28

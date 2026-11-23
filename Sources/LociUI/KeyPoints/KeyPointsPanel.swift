@@ -98,7 +98,8 @@ struct KeyPointsPanel: View {
         .overlay(
           RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(
             Palette.accent.opacity(0.35), lineWidth: Size.hairline))
-      PrimaryButton(action: { pick(page.choice) }) { Text(.loci("keypoints.pick")) }
+      Button { pick(page.choice) } label: { Text(.loci("keypoints.pick")) }
+        .buttonStyle(AmberButtonStyle())
         .changesData()
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)

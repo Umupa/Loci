@@ -68,14 +68,14 @@ struct AddMacSheet: View {
         } label: {
           Text(.loci("remote.useInvite"))
         }
-        .buttonStyle(SheetButtonStyle())
+        .buttonStyle(QuietButtonStyle())
         Spacer(minLength: 0)
         Button {
           go(nil)
         } label: {
           Text(.loci("dialog.cancel"))
         }
-        .buttonStyle(SheetButtonStyle())
+        .buttonStyle(QuietButtonStyle())
       }
     }
     .remoteSheet(close: { go(nil) })
@@ -150,7 +150,7 @@ struct JoiningSheet: View {
         } label: {
           Text(.loci("dialog.cancel"))
         }
-        .buttonStyle(SheetButtonStyle())
+        .buttonStyle(QuietButtonStyle())
       }
     }
     .remoteSheet(centered: true, close: { go(nil) })
@@ -176,7 +176,7 @@ struct FailedSheet: View {
       Button(action: close) {
         Text(.loci("dialog.ok"))
       }
-      .buttonStyle(SheetButtonStyle(prominent: true))
+      .buttonStyle(AmberButtonStyle())
     }
     .remoteSheet(centered: true, close: close)
   }

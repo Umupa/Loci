@@ -34,13 +34,13 @@ struct ApproveSheet: View {
         } label: {
           Text(.loci("remote.decline"))
         }
-        .buttonStyle(SheetButtonStyle(fills: true))
+        .buttonStyle(QuietButtonStyle(fills: true))
         Button {
           answer(true)
         } label: {
           Text(.loci("remote.allow"))
         }
-        .buttonStyle(SheetButtonStyle(prominent: true, fills: true))
+        .buttonStyle(AmberButtonStyle(fills: true))
       }
     }
     .remoteSheet(centered: true, close: { answer(false) })
@@ -69,7 +69,7 @@ struct WaitSheet: View {
         } label: {
           Text(.loci("dialog.cancel"))
         }
-        .buttonStyle(SheetButtonStyle())
+        .buttonStyle(QuietButtonStyle())
       }
     }
     .remoteSheet(centered: true, close: { go(nil) })

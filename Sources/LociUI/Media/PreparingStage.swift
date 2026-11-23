@@ -95,14 +95,8 @@ struct PreparingStage: View {
           actions.fix(fix, item)
         } label: {
           fix.label
-            .font(.system(size: 13.5, weight: .semibold))
-            .foregroundStyle(Palette.onAccent)
-            .padding(.horizontal, 18)
-            .frame(height: 34)
-            .background(Capsule().fill(Palette.accent))
-            .shadow(color: Palette.accent.opacity(0.4), radius: 10, y: 4)
         }
-        .buttonStyle(PressStyle())
+        .buttonStyle(AmberButtonStyle(large: true))
         .changesData(fix.changesData)
       }
     case .ready:

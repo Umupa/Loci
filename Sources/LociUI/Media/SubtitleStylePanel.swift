@@ -114,7 +114,7 @@ struct SubtitleStylePanel: View {
           }
         }
         StyleRow(.loci("caption.bold"), last: true) {
-          Toggle(isOn: lettering.bold) { EmptyView() }.toggleStyle(.switch).controlSize(.small).labelsHidden()
+          Toggle(isOn: lettering.bold) { EmptyView() }.toggleStyle(AmberSwitch(small: true)).labelsHidden()
         }
       }
     }
