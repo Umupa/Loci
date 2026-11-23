@@ -3,12 +3,15 @@ import Foundation
 /// A published copy of Loci newer than the one running.
 public struct AppRelease: Hashable, Sendable {
   public let version: ReleaseVersion
-  /// The disk image to download.
-  public let package: URL
+  /// The disk image, at its first place and then at each mirror, tried in this order.
+  public let images: [URL]
+  /// The SHA-256 of the disk image, in lowercase hexadecimal.
+  public let checksum: String
 
-  public init(version: ReleaseVersion, package: URL) {
+  public init(version: ReleaseVersion, image: URL, mirrors: [URL] = [], checksum: String) {
     self.version = version
-    self.package = package
+    images = [image] + mirrors
+    self.checksum = checksum
   }
 }
 

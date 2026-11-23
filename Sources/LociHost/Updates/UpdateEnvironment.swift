@@ -14,14 +14,14 @@ public struct UpdateEnvironment: Sendable {
   public let runner: any ProgramRunner
   /// Loci's folder in Application Support, where a download waits until it is installed.
   public let support: URL
-  /// Where the latest release is published.
-  public let feed: URL
+  /// Where the latest release is described, asked in this order.
+  public let feeds: [URL]
   /// When to look for a newer release again after the first look at start.
   public let ticks: @Sendable () -> AsyncStream<Void>
 
   public init(
     running: ReleaseVersion?, installed: URL, processID: Int32, network: any Network, runner: any ProgramRunner,
-    support: URL, feed: URL = ReleaseFeed.loci, ticks: @escaping @Sendable () -> AsyncStream<Void>
+    support: URL, feeds: [URL] = ReleaseFeed.loci, ticks: @escaping @Sendable () -> AsyncStream<Void>
   ) {
     self.running = running
     self.installed = installed
@@ -29,11 +29,11 @@ public struct UpdateEnvironment: Sendable {
     self.network = network
     self.runner = runner
     self.support = support
-    self.feed = feed
+    self.feeds = feeds
     self.ticks = ticks
   }
 
-  /// The app bundle and process running, GitHub, and a look every six hours.
+  /// The app bundle and process running, the published feeds, and a look every six hours.
   public static func system(bundle: Bundle = .main) -> UpdateEnvironment {
     UpdateEnvironment(
       running: (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)

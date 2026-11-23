@@ -10,7 +10,8 @@ import Testing
 @Suite(.serialized, .onStage)
 struct UpdateSnapshots {
   static let release = AppRelease(
-    version: ReleaseVersion("1.2.0")!, package: URL(string: "https://example.com/Loci-Beta-1.2.0.dmg")!)
+    version: ReleaseVersion("1.2.0")!, image: URL(string: "https://example.com/Loci-Beta-1.2.0.dmg")!,
+    checksum: String(repeating: "0", count: 64))
 
   @Test(arguments: Snapshot.Appearance.allCases)
   func manualChecksShowTheVersionAndNextAction(appearance: Snapshot.Appearance) async throws {

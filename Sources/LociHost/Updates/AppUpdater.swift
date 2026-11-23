@@ -3,7 +3,7 @@ import LociMedia
 import LociModel
 import LociStore
 
-/// Keeps this copy of Loci up to date with the releases on GitHub. A release is offered only when it is newer
+/// Keeps this copy of Loci up to date with the published releases. A release is offered only when it is newer
 /// than the one running, and installed only when it is signed by the same certificate, so macOS keeps the
 /// permissions it gave.
 public actor AppUpdater: Updates {
@@ -55,7 +55,7 @@ public actor AppUpdater: Updates {
       else { return .failure(.unsupported) }
       requirement = found
     }
-    guard let latest = try? await ReleaseFeed(network: environment.network, address: environment.feed).latest()
+    guard let latest = try? await ReleaseFeed(network: environment.network, addresses: environment.feeds).latest()
     else { return .failure(.unavailable) }
     if isIdle { state = latest.version > running ? .available(latest) : .current }
     return .success(())
@@ -104,9 +104,7 @@ public actor AppUpdater: Updates {
     guard let requirement else { throw FetchError(reason: "this copy of Loci cannot be updated") }
     let support = Support(root: environment.support)
     let tools = AppImage(runner: environment.runner)
-    let image = try await environment.network.download(URLRequest(url: release.package)) { [weak self] share in
-      Task { await self?.progress(release, share) }
-    }
+    let image = try await downloaded(release, into: support)
     defer { support.discard(image) }
     let folder: URL
     do {
@@ -133,6 +131,27 @@ public actor AppUpdater: Updates {
       throw error
     }
     return staged
+  }
+
+  /// The disk image from the first place that serves one matching the release's checksum.
+  private func downloaded(_ release: AppRelease, into support: Support) async throws(FetchError) -> URL {
+    var failure = FetchError(reason: "the release has nowhere to download from")
+    for address in release.images {
+      state = .downloading(release, nil)
+      do throws(FetchError) {
+        let image = try await environment.network.download(URLRequest(url: address)) { [weak self] share in
+          Task { await self?.progress(release, share) }
+        }
+        guard (try? support.sha256(of: image)) == release.checksum else {
+          support.discard(image)
+          throw FetchError(reason: "the download from \(address.host() ?? "the mirror") did not match its checksum")
+        }
+        return image
+      } catch {
+        failure = error
+      }
+    }
+    throw failure
   }
 
   private func progress(_ release: AppRelease, _ share: Fraction?) {

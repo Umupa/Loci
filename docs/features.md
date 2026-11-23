@@ -66,7 +66,7 @@
 | 取材缓存 | `loci read` 和 `loci repo` 取回的正文与仓库，14 天未使用自动清理 | `SourceCache` |
 | 组件 | 应用调用但不自带的程序：yt-dlp、FFmpeg、QuickJS | `Component` |
 | 语音模型 | 本机识别语音用的 Whisper 模型，七个型号按需下载 | `SpeechModel` |
-| 更新 | 换上 GitHub 上发布的更新的 Loci (Beta)；只装同一张证书签名的版本 | `AppUpdate` |
+| 更新 | 换上新发布的 Loci (Beta)，先从 dl.umupa.fun 取、取不到再从 GitHub 取；只装同一张证书签名的版本 | `AppUpdate` |
 | 链接框 | 资料库每页顶部的一条：粘贴链接加入，或从本地选文件 | `LinkField` |
 | 导入卡片 | 收进一份视频、播客或本地音视频前浮出的卡片：怎么保存、字幕从哪来、翻不翻，和一句为什么收它 | `ImportSheet` |
 | 导入选择 | 一份资料是怎么收进来的：保存到本地或在线看、画质、网站字幕或本机识别、翻译；下一次默认沿用 | `ImportChoice` |

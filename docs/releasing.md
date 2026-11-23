@@ -74,13 +74,24 @@
    5. `script/measure-launch`：记录 release 构建的冷启动，**只记录，不卡发布**。
    6. 把 dmg、校验和、发布说明留成 `release` artifact。
 
-   Package 通过后，Publish 取回 `release` artifact，用校验和核对 dmg，再建 GitHub release、附上 dmg 和校验和。Package 失败就不发布。重跑只替换文件，不会重复建 release。
+   Package 通过后，Publish 先确认上传 R2 的 secrets 都在，再取回 `release` artifact，用校验和核对 dmg，写出 `latest.json`，建 GitHub release、附上 dmg、校验和和 `latest.json`，最后把这三个文件传到 R2。Package 失败就不发布。重跑只替换文件，不会重复建 release。
 
    推送时 CI 也会检查这个发版提交；它只改了 CHANGELOG，所以只跑文档检查。
 
 `gh workflow run release` 是试 secrets 用的：构建和签名都和 tag 一样，但不发版，dmg 留成 workflow artifact。
 
 发出去的版本有问题时不删 tag、不改已发布的 CHANGELOG 段落，修好后发下一个版本。
+
+## 下载与更新源
+
+应用按顺序读两份 `latest.json`（`Sources/LociMedia/Updates/ReleaseFeed.swift`），先读到的为准：
+
+| 顺序 | 地址 | 放在哪 |
+|---|---|---|
+| 1 | `https://dl.umupa.fun/loci/latest.json` | Cloudflare R2 的 `loci-releases` 桶，自定义域名 `dl.umupa.fun` |
+| 2 | `https://github.com/Umupa/Loci/releases/latest/download/latest.json` | 最新 GitHub release 的附件 |
+
+两处都不走 `api.github.com`，不受它的匿名限流。`latest.json` 写版本、dmg 的 SHA-256 和下载地址（R2 在前，GitHub 在后）；应用按顺序下载，校验和对不上就换下一个地址，之后照旧核对签名。R2 上 dmg 永久缓存，`latest.json` 缓存五分钟，并且最后上传。
 
 ## 在本机
 
@@ -115,6 +126,8 @@ LOCI_NOTARY_PROFILE=loci-notary script/release
 | `MACOS_SIGNING_PASSWORD` | `.p12` 的密码 | tag 必须 |
 | `LOCI_RELAY_URL`、`LOCI_RELAY_KEY` | 远程访问用的中继和注册密钥；没有就没有远程访问 | 应该有 |
 | `MACOS_NOTARY_APPLE_ID`、`MACOS_NOTARY_TEAM_ID`、`MACOS_NOTARY_PASSWORD` | Apple ID、Team ID、App 专用密码 | 只在用 Developer ID 时 |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare 账号 ID，拼出 R2 的 S3 接口地址 | tag 必须 |
+| `R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY` | R2 API 令牌（只对 `loci-releases` 读写）的 S3 凭据 | tag 必须 |
 
 签名的两个沿用 Tauri 版：「Loci Signing」由 Tauri 版的 `scripts/setup-release.sh` 生成（`git show tauri:scripts/setup-release.sh`），本机钥匙串里也有一份。换成 Developer ID 时，从钥匙串访问把证书连同私钥导出成 `.p12`（`openssl pkcs12` 生成的要用 `-legacy`），`base64 -i id.p12 | gh secret set MACOS_SIGNING_IDENTITY`，再设密码和三个公证 secret。
 
@@ -131,5 +144,5 @@ script/measure-launch --app "output/Loci (Beta).app"  # 量已经打好的包
 
 ## 还没做
 
-- 自动更新（Sparkle）和正式版 Loci 渠道：β2。
+- 正式版 Loci 渠道：β2。
 - 公证的 App Store Connect API key 路径：现在只认 Apple ID 加 App 专用密码。

@@ -1,54 +1,55 @@
 import Foundation
 import LociModel
 
-/// The newest published release of Loci, read from GitHub.
+/// The newest published release of Loci, read from `latest.json` at the first place that answers.
 public struct ReleaseFeed: Sendable {
-  public static let loci = URL(string: "https://api.github.com/repos/Umupa/Loci/releases/latest")!
+  /// Cloudflare R2 first, then the latest GitHub release.
+  public static let loci = [
+    URL(string: "https://dl.umupa.fun/loci/latest.json")!,
+    URL(string: "https://github.com/Umupa/Loci/releases/latest/download/latest.json")!,
+  ]
 
   private let network: any Network
-  private let address: URL
+  private let addresses: [URL]
 
-  public init(network: any Network, address: URL = Self.loci) {
+  public init(network: any Network, addresses: [URL] = Self.loci) {
     self.network = network
-    self.address = address
+    self.addresses = addresses
   }
 
-  /// The latest release with a disk image, or `nil` when its tag is not a version or it has no disk image.
-  public func latest() async throws(FetchError) -> AppRelease? {
-    var request = URLRequest(url: address, cachePolicy: .reloadIgnoringLocalCacheData)
-    request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+  /// The release the first readable feed describes. Throws why the last place failed when none can be read.
+  public func latest() async throws(FetchError) -> AppRelease {
+    var failure = FetchError(reason: "there is nowhere to look for releases")
+    for address in addresses {
+      do {
+        return try await release(at: address)
+      } catch {
+        failure = error
+      }
+    }
+    throw failure
+  }
+
+  private func release(at address: URL) async throws(FetchError) -> AppRelease {
+    let request = URLRequest(url: address, cachePolicy: .reloadIgnoringLocalCacheData)
     let (data, _) = try await network.data(for: request)
-    let release: Published
+    let feed: Latest
     do {
-      release = try JSONDecoder().decode(Published.self, from: data)
+      feed = try JSONDecoder().decode(Latest.self, from: data)
     } catch {
       throw FetchError(reason: "the release could not be read: \(error.localizedDescription)")
     }
-    guard !release.draft, !release.prerelease, let version = ReleaseVersion(release.tag),
-      let image = release.assets.first(where: { $0.name.hasSuffix(".dmg") })
-    else { return nil }
-    return AppRelease(version: version, package: image.address)
+    guard let version = ReleaseVersion(feed.version), let image = feed.downloads.first,
+      feed.sha256.count == 64, feed.sha256.allSatisfy(\.isHexDigit)
+    else { throw FetchError(reason: "\(address.host() ?? "the feed") describes no usable release") }
+    return AppRelease(
+      version: version, image: image, mirrors: Array(feed.downloads.dropFirst()), checksum: feed.sha256.lowercased())
   }
 
-  private struct Published: Decodable {
-    let tag: String
-    let draft: Bool
-    let prerelease: Bool
-    let assets: [Asset]
-
-    private enum CodingKeys: String, CodingKey {
-      case tag = "tag_name"
-      case draft, prerelease, assets
-    }
-  }
-
-  private struct Asset: Decodable {
-    let name: String
-    let address: URL
-
-    private enum CodingKeys: String, CodingKey {
-      case name
-      case address = "browser_download_url"
-    }
+  /// The shape of `latest.json`, written by the release workflow.
+  private struct Latest: Decodable {
+    let version: String
+    let sha256: String
+    let downloads: [URL]
   }
 }

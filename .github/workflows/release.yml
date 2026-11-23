@@ -4,7 +4,8 @@ name: Release
 # silicon and Intel, signs it with the identity in the MACOS_SIGNING_IDENTITY
 # secret (notarized when that is a Developer ID), and makes the dmg; Publish
 # attaches the dmg to that tag's release, with the version's CHANGELOG.md
-# section as its notes. It runs no check: script/check is run only when asked
+# section as its notes, and puts it with latest.json on dl.umupa.fun (R2),
+# where Loci looks for updates first. It runs no check: script/check is run only when asked
 # for. `gh workflow run release` does the same without releasing anything, to
 # try the secrets; the dmg is kept as a workflow artifact. How the pieces fit:
 # docs/releasing.md.
@@ -166,7 +167,27 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+    env:
+      R2_BUCKET: loci-releases
+      R2_ORIGIN: https://dl.umupa.fun/loci
     steps:
+      # Loci looks for updates on R2 first, so a release is not published
+      # anywhere until it can be published there too.
+      - name: Check the secrets to upload to R2
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          missing=()
+          for name in CLOUDFLARE_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
+            if [[ -z "${!name}" ]]; then missing+=("$name"); fi
+          done
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error::Publishing uploads to R2, and these secrets are missing: ${missing[*]}. See docs/releasing.md."
+            exit 1
+          fi
+
       - uses: actions/download-artifact@v4
         with:
           name: release
@@ -185,6 +206,11 @@ jobs:
           fi
           dmg="${dmgs[0]}"
           sha256sum --check "$dmg.sha256"
+          version="${GITHUB_REF_NAME#v}"
+          jq -n --arg version "$version" --arg sha256 "$(cut -d' ' -f1 "$dmg.sha256")" \
+            --arg r2 "$R2_ORIGIN/$dmg" \
+            --arg github "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$dmg" \
+            '{version: $version, sha256: $sha256, downloads: [$r2, $github]}' > latest.json
           notes="$RUNNER_TEMP/notes.md"
           cat changes.md > "$notes"
           {
@@ -199,10 +225,27 @@ jobs:
           } >> "$notes"
           # A rerun replaces the dmg it uploaded before.
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$dmg" "$dmg.sha256" --clobber
+            gh release upload "$GITHUB_REF_NAME" "$dmg" "$dmg.sha256" latest.json --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$dmg" "$dmg.sha256" \
+            gh release create "$GITHUB_REF_NAME" "$dmg" "$dmg.sha256" latest.json \
               --verify-tag \
               --title "Loci (Beta) $GITHUB_REF_NAME" --notes-file "$notes"
           fi
           gh release view "$GITHUB_REF_NAME" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
+
+      # latest.json goes last and is cached for five minutes, so it never points
+      # at a dmg that is not there yet.
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        working-directory: release
+        run: |
+          dmg="$(ls *.dmg)"
+          put() { aws s3 cp "$1" "s3://$R2_BUCKET/loci/$1" --endpoint-url "$R2_ENDPOINT" --cache-control "$2" --content-type "$3"; }
+          put "$dmg" "public, max-age=31536000, immutable" application/x-apple-diskimage
+          put "$dmg.sha256" "public, max-age=31536000, immutable" text/plain
+          put latest.json "public, max-age=300" application/json
+          curl -fsS "$R2_ORIGIN/latest.json?v=$GITHUB_SHA" | jq -e --arg v "${GITHUB_REF_NAME#v}" '.version == $v'
