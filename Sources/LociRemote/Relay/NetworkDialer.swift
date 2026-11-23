@@ -73,10 +73,20 @@ final class NetworkSocket: WebSocket {
   }
 
   func ping() async throws(SocketError) {
-    let failed: (any Error)? = await withCheckedContinuation { continuation in
-      task.sendPing { continuation.resume(returning: $0) }
+    try await ping(sending: task.sendPing)
+  }
+
+  func ping(sending sendPing: (@escaping @Sendable ((any Error)?) -> Void) -> Void) async throws(SocketError) {
+    let pong = AsyncThrowingStream<Never, any Error> { completion in
+      sendPing { completion.finish(throwing: $0) }
     }
-    if let failed { throw failure(failed) }
+    var waiting = pong.makeAsyncIterator()
+    do {
+      _ = try await waiting.next()
+      try Task.checkCancellation()
+    } catch {
+      throw failure(error)
+    }
   }
 
   private func failure(_ error: any Error) -> SocketError {
