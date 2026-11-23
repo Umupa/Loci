@@ -248,14 +248,14 @@ struct CourseScenarioTests {
       try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
       let paragraph = "One completed paragraph.\n\n"
       try Data(paragraph.utf8).write(to: url, options: .atomic)
-      let draft = await value(progress, within: .seconds(5)) {
+      let draft = await value(progress) {
         $0.activity == .writing(lesson: lesson.id, draft: paragraph)
       }
       #expect(draft != nil)
       #expect(draft?.firstReadableLesson == nil)
       let access = try await tag(for: course.id, on: agent)
       try await run(.writeLesson(lesson.id, markdown: "A finished lesson."), in: access, on: host)
-      #expect(await value(progress, within: .seconds(5)) { $0.firstReadableLesson == lesson.id } != nil)
+      #expect(await value(progress) { $0.firstReadableLesson == lesson.id } != nil)
       await session.finish()
       try await idle(course.id, on: host)
       #expect(!FileManager.default.fileExists(atPath: url.path()))
@@ -273,23 +273,23 @@ struct CourseScenarioTests {
       let second = course.lessons[1]
       try macs.studio.place.store.writeLesson("First text.", in: course.id, lesson: first.id)
       #expect(
-        await value(remote.subscribe(WatchCourses()), within: .seconds(5)) {
+        await value(remote.subscribe(WatchCourses())) {
           $0.map(\.id) == [course.id]
         } != nil)
       #expect(try await remote.run(ListCourses()).map(\.id) == [course.id])
       let progress = remote.subscribe(WatchCourse(course.id))
       let reading = remote.subscribe(WatchLesson(course: course.id, lesson: second.id))
       _ = try await remote.run(OpenLesson(course: course.id, lesson: first.id))
-      let live = await value(remote.subscribe(OneConversation(.course(course.id))), within: .seconds(5)) {
+      let live = await value(remote.subscribe(OneConversation(.course(course.id)))) {
         $0.turn?.messages.contains { if case .reply("Working") = $0.body { true } else { false } } == true
       }
       #expect(live != nil)
       let access = try #require(
         agent.opened.last?.environment[LocalCall.sessionVariable].flatMap(LocalSession.init(tag:)))
       try await run(.writeLesson(second.id, markdown: "Second text."), in: access, on: macs.studio.local)
-      #expect(await value(reading, within: .seconds(5)) { $0 == "Second text." } == "Second text.")
+      #expect(await value(reading) { $0 == "Second text." } == "Second text.")
       #expect(
-        await value(progress, within: .seconds(5)) {
+        await value(progress) {
           $0.course.readLessons == [first.id] && $0.lessons[1].body == .written
         } != nil)
       let command = ReadLesson(course: course.id, lesson: second.id)

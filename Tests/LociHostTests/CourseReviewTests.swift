@@ -153,9 +153,9 @@ extension CourseScenarioTests {
       let read = ReadLesson(course: course.id, lesson: lesson)
       #expect(try await host.run(read) == "Saved before deletion.")
       let reading = host.subscribe(WatchLesson(course: course.id, lesson: lesson))
-      #expect(await value(reading, within: .seconds(5)) { $0 == "Saved before deletion." } != nil)
+      #expect(await value(reading) { $0 == "Saved before deletion." } != nil)
       _ = try await macs.studio.local.run(DeleteCourse(course.id))
-      let missing = await first(reading, within: .seconds(5)) {
+      let missing = await first(reading) {
         if case .unavailable(.notFound) = $0 { true } else { false }
       }
       #expect(missing != nil)

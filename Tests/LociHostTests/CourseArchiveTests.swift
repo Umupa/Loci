@@ -17,7 +17,7 @@ struct CourseArchiveTests {
       try Data("{ broken".utf8).write(to: file, options: .atomic)
 
       #expect(
-        await value(gallery, within: .seconds(5)) { entries in
+        await value(gallery) { entries in
           entries.contains {
             if case .invalid(let id, let problem) = $0 {
               return id == course.id && problem.path == "courses/\(id)/course.json"
@@ -27,7 +27,7 @@ struct CourseArchiveTests {
         } != nil)
       try valid.write(to: file, options: .atomic)
       #expect(
-        await value(gallery, within: .seconds(5)) { entries in
+        await value(gallery) { entries in
           entries.contains { if case .course(let card) = $0 { card.id == course.id } else { false } }
         } != nil)
     }
@@ -38,7 +38,7 @@ struct CourseArchiveTests {
     try await withHost(agent: FakeAgent(provider: .codex)) { host, _, _ in
       let course = try await host.run(StartCourse(topic: "Quorums"))
       let ref = ConversationRef.course(course.id)
-      let said = await value(host.subscribe(OneConversation(ref)), within: .seconds(5)) {
+      let said = await value(host.subscribe(OneConversation(ref))) {
         $0.turn == nil && $0.entries.count >= 2
       }
       #expect(said != nil)
@@ -60,7 +60,7 @@ extension CourseArchiveTests {
       let course = try await host.run(StartCourse(topic: "Quorums"))
       let ref = ConversationRef.course(course.id)
       let said = try #require(
-        await value(host.subscribe(OneConversation(ref)), within: .seconds(5)) {
+        await value(host.subscribe(OneConversation(ref))) {
           $0.turn == nil && $0.entries.count >= 2
         })
       _ = try await host.run(DeleteCourse(course.id))
@@ -89,7 +89,7 @@ extension CourseArchiveTests {
     let course = try await host.run(StartCourse(topic: "Quorums"))
     let ref = ConversationRef.course(course.id)
     let said = try #require(
-      await value(host.subscribe(OneConversation(ref)), within: .seconds(5)) {
+      await value(host.subscribe(OneConversation(ref))) {
         $0.turn == nil && $0.entries.count >= 2
       })
     _ = try await host.run(DeleteCourse(course.id))

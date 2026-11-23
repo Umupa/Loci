@@ -8,7 +8,7 @@ import Testing
 
 extension CourseScenarioTests {
   func idle(_ course: EntityID, on host: LocalHost) async throws {
-    _ = try #require(await value(host.subscribe(WatchCourse(course)), within: .seconds(5)) { $0.activity == .idle })
+    _ = try #require(await value(host.subscribe(WatchCourse(course))) { $0.activity == .idle })
   }
 
   func withCourseHost(
