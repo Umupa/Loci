@@ -185,7 +185,7 @@ enum Tones {
   static let coverPlaceholder = NSColor(dark: 0x2A2420, light: 0xEFEAE2)
   static let menuFace = NSColor(dark: 0x2C2824, light: 0xFDFBF8)
   static let scrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.32, light: 0.10))
-  static let pageScrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.62, light: 0.30))
+  static let pageScrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.45, light: 0.22))
   static let floating = NSColor(dark: 0x2C2824, light: 0xFDFBF8, alpha: (dark: 0.96, light: 0.96))
   static let codeKeyword = NSColor(dark: 0xE09A6A, light: 0x9C4524)
   static let codeString = NSColor(dark: 0xA9C27C, light: 0x4F6A22)

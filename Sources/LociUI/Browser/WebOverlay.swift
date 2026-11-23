@@ -1,8 +1,7 @@
 import LociModel
 import SwiftUI
 
-/// A web page linked from anywhere but the browser, opened over the window rather than in the browser: a card
-/// about seven tenths of the window's size with the window blurred behind it. Along its top, going back, the
+/// A web page linked from anywhere but the browser, opened over the window in a resizable card. Along its top, going back, the
 /// site, saving the page to the library, opening it in the browser, and closing it. Esc or a click outside
 /// closes it and leaves the page under it where it was.
 struct WebOverlay: View {
@@ -145,12 +144,16 @@ private struct PeekingLinks: ViewModifier {
   @Environment(\.browser) private var browser
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.standIns) private var standIns
+  @AppStorage("webOverlayWidth") private var preferredWidth = 0.0
+  @AppStorage("webOverlayHeight") private var preferredHeight = 0.0
   @State private var tab: BrowserTab?
+  @State private var pointingAtGrip = false
+  @State private var drag = CGSize.zero
 
   func body(content: Content) -> some View {
     if let browser {
       content
-        .blur(radius: tab == nil ? 0 : 14)
+        .blur(radius: tab == nil ? 0 : 8)
         .allowsHitTesting(tab == nil)
         .environment(\.peekLink, PeekLink { url in open(url, in: browser) })
         .overlay { if let tab { overlay(tab, in: browser) } }
@@ -166,6 +169,10 @@ private struct PeekingLinks: ViewModifier {
 
   private func overlay(_ shown: BrowserTab, in browser: BrowserSession) -> some View {
     GeometryReader { space in
+      let sizing = WebOverlaySizing(room: space.size)
+      let preferred = CGSize(width: preferredWidth, height: preferredHeight)
+      let start = preferredWidth > 0 && preferredHeight > 0 ? sizing.fitting(preferred) : sizing.ideal
+      let size = sizing.resizing(start, by: drag)
       ZStack {
         Button {
           close(in: browser)
@@ -177,12 +184,49 @@ private struct PeekingLinks: ViewModifier {
         .accessibilityLabel(Text(.loci("overlay.close")))
         .transition(reduceMotion ? .identity : .opacity)
         WebOverlay(session: browser, tab: shown) { close(in: browser) }
-          .frame(width: Self.side(of: space.size.width), height: Self.side(of: space.size.height))
+          .frame(width: size.width, height: size.height)
+          .overlay(alignment: .bottomTrailing) { grip(sizing, from: start) }
           .transition(reduceMotion ? .identity : .scale(scale: 0.96).combined(with: .opacity))
       }
       .frame(width: space.size.width, height: space.size.height)
     }
     .onExitCommand { close(in: browser) }
+  }
+
+  private func grip(_ sizing: WebOverlaySizing, from start: CGSize) -> some View {
+    Image(systemName: "arrow.up.left.and.arrow.down.right")
+      .font(.system(size: 11, weight: .medium))
+      .foregroundStyle(Palette.ink)
+      .frame(width: 22, height: 22)
+      .background(Palette.menuFace, in: RoundedRectangle(cornerRadius: Radius.small))
+      .opacity(pointingAtGrip || drag != .zero ? 1 : 0.55)
+      .padding(4)
+      .overlay {
+        WebOverlayGrip { change in
+          switch change {
+          case .dragging(let translation): drag = translation
+          case .finished(let translation):
+            remember(sizing.resizing(start, by: translation))
+            drag = .zero
+          case .reset: remember(.zero)
+          }
+        }
+      }
+      .onHover { pointingAtGrip = $0 }
+      .accessibilityLabel(Text(.loci("overlay.resize")))
+      .accessibilityAdjustableAction { direction in
+        switch direction {
+        case .increment: remember(sizing.resizing(start, by: CGSize(width: 16, height: 16)))
+        case .decrement: remember(sizing.resizing(start, by: CGSize(width: -16, height: -16)))
+        @unknown default: break
+        }
+      }
+      .accessibilityAction(named: Text(.loci("overlay.resetSize"))) { remember(.zero) }
+  }
+
+  private func remember(_ size: CGSize) {
+    preferredWidth = size.width
+    preferredHeight = size.height
   }
 
   private func open(_ url: URL, in browser: BrowserSession) {
@@ -194,11 +238,28 @@ private struct PeekingLinks: ViewModifier {
     guard let shown = tab else { return }
     browser.endPeek(shown)
     tab = nil
+    pointingAtGrip = false
+    drag = .zero
+  }
+}
+
+struct WebOverlaySizing {
+  let room: CGSize
+
+  var ideal: CGSize {
+    let side = room.width < 900 ? Spacing.m : 64
+    let end = room.height < 600 ? Spacing.m : 40
+    return fitting(CGSize(width: min(room.width - 2 * side, 1280), height: room.height - 2 * end))
   }
 
-  /// Seven tenths of the room, or nearly all of it where seven tenths would be too narrow to read.
-  static func side(of room: CGFloat) -> CGFloat {
-    let margin = Spacing.m
-    return min(max(room * 0.7, min(room - 2 * margin, 520)), room - 2 * margin)
+  func fitting(_ size: CGSize) -> CGSize {
+    CGSize(
+      width: min(max(size.width, 520), max(0, room.width - 2 * Spacing.m)),
+      height: min(max(size.height, 360), max(0, room.height - 2 * Spacing.m)))
+  }
+
+  /// The card stays centered, so the corner moves half as far as the size changes.
+  func resizing(_ size: CGSize, by translation: CGSize) -> CGSize {
+    fitting(CGSize(width: size.width + 2 * translation.width, height: size.height + 2 * translation.height))
   }
 }

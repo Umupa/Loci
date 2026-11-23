@@ -8185,6 +8185,40 @@
         }
       }
     },
+    "overlay.resize": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resize Web Preview"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调整浮层大小"
+          }
+        }
+      }
+    },
+    "overlay.resetSize": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore Default Size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复默认大小"
+          }
+        }
+      }
+    },
     "companion.title": {
       "extractionState": "manual",
       "localizations": {
