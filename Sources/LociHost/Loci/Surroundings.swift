@@ -10,8 +10,9 @@ extension AgentContext {
   static let yesterdaysNotes = 6_000
 
   /// What Loci is told before a message in `conversation`, the person having last said something there at
-  /// `since`.
+  /// `since`. The message counts toward how tired Loci is.
   func turnContext(for conversation: ConversationRef, since: Timestamp?) async -> TurnContext {
+    let feeling = await feelings.heard(in: conversation)
     let now = environment.now()
     let timeZone = environment.timeZone
     let today = Day(containing: now, in: timeZone)
@@ -21,6 +22,7 @@ extension AgentContext {
     return TurnContext(
       now: now, timeZone: timeZone, conversation: conversation,
       happenings: events.compactMap { happening($0, today: today) }, open: open(in: conversation, at: now),
+      feeling: feeling,
       files: [
         .init(path: "MEMORY.md", text: (try? store.agentText(.memory)) ?? "", keep: nil),
         .init(path: "notes/\(today).md", text: (try? store.dayNotes(of: today)) ?? "", keep: Self.todaysNotes),

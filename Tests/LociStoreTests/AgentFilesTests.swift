@@ -35,6 +35,23 @@ struct AgentFilesTests {
     }
   }
 
+  @Test func aNewDefaultSoulReplacesAnOlderDefaultAndKeepsTraitsAndUserEdits() throws {
+    try withStore { store in
+      let old = "# Soul\n\nYou live on this Mac. You have read every item."
+      let new = "# Soul\n\nYou live on this Mac. Some items will be new to you."
+      let traits = "\n\n## Evolved Traits\n- 2026-11-18 Curious about watches.\n"
+      for previous in [old, old.replacing("You live", with: "You are Loci. You live")] {
+        try store.saveAgentText(previous + traits, as: .soul)
+        try store.prepareAgent(soul: new, replacing: old)
+        #expect(try store.agentText(.soul) == new + traits)
+      }
+      let custom = old + "\n\nMy own words." + traits
+      try store.saveAgentText(custom, as: .soul)
+      try store.prepareAgent(soul: new, replacing: old)
+      #expect(try store.agentText(.soul) == custom)
+    }
+  }
+
   @Test func anUnreadableSoulDoesNotKeepTheLibraryFromOpening() throws {
     try withStore { store in
       let soul = store.agentFolder.appending(path: "SOUL.md")

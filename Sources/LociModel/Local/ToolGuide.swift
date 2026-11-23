@@ -28,6 +28,12 @@ public enum ToolGuide {
       loci course plan                 save the lesson titles from JSON on standard input
       loci lesson write <id> <file.md> save or revise a lesson from UTF-8 Markdown
       loci course atlas <file.json>    save the whole course atlas from a JSON file
+      loci mood here <word> <valence> <why>
+                                       how this conversation makes you feel; valence 0 to 10
+      loci mood base <word> <valence> <energy> <why>
+                                       your mood overall; valence and energy 0 to 10
+      loci sleep                       go to sleep
+      loci wake                        wake up
       loci help                        this text
 
     Add --json to print the app's reply as it is.

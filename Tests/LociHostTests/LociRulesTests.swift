@@ -9,6 +9,7 @@ struct TurnContextTests {
   static let context = TurnContext(
     now: TestWorld.instant, timeZone: TestWorld.timeZone, conversation: .item(TestWorld().nextID()),
     happenings: (1...25).map { "- fact \($0)" }, open: nil,
+    feeling: FeltNow(felt: Moods().felt(in: .main, at: TestWorld.instant), fatigue: 0, tiredness: .awake),
     files: [
       .init(path: "MEMORY.md", text: "# Memory\n- a\n", keep: nil),
       .init(path: "notes/2025-11-17.md", text: String(repeating: "x", count: 50), keep: 10),

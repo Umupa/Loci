@@ -4,75 +4,46 @@ import Testing
 
 @testable import LociHost
 
-/// L-S9: what happens in the library shows in the main conversation where it happened.
 @Suite(.timeLimit(.minutes(1)))
 struct EventScenarioTests {
-  private func events(_ conversation: Conversation) -> [WorldEvent.Kind] {
-    conversation.entries.compactMap { entry in
-      if case .event(let event) = entry { event.kind } else { nil }
-    }
-  }
-
-  @Test func savingAndFinishingAnItemShowInTheMainConversationInOrder() async throws {
+  @Test func savingReadingAndHighlightingGiveLociContextWithoutAddingChatEntries() async throws {
     try await withHost { host, _, world in
       _ = try await host.run(SendMessage(to: .main, text: "Hi"))
-      _ = try #require(await settled(host))
-      world.advance(minutes: 1)
-      let item = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n\nterm\n"))
-      _ = try await host.run(MarkRead(content: .item(item.id)))
-      _ = try await host.run(MarkRead(content: .item(item.id)))
-
-      let conversation = try await host.conversation(.main)
-
-      #expect(events(conversation) == [.saved(item, job: nil), .finishedReading(item)])
-      #expect(conversation.entries.prefix(2).allSatisfy { if case .message = $0 { true } else { false } })
-    }
-  }
-
-  @Test func aLinkBeingFetchedShowsItsJob() async throws {
-    try await withHost { host, _, _ in
-      let feed = host.subscribe(OneConversation(.main))
-
-      let item = try await host.run(AddLink(url: try #require(URL(string: "https://example.com/post"))))
-
-      let shown = await value(feed) { conversation in
-        conversation.entries.contains { entry in
-          if case .event(let event) = entry, case .saved(let saved, let job) = event.kind {
-            saved.id == item.id && job != nil
-          } else {
-            false
-          }
-        }
-      }
-      #expect(shown != nil)
-    }
-  }
-
-  @Test func eventsAboutADeletedItemAreGone() async throws {
-    try await withHost { host, _, _ in
-      let item = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n\nterm\n"))
-
-      _ = try await host.run(DeleteItems([item.id]))
-
-      #expect(events(try await host.conversation(.main)).isEmpty)
-    }
-  }
-
-  @Test func highlightsAreToldToLociButNotShown() async throws {
-    try await withHost { host, _, world in
-      _ = try await host.run(SendMessage(to: .main, text: "Hi"))
-      _ = try #require(await settled(host))
+      let first = try #require(await settled(host))
       world.advance(minutes: 1)
       let item = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n\nterm and index\n"))
+      _ = try await host.run(MarkRead(content: .item(item.id)))
+      _ = try await host.run(MarkRead(content: .item(item.id)))
       _ = try await host.run(
         AddNote(locator: .item(item.id, .quote(try TextQuote("term"))), excerpt: "term and index"))
 
+      #expect(try await host.conversation(.main).entries == first.entries)
       _ = try await host.run(SendMessage(to: .main, text: "Again"))
-      _ = try #require(await settled(host, prompts: 2))
+      let second = try #require(await settled(host, prompts: 2))
 
-      #expect(events(try await host.conversation(.main)) == [.saved(item, job: nil)])
-      #expect(world.agent.prompts.last?.contains("highlighted in \"Raft\"") == true)
-      #expect(world.agent.prompts.last?.contains(": \"term and index\"") == true)
+      let sent = try #require(world.agent.prompts.last)
+      #expect(sent.contains("saved an article \"Raft\""))
+      #expect(sent.components(separatedBy: "finished reading \"Raft\"").count == 2)
+      #expect(sent.contains("highlighted in \"Raft\" (library/\(item.id)): \"term and index\""))
+      #expect(second.bodies.contains(.prompt(Prompt(text: "Again", purpose: .chat))))
+    }
+  }
+
+  @Test func aLinkBeingFetchedDoesNotPostInTheMainConversation() async throws {
+    try await withHost { host, _, _ in
+      _ = try await host.run(AddLink(url: try #require(URL(string: "https://example.com/post"))))
+      #expect(try await host.conversation(.main).entries.isEmpty)
+    }
+  }
+
+  @Test func lociIsNotToldAboutAnItemThatHasBeenDeleted() async throws {
+    try await withHost { host, _, world in
+      let item = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n\nterm\n"))
+      _ = try await host.run(DeleteItems([item.id]))
+      _ = try await host.run(SendMessage(to: .main, text: "Hi"))
+      _ = try #require(await settled(host))
+      let sent = try #require(world.agent.prompts.last)
+      #expect(!sent.contains(item.id.description))
     }
   }
 }

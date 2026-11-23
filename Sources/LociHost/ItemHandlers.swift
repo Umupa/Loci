@@ -29,7 +29,7 @@ extension LocalHost {
 
   private func setAsideItems(_ items: [EntityID]) async throws(HostError) -> Done {
     let previous = setAsideDeletion()
-    var changes: Set<ContentChange> = [.events]
+    var changes: Set<ContentChange> = []
     var replacedUndo = false
     for item in items {
       await loci.forget(.item(item))
@@ -61,7 +61,7 @@ extension LocalHost {
 
   private func restoreSetAsideItems() async throws(HostError) -> [Item] {
     var restored: [Item] = []
-    var changes: Set<ContentChange> = [.events]
+    var changes: Set<ContentChange> = []
     for id in store.setAsideItems() {
       try attempt { try store.restore(id) }
       changes.formUnion([.item(id), .notes(.item(id)), .conversation(.item(id))])

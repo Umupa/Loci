@@ -101,34 +101,17 @@ struct ChatCardSnapshots {
     try await Self.shoot("chat-document", Self.scene(library, note: note, opened: true), library, appearance)
   }
 
-  /// A stack spread into its grid, and the library's cards: finished, saving, stopped.
   @Test(arguments: Snapshot.Appearance.allCases)
-  func spreadAndLibraryCards(appearance: Snapshot.Appearance) async throws {
-    let (library, note) = try Self.library()
-    let video = library.video
+  func spreadLinkCards(appearance: Snapshot.Appearance) async throws {
+    let (library, _) = try Self.library()
     let pieces = VStack(alignment: .leading, spacing: 18) {
       LinkCards(links: [SampleLinks.firecracker, SampleLinks.e2b, SampleLinks.kata], spread: true)
-      HStack(alignment: .top, spacing: 16) {
-        FinishedCard(item: library.article, at: Date(timeIntervalSince1970: 1_763_400_000))
-          .frame(width: CardShell<EmptyView>.width)
-        LibraryCards(items: [note]) { SavedItemByline($0).text }.frame(width: CardShell<EmptyView>.width)
-      }
-      HStack(alignment: .top, spacing: 16) {
-        SavingCard(item: video, job: Job(item: video.id, stage: .transcribe, state: .running(progress: Fraction(0.4))))
-          .frame(width: CardShell<EmptyView>.width)
-        SavingCard(
-          item: library.podcast,
-          job: Job(
-            item: library.podcast.id, stage: .resolve, state: .failed(Job.Failure(reason: "403", cause: .network)))
-        )
-        .frame(width: CardShell<EmptyView>.width)
-      }
     }
     .padding(28)
     .frame(width: 600)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .background(Palette.canvas)
-    try await Self.shoot("chat-card-pieces", pieces, library, appearance, size: CGSize(width: 600, height: 980))
+    try await Self.shoot("chat-card-pieces", pieces, library, appearance, size: CGSize(width: 600, height: 440))
   }
 
   private static func shoot(

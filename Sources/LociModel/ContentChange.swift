@@ -19,8 +19,6 @@ public enum ContentChange: Hashable, Codable, Sendable {
   case turnEnded(ConversationRef)
   /// The daily review started or ended.
   case review
-  /// Something happened in the library that the main conversation shows.
-  case events
   /// A file under `agent/` changed.
   case loci(LociFile)
   /// What Loci runs on changed.
@@ -40,6 +38,8 @@ public enum LociFile: String, Hashable, Codable, Sendable {
   /// Any day's `diary/<day>.md`.
   case diary
   case avatar
+  /// `feelings.json`.
+  case feelings
   /// Any panel's `panels/<name>.json`, or which panel is being refreshed.
   case panels
 }

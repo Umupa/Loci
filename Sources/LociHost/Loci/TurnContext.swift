@@ -11,6 +11,8 @@ struct TurnContext: Sendable {
   let happenings: [String]
   /// What the person has open, in a line.
   let open: String?
+  /// How the companion feels and how tired it is.
+  let feeling: FeltNow
   /// Files shown once and again whenever they change.
   let files: [ShownFile]
 
@@ -37,6 +39,7 @@ struct TurnContext: Sendable {
       }
     }
     if let open { lines.append("Open: " + open) }
+    lines += feeling.lines
     var remembered = shown
     for file in files {
       let fingerprint = Fingerprint.of(file.text)

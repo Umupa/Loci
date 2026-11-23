@@ -17,18 +17,21 @@ extension Store {
   static let workspaceFolder = "workspace"
   static let avatarName = "avatar"
 
-  /// Gives the companion its first files and updates the original, unedited named soul on older libraries.
-  public func prepareAgent(soul: String) throws {
+  /// Gives the companion its first files and updates an older default soul while preserving the person's edits.
+  public func prepareAgent(soul: String, replacing previous: String? = nil) throws {
     for folder in [Self.dayNotesFolder, Self.diaryFolder, Self.workspaceFolder, Self.conversationsFolder] {
       try FileManager.default.createDirectory(
         at: agentFolder.appending(path: folder, directoryHint: .isDirectory), withIntermediateDirectories: true)
     }
-    let previousOpening = "# Soul\n\nYou are Loci. You live on this Mac"
-    let currentOpening = "# Soul\n\nYou live on this Mac"
-    if let saved = try? agentText(.soul), saved.hasPrefix(previousOpening) {
-      let updated = currentOpening + saved.dropFirst(previousOpening.count)
-      if Soul(parsing: updated).core == Soul(parsing: soul).core {
-        try saveAgentText(updated, as: .soul)
+    let core = Soul(parsing: soul).core
+    let previousCore = previous.map { Soul(parsing: $0).core }
+    if let saved = try? agentText(.soul) {
+      let savedCore = Soul(parsing: saved).core
+      let named = "# Soul\n\nYou are Loci. You live on this Mac"
+      let unnamed = "# Soul\n\nYou live on this Mac"
+      let stock = savedCore.hasPrefix(named) ? unnamed + savedCore.dropFirst(named.count) : savedCore
+      if savedCore != core, stock == core || stock == previousCore {
+        try saveAgentText(Soul.rewriting(saved, core: core), as: .soul)
       }
     }
     let starts = [(Self.soulFile, soul), (Self.profileFile, "# User\n"), (Self.memoryFile, "# Memory\n")]

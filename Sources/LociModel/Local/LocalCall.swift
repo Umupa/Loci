@@ -29,6 +29,7 @@ public struct LocalCall: Hashable, Codable, Sendable {
     /// Where an item's folder is, relative to Loci's `agent` folder. The reply is a `String`.
     case itemFolder(EntityID)
     case course(CourseToolRequest)
+    case feeling(FeelingRequest)
   }
 }
 

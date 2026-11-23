@@ -28,9 +28,6 @@ struct StreamingRowsTests {
         case .ended: "ended"
         case .startedOver: "startedOver"
         case .saved: "saved"
-        case .finished(let item, _): "finished " + item.title
-        case .task(let item, _): "task " + item.title
-        case .cards(let items): "cards \(items.count)"
         case .savedItems(let ids): "saved items \(ids.count)"
         case .document(let document): "document " + (document.title ?? "-")
         case .links(let links): "links \(links.count)"

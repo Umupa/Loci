@@ -247,12 +247,6 @@ struct ConversationView<Tail: View>: View {
       StartedOverLine().padding(.vertical, 10)
     case .saved:
       SavedChip()
-    case .finished(let item, let at):
-      FinishedCard(item: item, at: at)
-    case .task(let item, let job):
-      SavingCard(item: item, job: job)
-    case .cards(let items):
-      LibraryCards(items: items) { SavedItemByline($0).text }
     case .savedItems(let items):
       SavedItemsCard(items: items).padding(.vertical, 6)
     case .document(let document):
@@ -308,7 +302,6 @@ extension ConversationEntry {
     switch self {
     case .asked(let message, _), .aside(let message), .reply(let message, _, _), .saved(let message, _): message.at
     case .savedItems(let messages): messages[0].at
-    case .event(let event): event.at
     }
   }
 }

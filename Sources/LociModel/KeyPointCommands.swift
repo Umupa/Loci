@@ -33,7 +33,7 @@ public struct ItemKeyPoints: Subscription {
       switch change {
       case .item(let id): id == item
       case .everything: true
-      case .course, .courseActivity, .job, .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci,
+      case .course, .courseActivity, .job, .notes, .reading, .media, .conversation, .turnEnded, .review, .loci,
         .runtime:
         false
       }

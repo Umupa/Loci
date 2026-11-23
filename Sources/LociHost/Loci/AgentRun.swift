@@ -4,27 +4,6 @@ import LociModel
 import LociStore
 import os
 
-/// What every run shares: where things are kept, how to say something changed, and the texts Loci is given.
-struct AgentContext: Sendable {
-  let store: Store
-  let database: StoreDatabase
-  let environment: HostEnvironment
-  let follower: Follower
-  let prompts: Prompts
-  let agents: HostAgents
-
-  /// What Loci runs on now.
-  var runtime: Runtime { agents.provisionalRuntime }
-
-  /// `AGENTS.md` as it should be now.
-  func instructions() throws(HostError) -> String {
-    try attempt {
-      try prompts.instructions(
-        soul: store.agentText(.soul), profile: store.agentText(.profile), name: store.companionName())
-    }
-  }
-}
-
 /// One owner's turns, a conversation's, a day's review or a panel's refresh, over the agent sessions underneath.
 ///
 /// One turn runs at a time. A turn's prompt is stored as soon as it is sent; the rest is kept in memory while

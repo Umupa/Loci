@@ -57,7 +57,7 @@ extension StoreDatabase {
         updates.append(.notes(content, notes.value))
       case .course(let id):
         updates.append(Self.courseUpdate(id, from: store, problems: &problems))
-      case .courseActivity, .everything, .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci,
+      case .courseActivity, .everything, .reading, .job, .media, .conversation, .turnEnded, .review, .loci,
         .runtime:
         continue
       }

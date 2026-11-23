@@ -49,18 +49,3 @@ private struct PaperPage: View {
     .background(Palette.cardPage)
   }
 }
-
-/// Items one after another in the library, as one card or a stack of them; each opens its item.
-struct LibraryCards: View {
-  @Environment(\.openPage) private var openPage
-  let items: [Item]
-  let line: (Item) -> Text
-
-  var body: some View {
-    CardStack(cards: items) { item, showsWords in
-      LibraryCard(item: item, line: line(item), showsWords: showsWords)
-    } open: { item in
-      openPage(.item(item.id))
-    }
-  }
-}

@@ -18,10 +18,12 @@ public struct LociPage: Hashable, Codable, Sendable {
   /// Days with a diary, newest first.
   public let diaries: [Diary.Heading]
   public let together: Together
+  /// `nil` from a Mac that keeps no feelings.
+  public let feeling: Feeling?
 
   public init(
     soul: Soul, memory: [Line<MemoryEntry>], profile: [Line<MemoryEntry>], today: DayNotes,
-    diaries: [Diary.Heading], together: Together
+    diaries: [Diary.Heading], together: Together, feeling: Feeling? = nil
   ) {
     self.soul = soul
     self.memory = memory
@@ -29,6 +31,7 @@ public struct LociPage: Hashable, Codable, Sendable {
     self.today = today
     self.diaries = diaries
     self.together = together
+    self.feeling = feeling
   }
 }
 

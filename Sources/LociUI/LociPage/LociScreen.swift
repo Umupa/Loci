@@ -87,6 +87,9 @@ struct LociScreen: View {
         .buttonStyle(.plain)
         .help(Text(.loci("companion.name")))
         .changesData()
+        if let feeling = page?.value?.feeling {
+          FeelingLine(feeling: feeling).padding(.bottom, Spacing.xxs)
+        }
         if let together = page?.value?.together {
           HStack(spacing: Spacing.xs) {
             FactPill(count: together.days, unit: .loci("loci.days"))

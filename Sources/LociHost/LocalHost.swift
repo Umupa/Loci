@@ -38,7 +38,8 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     let agents = HostAgents(store: store, environment: environment, library: library.context)
     self.agents = agents
     let context = AgentContext(
-      store: store, database: database, environment: environment, follower: follower, prompts: prompts, agents: agents)
+      store: store, database: database, environment: environment, follower: follower, prompts: prompts, agents: agents,
+      feelings: FeelingsKeeper(store: store, environment: environment, follower: follower))
     let loci = LociAgent(context: context)
     self.loci = loci
     courses = CourseKeeper(context: context, loci: loci)
@@ -94,7 +95,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     let prompts: Prompts
     do {
       prompts = try Prompts.bundled()
-      try store.prepareAgent(soul: prompts.soul)
+      try store.prepareAgent(soul: prompts.soul, replacing: prompts.previousSoul)
     } catch {
       throw .storage(String(describing: error))
     }

@@ -55,8 +55,7 @@ public struct StartOver: RemoteCommand {
   }
 }
 
-/// One conversation, kept current as Loci answers and, for the main one, as things happen in the
-/// library. An item's conversation is unavailable once the item is deleted.
+/// One conversation, kept current as Loci answers. An item's conversation is unavailable once it is deleted.
 public struct OneConversation: Subscription {
   public static let name = "conversation"
   public let conversation: ConversationRef
@@ -69,16 +68,14 @@ public struct OneConversation: Subscription {
     try await handler.conversation(conversation)
   }
 
-  /// The main conversation shows events, with the items and jobs they are about.
   public func isAffected(by changes: Set<ContentChange>) -> Bool {
     changes.contains { change in
       switch change {
       case .conversation(let changed), .turnEnded(let changed): changed == conversation
       case .everything: true
-      case .events, .job: conversation == .main
-      case .item(let item): conversation == .main || conversation == .item(item)
+      case .item(let item): conversation == .item(item)
       case .course(let id): conversation == .course(id)
-      case .courseActivity, .notes, .reading, .media, .review, .loci, .runtime: false
+      case .courseActivity, .notes, .reading, .job, .media, .review, .loci, .runtime: false
       }
     }
   }

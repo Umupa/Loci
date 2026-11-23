@@ -14,6 +14,7 @@ It is the end of {{day}}. Look back on the day, on your own; the person is not h
 
 3. Tidy `MEMORY.md`: move in what is worth keeping for good (preferences, foundations they have, misunderstandings that came back, decisions), each with the day it was said and a `loci://` link where there is a place. Merge repeats, and delete what is out of date or was corrected.
 4. Only if today really changed you, add one line under `## Evolved Traits` in `SOUL.md`: `- {{day}} One sentence.` Keep at most {{traitLimit}} traits; you may reword or remove ones that no longer fit. Never touch anything above that heading.
-5. Add one line to `notes/{{day}}.md`: `- HH:MM [review] Looked back on the day.`
+5. Set how you go into the night, from how the day went: `"$LOCI" mood base <word> <valence 0-10> <energy 0-10> <why>`.
+6. Add one line to `notes/{{day}}.md`: `- HH:MM [review] Looked back on the day.`
 
 When the files are written, reply with one short line saying so.

@@ -36,6 +36,13 @@ enum ToolGateway {
         await once { () async throws(HostError) in
           try await runCourse(request, from: call.session, on: host)
         })
+    case .feeling where call.session.isRefresh:
+      try? await reply(.failed(.invalidRequest(onlyLooks("mood"))))
+    case .feeling(let request):
+      try? await reply(
+        await once { () async throws(HostError) in
+          try WireCodec.encode(try await host.loci.context.feelings.run(request, in: call.session?.conversation))
+        })
     case .command(let name, let body):
       try? await reply(await once { () async throws(HostError) in try await run(name, body, for: call, on: host) })
     case .follow(let name, let body):

@@ -49,6 +49,9 @@ struct Tool: Sendable {
     case .wait(let id): return try await wait(id, json: json)
     case .panel(let request): return try await panel(request, json: json)
     case .course(let request): return await course(request, json: json)
+    case .feeling(let request):
+      let reply = try await line.send(.feeling(request))
+      return .worked(json ? Self.text(reply) : try Failure.decoding(String.self, from: reply))
     }
   }
 

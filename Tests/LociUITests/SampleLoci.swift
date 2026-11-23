@@ -51,7 +51,11 @@ extension SampleLibrary {
           Diary.Heading(day: try Self.day(16), writtenAt: TimeOfDay("23:40"), title: "三个没被点开的视频"),
           Diary.Heading(day: try Self.day(15), writtenAt: nil, title: "调度器"),
         ],
-        together: Together(days: 17, messages: 214, itemsReadTogether: 38))
+        together: Together(days: 17, messages: 214, itemsReadTogether: 38),
+        feeling: Feeling(
+          word: "得意", why: "你终于把 Raft 的 term 和 index 分清了",
+          valence: try JSONDecoder().decode(Score.self, from: Data("8".utf8)),
+          energy: try JSONDecoder().decode(Score.self, from: Data("4".utf8)), fatigue: 56, tiredness: .sleepy))
     }
   }
 

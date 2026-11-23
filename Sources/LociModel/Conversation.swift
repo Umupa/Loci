@@ -26,7 +26,7 @@ public struct Conversation: Hashable, Codable, Sendable {
 
   public enum Entry: Hashable, Codable, Sendable, Identifiable {
     case message(Message)
-    /// Only in the main conversation.
+    /// Only received from older hosts.
     case event(WorldEvent)
 
     public var id: EntityID {

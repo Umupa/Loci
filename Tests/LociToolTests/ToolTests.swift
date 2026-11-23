@@ -42,6 +42,7 @@ struct ToolTests {
     case .upload: "upload"
     case .itemFolder: "itemFolder"
     case .course: "course"
+    case .feeling: "feeling"
     }
   }
 

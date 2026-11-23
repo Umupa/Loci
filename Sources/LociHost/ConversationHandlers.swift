@@ -66,68 +66,25 @@ extension LocalHost {
     return Done()
   }
 
-  /// The stored messages and the running turn come from the run; the main conversation adds what happened
-  /// in the library, in the order it happened.
   public func conversation(_ ref: ConversationRef) async throws(HostError) -> Conversation {
     let snapshot = await (try loci.run(of: ref)).snapshot
-    var entries = snapshot.messages.map(Conversation.Entry.message)
-    if ref == .main {
-      entries = Self.merging(entries, try await events())
-    }
-    return Conversation(ref: ref, entries: entries, turn: snapshot.turn, context: snapshot.context)
+    return Conversation(
+      ref: ref, entries: snapshot.messages.map(Conversation.Entry.message), turn: snapshot.turn,
+      context: snapshot.context)
   }
 
-  /// The events the main conversation shows; an event about an item that is gone is left out.
-  private func events() async throws(HostError) -> [WorldEvent] {
-    let events = try attempt { try database.events() }.filter { logged in
-      if case .highlighted = logged.event { return false }
-      return true
-    }
-    let items = store.items(withIDs: Set(events.map(\.event.item)))
-    var shown: [WorldEvent] = []
-    for logged in events {
-      guard let item = items[logged.event.item] else { continue }
-      switch logged.event {
-      case .finishedReading:
-        shown.append(WorldEvent(id: logged.id, at: logged.at, kind: .finishedReading(item)))
-      case .saved:
-        let job = await library.queue.job(of: item.id)
-        shown.append(WorldEvent(id: logged.id, at: logged.at, kind: .saved(item, job: job)))
-      case .highlighted:
-        continue
-      }
-    }
-    return shown
-  }
-
-  /// Both lists are in time order; an event goes after the messages of the same moment.
-  static func merging(_ messages: [Conversation.Entry], _ events: [WorldEvent]) -> [Conversation.Entry] {
-    var merged: [Conversation.Entry] = []
-    var rest = events[...]
-    for message in messages {
-      while let event = rest.first, event.at < message.at {
-        merged.append(.event(event))
-        rest = rest.dropFirst()
-      }
-      merged.append(message)
-    }
-    return merged + rest.map(Conversation.Entry.event)
-  }
-
-  /// Tells of an item that went into the library. What the person saved is logged for the main
-  /// conversation and for Loci; what Loci saved shows in the turn it was saved in, and Loci knows it already.
+  /// What the person saved becomes context; what Loci saved shows in the turn that saved it.
   func saved(_ item: EntityID, by saver: Saver) async {
     if case .loci = saver { await library.queue.joinSaving(item) }
     switch saver {
-    case .person: await happened(.saved(item))
+    case .person: happened(.saved(item))
     case .loci(let conversation?): await loci.saved(item, in: conversation)
     case .loci(nil): break
     }
   }
 
-  /// Logs something that happened in the library and tells the main conversation.
-  func happened(_ event: LibraryEvent) async {
+  /// Records a library event for the companion's turn context.
+  func happened(_ event: LibraryEvent) {
     try? database.log(LoggedEvent(id: environment.newID(), at: environment.now(), event: event))
-    await follow([.events])
   }
 }

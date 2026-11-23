@@ -1,4 +1,4 @@
-/// Something that happened in the library, shown in the main conversation where it happened.
+/// A library event in the conversation payload of older hosts.
 public struct WorldEvent: Hashable, Codable, Sendable, Identifiable {
   public let id: EntityID
   public let at: Timestamp

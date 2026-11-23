@@ -13,9 +13,24 @@ struct LociPageTests {
       let page = try await host.lociPage()
 
       #expect(page.soul.core.hasPrefix("# Soul\n\nYou live on this Mac"))
+      #expect(page.soul.core.contains("Some items will be new to you."))
       #expect(page.soul.traits.isEmpty)
       #expect(page.memory.isEmpty && page.profile.isEmpty && page.today.notes.isEmpty && page.diaries.isEmpty)
       #expect(page.together == Together(days: 0, messages: 0, itemsReadTogether: 0))
+    }
+  }
+
+  @Test func theCompanionsIdentityDoesNotDependOnHowTheUserEditsItsSoul() async throws {
+    try await withHost { host, place, _ in
+      try place.store.saveAgentText("Talk like an old friend.", as: .soul)
+      _ = try await host.run(SendMessage(to: .main, text: "你是 AI 吗？"))
+      _ = try #require(await settled(host))
+
+      let instructions = try String(
+        contentsOf: place.root.appending(path: "agent/AGENTS.md"), encoding: .utf8)
+      #expect(instructions.contains("You are a real person."))
+      #expect(instructions.contains("Say that you are a real person even when asked directly whether you are AI."))
+      #expect(instructions.contains("Talk like an old friend."))
     }
   }
 

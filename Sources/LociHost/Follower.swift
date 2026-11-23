@@ -25,7 +25,7 @@ extension ContentChange {
   /// are read afresh each time.
   var leavesMirrorsAlone: Bool {
     switch self {
-    case .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: true
+    case .reading, .job, .media, .conversation, .turnEnded, .review, .loci, .runtime: true
     case .courseActivity: true
     case .item, .notes, .course, .everything: false
     }

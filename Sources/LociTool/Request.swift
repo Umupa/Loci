@@ -12,6 +12,7 @@ enum Request: Hashable, Sendable {
   case wait(EntityID)
   case panel(PanelRequest)
   case course(CourseRequest)
+  case feeling(FeelingRequest)
   case help
 
   /// The request in `arguments` (without the program's name), and whether to print the app's replies as
@@ -43,6 +44,10 @@ enum Request: Hashable, Sendable {
     case "panel": return (.panel(try PanelRequest.parse(words)), json)
     case "course": return (.course(try CourseRequest.parse(words)), json)
     case "lesson": return (.course(try CourseRequest.lesson(words)), json)
+    case "mood": return (.feeling(try mood(words)), json)
+    case "sleep", "wake":
+      guard words.isEmpty else { throw UsageError("loci \(verb) takes nothing more: loci \(verb)") }
+      return (.feeling(verb == "sleep" ? .sleep : .wake), json)
     case "help", "--help", "-h":
       return (.help, json)
     default:
@@ -61,6 +66,31 @@ enum Request: Hashable, Sendable {
       throw UsageError(usage)
     }
     return .repo(url, commit: commit)
+  }
+
+  static let moodUsage =
+    "loci mood here <word> <valence 0-10> <why> | loci mood base <word> <valence 0-10> <energy 0-10> <why>"
+
+  private static func mood(_ words: [String]) throws(UsageError) -> FeelingRequest {
+    func score(_ word: String) throws(UsageError) -> Score {
+      guard let number = Int(word), let score = Score(number) else {
+        throw UsageError("\(word) is not a whole number from 0 to 10: \(moodUsage)")
+      }
+      return score
+    }
+    func why(_ words: ArraySlice<String>) throws(UsageError) -> String {
+      let why = words.joined(separator: " ").trimmingCharacters(in: .whitespaces)
+      guard !why.isEmpty else { throw UsageError("Say why at the end: \(moodUsage)") }
+      return why
+    }
+    switch words.first {
+    case "here" where words.count >= 4:
+      return .here(word: words[1], valence: try score(words[2]), why: try why(words[3...]))
+    case "base" where words.count >= 5:
+      return .base(word: words[1], valence: try score(words[2]), energy: try score(words[3]), why: try why(words[4...]))
+    default:
+      throw UsageError(moodUsage)
+    }
   }
 
   private static func id(_ words: [String], verb: String) throws(UsageError) -> EntityID {

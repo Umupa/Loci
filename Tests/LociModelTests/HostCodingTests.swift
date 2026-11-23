@@ -175,21 +175,19 @@ struct HostCodingTests {
     #expect(!LociAvatar().isAffected(by: [.loci(.soul)]))
     #expect(OneDiary(day: Self.day).isAffected(by: [.loci(.diary)]))
     #expect(LociWorking().isAffected(by: [.review]))
-    #expect(!LociWorking().isAffected(by: [.events]))
     #expect(CurrentRuntime().isAffected(by: [.runtime]))
   }
 
-  @Test func theMainConversationListensToTheLibraryAndAnItemsOnlyToItself() {
+  @Test func libraryActivityDoesNotRefreshTheMainConversation() {
     let other = Fixture.id(9)
     let main = OneConversation(.main)
     let onItem = OneConversation(.item(Fixture.item))
 
-    #expect(main.isAffected(by: [.events]))
-    #expect(main.isAffected(by: [.job(other)]))
-    #expect(main.isAffected(by: [.item(other)]))
+    #expect(!main.isAffected(by: [.job(Fixture.item), .item(Fixture.item), .reading(.item(Fixture.item))]))
+    #expect(main.isAffected(by: [.conversation(.main)]))
     #expect(!main.isAffected(by: [.conversation(.item(Fixture.item))]))
     #expect(onItem.isAffected(by: [.conversation(.item(Fixture.item))]))
     #expect(onItem.isAffected(by: [.item(Fixture.item)]))
-    #expect(!onItem.isAffected(by: [.events, .job(Fixture.item), .item(other), .conversation(.main)]))
+    #expect(!onItem.isAffected(by: [.job(Fixture.item), .item(other), .conversation(.main)]))
   }
 }

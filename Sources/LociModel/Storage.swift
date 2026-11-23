@@ -73,7 +73,7 @@ public struct StorageUse: Subscription {
     changes.contains { change in
       switch change {
       case .item, .media, .everything: true
-      case .course, .courseActivity, .notes, .reading, .job, .conversation, .turnEnded, .review, .events, .loci,
+      case .course, .courseActivity, .notes, .reading, .job, .conversation, .turnEnded, .review, .loci,
         .runtime:
         false
       }

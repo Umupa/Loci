@@ -29,8 +29,8 @@ extension LocalHost {
       try database.save(
         ReadingState(position: before?.position, finished: true, updatedAt: environment.now()), for: content)
     }
+    if before?.finished != true, case .item(let item) = content { happened(.finishedReading(item)) }
     await hub.refresh([.reading(content)])
-    if before?.finished != true, case .item(let item) = content { await happened(.finishedReading(item)) }
     return Done()
   }
 }

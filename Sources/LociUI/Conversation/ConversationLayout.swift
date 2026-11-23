@@ -11,18 +11,15 @@ enum ConversationEntry: Identifiable {
   case saved(Message, note: EntityID)
   /// Items Loci put into the library one after another.
   case savedItems([Message])
-  /// Something that happened in the library.
-  case event(WorldEvent)
 
   var id: EntityID {
     switch self {
     case .asked(let message, _), .aside(let message), .reply(let message, _, _), .saved(let message, _): message.id
     case .savedItems(let messages): messages[0].id
-    case .event(let event): event.id
     }
   }
 
-  /// A conversation's messages and events, oldest first, as the conversation shows them: Loci's thinking
+  /// A conversation's messages, oldest first, as the conversation shows them: Loci's thinking
   /// and tools, what its agent reported along the way, and what it said between tools are left out. Of a
   /// turn's replies only the last shows; while the turn runs, only one being written now, and with `hold`,
   /// only once the hold lets it. With `live`, the last one belongs to the turn running now.
@@ -34,19 +31,16 @@ enum ConversationEntry: Identifiable {
       if !savedItems.isEmpty { entries.append(.savedItems(savedItems)) }
       savedItems = []
     }
-    let going = said.lastIndex { !$0.isSavedItem }
+    let going =
+      live
+      ? said.lastIndex { entry in
+        guard case .message(let message) = entry else { return false }
+        if case .savedItem = message.body { return false }
+        return true
+      } : nil
     for (index, entry) in said.enumerated() {
-      let message: Message
-      switch entry {
-      case .event(let event):
-        close()
-        reply = nil
-        entries.append(.event(event))
-        continue
-      case .message(let said):
-        message = said
-      }
-      let isLast = live && index == going
+      guard case .message(let message) = entry else { continue }
+      let isLast = index == going
       switch message.body {
       case .thinking, .tool, .notice:
         continue
@@ -122,17 +116,11 @@ extension ConversationEntry {
         texts.append(QuickReplies(text).text)
         last = message.id
         streaming = going
-      case .saved, .savedItems, .event:
+      case .saved, .savedItems:
         break
       }
     }
     close()
     return answers
-  }
-}
-
-extension Conversation.Entry {
-  fileprivate var isSavedItem: Bool {
-    if case .message(let message) = self, case .savedItem = message.body { true } else { false }
   }
 }

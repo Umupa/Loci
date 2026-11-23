@@ -111,12 +111,9 @@ struct LociSnapshots {
       "loci", try SampleLibrary(), at: WindowState(place: .loci), appearance: appearance)
   }
 
-  /// The pieces of the main conversation the sample does not reach: an item still saving part way, and one
-  /// stopped.
   @Test(arguments: Snapshot.Appearance.allCases)
   func talkPieces(appearance: Snapshot.Appearance) async throws {
     let library = try SampleLibrary()
-    let video = library.video
     let pieces = VStack(alignment: .leading, spacing: Size.messageGap) {
       DayDivider(label: Text(verbatim: "今天 09:12"))
       BubbleRow(speaker: .loci) { ReplyText(text: "早", streaming: false, size: 15) }
@@ -124,12 +121,6 @@ struct LociSnapshots {
       DoingLine(doing: .reading("Pingora 第二条划线"))
       QuickReplyChips(replies: ["好，存进去", "先不用"]) { _ in }
       LatestButton {}.padding(.leading, 40)
-      SavingCard(
-        item: video, job: LociModel.Job(item: video.id, stage: .translate, state: .running(progress: nil)))
-      SavingCard(
-        item: library.article,
-        job: LociModel.Job(
-          item: library.article.id, stage: .resolve, state: .failed(Job.Failure(reason: "403", cause: .network))))
     }
     .padding(28)
     .frame(width: Size.talkColumn + 56)

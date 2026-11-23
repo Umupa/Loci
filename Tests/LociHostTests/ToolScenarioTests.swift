@@ -51,23 +51,20 @@ struct ToolScenarioTests {
     }
   }
 
-  @Test func whatLociSavedIsNotAnEventAndWhatThePersonSavedIs() async throws {
+  @Test func onlyWhatThePersonSavedIsNewContextAndOnlyWhatLociSavedAppearsInChat() async throws {
     try await withManualHost { host, _, world, agent in
       _ = try await host.run(SendMessage(to: .main, text: "Write it up"))
       #expect(await working(host))
       world.advance(minutes: 1)
 
-      _ = try item(
+      let byLoci = try item(
         await answer(
           try command(AddTextItem(fileName: "notes.md", text: "# Borg\n", authors: [Item.companionCredit])), on: host))
-      let byPerson = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n"))
+      _ = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n"))
       await agent.sessions.first?.finish()
-      _ = try #require(await settled(host))
-
-      let events = try await host.conversation(.main).entries.compactMap { entry -> EntityID? in
-        if case .event(let event) = entry, case .saved(let item, _) = event.kind { item.id } else { nil }
-      }
-      #expect(events == [byPerson.id])
+      let conversation = try #require(await settled(host))
+      #expect(conversation.bodies.contains(.savedItem(byLoci.id)))
+      #expect(conversation.entries.count == conversation.bodies.count)
       _ = try await host.run(SendMessage(to: .main, text: "Next"))
       #expect(await working(host))
       let told = try #require(await agent.sessions.first?.prompts.last)

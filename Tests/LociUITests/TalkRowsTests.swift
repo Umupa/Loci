@@ -29,9 +29,6 @@ struct TalkRowsTests {
       case .ended: "ended"
       case .startedOver: "startedOver"
       case .saved: "saved"
-      case .finished(let item, _): "finished " + item.title
-      case .task(let item, _): "task " + item.title
-      case .cards(let items): "cards " + items.map(\.title).joined(separator: " ")
       case .savedItems(let items): "savedItems \(items.count)"
       case .document(let document): "document " + (document.title ?? "")
       case .links(let links): "links \(links.count)"
@@ -135,25 +132,16 @@ struct TalkRowsTests {
     .event(WorldEvent(id: EntityID(), at: Timestamp(millisecondsSince1970: second * 1000), kind: kind))
   }
 
-  @Test func whatHappenedInTheLibraryBreaksARunOfBubbles() throws {
+  @Test func libraryEventsFromAnOlderMacDoNotInterruptTheConversation() throws {
+    let item = try Self.item("Pingora")
     let entries: [Conversation.Entry] = [
-      .message(Self.message(0, .reply("看完去睡"))), Self.event(1, .finishedReading(try Self.item("Pingora"))),
+      .message(Self.asked(0, "看到哪了")),
+      Self.event(1, .finishedReading(item)), Self.event(2, .saved(item, job: nil)),
       .message(Self.message(2, .reply("可以啊"))),
     ]
     let rows = TalkRow.rows(ConversationEntry.layout(entries, live: false))
 
-    #expect(Self.kinds(rows) == ["day", "said 看完去睡", "finished Pingora", "said 可以啊"])
-  }
-
-  @Test func itemsSavedOneAfterAnotherShareARowOfCardsAndWorkStillGoingIsATask() throws {
-    let job = Job(item: EntityID(), stage: .download, state: .running(progress: nil))
-    let entries: [Conversation.Entry] = [
-      Self.event(0, .saved(try Self.item("一"), job: nil)), Self.event(1, .saved(try Self.item("二"), job: nil)),
-      Self.event(2, .saved(try Self.item("三"), job: job)),
-    ]
-    let rows = TalkRow.rows(ConversationEntry.layout(entries, live: false))
-
-    #expect(Self.kinds(rows) == ["day", "cards 一 二", "task 三"])
+    #expect(Self.kinds(rows) == ["day", "asked 看到哪了", "said 可以啊"])
   }
 
   private static func tool(_ second: Int64, _ state: ToolActivity.State = .succeeded) -> Message {

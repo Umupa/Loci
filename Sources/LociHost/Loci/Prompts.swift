@@ -6,6 +6,7 @@ import LociModel
 /// failed turn rather than a crash.
 struct Prompts: Sendable {
   let soul: String
+  let previousSoul: String
   let rules: String
   let review: String
   let panel: String
@@ -13,7 +14,8 @@ struct Prompts: Sendable {
 
   static func bundled() throws(HostError) -> Prompts {
     Prompts(
-      soul: try resource("soul"), rules: try resource("rules"), review: try resource("review"),
+      soul: try resource("soul"), previousSoul: try resource("soul-1.7"),
+      rules: try resource("rules"), review: try resource("review"),
       panel: try resource("panel"), course: try resource("course"))
   }
 

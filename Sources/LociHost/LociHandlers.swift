@@ -19,6 +19,7 @@ extension LocalHost {
   public func lociPage() async throws(HostError) -> LociPage {
     let today = Day(containing: environment.now(), in: environment.timeZone)
     let title = itemTitles()
+    let feeling = await loci.context.feelings.feeling()
     return try attempt {
       LociPage(
         soul: Soul(parsing: try store.agentText(.soul)),
@@ -28,7 +29,7 @@ extension LocalHost {
         diaries: store.diaryDays().map { day in
           Diary(day: day, parsing: (try? store.diary(of: day)) ?? "").heading
         },
-        together: try together(today: today))
+        together: try together(today: today), feeling: feeling)
     }
   }
 

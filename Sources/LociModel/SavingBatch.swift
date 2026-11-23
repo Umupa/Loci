@@ -26,7 +26,7 @@ public struct SavingNow: Subscription {
     changes.contains { change in
       switch change {
       case .job, .item, .everything: true
-      case .course, .courseActivity, .notes, .reading, .media, .conversation, .turnEnded, .review, .events, .loci,
+      case .course, .courseActivity, .notes, .reading, .media, .conversation, .turnEnded, .review, .loci,
         .runtime:
         false
       }

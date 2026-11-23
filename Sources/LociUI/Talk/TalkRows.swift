@@ -18,12 +18,6 @@ struct TalkRow: Identifiable {
     /// Where the conversation started over.
     case startedOver
     case saved
-    /// The person read an item to the end.
-    case finished(Item, at: Date)
-    /// An item going into the library, with its work still going or stopped.
-    case task(Item, Job)
-    /// Items that went into the library one after another, ready to open.
-    case cards([Item])
     /// Items Loci put into the library one after another, by id: they may still be on their way, or gone.
     case savedItems([EntityID])
     /// Something long Loci wrote out, as a card that opens.
@@ -51,7 +45,7 @@ struct TalkRow: Identifiable {
     switch kind {
     case .asked: .person
     case .said, .ended: .loci
-    case .day, .doing, .replies, .startedOver, .saved, .finished, .task, .cards, .savedItems, .document, .links: nil
+    case .day, .doing, .replies, .startedOver, .saved, .savedItems, .document, .links: nil
     }
   }
 
@@ -92,11 +86,9 @@ struct TalkRow: Identifiable {
       case .savedItems(let messages):
         let items = messages.compactMap { if case .savedItem(let item) = $0.body { item } else { nil } }
         rows.append(TalkRow(id: ID(message: messages[0].id, part: 0), kind: .savedItems(items)))
-      case .event(let event):
-        rows.append(contentsOf: Self.rows(of: event))
       }
     }
-    rows = Self.joiningLinks(Self.joiningCards(rows))
+    rows = Self.joiningLinks(rows)
     if let turn, !Self.isSaying(turn, rows) {
       rows.append(TalkRow(id: ID(message: nil, part: 0), kind: .doing(Doing(turn.messages))))
     }
@@ -118,28 +110,4 @@ struct TalkRow: Identifiable {
     }
   }
 
-  private static func rows(of event: WorldEvent) -> [TalkRow] {
-    let id = ID(message: event.id, part: 0)
-    switch event.kind {
-    case .finishedReading(let item):
-      return [TalkRow(id: id, kind: .finished(item, at: event.at.date))]
-    case .saved(let item, let job?):
-      return [TalkRow(id: id, kind: .task(item, job))]
-    case .saved(let item, nil):
-      return [TalkRow(id: id, kind: .cards([item]))]
-    }
-  }
-
-  /// Cards of items saved one right after another share a row, under the first one's id.
-  private static func joiningCards(_ rows: [TalkRow]) -> [TalkRow] {
-    var joined: [TalkRow] = []
-    for row in rows {
-      if case .cards(let more) = row.kind, let last = joined.last, case .cards(let items) = last.kind {
-        joined[joined.count - 1] = TalkRow(id: last.id, kind: .cards(items + more))
-      } else {
-        joined.append(row)
-      }
-    }
-    return joined
-  }
 }

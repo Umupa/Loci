@@ -14,7 +14,7 @@ extension LocalHost {
         thought: command.thought.flatMap(Self.text), savedAt: environment.now())
     }
     let saved = try await save(note)
-    if case .item(let item) = note.locator.content { await happened(.highlighted(item, note: note.id)) }
+    if case .item(let item) = note.locator.content { happened(.highlighted(item, note: note.id)) }
     return saved
   }
 
