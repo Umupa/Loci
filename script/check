@@ -1,27 +1,28 @@
 #!/bin/sh
 # The delivery gate. On a failure it prints what failed and how to fix it.
-#   script/check               everything: a release and the nightly CI run
-#   script/check --fast        without the snapshots and the long conversation: a push or pull request
-#   script/check --documents   the architecture and document rules alone, built without the app:
-#                              a change script/affected says touches only the documents
+#   script/check                   everything, including snapshots and long conversations
+#   script/check --fast            all targets without the slow tests
+#   script/check --fast <range>    only targets affected by a push or pull request
+#   script/check --documents       only the architecture and document rules
 set -eu
 cd "$(dirname "$0")/.."
 . script/toolchain
 . script/steps
 case "$#:${1:-}" in
-  0:) ;;
-  1:--fast) set -- --skip "$slow_tests" ;;
-  1:--documents) ;;
-  *) echo "usage: script/check [--fast | --documents]" >&2; exit 2 ;;
+  1:--documents)
+    step format swift format lint --strict --recursive --parallel Tests/Package.swift Tests/ArchitectureTests
+    script/test ArchitectureTests
+    ;;
+  2:--fast)
+    step format swift format lint --strict --recursive --parallel Package.swift Sources Tests
+    script/test --affected "$2"
+    ;;
+  0: | 1:--fast)
+    if [ "$#" -eq 1 ]; then set -- --skip "$slow_tests"; fi
+    step format swift format lint --strict --recursive --parallel Package.swift Sources Tests
+    step build swift build --build-tests
+    step test swift test --skip-build "$@"
+    ;;
+  *) echo "usage: script/check [--fast [<commit range>] | --documents]" >&2; exit 2 ;;
 esac
-
-step format swift format lint --strict --recursive --parallel Package.swift Sources Tests
-if [ "${1:-}" = --documents ]; then
-  # swift test opens every test bundle, so this one bundle runs on its own.
-  step build swift build --product ArchitectureTests
-  step test xcrun xctest "$(swift build --show-bin-path)/ArchitectureTests.xctest"
-else
-  step build swift build --build-tests
-  step test swift test --skip-build "$@"
-fi
 step commits script/check-commits

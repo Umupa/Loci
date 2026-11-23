@@ -2,57 +2,93 @@
 # The loop between edits: builds only the test targets and executables a change
 # needs, runs those tests, and says which step, test and log failed. It always
 # builds first, so the tests never run stale code. script/check stays the gate.
-#   script/test               the tests script/affected names for what changed, without the
-#                             slow suites script/check --fast skips
-#   script/test <filter>...   swift test filters, each starting with its test target,
-#                             such as 'LociUITests\.(ChatTests|TalkRowsTests)/'
+#   script/test                       the targets affected by local changes
+#   script/test --affected <range>     the targets affected by a commit range
+#   script/test <filter>...            filters starting with their test target,
+#                                     such as 'LociUITests\.(ChatTests|TalkRowsTests)/'
 set -eu
 cd "$(dirname "$0")/.."
 . script/toolchain
 . script/steps
 
-products=""
+target_of() {
+  printf '%s' "$1" | sed -nE 's/^\^?([A-Za-z]+Tests)([.\\/].*)?$/\1/p'
+}
+
 if [ $# -eq 0 ]; then
   products="$(script/affected)"
-  tests="$(printf '%s\n' $products | grep 'Tests$' | paste -sd '|' -)"
-  set -- --filter "^($tests)\\." --skip "$slow_tests"
-  echo "tests: $tests"
+elif [ "$1" = --affected ]; then
+  if [ $# -ne 2 ]; then
+    echo "usage: script/test --affected <commit range>" >&2
+    exit 2
+  fi
+  products="$(script/affected "$2")"
+  set --
 else
+  products=""
   for filter; do
-    target="$(printf '%s' "$filter" | sed -nE 's/^\^?([A-Za-z]+Tests)([.\\/].*)?$/\1/p')"
+    target="$(target_of "$filter")"
     if [ -z "$target" ] || [ ! -d "Tests/$target" ]; then
-      echo "script/test: start each filter with its test target, such as 'LociUITests\\.ChatTests/'. Targets: $(ls Tests | paste -sd ' ' -)" >&2
+      echo "script/test: start each filter with its test target, such as 'LociUITests\\.ChatTests/'" >&2
       exit 2
     fi
     products="$products $target"
   done
-  for filter; do set -- "$@" --filter "$filter"; shift; done
 fi
 
-build() {
-  bin="$(swift build --show-bin-path)"
-  # swift test --skip-build opens every test bundle, so a clone builds them all once.
-  for target in $(ls Tests); do
-    if [ ! -d "$bin/$target.xctest" ]; then
-      swift build --build-tests
-      return
-    fi
-  done
-  for product in $(printf '%s\n' $products | sort -u); do
-    swift build --product "$product"
-  done
-}
+test_product() {
+  product=$1
+  shift
+  if [ $# -eq 0 ]; then
+    set -- --skip "$slow_tests"
+  else
+    for filter; do
+      shift
+      if [ "$(target_of "$filter")" = "$product" ]; then
+        set -- "$@" --filter "$filter"
+      fi
+    done
+  fi
 
-ran() {
-  swift test --skip-build "$@" || return
-  count="$(sed -nE 's/^✔ Test run with ([0-9]+) tests? .*/\1/p' "$log" | awk '{ s += $1 } END { print s + 0 }')"
-  if [ "${count:-0}" -eq 0 ]; then
-    echo "error: no test matched $*"
+  echo "Testing $product"
+  start="$(wc -l < "$log")"
+  if [ "$product" = ArchitectureTests ]; then
+    swift test --package-path Tests --scratch-path "$PWD/.build/architecture" --test-product "$product" "$@" || return
+  else
+    swift test --test-product "$product" "$@" || return
+  fi
+  if ! tail -n "+$((start + 1))" "$log" | grep -Eq '^✔ Test run with [1-9][0-9]* tests? '; then
+    echo "error: no test matched in $product ($*)"
     return 1
   fi
-  echo "ran $count tests"
 }
 
-step build build
-step test ran "$@"
-sed -n 's/^ran \([0-9]*\) tests$/\1 tests passed/p' output/check-test.log
+run_tests() {
+  for selected in $tests; do
+    test_product "$selected" "$@" || return
+  done
+}
+
+build_apps() {
+  for app in $apps; do
+    swift build --product "$app" || return
+  done
+}
+
+tests=""
+apps=""
+# Product names are Swift identifiers.
+# shellcheck disable=SC2086
+for product in $(printf '%s\n' $products | sort -u); do
+  if [ -d "Tests/$product" ]; then
+    tests="$tests $product"
+  else
+    apps="$apps $product"
+  fi
+done
+step test run_tests "$@"
+sed -nE 's/^✔ Test run with ([0-9]+) tests? .*/\1/p' output/check-test.log |
+  awk '{ sum += $1 } END { print sum + 0, "tests passed" }'
+if [ -n "$apps" ]; then
+  step build build_apps
+fi

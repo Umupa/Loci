@@ -24,9 +24,10 @@ script/test 'LociUITests\.(ChatTests|ConversationTests|TalkRowsTests)/'
 | 命令 | 作用 |
 |---|---|
 | `script/test [过滤]...` | 改一轮跑一轮：只构建、只跑涉及的测试 |
+| `script/test --affected <提交范围>` | 按提交范围构建和运行受影响的测试，跳过快照和长对话压测 |
 | `script/affected [提交范围]` | 列出改动影响的测试目标和 App |
-| `script/check --fast` | 跑 PR 和 `main` 日常 CI 的检查（只在用户要求时跑，见下） |
-| `script/check --documents` | 只改文档时 CI 跑的检查：不构建 App，只跑架构和文档规则 |
+| `script/check --fast <提交范围>` | 跑 PR 和 `main` 的日常检查（只在用户要求时跑，见下） |
+| `script/check --documents` | 只跑架构和文档规则，跳过应用依赖 |
 | `script/check` | 跑完整检查，含全量快照和长对话压测 |
 | `script/format` | 按项目风格重排代码 |
 | `script/run` | 构建并打开 `output/Loci (Beta).app`；`--no-open` 只构建 |
@@ -73,6 +74,7 @@ script/test 'LociUITests\.(ChatTests|ConversationTests|TalkRowsTests)/'
 - **时间、随机数、文件位置、外部程序都从外面传进来**，测试里可以换掉。参照 `EntityID.init(at:entropy:)`。
 - **名字用 [docs/features.md](docs/features.md) 里的词。** 那是人和 agent 共用的词汇，代码里的类型名与它一一对应。
 - **界面文字**不要副标题和解释性的小字，让布局说明自己。中英两种语言都要有。
+- 产品改名时，先让用户选定产品名，再围绕选定的名字设计 Dock 图标。
 - 代码、标识符、提交信息用英文；文档用中文。
 
 ## 每次被纠正，留下一条检查

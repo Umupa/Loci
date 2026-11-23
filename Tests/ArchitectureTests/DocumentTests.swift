@@ -5,14 +5,16 @@ import Testing
 struct DocumentTests {
   @Test func retiredWordsAreGone() throws {
     let glossary = try Documents.read(Documents.glossary)
-    let retired = Self.retiredWords(in: glossary)
+    let retired = try Self.retiredWords(in: glossary).map {
+      (word: $0.word, instead: $0.instead, matches: try Self.matcher(for: $0.word))
+    }
     let table = Set(glossary.section(Documents.retiredHeading).map(\.number))
 
     report(
       try Documents.current().filter { Documents.keepsOldWords[$0.path] == nil }.flatMap { file in
         file.lines.enumerated().flatMap { index, line -> [Violation] in
           if file.path == Documents.glossary && table.contains(index + 1) { return [] }
-          return retired.filter { Self.mentions($0.word, in: line) }.map {
+          return retired.filter { $0.matches(line) }.map {
             Violation(
               file: file.path, line: index + 1, found: "「\($0.word)」 is retired",
               fix: "Say \($0.instead). If the thing is gone, delete the sentence; git keeps the history. "
@@ -78,10 +80,10 @@ struct DocumentTests {
   }
 
   /// Latin words match at the start of a word in any case, so `mentor` finds `Mentors` and `mentor_id`.
-  static func mentions(_ word: String, in line: String) -> Bool {
-    guard word.allSatisfy(\.isASCII) else { return line.contains(word) }
-    let pattern = try? Regex("\\b" + NSRegularExpression.escapedPattern(for: word)).ignoresCase()
-    return pattern.map { line.contains($0) } ?? false
+  static func matcher(for word: String) throws -> (String) -> Bool {
+    guard word.allSatisfy(\.isASCII) else { return { $0.contains(word) } }
+    let pattern = try Regex("\\b" + NSRegularExpression.escapedPattern(for: word)).ignoresCase()
+    return { $0.contains(pattern) }
   }
 
   static func brokenReferences(in line: String, of path: String) -> [String] {
@@ -132,11 +134,13 @@ struct ProseReaderTests {
     #expect(words.map(\.instead) == ["新词", "新词"])
   }
 
-  @Test func matchesLatinWordsByTheirStartAndChineseAnywhere() {
-    #expect(DocumentTests.mentions("widget", in: "let widgets_id = 1"))
-    #expect(DocumentTests.mentions("widget", in: "A Widget here"))
-    #expect(!DocumentTests.mentions("widget", in: "subwidget"))
-    #expect(DocumentTests.mentions("旧词", in: "这是旧词。"))
+  @Test func matchesLatinWordsByTheirStartAndChineseAnywhere() throws {
+    let latin = try DocumentTests.matcher(for: "widget")
+    let chinese = try DocumentTests.matcher(for: "旧词")
+    #expect(latin("let widgets_id = 1"))
+    #expect(latin("A Widget here"))
+    #expect(!latin("subwidget"))
+    #expect(chinese("这是旧词。"))
   }
 
   @Test func findsLinksAndPathsThatLeadNowhere() {

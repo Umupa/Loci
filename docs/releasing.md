@@ -46,11 +46,11 @@
    | Commits | 检查这次推送或 PR 的提交信息 |
    | Check | 按改了什么选检查，留下各阶段日志 |
 
-   Check 用 `script/affected <这次的提交范围>` 判断：只改了文档（`docs/`、各处的 `.md`、`LICENSE`、`.gitignore`、`.github/ISSUE_TEMPLATE/`）时跑 `script/check --documents`，只构建架构测试、检查文档的链接、旧词和 CHANGELOG 格式，不构建 App；其余改动跑 `script/check --fast`：格式、编译、单测、行为回归、架构和文档检查。脚本、`Package.swift` 和流水线本身的改动都按代码算。
+   Check 按这次的提交范围选择检查。纯文档改动使用独立的 Swift 包运行架构和文档规则，跳过应用依赖。普通代码改动先检查 Swift 格式，再由 `script/test --affected <提交范围>` 构建和测试受影响的目标，跳过快照和长对话压测。脚本、包配置和流水线的改动涉及所有目标。PR 的新运行会替代同一 PR 的旧运行，`main` 的每次推送都保留自己的检查。
 
-   每天定时运行和用 `gh workflow run ci.yml` 手动运行时，CI 跑完整 `script/check`，也留下全量快照。定时运行遇到已经完整检查过的提交（上一次定时运行、手动运行或发版检查过的同一个提交）就跳过。
+   每天定时运行和用 `gh workflow run ci.yml` 手动运行时，CI 跑完整 `script/check`，也留下全量快照。
 
-   macOS 作业通过 `.github/actions/packages` 缓存 SwiftPM 的依赖克隆和 whisper.framework，键是 `Package.resolved`。编译产物不缓存。
+   需要应用依赖的作业通过 `.github/actions/packages` 缓存 SwiftPM 的依赖克隆和 whisper.framework，键是 `Package.resolved`。
 
 3. **定版本。** 在 `docs/roadmap.md` 里把这一版挪进「已完成」，「发布」一列写上版本号，提交并推送。然后在 main 上：
 

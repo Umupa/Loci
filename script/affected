@@ -8,26 +8,37 @@
 #   script/affected <range>    what a range of commits changes, such as main...HEAD
 set -eu
 cd "$(dirname "$0")/.."
-. script/toolchain
 
 if [ $# -gt 0 ]; then
-  changed="$(git diff --name-only "$1")"
+  changed="$(git -c core.quotePath=false diff --no-renames --name-only "$1" --)"
 else
   base="$(git merge-base HEAD '@{upstream}' 2>/dev/null || git rev-parse HEAD)"
-  changed="$(git diff --name-only "$base"; git ls-files --others --exclude-standard)"
+  changed="$(git -c core.quotePath=false diff --no-renames --name-only "$base" --)"
+  untracked="$(git -c core.quotePath=false ls-files --others --exclude-standard)"
+  changed="$(printf '%s\n%s\n' "$changed" "$untracked")"
 fi
 
 modules=""
 everything=false
-for path in $changed; do
+while IFS= read -r path; do
   case "$path" in
   Sources/*/* | Tests/*/*) modules="$modules $(printf '%s' "$path" | cut -d/ -f2)" ;;
+  '') ;;
   docs/* | *.md | LICENSE | .gitignore | .github/ISSUE_TEMPLATE/*) ;;
   *) everything=true ;;
   esac
-done
+done <<EOF
+$changed
+EOF
 
-swift package dump-package | jq -r --argjson everything "$everything" --arg modules "$modules" '
+if [ "$everything" = false ] && [ -z "$modules" ]; then
+  echo ArchitectureTests
+  exit 0
+fi
+
+. script/toolchain
+manifest="$(swift package dump-package)"
+printf '%s\n' "$manifest" | jq -r --argjson everything "$everything" --arg modules "$modules" '
   def closure($deps; $name): [$name] + ([$deps[$name][]? | closure($deps; .)] | add // []);
   ($modules | split(" ") | map(select(. != ""))) as $changed
   | (.targets | map({key: .name, value: [.dependencies[] | (.byName // .target // empty)[0]]}) | from_entries) as $deps

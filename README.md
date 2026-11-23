@@ -40,7 +40,7 @@ Every night after 23:00, once you have gone quiet, your companion looks back on 
 Requires Xcode 27 or later.
 
 ```sh
-script/check   # full checks for a pull request or release
+script/test    # build and test targets affected by local changes
 script/run     # build and open Loci (Beta)
 ```
 
