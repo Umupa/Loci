@@ -19,7 +19,7 @@ struct ReaderPanel: View {
   @Binding var draft: PassageDraft?
   /// The highlight chosen last, and a serial that changes each time it is chosen again.
   let chosen: ChosenNote?
-  let reveal: (NSRange) -> Void
+  let reveal: (PlacedNote) -> Void
   let revealPassage: @MainActor (Locator) -> Void
   let ask: (PlacedNote) -> Void
   let collapse: () -> Void
@@ -60,7 +60,7 @@ struct ReaderPanel: View {
               content: content, placed: placed, chosen: chosen?.note == placed.id ? chosen?.serial : nil,
               ask: placed.range == nil ? nil : { ask(placed) }
             ) {
-              if let range = placed.range { reveal(range) }
+              if placed.range != nil { reveal(placed) }
             }
             .id(placed.id)
           }

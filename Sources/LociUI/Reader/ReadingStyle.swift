@@ -13,7 +13,6 @@ enum ReadingStyle {
   static let listIndent: CGFloat = 22
   static let quoteIndent: CGFloat = 18
   static let codePadding: CGFloat = 12
-  static let tableGap: CGFloat = 24
   /// Room above and below the column, so the first and last lines do not touch the window's edges.
   static let inset = CGSize(width: 0, height: Size.readingTop)
 
@@ -58,9 +57,6 @@ enum BlockDecoration: String {
   case quote
   /// A thematic break: a hairline across the column.
   case rule
-  /// A table's header row: a hairline under it.
-  case tableHeader
-
   static let key = NSAttributedString.Key("lociBlock")
 
   static func code(line: Int, of count: Int) -> BlockDecoration {

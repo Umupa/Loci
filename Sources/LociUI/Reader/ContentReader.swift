@@ -11,6 +11,7 @@ struct ContentReader: View {
   @Environment(\.peekLink) private var peekLink
   @Environment(\.standIns) private var standIns
   @Environment(\.changesAllowed) private var changesAllowed
+  @Environment(\.colorScheme) private var colorScheme
   let content: ContentRef
   /// Set over the text, unless the text starts with a title of its own.
   let title: String?
@@ -29,6 +30,7 @@ struct ContentReader: View {
   let cite: ((URL) -> Int?)?
   /// Whether a thin amber line along the top shows how far down the text has been read.
   let showsProgress: Bool
+  private let renderMermaid: MermaidRenderer.Render
   @State private var progress = 0.0
   @AppStorage(SubtitleMode.key) private var mode = SubtitleMode.both
   @AppStorage(SubtitleStyle.key) private var style = SubtitleStyle.standard
@@ -36,6 +38,7 @@ struct ContentReader: View {
   @State private var onlyKeyPoints = false
   @State private var revealedKey: (number: Int, serial: Int)?
   @State private var text: ReadingText?
+  @State private var mermaidImages: [String: NSImage] = [:]
   @State private var start: TextQuote?
   @State private var notes: Feed<[Note]>?
   @State private var reveal: Reveal?
@@ -56,10 +59,11 @@ struct ContentReader: View {
     content: ContentRef, title: String?, markdown: String, byline: NSAttributedString? = nil,
     images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel, language: ArticleLanguage? = nil,
     openingQuote: TextQuote? = nil, placeholder: FetchingItem? = nil, cite: ((URL) -> Int?)? = nil,
-    showsProgress: Bool = false
+    showsProgress: Bool = false, renderMermaid: @escaping MermaidRenderer.Render = MermaidRenderer.render
   ) {
     self.cite = cite
     self.showsProgress = showsProgress
+    self.renderMermaid = renderMermaid
     self.language = language
     self.openingQuote = openingQuote
     self.placeholder = placeholder
@@ -109,29 +113,24 @@ struct ContentReader: View {
       if standIns?.moment?.onlyKeyPoints == true { onlyKeyPoints = true }
       let saved = (try? await host.run(ReadReadingState(content: content)))?.position?.quote
       let loaded = setText()
-      if text == nil, let openingQuote, let range = loaded.range(of: openingQuote) {
+      if text == nil, let openingQuote, let original = loaded.originalRange(of: openingQuote) {
         start = openingQuote
-        show(range)
+        show(loaded.map.shown(original), original: original)
       } else {
         start = saved
       }
       text = loaded
       remark()
     }
-    .onChange(of: markdown) {
-      guard text != nil else { return }
-      text = setText()
-      remark()
-    }
-    .onChange(of: images.keys.sorted()) {
-      guard text != nil else { return }
-      text = setText()
-      remark()
-    }
-    .onChange(of: shownTranslation) {
-      guard text != nil else { return }
-      text = setText()
-      remark()
+    .onChange(of: markdown) { refreshText() }
+    .onChange(of: images.keys.sorted()) { refreshText() }
+    .onChange(of: shownTranslation) { refreshText() }
+    .onChange(of: mermaidImages) { refreshText() }
+    .task(id: mermaidRequest) {
+      let request = mermaidRequest
+      let images = await renderMermaid(request.sources.sorted(), request.dark)
+      guard !Task.isCancelled, !images.isEmpty || !mermaidImages.isEmpty else { return }
+      mermaidImages = images
     }
     .onChange(of: notes) { remark() }
     .subscribing(NotesOn(content: content), into: $notes)
@@ -209,13 +208,31 @@ struct ContentReader: View {
       revealedKey = (number, (revealedKey?.serial ?? 0) + 1)
     } else if let text {
       let original = text.map.isIdentity ? text.plain : text.map.original
-      if let range = KeyPassageLayout.range(of: passage.text, in: original) { show(text.map.shown(range)) }
+      if let range = KeyPassageLayout.range(of: passage.text, in: original) {
+        show(text.map.shown(range), original: range)
+      }
     }
   }
 
   private func setText() -> ReadingText {
     ReadingText(
-      markdown: markdown, byline: byline, images: images, serif: serif, translation: shownTranslation, cite: cite)
+      markdown: markdown, byline: byline, images: images, serif: serif, translation: shownTranslation, cite: cite,
+      diagrams: mermaidImages)
+  }
+
+  private struct MermaidRequest: Equatable {
+    let sources: Set<String>
+    let dark: Bool
+  }
+
+  private func refreshText() {
+    guard text != nil else { return }
+    text = setText()
+    remark()
+  }
+
+  private var mermaidRequest: MermaidRequest {
+    MermaidRequest(sources: text?.mermaidSources ?? [], dark: colorScheme == .dark)
   }
 
   private static func titled(_ markdown: String, _ title: String?) -> String {
@@ -230,13 +247,17 @@ struct ContentReader: View {
     marks = PlacedNote.marks(placedNotes)
   }
 
-  private func show(_ range: NSRange) {
-    reveal = Reveal(range: range, serial: (reveal?.serial ?? 0) + 1)
+  private func show(_ range: NSRange, original: NSRange?) {
+    reveal = Reveal(range: range, serial: (reveal?.serial ?? 0) + 1, original: original)
+  }
+
+  private func show(_ note: PlacedNote) {
+    if let range = note.range { show(range, original: note.original) }
   }
 
   private func show(_ locator: Locator) {
-    guard let quote = locator.quote, let range = text?.range(of: quote) else { return }
-    show(range)
+    guard let text, let quote = locator.quote, let original = text.originalRange(of: quote) else { return }
+    show(text.map.shown(original), original: original)
   }
 
   private var events: ReaderEvents {
@@ -255,27 +276,28 @@ struct ContentReader: View {
           peekLink?(url)
         }
       },
-      passage: passageActions,
+      passage: passageActions(original: false),
+      tablePassage: passageActions(original: true),
       noteClicked: { note in
         openPanel()
         tab = .highlights
         chosen = ChosenNote(note: note, serial: (chosen?.serial ?? 0) + 1)
-        if let range = placedNotes.first(where: { $0.id == note })?.range { show(range) }
+        if let placed = placedNotes.first(where: { $0.id == note }) { show(placed) }
       })
   }
 
   /// Highlighting with an optional thought, and asking Loci about it.
-  private var passageActions: PassageActions {
+  private func passageActions(original: Bool) -> PassageActions {
     PassageActions(
       highlight: { range in
-        guard let passage = passage(range) else { return nil }
+        guard let passage = passage(range, original: original) else { return nil }
         return try? await host.run(AddNote(locator: passage.locator, excerpt: passage.excerpt)).id
       },
       think: { note, thought in
         Task { _ = try? await host.run(SetNoteThought(content: content, note: note, thought: thought)) }
       },
       ask: { range in
-        guard let passage = passage(range) else { return }
+        guard let passage = passage(range, original: original) else { return }
         ask(passage.locator, excerpt: passage.excerpt)
       }, changes: changesAllowed)
   }
@@ -287,8 +309,8 @@ struct ContentReader: View {
     openPanel()
   }
 
-  private func passage(_ range: NSRange) -> (locator: Locator, excerpt: String)? {
-    guard let passage = text?.quote(range) else { return nil }
+  private func passage(_ range: NSRange, original: Bool) -> (locator: Locator, excerpt: String)? {
+    guard let passage = original ? text?.quoteOriginal(range) : text?.quote(range) else { return nil }
     return (Locator(passage.quote, in: content), passage.excerpt)
   }
 }

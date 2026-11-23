@@ -35,7 +35,7 @@
 2. **每条出口只有一个主人。** 磁盘归 `LociStore`，外部程序归 `LociAgents` 和 `LociMedia`，网络归 `LociMedia` 和 `LociRemote`。本机的 unix socket 也算网络：Network 框架只在 `LociRemote`，应用这头（`LociHost`）和 `loci` 命令那头（`LociTool`）都经它收发。
 3. **核心不依赖界面。** 除了 `LociUI` 和 `Loci`，没有模块引用 SwiftUI 或 AppKit。关掉窗口，会话照样跑。
 
-第三方依赖也记在这张表里，模块只能引用它那一行列出的包；新增一个之前先问。版本都钉死在 `Package.swift` 里：
+第三方依赖也记在这张表里，模块只能引用它那一行列出的包；新增一个之前先问。Swift 包版本钉在 `Package.swift`，其他随包资源的来源和版本记在这里。
 
 | 包 | 版本 | 模块 | 用在哪 |
 |---|---|---|---|
@@ -47,6 +47,7 @@
 | whisper.cpp（`whisper.xcframework`） | b5454（与 v1.9.5 同一次构建，校验和钉在 `Package.swift`） | `LociMedia` | 本机语音识别（Metal），逐词时间 |
 | FluidAudio | 0.17.7 | `LociMedia` | 本机区分播客说话人，模型按需下载 |
 | defuddle | 0.19.6 | `LociMedia`（资源） | 在不显示的网页里取正文转 Markdown。npm `defuddle@0.19.6` 的 `dist/index.full.js` 原样放在 `Sources/LociMedia/Resources/defuddle.js`，许可证在旁边；升级时换这两个文件并改这里的版本 |
+| Mermaid | 12.3.0 | `LociUI`（资源） | 用官方解析器和排版引擎在隔离的 WebKit 页面离线生成图。npm `mermaid@12.3.0` 的 `dist/mermaid.min.js` 和 `LICENSE` 原样放在 `Sources/LociUI/Vendor/Mermaid`，同目录的 `THIRD-PARTY-NOTICES.txt` 随附内含组件的许可和源码地址。升级时根据官方包的源码映射更新这些文件和版本。 |
 
 Textual 自带 swiftui-math、swift-concurrency-extras 两个传递依赖。GCD 只允许出现在 `Sources/LociStore/FileEvents.swift`：FSEvents 只能把回调交给一个队列，那个文件接到回调后立刻转成 `AsyncStream`。
 

@@ -4,6 +4,7 @@ import Testing
 
 @testable import LociUI
 
+@MainActor
 struct PlacedNoteTests {
   static let item = EntityID()
 

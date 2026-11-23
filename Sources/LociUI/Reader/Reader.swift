@@ -41,6 +41,7 @@ struct Reader: NSViewRepresentable {
 struct Reveal: Equatable {
   let range: NSRange
   let serial: Int
+  var original: NSRange?
 }
 
 /// What the reader tells the page around it.
@@ -54,6 +55,7 @@ struct ReaderEvents {
   var openLink: (URL) -> Void = { _ in }
   /// What a selected passage offers; `nil` offers nothing.
   var passage: PassageActions?
+  var tablePassage: PassageActions?
   var noteClicked: (EntityID) -> Void = { _ in }
 }
 
@@ -121,6 +123,8 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     }
     clip.scrolled = { [weak self] in self?.scrolled() }
     textView.selectionEnded = { [weak self] in self?.selectionEnded() }
+    textView.tableSelectionEnded = { [weak self] table in self?.offerTablePassage(table) }
+    textView.tableLinkOpened = { [weak self] url in self?.events.openLink(url) }
     textView.windowChanged = { [weak self] window in
       if window == nil {
         self?.passageBar.close()
@@ -134,7 +138,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   }
 
   func show(_ text: ReadingText, from start: TextQuote?) {
-    guard let textView, current?.plain != text.plain else { return }
+    guard let textView, current?.string !== text.string else { return }
     passageBar.close()
     let keep = current == nil ? start : held ?? topQuote()
     aligning = true
@@ -160,7 +164,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   /// Scrolls the passage a third of the way down the window and flashes it.
   func reveal(_ request: Reveal) {
     guard request.serial != revealed, let textView, let scrollView, current != nil, textView.frame.width > 0,
-      let top = textView.top(of: request.range.location)
+      let top = textView.top(of: request.range.location, original: request.original?.location)
     else { return }
     revealed = request.serial
     release()
@@ -223,6 +227,15 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     offerPassage()
   }
 
+  private func offerTablePassage(_ table: ReaderTableView) {
+    guard let actions = events.tablePassage else { return }
+    let local = table.selectedRange()
+    let lines = table.rects(of: local)
+    guard !lines.isEmpty, NSMaxRange(local) <= table.original.length else { return }
+    let original = NSRange(location: table.original.location + local.location, length: local.length)
+    passageBar.show(actions, for: original, over: lines, in: table, locale: locale)
+  }
+
   /// Floats the bar over the selected passage. Whether it is shown.
   @discardableResult private func offerPassage() -> Bool {
     guard let textView, let actions = events.passage else { return false }
@@ -256,8 +269,9 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
       aligning = false
       heldTop = scrollView.documentVisibleRect.minY
     }
-    guard let range = current.range(of: held) ?? Self.after(picture: held).flatMap(current.range(of:)),
-      let top = textView.top(of: range.location)
+    guard
+      let original = current.originalRange(of: held) ?? Self.after(picture: held).flatMap(current.originalRange(of:)),
+      let top = textView.top(of: current.map.shown(original).location, original: original.location)
     else { return }
     textView.layOutViewport()
     scrollView.contentView.scroll(to: CGPoint(x: 0, y: max(0, top - ReadingStyle.inset.height)))
@@ -330,14 +344,16 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     guard let textView, let scrollView else { return nil }
     textView.layOutViewport()
     let visible = scrollView.documentVisibleRect
-    guard let offset = textView.nearestParagraph(at: CGPoint(x: 0, y: visible.minY + ReadingStyle.inset.height + 1))
-    else {
-      return nil
-    }
     guard let current else { return nil }
+    let point = CGPoint(x: 0, y: visible.minY + ReadingStyle.inset.height + 1)
+    guard
+      let offset =
+        textView.originalTableOffset(at: point)
+        ?? textView.nearestParagraph(at: point).map({ current.map.original(NSRange(location: $0, length: 0)).location })
+    else { return nil }
     let plain = current.original
     let utf16 = plain as NSString
-    let location = min(current.map.original(NSRange(location: offset, length: 0)).location, utf16.length)
+    let location = min(offset, utf16.length)
     let paragraph = utf16.paragraphRange(for: NSRange(location: location, length: 0))
     let words = utf16.substring(with: paragraph).trimmingCharacters(in: .newlines).prefix(Self.quoteLength)
     guard let start = Range(NSRange(location: location, length: 0), in: plain)?.lowerBound,

@@ -4,11 +4,11 @@ import Markdown
 
 /// An item's Markdown, set for reading, with the headings it contains.
 ///
-/// The same Markdown always gives the same characters, so a quote taken from the text finds its place
-/// again the next time it is set.
+/// Mermaid diagrams keep their source in the original text so quotes still find it after rendering.
 struct ReadingText {
   let string: NSAttributedString
   let headings: [Heading]
+  let mermaidSources: Set<String>
   /// Where the shown text differs from the original: translations beside or in place of passages.
   let map: TranslationMap
 
@@ -23,14 +23,16 @@ struct ReadingText {
   /// their own; the rest show their description. An article reads in the serif. `translation` shows each
   /// translated passage beside its original or in its place. A link `cite` numbers is a citation: its words stay
   /// plain and a small numbered badge after them opens it.
-  init(
+  @MainActor init(
     markdown: String, byline: NSAttributedString? = nil, images: [String: NSImage] = [:], serif: Bool = false,
-    translation: ShownTranslation? = nil, cite: ((URL) -> Int?)? = nil
+    translation: ShownTranslation? = nil, cite: ((URL) -> Int?)? = nil, diagrams: [String: NSImage] = [:]
   ) {
-    var renderer = MarkdownRenderer(byline: byline, images: images, serif: serif, translation: translation, cite: cite)
+    var renderer = MarkdownRenderer(
+      byline: byline, images: images, serif: serif, translation: translation, diagrams: diagrams, cite: cite)
     renderer.render(Document(parsing: markdown))
     string = renderer.finished()
     headings = renderer.headings
+    mermaidSources = renderer.mermaidSources
     map = renderer.map
   }
 
@@ -38,17 +40,20 @@ struct ReadingText {
 }
 
 /// Walks a Markdown document and appends each block as one or more paragraphs.
+@MainActor
 struct MarkdownRenderer {
   let byline: NSAttributedString?
   let images: [String: NSImage]
   let serif: Bool
   let translation: ShownTranslation?
+  let diagrams: [String: NSImage]
   /// The number of the source a link cites, for a link that is a citation.
   var cite: ((URL) -> Int?)?
   var body: NSFont { serif ? NSFont.serif(ofSize: ReadingStyle.bodySize) : ReadingStyle.body }
   let output = NSMutableAttributedString()
   let tracker = TranslationMap.Builder()
   private(set) var headings: [ReadingText.Heading] = []
+  private(set) var mermaidSources: Set<String> = []
 
   /// Where a block sits: how far it is indented, whether it is inside a quote, and the list marker its
   /// first paragraph starts with.
@@ -103,10 +108,15 @@ struct MarkdownRenderer {
       if let latex = Formula.display(in: paragraph.plainText), formulaBlock(latex, in: setting) { return }
       passage(inline(paragraph.children, font: body), of: paragraph, in: setting)
     case let code as CodeBlock:
-      if let language = code.language?.lowercased(), Formula.blockLanguages.contains(language),
-        formulaBlock(code.code, in: setting)
-      {
-        return
+      if let language = code.language?.lowercased() {
+        if language == "mermaid" {
+          mermaidSources.insert(code.code)
+          if let image = diagrams[code.code] {
+            diagram(image, source: code.code, in: setting)
+            return
+          }
+        }
+        if Formula.blockLanguages.contains(language), formulaBlock(code.code, in: setting) { return }
       }
       codeBlock(code.code, language: code.language, in: setting)
     case let html as HTMLBlock:
@@ -219,6 +229,15 @@ struct MarkdownRenderer {
     return true
   }
 
+  private func diagram(_ image: NSImage, source: String, in setting: Setting) {
+    let line = source.hasSuffix("\n") ? source : source + "\n"
+    let original = tracker.add(NSAttributedString(string: line), as: .hidden, to: output)
+    let attachment = MermaidAttachment(image: image, source: String(line.dropLast()))
+    var setting = setting
+    setting.marker = nil
+    paragraph(NSAttributedString(attachment: attachment), in: setting, as: .instead(original))
+  }
+
   private func codeBlock(_ code: String, language: String?, in setting: Setting) {
     let start = output.length
     var lines = code.split(separator: "\n", omittingEmptySubsequences: false)
@@ -250,32 +269,15 @@ struct MarkdownRenderer {
 
   private func table(_ table: Markdown.Table, in setting: Setting) {
     let header = Array(table.head.cells.map { inline($0.children, font: ReadingStyle.bold(body)) })
-    let rows =
-      [header] + table.body.rows.map { row in Array(row.cells.map { inline($0.children, font: body) }) }
-    let columns = rows.map(\.count).max() ?? 0
-    var stops: [NSTextTab] = []
-    var location = setting.indent
-    for column in 0..<max(columns - 1, 0) {
-      let widest = rows.compactMap { $0.indices.contains(column) ? $0[column].size().width : nil }.max() ?? 0
-      location += widest + ReadingStyle.tableGap
-      stops.append(NSTextTab(textAlignment: .left, location: location))
-    }
-    for (index, cells) in rows.enumerated() {
-      let row = NSMutableAttributedString()
-      for (column, cell) in cells.enumerated() {
-        if column > 0 { row.append(NSAttributedString(string: "\t", attributes: attributes(font: body))) }
-        row.append(cell)
-      }
-      row.append(NSAttributedString(string: "\n", attributes: attributes(font: body)))
-      let paragraphStyle = style(in: setting, spacing: index == rows.count - 1 ? ReadingStyle.paragraphSpacing : 6)
-      paragraphStyle.tabStops = stops
-      paragraphStyle.paragraphSpacingBefore = index == 1 ? 6 : 0
-      row.addAttribute(.paragraphStyle, value: paragraphStyle, range: row.fullRange)
-      if index == 0 {
-        row.addAttribute(BlockDecoration.key, value: BlockDecoration.tableHeader.rawValue, range: row.fullRange)
-      }
-      put(row)
-    }
+    guard !header.isEmpty else { return }
+    let rows = [header] + table.body.rows.map { row in row.cells.map { inline($0.children, font: body) } }
+    let source = rows.map { $0.map(\.string).joined(separator: "\t") }.joined(separator: "\n") + "\n"
+    let original = tracker.add(NSAttributedString(string: source), as: .hidden, to: output)
+    let attachment = ReaderTableAttachment(
+      rows: rows, source: String(source.dropLast()), original: original, font: body)
+    var setting = setting
+    setting.marker = nil
+    paragraph(NSAttributedString(attachment: attachment), in: setting, as: .instead(original))
   }
 
   func inline(_ children: MarkupChildren, font: NSFont) -> NSAttributedString {

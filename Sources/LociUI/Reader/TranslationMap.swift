@@ -159,15 +159,23 @@ extension ReadingText {
 
   /// Where a quote is shown, or `nil` when its words are gone.
   func range(of quote: TextQuote) -> NSRange? {
+    originalRange(of: quote).map { map.shown($0) }
+  }
+
+  func originalRange(of quote: TextQuote) -> NSRange? {
     let original = original
     guard let found = quote.range(in: original) else { return nil }
-    return map.shown(NSRange(found, in: original))
+    return NSRange(found, in: original)
   }
 
   /// The original words a shown range stands for, quoted with their context.
   func quote(_ range: NSRange) -> (quote: TextQuote, excerpt: String)? {
+    quoteOriginal(map.original(range))
+  }
+
+  func quoteOriginal(_ range: NSRange) -> (quote: TextQuote, excerpt: String)? {
     let original = original
-    guard let words = Range(map.original(range), in: original), let quote = try? TextQuote(quoting: words, in: original)
+    guard let words = Range(range, in: original), let quote = try? TextQuote(quoting: words, in: original)
     else { return nil }
     return (quote, String(original[words]))
   }

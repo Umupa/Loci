@@ -43,7 +43,7 @@ extension MarkdownRenderer {
   }
 
   /// The Markdown a passage is known by, as the host wrote it when it sent the passage to be translated.
-  static func source(of markup: any Markup) -> String {
+  nonisolated static func source(of markup: any Markup) -> String {
     markup.detachedFromParent.format().trimmingCharacters(in: .whitespacesAndNewlines)
   }
 

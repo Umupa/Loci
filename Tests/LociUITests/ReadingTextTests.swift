@@ -78,14 +78,13 @@ struct ReadingTextTests {
     #expect(try Self.decoration(of: "调度分两步", in: text) == nil)
   }
 
-  @Test func tableCellsLineUpOnTabStopsUnderARuledHeader() throws {
+  @Test func tableCellsKeepTheirOriginalWordsForQuotes() throws {
     let text = ReadingText(markdown: Self.lesson)
-    let header = (text.plain as NSString).range(of: "阶段\t回答")
-    let style = text.string.attribute(.paragraphStyle, at: header.location, effectiveRange: nil) as? NSParagraphStyle
-
-    #expect(text.plain.contains("阶段\t回答\n过滤\t能不能\n打分\t好不好\n"))
-    #expect(try Self.decoration(of: "阶段\t回答", in: text) == .tableHeader)
-    #expect(style?.tabStops.count == 1)
+    let shown = (text.plain as NSString).range(of: "\u{FFFC}")
+    try #require(shown.location != NSNotFound)
+    #expect(text.string.attribute(.attachment, at: shown.location, effectiveRange: nil) is ReaderTableAttachment)
+    #expect(text.original.contains("阶段\t回答\n过滤\t能不能\n打分\t好不好\n"))
+    #expect(text.quote(shown)?.excerpt == "阶段\t回答\n过滤\t能不能\n打分\t好不好")
   }
 
   @Test func quotesAndLinksKeepWhatTheyAre() throws {

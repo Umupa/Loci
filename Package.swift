@@ -50,7 +50,7 @@ let package = Package(
         .product(name: "HighlightSwift", package: "swift-highlight"),
         .product(name: "SwiftMath", package: "SwiftMath"),
       ],
-      resources: [.process("Resources")], swiftSettings: strict),
+      resources: [.process("Resources"), .copy("Vendor/Mermaid")], swiftSettings: strict),
     .executableTarget(name: "Loci", dependencies: ["LociModel", "LociUI", "LociHost"], swiftSettings: strict),
     .executableTarget(name: "LociTool", dependencies: ["LociModel", "LociRemote"], swiftSettings: strict),
     .testTarget(name: "LociModelTests", dependencies: ["LociModel"], swiftSettings: strict),

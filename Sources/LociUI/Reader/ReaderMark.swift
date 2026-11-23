@@ -8,4 +8,5 @@ struct ReaderMark: Equatable {
   let marginMark: Bool
   /// In the reading text, in UTF-16 units.
   let range: NSRange
+  var original: NSRange?
 }

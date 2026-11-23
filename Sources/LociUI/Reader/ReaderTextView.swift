@@ -17,6 +17,10 @@ final class ReaderTextView: NSTextView {
   private(set) var selecting = false
   /// Runs when a highlight or its note dot is clicked.
   var markClicked: (EntityID) -> Void = { _ in }
+  var tableSelectionEnded: (ReaderTableView) -> Void = { _ in }
+  var tableLinkOpened: (URL) -> Void = { _ in }
+  private(set) var tables = NSHashTable<ReaderTableView>.weakObjects()
+  private var marks: [ReaderMark] = []
   /// How wide the column is; changing it keeps the paragraph at the top where it was.
   var readingWidth = ReadingWidth.comfortable {
     didSet {
@@ -37,13 +41,14 @@ final class ReaderTextView: NSTextView {
 
   /// Shows a new text in place of the old one.
   func setText(_ text: NSAttributedString) {
+    tables.removeAllObjects()
     textStorage?.setAttributedString(text)
     wholeLaidOutAt = nil
   }
   private var highlights: [(note: EntityID, rects: [CGRect], bands: [CGRect])] = []
-  private static let noteDotSize: CGFloat = 4
 
   convenience init() {
+    ReaderTableAttachment.registerViewProvider()
     let layoutManager = NSTextLayoutManager()
     let container = NSTextContainer(size: CGSize(width: Typography.readingWidth, height: .greatestFiniteMagnitude))
     container.widthTracksTextView = true
@@ -65,6 +70,38 @@ final class ReaderTextView: NSTextView {
     selectedTextAttributes = [.backgroundColor: Tones.selection]
     linkTextAttributes = [.foregroundColor: Tones.accentInk, .cursor: NSCursor.pointingHand]
     textContainerInset = ReadingStyle.inset
+  }
+
+  func remember(_ table: ReaderTableView) {
+    tables.add(table)
+    table.placeMarks(marks)
+  }
+
+  override var writablePasteboardTypes: [NSPasteboard.PasteboardType] {
+    selectionWithSource == nil ? super.writablePasteboardTypes : [.string]
+  }
+
+  override func writeSelection(to pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
+    if type == .string, let selectionWithSource { return pboard.setString(selectionWithSource, forType: type) }
+    return super.writeSelection(to: pboard, type: type)
+  }
+
+  private var selectionWithSource: String? {
+    let range = selectedRange()
+    guard let textStorage, range.length > 0, NSMaxRange(range) <= textStorage.length else { return nil }
+    var copied: NSMutableString?
+    textStorage.enumerateAttribute(.attachment, in: range, options: .reverse) { value, attachment, _ in
+      let source: String
+      switch value {
+      case let table as ReaderTableAttachment: source = table.source
+      case let diagram as MermaidAttachment: source = diagram.source
+      default: return
+      }
+      if copied == nil { copied = NSMutableString(string: (textStorage.string as NSString).substring(with: range)) }
+      copied?.replaceCharacters(
+        in: NSRange(location: attachment.location - range.location, length: attachment.length), with: source)
+    }
+    return copied.map { $0 as String }
   }
 
   var contentStorage: NSTextContentStorage? {
@@ -110,8 +147,16 @@ final class ReaderTextView: NSTextView {
   /// Lays the highlights and note dots over the text where it is now. Called again whenever the text may
   /// have moved.
   func placeMarginMarks(_ marks: [ReaderMark]) {
+    if self.marks != marks {
+      self.marks = marks
+      for table in tables.allObjects { table.placeMarks(marks) }
+    }
     let laidOut = marks.map { mark -> (note: EntityID, rects: [CGRect], bands: [CGRect]) in
-      let lines = segments(of: mark.range).filter { $0.rect.width > 0 }
+      let lines = segments(of: mark.range).filter { line in
+        line.rect.width > 0
+          && !(textStorage?.attribute(.attachment, at: line.location, effectiveRange: nil)
+            is ReaderTableAttachment)
+      }
       let bands = lines.map { Self.band(behind: $0.rect, baseline: $0.baseline, font: font(at: $0.location)) }
       return (mark.note, zip(lines, bands).map { $0.rect.union($1) }, bands)
     }
@@ -123,7 +168,7 @@ final class ReaderTextView: NSTextView {
     for (mark, layout) in zip(marks, laidOut) {
       let note = mark.note
       guard mark.marginMark, let band = layout.bands.last else { continue }
-      let size = Self.noteDotSize
+      let size = NoteDot.size
       let frame = CGRect(x: band.maxX - size, y: band.maxY + 2, width: size, height: size)
       let view = noteDots[note] ?? NoteDot(frame: frame)
       if view.superview == nil {
@@ -191,14 +236,28 @@ final class ReaderTextView: NSTextView {
   }
 
   /// Where the paragraph holding `offset` starts, in this view's coordinates, laying out the text before it.
-  func top(of offset: Int) -> CGFloat? {
+  func top(of offset: Int, original: Int? = nil) -> CGFloat? {
     guard let layoutManager = textLayoutManager, let storage = contentStorage,
       let location = storage.location(storage.documentRange.location, offsetBy: offset),
       let before = NSTextRange(location: storage.documentRange.location, end: location)
     else { return nil }
     layoutManager.ensureLayout(for: before)
     guard let fragment = layoutManager.textLayoutFragment(for: location) else { return nil }
-    return fragment.layoutFragmentFrame.minY + textContainerOrigin.y
+    let top = fragment.layoutFragmentFrame.minY + textContainerOrigin.y
+    guard let original else { return top }
+    let tableFrame = fragment.frameForTextAttachment(at: location)
+    guard !tableFrame.isEmpty,
+      let inside = tables.allObjects.lazy.compactMap({ $0.top(of: original) }).first
+    else { return top }
+    return top + tableFrame.minY + inside
+  }
+
+  func originalTableOffset(at point: CGPoint) -> Int? {
+    for table in tables.allObjects where table.window != nil {
+      let y = table.convert(point, from: self).y
+      if y >= 0, y < table.bounds.height { return table.originalOffset(near: y) }
+    }
+    return nil
   }
 
   /// Whether the last line of the text lies within `rect`, laying out the whole text to be sure: while
@@ -247,6 +306,7 @@ final class ReaderTextView: NSTextView {
 
 /// The amber dot at the end of a highlight that has a thought or questions.
 final class NoteDot: NSView {
+  static let size: CGFloat = 4
   var clicked: () -> Void = {}
 
   override func draw(_ dirtyRect: NSRect) {

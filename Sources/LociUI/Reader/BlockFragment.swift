@@ -1,7 +1,7 @@
 import AppKit
 
 /// Lays out a paragraph that carries a `BlockDecoration` and draws the decoration behind its text: the
-/// background of a code block, the bar beside a quote, the hairline of a rule or under a table's header.
+/// background of a code block, the bar beside a quote, or the hairline of a rule.
 final class BlockFragment: NSTextLayoutFragment {
   private let decoration: BlockDecoration
   private let indent: CGFloat
@@ -61,9 +61,6 @@ final class BlockFragment: NSTextLayoutFragment {
     case .rule:
       context.setFillColor(Tones.line.cgColor)
       context.fill(CGRect(x: left + indent, y: point.y + height / 2, width: columnWidth - indent, height: 1))
-    case .tableHeader:
-      context.setFillColor(Tones.line.cgColor)
-      context.fill(CGRect(x: left + indent, y: point.y + last.maxY + 3, width: columnWidth - indent, height: 1))
     }
   }
 
