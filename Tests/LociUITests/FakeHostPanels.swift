@@ -14,4 +14,6 @@ extension FakeHost {
   func refreshPanel(_ command: RefreshPanel) async throws(HostError) -> Done { Done() }
   func movePanelToTop(_ command: MovePanelToTop) async throws(HostError) -> Done { Done() }
   func removePanel(_ command: RemovePanel) async throws(HostError) -> Done { Done() }
+  func editPanel(_ command: EditPanel) async throws(HostError) -> Done { Done() }
+  func markPanelLine(_ command: MarkPanelLine) async throws(HostError) -> Done { Done() }
 }

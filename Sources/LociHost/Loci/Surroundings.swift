@@ -19,6 +19,12 @@ extension AgentContext {
     let yesterday = today.adding(days: -1)
     let after = since ?? Timestamp(millisecondsSince1970: now.millisecondsSince1970 - 24 * 3_600_000)
     let events = (try? database.events(after: after)) ?? []
+    let panels = store.panels().compactMap(\.panel)
+    let marks = store.panelState().marks
+    let summary =
+      PanelSummary.applies(to: panels, marks: marks)
+      ? [TurnContext.ShownFile(path: PanelSummary.heading, text: PanelSummary.of(panels, marks: marks), keep: nil)]
+      : []
     return TurnContext(
       now: now, timeZone: timeZone, conversation: conversation,
       happenings: events.compactMap { happening($0, today: today) }, open: open(in: conversation, at: now),
@@ -28,7 +34,7 @@ extension AgentContext {
         .init(path: "notes/\(today).md", text: (try? store.dayNotes(of: today)) ?? "", keep: Self.todaysNotes),
         .init(
           path: "notes/\(yesterday).md", text: (try? store.dayNotes(of: yesterday)) ?? "", keep: Self.yesterdaysNotes),
-      ])
+      ] + summary)
   }
 
   /// One fact, without a word on how to feel about it; `nil` for an item that is gone.

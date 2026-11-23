@@ -30,8 +30,63 @@ struct PanelToolTests {
     #expect(try Request.parse(["panel", "show", "radar", "--json"]) == (.panel(.show("radar")), true))
   }
 
+  @Test func addingAnItemReadsThePanelTheSectionAndTheWords() throws {
+    #expect(
+      try Request.parse(["panel", "add", "week", "week", "回", "Kata 的 review"])
+        == (.panel(.add(panel: "week", section: "week", text: "回 Kata 的 review", proposed: false)), false))
+    #expect(
+      try Request.parse(["panel", "add", "--propose", "week", "today", "帮阿哲看简历"])
+        == (.panel(.add(panel: "week", section: "today", text: "帮阿哲看简历", proposed: true)), false))
+  }
+
+  static let week = Panel(
+    name: "week", title: "本周待办", follow: "这周要做的事",
+    body: .rows([.items(PanelItems(id: "week", name: "本周", adds: true, checks: true, items: []))]))
+  static let added = EntityID("019a8f40-1b2c-7d3e-8f40-5a6b7c8d9e0f") ?? EntityID()
+
+  private func adding(_ line: ScriptedLine) -> Tool {
+    var tool = tool(line)
+    tool.newID = { Self.added }
+    return tool
+  }
+
+  @Test func lociSItemGoesAtTheEndOfTheSectionAndItHearsWhereItWent() async {
+    let line = ScriptedLine { request in
+      if case .command(ListPanels.name, _) = request {
+        return [.success(Self.json([PanelEntry(name: "week", panel: Self.week)]))]
+      }
+      return [.success(Self.json(Done()))]
+    }
+
+    let added = await adding(line).run(
+      .panel(.add(panel: "week", section: "week", text: "回 review", proposed: false)), json: false)
+    let proposed = await adding(line).run(
+      .panel(.add(panel: "week", section: "week", text: "看简历", proposed: true)), json: false)
+
+    #expect(added == .worked("Added to 本周待办 › 本周."))
+    #expect(proposed == .worked("Suggested in 本周待办 › 本周; the person takes it or not."))
+    let item = PanelItem(id: Self.added.description, text: "看简历", by: .loci, proposed: true)
+    #expect(
+      line.requests.last
+        == .command(name: EditPanel.name, body: Self.json(EditPanel("week", .put(item, section: "week", at: nil)))))
+  }
+
+  @Test func anItemForAPanelOrSectionThatIsNotThereSaysWhatThereIs() async {
+    let line = ScriptedLine { _ in [.success(Self.json([PanelEntry(name: "week", panel: Self.week)]))] }
+
+    let panel = await adding(line).run(
+      .panel(.add(panel: "todo", section: "week", text: "x", proposed: false)), json: false)
+    let section = await adding(line).run(
+      .panel(.add(panel: "week", section: "today", text: "x", proposed: false)), json: false)
+
+    #expect(panel == .failed("There is no panel todo. Run `loci panel list` to see them."))
+    #expect(section == .failed(#"week has no section "today". Its sections: week (本周)."#))
+    #expect(line.requests.count == 2)
+  }
+
   @Test(arguments: [
     ["panel"], ["panel", "save"], ["panel", "save", "Radar"], ["panel", "list", "x"], ["panel", "drop", "x"],
+    ["panel", "add", "week", "today"], ["panel", "add", "week", "today", " "],
   ])
   func aPanelCommandWrittenWrongSaysHowToWriteIt(arguments: [String]) {
     #expect(throws: UsageError.self) { try Request.parse(arguments) }

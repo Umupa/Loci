@@ -2,18 +2,52 @@ import Foundation
 import LociModel
 
 /// What the app keeps about the panels beside the files Loci writes: the order the person left the column
-/// in, and when each panel was last refreshed by the app's clock.
+/// in, when each panel was last refreshed by the app's clock, and the person's take on lines of their lists.
 public struct PanelState: Hashable, Codable, Sendable {
   public var order: [PanelPlace] = []
   public var refreshed: [String: Timestamp] = [:]
+  /// By panel name, then by line.
+  public var marks: [String: [PanelLineKey: PanelLineMark]] = [:]
+  /// Items the person removed, by panel name, so a copy Loci saves from before cannot bring them back, even
+  /// one it wrote that the person took and then removed.
+  public var removals: [String: [Removal]] = [:]
 
-  public init(order: [PanelPlace] = [], refreshed: [String: Timestamp] = [:]) {
+  /// An item the person removed, and when.
+  public struct Removal: Hashable, Codable, Sendable {
+    public let id: String
+    public let at: Timestamp
+  }
+
+  /// How many removals a panel keeps, and for how long; Loci's copies are never older than a refresh.
+  public static let removalsKept = 50
+  public static let removalsLast: Int64 = 7 * 24 * 3_600_000
+
+  public init(
+    order: [PanelPlace] = [], refreshed: [String: Timestamp] = [:],
+    marks: [String: [PanelLineKey: PanelLineMark]] = [:]
+  ) {
     self.order = order
     self.refreshed = refreshed
+    self.marks = marks
+  }
+
+  /// Remembers that the person removed the item, forgetting removals too old or too many.
+  public mutating func remember(removed id: String, from panel: String, at now: Timestamp) {
+    let kept = (removals[panel] ?? []).filter { $0.id != id && Self.recent($0, now: now) }
+    removals[panel] = Array((kept + [Removal(id: id, at: now)]).suffix(Self.removalsKept))
+  }
+
+  /// The ids of the items the person removed from the panel lately.
+  public func removed(from panel: String, now: Timestamp) -> Set<String> {
+    Set((removals[panel] ?? []).filter { Self.recent($0, now: now) }.map(\.id))
+  }
+
+  private static func recent(_ removal: Removal, now: Timestamp) -> Bool {
+    now.millisecondsSince1970 - removal.at.millisecondsSince1970 < removalsLast
   }
 
   private enum CodingKeys: String, CodingKey {
-    case order, refreshed
+    case order, refreshed, marks, removals
   }
 
   /// A file that cannot be read is an empty state: the column falls back to its first order.
@@ -21,6 +55,8 @@ public struct PanelState: Hashable, Codable, Sendable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     order = (try? container.decodeIfPresent([PanelPlace].self, forKey: .order)) ?? []
     refreshed = (try? container.decodeIfPresent([String: Timestamp].self, forKey: .refreshed)) ?? [:]
+    marks = (try? container.decodeIfPresent([String: [PanelLineKey: PanelLineMark]].self, forKey: .marks)) ?? [:]
+    removals = (try? container.decodeIfPresent([String: [Removal]].self, forKey: .removals)) ?? [:]
   }
 }
 
@@ -45,18 +81,27 @@ extension Store {
     where !names.contains(copy.deletingPathExtension().lastPathComponent) {
       try? FileManager.default.removeItem(at: copy)
     }
-    return urls.map { url in
-      let name = url.deletingPathExtension().lastPathComponent
-      let problems: [PanelProblem]
-      do throws(PanelProblems) {
-        let panel = try PanelCheck.read(try readPanelFile(url), name: name)
-        keepShown(panel)
-        return PanelEntry(name: name, panel: panel)
-      } catch {
-        problems = error.all
-      }
-      return PanelEntry(name: name, panel: shownPanel(named: name), problems: problems)
+    return urls.map(entry)
+  }
+
+  /// One panel file, as `panels()` reads it; `nil` when there is no such file.
+  public func panel(named name: String) -> PanelEntry? {
+    let url = panelFile(named: name)
+    guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { return nil }
+    return entry(url)
+  }
+
+  private func entry(_ url: URL) -> PanelEntry {
+    let name = url.deletingPathExtension().lastPathComponent
+    let problems: [PanelProblem]
+    do throws(PanelProblems) {
+      let panel = try PanelCheck.read(try readPanelFile(url), name: name)
+      keepShown(panel)
+      return PanelEntry(name: name, panel: panel)
+    } catch {
+      problems = error.all
     }
+    return PanelEntry(name: name, panel: shownPanel(named: name), problems: problems)
   }
 
   /// Writes the panel as `<name>.json`, in place of the one there.

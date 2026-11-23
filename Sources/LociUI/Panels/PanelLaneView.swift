@@ -82,6 +82,7 @@ struct PanelSlotView: View {
   let actions: PanelActions
   var opened: Set<String> = []
   var pages: [String: Int] = [:]
+  @Environment(\.panelLineMarks) private var marks
 
   var body: some View {
     switch slot {
@@ -89,7 +90,7 @@ struct PanelSlotView: View {
       ReadingPanel(readings: readings, actions: actions)
     case .panel(let panel):
       PanelCard(
-        panel: panel, refreshing: refreshing.contains(panel.name), actions: actions,
+        panel: panel, refreshing: refreshing.contains(panel.name), actions: actions, marks: marks[panel.name] ?? [:],
         open: opened.contains(panel.name), page: pages[panel.name] ?? 0)
     }
   }
@@ -152,6 +153,8 @@ extension BoardFrames {
 extension EnvironmentValues {
   /// Where the main page keeps the frames its lanes and panels report; elsewhere nothing listens.
   @Entry var boardFrames: Binding<BoardFrames>?
+  /// The person's take on the lines of each panel's lists, by panel name, as the column has it.
+  @Entry var panelLineMarks: [String: [PanelLineKey: PanelLineMark]] = [:]
 }
 
 private struct NewPanelButton: View {

@@ -48,8 +48,9 @@ struct Prompts: Sendable {
       .replacing("{{traitLimit}}", with: String(Soul.traitLimit))
   }
 
-  /// What a panel's refresh is asked: what the panel follows, and the panel as it is now.
-  func panel(_ panel: Panel) throws(HostError) -> String {
+  /// What a panel's refresh is asked: what the panel follows, the panel as it is now, and the lines the
+  /// person no longer wants to see.
+  func panel(_ panel: Panel, hidden marks: [PanelLineKey: PanelLineMark]) throws(HostError) -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     let json: String
@@ -63,6 +64,22 @@ struct Prompts: Sendable {
       .replacing("{{name}}", with: panel.name)
       .replacing("{{follow}}", with: panel.follow)
       .replacing("{{json}}", with: json)
+      .replacing("{{hidden}}", with: Self.hidden(in: panel, marks: marks))
+  }
+
+  /// One line for each line of the panel's lists the person hid, by title and link.
+  static func hidden(in panel: Panel, marks: [PanelLineKey: PanelLineMark]) -> String {
+    let keys = marks.filter(\.value.hidden).keys.sorted { $0.rawValue < $1.rawValue }
+    guard !keys.isEmpty else { return "" }
+    let lines = panel.rowsOfEveryPage.flatMap { $0 }.flatMap { row -> [PanelListItem] in
+      if case .list(let lines) = row { lines } else { [] }
+    }
+    let named = keys.map { key in
+      guard let line = lines.first(where: { PanelLineKey($0) == key }) else { return "- \(key.rawValue)" }
+      return "- \(line.title)" + (line.link.map { " (\($0.absoluteString))" } ?? "")
+    }
+    return "\nThe person no longer wants to see these; never bring them back, under any title:\n"
+      + named.joined(separator: "\n") + "\n"
   }
 
   /// A question about a passage, with the passage quoted so Loci sees what the person sees.

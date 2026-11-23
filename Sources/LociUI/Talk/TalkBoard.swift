@@ -5,8 +5,8 @@ import SwiftUI
 /// Names the main page's own coordinates, which its lanes and panels report their frames in.
 enum Board {
   static let space = "talkBoard"
-  /// Escape calls a drag off. A key pressed while the mouse is held may never reach the window as an event, so
-  /// the page asks the keyboard itself this often while a drag lasts.
+  /// Escape calls a drag off, a panel's or an item's; `callsOffOnEscape` asks the keyboard this often while one
+  /// lasts.
   static let escape: CGKeyCode = 53
   static let listening = Duration.milliseconds(20)
 }
@@ -76,15 +76,8 @@ struct TalkBoard<Conversation: View>: View {
     }
     .coordinateSpace(.named(Board.space))
     .environment(\.boardFrames, $frames)
-    .task(id: dragging) {
-      while dragging, !Task.isCancelled {
-        if CGEventSource.keyState(.combinedSessionState, key: Board.escape) {
-          callOff()
-          return
-        }
-        try? await Task.sleep(for: Board.listening)
-      }
-    }
+    .environment(\.panelLineMarks, column?.marks ?? [:])
+    .callsOffOnEscape(while: dragging) { callOff() }
     .onChange(of: activeState) {
       if activeState == .inactive { callOff() }
     }

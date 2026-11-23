@@ -9,6 +9,8 @@ struct Tool: Sendable {
   let readText: @Sendable (URL) throws -> String
   /// Everything on standard input, read when a command takes it.
   var readInput: @Sendable () -> Data = { FileHandle.standardInput.readDataToEndOfFile() }
+  /// The id of an item Loci adds to a panel.
+  var newID: @Sendable () -> EntityID = { EntityID() }
 
   struct Outcome: Hashable {
     let text: String

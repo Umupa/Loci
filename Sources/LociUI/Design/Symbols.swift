@@ -56,6 +56,7 @@ enum Symbols {
   static let openOut = "arrow.up.left.and.arrow.down.right"
   static let undo = "arrow.counterclockwise"
   static let cancel = "xmark"
+  static let pin = "pin.fill"
   static let recognizing = "waveform"
   static let copy = "doc.on.doc"
   static let latest = "arrow.down"

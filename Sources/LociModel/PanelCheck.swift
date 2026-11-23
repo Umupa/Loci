@@ -52,20 +52,21 @@ public enum PanelCheck {
       found.append(PanelProblem("sources[\(index)]", "is empty"))
     }
     if let refresh = panel.refresh { found += problems(in: refresh) }
+    var seen = Seen()
     switch panel.body {
     case .rows(let rows):
-      found += problems(in: rows, at: "rows")
+      found += problems(in: rows, at: "rows", seen: &seen)
     case .pages(let pages):
       if pages.isEmpty { found.append(PanelProblem("pages", "has no pages")) }
-      var seen: Set<String> = []
+      var names: Set<String> = []
       for (index, page) in pages.enumerated() {
         let path = "pages[\(index)]"
         if page.name.isBlank {
           found.append(PanelProblem("\(path).name", "is empty"))
-        } else if !seen.insert(page.name).inserted {
+        } else if !names.insert(page.name).inserted {
           found.append(PanelProblem("\(path).name", "\"\(page.name)\" is used by an earlier page"))
         }
-        found += problems(in: page.rows, at: "\(path).rows")
+        found += problems(in: page.rows, at: "\(path).rows", seen: &seen)
       }
     }
     return found
@@ -106,21 +107,67 @@ public enum PanelCheck {
     return found
   }
 
-  private static func problems(in rows: [PanelRow], at path: String) -> [PanelProblem] {
+  /// The ids of sections and items met so far in a panel, which each may use only once.
+  private struct Seen {
+    var sections: Set<String> = []
+    var items: Set<String> = []
+  }
+
+  /// A panel of items needs no sentence first: the items say what there is.
+  private static func problems(in rows: [PanelRow], at path: String, seen: inout Seen) -> [PanelProblem] {
     guard let first = rows.first else { return [PanelProblem(path, "has no rows")] }
     var found: [PanelProblem] = []
+    let holdsItems = rows.contains { if case .items = $0 { true } else { false } }
     if case .sentence = first {
-    } else {
+    } else if !holdsItems {
       found.append(PanelProblem("\(path)[0]", "the first row must be a sentence that sums the panel up"))
     }
     for (index, row) in rows.enumerated() {
-      found += problems(in: row, at: "\(path)[\(index)]")
+      if case .items(let section) = row {
+        found += problems(in: section, at: "\(path)[\(index)]", seen: &seen)
+      } else {
+        found += problems(in: row, at: "\(path)[\(index)]")
+      }
     }
     return found
   }
 
+  private static func problems(in section: PanelItems, at path: String, seen: inout Seen) -> [PanelProblem] {
+    var found = problems(ofID: section.id, at: "\(path).id", among: &seen.sections, kind: "section")
+    if let name = section.name, name.isBlank {
+      found.append(PanelProblem("\(path).name", "is empty; leave it out for a section without a name"))
+    }
+    for (index, item) in section.items.enumerated() {
+      let at = "\(path).items[\(index)]"
+      found += problems(ofID: item.id, at: "\(at).id", among: &seen.items, kind: "item")
+      if item.text.isBlank { found.append(PanelProblem("\(at).text", "is empty")) }
+      if item.proposed, item.by == .you {
+        found.append(PanelProblem("\(at).proposed", "only Loci's items are proposed"))
+      }
+      if let note = item.note, note.isBlank { found.append(PanelProblem("\(at).note", "is empty; leave it out")) }
+      if let why = item.why {
+        if item.by == .you {
+          found.append(PanelProblem("\(at).why", "only Loci's items say why"))
+        } else if why.isBlank {
+          found.append(PanelProblem("\(at).why", "is empty; leave it out"))
+        }
+      }
+    }
+    return found
+  }
+
+  private static func problems(ofID id: String, at path: String, among seen: inout Set<String>, kind: String)
+    -> [PanelProblem]
+  {
+    if id.isBlank { return [PanelProblem(path, "is empty")] }
+    guard seen.insert(id).inserted else { return [PanelProblem(path, "\"\(id)\" is used by an earlier \(kind)")] }
+    return []
+  }
+
   private static func problems(in row: PanelRow, at path: String) -> [PanelProblem] {
     switch row {
+    case .items:
+      return []
     case .sentence(let text), .label(let text):
       return text.isBlank ? [PanelProblem("\(path).text", "is empty")] : []
     case .cells(let cells):
@@ -179,7 +226,8 @@ public enum PanelCheck {
     case DecodingError.dataCorrupted(let context):
       let choices =
         switch context.codingPath.last?.stringValue {
-        case "row": ": sentence, cells, label, list, prominent, bars, picture"
+        case "row": ": sentence, cells, label, list, prominent, bars, picture, items"
+        case "by": ": you, loci"
         case "every": ": hour, day, week"
         default: ""
         }

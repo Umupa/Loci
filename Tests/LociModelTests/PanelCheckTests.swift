@@ -138,7 +138,7 @@ struct PanelCheckTests {
     #expect(Self.problems("not json") == ["is not JSON"])
     #expect(
       Self.problems(Self.panel(rows: "\(Self.sentence), { \"row\": \"chart\" }")) == [
-        "rows[1].row: is not one of the values it can be: sentence, cells, label, list, prominent, bars, picture"
+        "rows[1].row: is not one of the values it can be: sentence, cells, label, list, prominent, bars, picture, items"
       ])
     #expect(
       Self.problems(Self.panel(rows: "\(Self.sentence), { \"row\": \"bars\", \"bars\": [{ \"name\": \"a\" }] }")) == [

@@ -5,19 +5,30 @@ import LociStore
 extension LocalHost {
   public func panelColumn() async throws(HostError) -> PanelColumn {
     let panels = await self.panels.entries().compactMap(\.panel)
-    let order = store.panelState().order
+    let state = store.panelState()
     return PanelColumn(
-      slots: PanelOrder.slots(order, panels: panels, reading: readingNow()),
-      refreshing: await self.panels.refreshingNames)
+      slots: PanelOrder.slots(state.order, panels: panels, reading: readingNow()),
+      refreshing: await self.panels.refreshingNames, marks: state.marks)
   }
 
   public func panels() async throws(HostError) -> [PanelEntry] {
     await panels.entries()
   }
 
-  /// Checked here as well as in `loci panel save`, so no caller writes a panel that cannot be shown.
+  /// Checked here as well as in `loci panel save`, so no caller writes a panel that cannot be shown. The
+  /// person's own save is kept as it is.
   public func savePanel(_ command: SavePanel) async throws(HostError) -> Done {
-    try await panels.save(command.panel, from: nil)
+    try await panels.save(command.panel, by: .you, from: nil)
+    return Done()
+  }
+
+  public func editPanel(_ command: EditPanel) async throws(HostError) -> Done {
+    try await panels.edit(command.edit, of: command.panel, by: .you, from: nil)
+    return Done()
+  }
+
+  public func markPanelLine(_ command: MarkPanelLine) async throws(HostError) -> Done {
+    try await panels.mark(command)
     return Done()
   }
 

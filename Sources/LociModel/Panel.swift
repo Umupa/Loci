@@ -109,6 +109,8 @@ public enum PanelRow: Hashable, Sendable {
   /// Horizontal bars to compare a few quantities.
   case bars([PanelBar])
   case picture(URL, link: URL?)
+  /// Items the person and Loci both write in, such as a day's to-dos.
+  case items(PanelItems)
 }
 
 public struct PanelCell: Hashable, Codable, Sendable {
@@ -176,7 +178,7 @@ extension PanelRow: Codable {
   }
 
   private enum Kind: String, Codable {
-    case sentence, cells, label, list, prominent, bars, picture
+    case sentence, cells, label, list, prominent, bars, picture, items
   }
 
   public init(from decoder: any Decoder) throws {
@@ -194,6 +196,7 @@ extension PanelRow: Codable {
     case .picture:
       self = .picture(
         try container.decode(URL.self, forKey: .url), link: try container.decodeIfPresent(URL.self, forKey: .link))
+    case .items: self = .items(try PanelItems(from: decoder))
     }
   }
 
@@ -223,6 +226,9 @@ extension PanelRow: Codable {
       try container.encode(Kind.picture, forKey: .row)
       try container.encode(url, forKey: .url)
       try container.encodeIfPresent(link, forKey: .link)
+    case .items(let items):
+      try container.encode(Kind.items, forKey: .row)
+      try items.encode(to: encoder)
     }
   }
 }
@@ -232,10 +238,15 @@ public struct PanelColumn: Hashable, Codable, Sendable {
   public let slots: [PanelSlot]
   /// Panels being refreshed in the background right now, by name.
   public let refreshing: Set<String>
+  /// The person's take on lines of the panels' lists, by panel name.
+  public let marks: [String: [PanelLineKey: PanelLineMark]]
 
-  public init(slots: [PanelSlot], refreshing: Set<String> = []) {
+  public init(
+    slots: [PanelSlot], refreshing: Set<String> = [], marks: [String: [PanelLineKey: PanelLineMark]] = [:]
+  ) {
     self.slots = slots
     self.refreshing = refreshing
+    self.marks = marks
   }
 }
 

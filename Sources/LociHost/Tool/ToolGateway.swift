@@ -72,7 +72,12 @@ enum ToolGateway {
     let saver = Saver.loci(call.session?.conversation)
     switch name {
     case SavePanel.name:
-      try await host.panels.save(try WireCodec.decode(SavePanel.self, from: body).panel, from: call.session)
+      let panel = try WireCodec.decode(SavePanel.self, from: body).panel
+      try await host.panels.save(panel, by: .loci, from: call.session)
+      return try WireCodec.encode(Done())
+    case EditPanel.name:
+      let command = try WireCodec.decode(EditPanel.self, from: body)
+      try await host.panels.edit(command.edit, of: command.panel, by: .loci, from: call.session)
       return try WireCodec.encode(Done())
     case _ where reading.contains(where: { $0.name == name }):
       return try await WireCodec.run(name, body: body, on: host)

@@ -19,6 +19,9 @@ public enum ToolGuide {
       loci panel save <name>           write a panel from the JSON on standard input; says what to fix if it cannot
       loci panel list                  every panel, and which files have problems
       loci panel show <name>           a panel's JSON as it is now
+      loci panel add <name> <section> <text> [--propose]
+                                       add your item at the end of an items section; --propose leaves it
+                                       for the person to take or not
       loci course ask                  publish one question from JSON on standard input
       loci course goal                 update the goal from JSON on standard input
       loci course ready                mark the goal ready after the person confirms
@@ -63,7 +66,10 @@ public enum ToolGuide {
             "link": "https://github.com/x/y/issues/244", "ask": "帮我分析 #244" }] },
           { "row": "prominent", "title": "混元沙盒平台工程师", "subtitle": "深圳" },
           { "row": "bars", "bars": [{ "name": "e2b-dev/E2B", "fraction": 1, "value": "+1.2k" }] },
-          { "row": "picture", "url": "https://example.com/a.png", "link": "https://example.com/a" }
+          { "row": "picture", "url": "https://example.com/a.png", "link": "https://example.com/a" },
+          { "row": "items", "id": "today", "name": "今天", "adds": true, "checks": true, "items": [
+            { "id": "kata-review", "text": "周五前回 Kata 的 review", "why": "你周三说的" },
+            { "id": "cat-food", "text": "买猫粮", "by": "you", "done": true, "note": "大袋" } ] }
         ]
       }
 
@@ -76,6 +82,14 @@ public enum ToolGuide {
     - refresh: { "every": "hour" }, { "every": "day", "at": "HH:mm" }, or { "every": "week", "weekday": 1,
       "at": "HH:mm" } where 1 is Sunday. Leave it out when nothing would change.
     - "sources" are the sites it reads, by domain; "follow" says what to look for each time it is refreshed.
+    - items: a section the person and you both write in, such as a day of a to-do list. "id" is stable and
+      used once in the panel; "name" is its small heading; "adds" lets the person add items, "checks" gives
+      each item a circle to tick. A panel of items need not start with a sentence.
+    - An item: a stable "id" used once in the panel, "text", "done", "proposed" for a suggestion the person
+      takes or not, and "why", a few words on why it is there. Items are yours unless "by" is "you".
+    - The person's items ("by": "you") and their "pinned" and "note" on any item are theirs: whatever you
+      save, the app keeps them as they are. You may move items, tick them "done", and drop your own; keep
+      every section that holds the person's items.
 
     The course and lesson commands work only during a turn in that course conversation. The session
     supplies the course ID. Course sources are links, with a full commit SHA for a repository.

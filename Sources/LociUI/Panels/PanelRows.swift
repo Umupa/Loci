@@ -32,6 +32,8 @@ struct PanelRows: View {
       PanelBars(bars: bars).padding(.bottom, Spacing.m)
     case .picture(let url, let link):
       PanelPicture(url: url, link: link, open: actions.open).padding(.bottom, Spacing.m)
+    case .items(let section):
+      PanelItemsView(section: section)
     }
   }
 }

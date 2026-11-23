@@ -123,10 +123,22 @@ enum PanelRequest: Hashable, Sendable {
   case save(String)
   case list
   case show(String)
+  /// Adds Loci's item at the end of a section; `proposed` leaves it for the person to take or not.
+  case add(panel: String, section: String, text: String, proposed: Bool)
 
-  static let usage = "loci panel save <name> < panel.json | loci panel list | loci panel show <name>"
+  static let usage =
+    "loci panel save <name> < panel.json | loci panel list | loci panel show <name>"
+    + " | loci panel add <name> <section> <text> [--propose]"
 
   static func parse(_ words: [String]) throws(UsageError) -> PanelRequest {
+    if words.first == "add" {
+      let rest = words.dropFirst().filter { $0 != "--propose" }
+      let text = rest.dropFirst(2).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+      guard rest.count >= 3, !text.isEmpty else { throw UsageError(usage) }
+      return .add(
+        panel: rest[rest.startIndex], section: rest[rest.startIndex + 1], text: text,
+        proposed: rest.count + 1 < words.count)
+    }
     switch (words.first, words.count) {
     case ("list", 1): return .list
     case ("save", 2): return .save(try name(words[1]))

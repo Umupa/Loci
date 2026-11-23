@@ -123,4 +123,32 @@ struct PanelFilesTests {
     #expect(partway.map(\.content) == [.item(newer), .item(older)])
     #expect(partway.first?.state.position == (try place(newer)))
   }
+
+  static func at(days: Int64) -> Timestamp {
+    Timestamp(millisecondsSince1970: 1_763_100_000_000 + days * 24 * 3_600_000)
+  }
+
+  @Test func itemsThePersonRemovedAreRememberedForAWhile() {
+    var state = PanelState()
+
+    state.remember(removed: "kata", from: "week", at: Self.at(days: 0))
+    state.remember(removed: "lin", from: "week", at: Self.at(days: 5))
+
+    #expect(state.removed(from: "week", now: Self.at(days: 6)) == ["kata", "lin"])
+    #expect(state.removed(from: "week", now: Self.at(days: 10)) == ["lin"])
+    #expect(state.removed(from: "radar", now: Self.at(days: 6)).isEmpty)
+  }
+
+  @Test func onlyTheLatestRemovalsAreKept() throws {
+    var state = PanelState()
+
+    for index in 0..<(PanelState.removalsKept + 10) {
+      state.remember(removed: "i\(index)", from: "week", at: Self.at(days: 0))
+    }
+
+    #expect(state.removed(from: "week", now: Self.at(days: 0)).count == PanelState.removalsKept)
+    #expect(!state.removed(from: "week", now: Self.at(days: 0)).contains("i0"))
+    state.remember(removed: "late", from: "week", at: Self.at(days: 30))
+    #expect(try #require(state.removals["week"]).map(\.id) == ["late"])
+  }
 }

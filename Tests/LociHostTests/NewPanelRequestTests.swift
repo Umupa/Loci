@@ -18,7 +18,7 @@ struct PanelRefreshPromptTests {
 
   @Test func aRefreshIsToldNotToSaveWhenItCannotGetWhatThePanelFollows() throws {
     let prompts = try Prompts.bundled()
-    let refresh = try prompts.panel(PanelScenarioTests.radar)
+    let refresh = try prompts.panel(PanelScenarioTests.radar, hidden: [:])
 
     #expect(refresh.contains("\(Self.unreachable), do not save anything"))
     #expect(prompts.rules.contains("\(Self.unreachable) in a refresh, save nothing"))

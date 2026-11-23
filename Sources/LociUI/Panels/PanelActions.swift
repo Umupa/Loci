@@ -18,6 +18,10 @@ struct PanelActions {
   let moveToTop: (PanelSlot) -> Void
   /// Removes the panel and its file.
   let remove: (Panel) -> Void
+  /// Makes the person's edit to a panel's items; `false` when the host refused it.
+  let edit: @MainActor (EditPanel) async -> Bool
+  /// Keeps the person's take on a list line; `false` when the host refused it.
+  let mark: @MainActor (MarkPanelLine) async -> Bool
 }
 
 /// What right-clicking a panel offers. 「接着读」 belongs to the app, so it can only be moved.

@@ -108,7 +108,20 @@ struct TalkScreen: View {
         }
         send(MovePanelToTop(slot))
       },
-      remove: { panel in send(RemovePanel(panel.name)) })
+      remove: { panel in send(RemovePanel(panel.name)) },
+      edit: { command in await sent(command) },
+      mark: { command in await sent(command) })
+  }
+
+  /// Runs the command and says whether it worked, showing why when it did not.
+  private func sent<C: Command>(_ command: C) async -> Bool {
+    do throws(HostError) {
+      _ = try await host.run(command)
+      return true
+    } catch {
+      failed(error)
+      return false
+    }
   }
 
   private func send<C: Command>(_ command: C) {

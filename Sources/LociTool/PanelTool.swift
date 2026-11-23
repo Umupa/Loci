@@ -7,7 +7,26 @@ extension Tool {
     case .save(let name): return try await save(name, json: json)
     case .list: return try await list(json: json)
     case .show(let name): return try await show(name, json: json)
+    case .add(let panel, let section, let text, let proposed):
+      return try await add(text, to: panel, section: section, proposed: proposed, json: json)
     }
+  }
+
+  /// Looks the panel and section up first, so Loci hears what there is when it names one that is not there.
+  private func add(_ text: String, to name: String, section id: String, proposed: Bool, json: Bool)
+    async throws(Failure) -> Outcome
+  {
+    let entries = try Failure.decoding([PanelEntry].self, from: try await line.run(ListPanels()))
+    guard let panel = entries.first(where: { $0.name == name })?.panel else {
+      return .failed("There is no panel \(name). Run `loci panel list` to see them.")
+    }
+    guard let section = panel.sections.first(where: { $0.id == id }) else {
+      return .failed(PanelWords.noSection(id, in: panel))
+    }
+    let item = PanelItem(id: newID().description, text: text, by: .loci, proposed: proposed)
+    let reply = try await line.run(EditPanel(name, .put(item, section: id, at: nil)))
+    if json { return .worked(Self.text(reply)) }
+    return .worked(PanelWords.added(to: panel, section: section, proposed: proposed))
   }
 
   /// Checks the panel here first, so Loci hears of every problem without the app being asked.
@@ -46,6 +65,17 @@ enum PanelWords {
   static func refused(_ problems: [PanelProblem]) -> String {
     (["The panel was not saved. Fix each of these and save it again:"] + problems.map { "- \($0)" })
       .joined(separator: "\n")
+  }
+
+  static func noSection(_ id: String, in panel: Panel) -> String {
+    let sections = panel.sections.map { section in section.id + (section.name.map { " (\($0))" } ?? "") }
+    guard !sections.isEmpty else { return "\(panel.name) has no items rows to add to." }
+    return "\(panel.name) has no section \"\(id)\". Its sections: \(sections.joined(separator: ", "))."
+  }
+
+  static func added(to panel: Panel, section: PanelItems, proposed: Bool) -> String {
+    let place = panel.title + (section.name.map { " › \($0)" } ?? "")
+    return proposed ? "Suggested in \(place); the person takes it or not." : "Added to \(place)."
   }
 
   static func saved(_ panel: Panel) -> String {

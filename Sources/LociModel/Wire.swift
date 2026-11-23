@@ -28,7 +28,7 @@ public enum Wire {
     .streams(ReadMediaBytes.self, lane: .data),
     .writes(PickKeyPoints.self),
     .reads(ListPanels.self), .writes(SavePanel.self), .writes(RefreshPanel.self), .writes(MovePanelToTop.self),
-    .writes(RemovePanel.self),
+    .writes(RemovePanel.self), .writes(EditPanel.self), .writes(MarkPanelLine.self),
     .reads(ListCourses.self), .writes(StartCourse.self), .writes(AnswerCourseQuestion.self),
     .writes(BeginCourseSources.self), .writes(AddCourseSource.self), .writes(RemoveCourseSource.self),
     .writes(BeginCourseWriting.self), .reads(ReadLesson.self), .writes(OpenLesson.self),

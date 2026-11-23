@@ -148,7 +148,8 @@ extension RailLane {
         close()
         actions.revise(panel)
       },
-      refresh: actions.refresh, moveToTop: actions.moveToTop, remove: actions.remove)
+      refresh: actions.refresh, moveToTop: actions.moveToTop, remove: actions.remove, edit: actions.edit,
+      mark: actions.mark)
   }
 }
 

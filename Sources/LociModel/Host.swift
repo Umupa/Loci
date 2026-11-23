@@ -154,6 +154,8 @@ public protocol CommandHandler: Sendable {
   func refreshPanel(_ command: RefreshPanel) async throws(HostError) -> Done
   func movePanelToTop(_ command: MovePanelToTop) async throws(HostError) -> Done
   func removePanel(_ command: RemovePanel) async throws(HostError) -> Done
+  func editPanel(_ command: EditPanel) async throws(HostError) -> Done
+  func markPanelLine(_ command: MarkPanelLine) async throws(HostError) -> Done
   func listCourses() async throws(HostError) -> [CourseEntry]
   func coursePage(_ course: EntityID) async throws(HostError) -> CoursePage
   func readLesson(_ course: EntityID, lesson: Lesson.ID) async throws(HostError) -> String?

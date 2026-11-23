@@ -1,3 +1,4 @@
+import AppKit
 import LociModel
 import SwiftUI
 
@@ -42,7 +43,7 @@ struct PanelFrame<Marks: View, Content: View>: View {
           height = $0
         }
         .frame(height: long && !open ? PanelCut.height(edges: edges) : nil, alignment: .top)
-        .clipped()
+        .clipShape(Rectangle().inset(by: long && !open ? 0 : -Spacing.s))
     }
     .padding(.horizontal, 20)
     .padding(.top, 20)
@@ -160,35 +161,98 @@ private struct OpenOutCorners: Shape {
   }
 }
 
-/// A panel Loci keeps. When Loci rewrites it, the new rows fade in over the old.
+/// A panel Loci keeps. When Loci rewrites it, the new rows fade in over the old; the items in it change in
+/// place, and the person's edits show at once.
 struct PanelCard: View {
   let panel: Panel
   var refreshing = false
   let actions: PanelActions
+  /// The person's take on the lines of its lists.
+  var marks: [PanelLineKey: PanelLineMark] = [:]
   var open = false
   var page = 0
   @Environment(\.reducesMotion) private var reduceMotion
+  @Environment(\.undoManager) private var undoManager
+  @Environment(\.controlActiveState) private var activeState
+  @Environment(\.panelItemIDs) private var itemIDs
+  @Environment(\.changesAllowed) private var changesAllowed
+  @State private var editor: PanelEditor
+  @State private var carry = ItemCarry()
+
+  /// `arrived` starts Loci's items ringed as if they just came in, for a snapshot.
+  init(
+    panel: Panel, refreshing: Bool = false, actions: PanelActions, marks: [PanelLineKey: PanelLineMark] = [:],
+    open: Bool = false, page: Int = 0, arrived: Set<String> = []
+  ) {
+    self.panel = panel
+    self.refreshing = refreshing
+    self.actions = actions
+    self.marks = marks
+    self.open = open
+    self.page = page
+    _editor = State(initialValue: PanelEditor(arrived: arrived))
+  }
 
   var body: some View {
+    let shown = editor.shown(panel)
+    let face = panel.face
     PanelFrame(
       title: Text(verbatim: panel.title), menu: PanelMenu.entries(for: .panel(panel)), open: open, choose: choose
     ) {
-      SiteBadges(sites: panel.sources)
+      if let progress = CheckProgress(shown) {
+        CheckRing(progress: progress)
+        if !panel.sources.isEmpty { SiteBadges(sites: panel.sources) }
+      } else {
+        SiteBadges(sites: panel.sources)
+      }
     } content: {
       ZStack(alignment: .topLeading) {
-        shown.id(panel.body).transition(.opacity)
+        rows(of: shown).id(face).transition(.opacity)
+        CarriedItem(carry: carry)
       }
       .opacity(refreshing ? 0.5 : 1)
-      .animation(reduceMotion ? nil : .easeInOut(duration: 0.45), value: panel.body)
+      .animation(reduceMotion ? nil : .easeInOut(duration: 0.45), value: face)
       .animation(reduceMotion ? nil : Motion.quick, value: refreshing)
     }
+    .environment(\.panelEditing, changesAllowed ? editing(shown) : nil)
+    .environment(\.itemCarry, carry)
+    .task(id: carry.carried != nil) {
+      guard carry.carried != nil else { return }
+      let escape = EscapeKey { carry.callOff() }
+      defer { escape.stop() }
+      while carry.carried != nil, !Task.isCancelled {
+        carry.listen(
+          escape: CGEventSource.keyState(.combinedSessionState, key: Board.escape),
+          buttonDown: CGEventSource.buttonState(.combinedSessionState, button: .left))
+        try? await Task.sleep(for: Board.listening)
+      }
+    }
+    .onChange(of: activeState) { if activeState == .inactive { carry.callOff() } }
+    .onChange(of: panel, initial: true) { editor.settle(on: panel) }
   }
 
-  @ViewBuilder private var shown: some View {
-    switch panel.body {
+  @ViewBuilder private func rows(of shown: Panel) -> some View {
+    switch shown.body {
     case .rows(let rows): PanelRows(rows: rows, actions: actions)
     case .pages(let pages): PanelPager(pages: pages, actions: actions, page: page)
     }
+  }
+
+  /// What the rows may do; nothing while the Mac behind the window cannot take changes.
+  private func editing(_ shown: Panel) -> PanelEditing {
+    let name = panel.name
+    let actions = actions
+    return PanelEditing(
+      panel: shown,
+      make: { edit in
+        editor.make(edit, send: { await actions.edit(EditPanel(name, $0)) }, undoManager: undoManager)
+      },
+      mark: { line, mark in
+        editor.mark(
+          line, mark, was: marks[line] ?? PanelLineMark(),
+          send: { await actions.mark(MarkPanelLine(name, $0, $1)) }, undoManager: undoManager)
+      },
+      newID: itemIDs.make, arrived: editor.arrived, marks: marks)
   }
 
   private func choose(_ entry: PanelMenu) {
@@ -199,6 +263,25 @@ struct PanelCard: View {
     case .remove: actions.remove(panel)
     }
   }
+}
+
+extension Panel {
+  /// What the panel shows apart from its items, so the panel fades to new rows when Loci rewrites it but not
+  /// when an item changes.
+  fileprivate var face: PanelBody {
+    ((try? changingSections { section throws(PanelProblems) in section.items = [] }) ?? self).body
+  }
+}
+
+/// Makes the id of an item the person adds to a panel.
+struct PanelItemIDs: Sendable {
+  let make: @Sendable () -> String
+
+  static let random = PanelItemIDs { EntityID().description }
+}
+
+extension EnvironmentValues {
+  @Entry var panelItemIDs = PanelItemIDs.random
 }
 
 /// Pages turned with the arrows either side of the page's name; the new page slides in from the side turned to.

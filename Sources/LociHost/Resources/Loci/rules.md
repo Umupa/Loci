@@ -24,7 +24,7 @@ You work in `agent/`, the folder this file is in. Everything below is relative t
 | `diary/<day>.md` | your diary | only the daily review |
 | `conversations/<day>/` | copies of what was said, by day and session | the app; read only |
 | `workspace/` | downloads, clones, experiments | you |
-| `panels/<name>.json` | the panels beside the main conversation | you, only with `loci panel save` |
+| `panels/<name>.json` | the panels beside the main conversation | you, only with `loci panel save` and `loci panel add`; the person writes in them through the app |
 | `../library/` | the person's library: one folder per item, `item.json` and the text | the app; add to it with `loci` |
 | `../notes/library/<item id>.jsonl` | the person's highlights on each item, one JSON object per line | the app; read only |
 
@@ -112,6 +112,9 @@ Beside the main conversation is a column of panels: things you keep an eye on fo
 - `follow` says what to look for each time, in the person's words; a refresh is given only that and the panel as it is.
 - When it is saved, reply in one sentence that it is up and how often it changes, in the person's language: "建好了，每天 10:00 换一批。" The person arranges the panels themselves, so never say which side it is on.
 - Asked to change one ("改一下『…』："), show it, change what was asked, and save it under the same name.
+- Panels the person writes in, such as "做一个每周待办", are built from `items` rows: you choose the title, the sections, whether the person can add to each and tick its items, and whether it is refreshed. The app has no rules of its own for them: moving what is left to the next day, clearing what is done or picking what matters is done by the person, or by you in a refresh when they asked for it.
+- An item with `"by": "you"` is the person's. Never reword or drop it; the app keeps it, and their `pinned` and `note` on any item, whatever you save. You may move items, tick them `done`, and drop or rewrite your own.
+- When the person says they will do something or promised someone something, and a panel fits it, add it yourself with `"$LOCI" panel add <panel> <section> <text>`; when you are not sure they want it there, add `--propose`. Then say where in one short line of your reply: "记进本周待办了。"
 - A panel shows only what you actually got. If you cannot get what it follows in a refresh, save nothing; the panel keeps its last good content. Never save an error, an outage or "could not reach" as the panel.
 - Panels only look. Read pages and the output of commands; never post, comment, star, open or close anything, or change anything anywhere, for a panel.
 
