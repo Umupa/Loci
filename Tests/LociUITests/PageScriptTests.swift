@@ -82,4 +82,37 @@ struct PageScriptTests {
     #expect(facts.hasArticle)
     #expect(facts.videos.isEmpty)
   }
+
+  /// H-S7: papers and PDFs a page links to are reported once each, named by their link, and the page's own
+  /// address is not.
+  @Test func aPageReportsThePapersItLinksTo() async throws {
+    let facts = try await Self.facts(
+      of: """
+        <html><body>
+        <a href="/raft.pdf">In Search of an Understandable Consensus Algorithm</a>
+        <a href="/raft.pdf#page=3">section 5</a>
+        <a href="https://arxiv.org/abs/1706.03762">Attention Is All You Need</a>
+        <a href="https://arxiv.org/list/cs.DC/recent">Recent</a>
+        <a href="/">Home</a>
+        </body></html>
+        """,
+      at: "https://raft.github.io/")
+    #expect(facts.papers.map(\.title) == ["In Search of an Understandable Consensus Algorithm", "Attention Is All You Need"])
+    #expect(facts.papers.first?.url.absoluteString == "https://raft.github.io/raft.pdf")
+  }
+
+  /// H-S7: a talks page names its links only "YouTube" and "PDF"; each is named by the entry it sits in, and a
+  /// video with no picture on the page gets YouTube's own.
+  @Test func linksNamedOnlyByTheirSiteTakeTheNameOfTheirEntry() async throws {
+    let entry = """
+      <li>Talk on Raft at <a href="https://cs.illinois.edu/">CS@Illinois</a> by John Ousterhout, August 2016:
+        <table><tr><td>Video</td><td><a href="https://youtu.be/vYp4LYbnnW8">YouTube</a></td></tr>
+        <tr><td>Slides</td><td><a href="slides/uiuc2016.pdf">PDF</a></td></tr></table></li>
+      """
+    let facts = try await Self.facts(of: "<html><body><ul>\(entry)</ul></body></html>", at: "https://raft.github.io/")
+    let name = "Talk on Raft at CS@Illinois by John Ousterhout, August 2016"
+    #expect(facts.videos.map(\.title) == [name])
+    #expect(facts.videos.first?.thumbnail?.absoluteString == "https://i.ytimg.com/vi/vYp4LYbnnW8/mqdefault.jpg")
+    #expect(facts.papers.map(\.title) == [name])
+  }
 }

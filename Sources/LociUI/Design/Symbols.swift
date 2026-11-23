@@ -3,6 +3,7 @@ import LociModel
 /// The SF Symbols the interface uses, by meaning.
 enum Symbols {
   static let library = "books.vertical"
+  static let libraryKept = "books.vertical.fill"
   static let problem = "exclamationmark.triangle.fill"
   static let send = "arrow.up"
   static let settings = "gearshape"

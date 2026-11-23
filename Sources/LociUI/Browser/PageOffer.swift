@@ -5,6 +5,8 @@ import LociModel
 struct PageFacts: Equatable {
   /// Links to single videos on the page, in page order, without repeats.
   var videos: [FoundVideo] = []
+  /// Links to papers and PDFs, in page order, without repeats or the page itself.
+  var papers: [FoundPaper] = []
   /// The page has a body of text long enough to read as an article.
   var hasArticle = false
   /// The page is a PDF the browser is showing.
@@ -18,6 +20,14 @@ struct FoundVideo: Hashable, Identifiable {
   let thumbnail: URL?
   /// As the page wrote it, such as `34:12`.
   let duration: String?
+
+  var id: URL { url }
+}
+
+/// A paper or PDF a page links to, named by its link.
+struct FoundPaper: Hashable, Identifiable {
+  let url: URL
+  let title: String
 
   var id: URL { url }
 }

@@ -77,11 +77,19 @@ final class BrowserTab: Identifiable {
 
   func learn(_ reported: PageFacts) {
     facts.videos = reported.videos
+    facts.papers = reported.papers
     facts.hasArticle = reported.hasArticle
   }
 
   func showingPDF() {
     facts.isPDF = true
+  }
+
+  /// Rings the link to `link` on the page and scrolls it into view, taking the ring off any other; `nil` only
+  /// takes it off.
+  func point(at link: URL?) async {
+    _ = try? await view?.callAsyncJavaScript(
+      PageScript.point, arguments: ["target": link?.absoluteString ?? ""], contentWorld: .page)
   }
 
   func articleHTML(at address: URL) async -> String? {

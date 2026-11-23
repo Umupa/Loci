@@ -1,9 +1,10 @@
 import LociModel
 import SwiftUI
 
-/// A web page linked from anywhere but the browser, opened over the window in a resizable card. Along its top, going back, the
-/// site, saving the page to the library, opening it in the browser, and closing it. Esc or a click outside
-/// closes it and leaves the page under it where it was.
+/// A web page linked from anywhere but the browser, opened over the window in a resizable card. Along its top,
+/// going back, the site, the library button (`KeepButton`, with `KeepList` under it), opening it in the browser,
+/// and closing it. Esc or a click outside closes the list first, then the page, and leaves the page under it where
+/// it was.
 struct WebOverlay: View {
   @Environment(\.host) private var host
   @Environment(\.takeIn) private var takeIn
@@ -12,10 +13,12 @@ struct WebOverlay: View {
   @Environment(\.openPage) private var openPage
   @Environment(\.openPlace) private var openPlace
   @Environment(\.standIns) private var standIns
+  @Environment(\.reducesMotion) private var reduceMotion
   let session: BrowserSession
   let tab: BrowserTab
   let close: () -> Void
   @State private var items: Feed<[Item]>?
+  @State private var choosing = false
 
   var body: some View {
     VStack(spacing: 0) {
@@ -30,7 +33,20 @@ struct WebOverlay: View {
     )
     .compositingGroup()
     .shadow(color: .black.opacity(0.3), radius: 30, y: 14)
+    .overlay(alignment: .topTrailing) {
+      if choosing, let finds {
+        KeepList(finds: finds, site: site, keep: keep) { find in
+          Task { await tab.point(at: find?.kind == .page ? nil : find?.url) }
+        }
+        .changesData()
+        .padding(.top, Self.barHeight + 4)
+        .padding(.trailing, 64)
+        .transition(reduceMotion ? .identity : .scale(scale: 0.95, anchor: .topTrailing).combined(with: .opacity))
+      }
+    }
     .subscribing(AllItems(), into: $items)
+    .onChange(of: tab.address) { choosing = false }
+    .onAppear { if standIns?.keepListOpen == true { choosing = true } }
   }
 
   private var bar: some View {
@@ -48,10 +64,12 @@ struct WebOverlay: View {
           .padding(.leading, 6)
       }
       Spacer(minLength: Spacing.s)
-      saveButton.changesData()
+      if let finds {
+        KeepButton(finds: finds, choosing: choosing) { click(finds) }.changesData()
+      }
       IconButton(
         symbol: Symbols.external, title: .loci("overlay.openInBrowser"), tint: Palette.ink, action: openInBrowser)
-      IconButton(symbol: Symbols.cancel, title: .loci("overlay.close"), tint: Palette.ink, action: close)
+      IconButton(symbol: Symbols.cancel, title: .loci("overlay.close"), tint: Palette.ink, action: dismiss)
         .keyboardShortcut(.cancelAction)
     }
     .padding(.horizontal, 10)
@@ -60,19 +78,6 @@ struct WebOverlay: View {
       Rectangle().fill(Palette.line).frame(height: Size.hairline)
     }
     .overlay(alignment: .bottom) { LoadingLine(progress: tab.progress) }
-  }
-
-  @ViewBuilder private var saveButton: some View {
-    if case .inLibrary(let item) = offer {
-      PrimaryButton(action: { openPage(.item(item)) }, label: { Text(.loci("browser.showInLibrary")) })
-    } else {
-      PrimaryButton(
-        action: save,
-        label: {
-          Image(systemName: Symbols.add).font(.system(size: 12, weight: .semibold))
-          Text(.loci("overlay.save"))
-        })
-    }
   }
 
   @ViewBuilder private var page: some View {
@@ -92,20 +97,41 @@ struct WebOverlay: View {
     return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
   }
 
-  private var offer: PageOffer? {
+  private var finds: PageFinds? {
     guard let address = tab.address else { return nil }
-    return PageOffer(at: address, facts: tab.facts, library: items?.value ?? [])
+    let title = tab.title.isEmpty ? (site ?? address.absoluteString) : tab.title
+    return PageFinds(at: address, title: title, facts: tab.facts, library: items?.value ?? [])
   }
 
-  private func save() {
+  private func click(_ finds: PageFinds) {
+    switch finds.click {
+    case .keepPage: keep(finds.left)
+    case .choose: withAnimation(reduceMotion ? nil : Motion.quick) { choosing.toggle() }
+    case .open(let item):
+      close()
+      openPage(.item(item))
+    }
+  }
+
+  private func keep(_ chosen: [PageFinds.Find]) {
+    withAnimation(reduceMotion ? nil : Motion.quick) { choosing = false }
     let taker = PageTaker(
       host: host, session: session, takeIn: takeIn, failed: showFailure.callAsFunction,
       changesAllowed: changesAllowed)
     let page = tab
-    if offer == .video, let address = page.address {
-      Task { await taker.takeVideos([address]) }
+    Task {
+      await page.point(at: nil)
+      await taker.keep(chosen, from: page)
+    }
+  }
+
+  /// Esc and the close button put the list away first, then the page.
+  private func dismiss() {
+    if choosing {
+      withAnimation(reduceMotion ? nil : Motion.quick) { choosing = false }
+      Task { await tab.point(at: nil) }
     } else {
-      Task { await taker.addPage(in: page) }
+      close()
     }
   }
 
@@ -159,7 +185,10 @@ private struct PeekingLinks: ViewModifier {
         .overlay { if let tab { overlay(tab, in: browser) } }
         .animation(reduceMotion ? nil : Motion.standard, value: tab.map(ObjectIdentifier.init))
         .onAppear {
-          if let url = standIns?.overlayPage, tab == nil { tab = browser.peek(url) }
+          if let url = standIns?.overlayPage, tab == nil {
+            tab = browser.peek(url)
+            if let facts = standIns?.overlayFacts { tab?.learn(facts) }
+          }
         }
         .onDisappear { close(in: browser) }
     } else {

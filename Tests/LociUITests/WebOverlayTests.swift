@@ -72,6 +72,84 @@ struct WebOverlayTests {
     #expect(scroll.contentView.bounds.minY == scrolled)
   }
 
+  /// H-S7: over a page the library keeps, the filled library button closes the page and opens the item.
+  @Test func theFilledLibraryButtonOpensTheKeptPageInTheLibrary() async throws {
+    let browser = BrowserSession()
+    let size = CGSize(width: 1200, height: 800)
+    let library = try SampleLibrary()
+    let kept = library.article.source
+    let shown = Shown()
+    let view = MachineWindow(
+      memory: WindowMemory(recall: { WindowState() }, remember: { shown.window = $0 }), browser: browser
+    )
+    .lociHost(FakeHost(try Sample(problems: false), library: library))
+      .environment(
+        \.standIns,
+        StandIns(
+          webPage: NSImage(size: CGSize(width: 10, height: 10)), overlayPage: kept,
+          overlayFacts: PageFacts(hasArticle: true)))
+      .defaultAppStorage(LibrarySnapshots.defaults(panel: true))
+      .frame(width: size.width, height: size.height)
+    let window = NSWindow(
+      contentRect: CGRect(origin: CGPoint(x: -20_000, y: -20_000), size: size), styleMask: [.titled],
+      backing: .buffered, defer: false)
+    window.contentView = NSHostingView(rootView: view)
+    window.orderBack(nil)
+    defer { window.orderOut(nil) }
+    try await eventually("the page to open over the conversation") { !browser.peeks.isEmpty }
+    try await Task.sleep(for: .seconds(1))
+
+    let side = WebOverlaySizing(room: size).ideal
+    let card = CGRect(
+      x: (size.width - side.width) / 2, y: (size.height - side.height) / 2, width: side.width, height: side.height)
+    let button = CGPoint(
+      x: card.maxX - 10 - 2 * Size.iconButton - 4 - Size.iconButton / 2,
+      y: size.height - card.minY - WebOverlay.barHeight / 2)
+    Self.click(window, at: button)
+
+    try await eventually("the page to close for the item") { browser.peeks.isEmpty }
+    try await eventually("the item to open") { shown.window?.pages.last?.itemID == library.article.id }
+  }
+
+  /// H-S4: "open in browser" takes the page from over the window into the browser.
+  @Test func openInBrowserShowsTheBrowser() async throws {
+    let browser = BrowserSession()
+    let size = CGSize(width: 1200, height: 800)
+    let shown = Shown()
+    let view = MachineWindow(
+      memory: WindowMemory(recall: { WindowState() }, remember: { shown.window = $0 }), browser: browser
+    )
+    .lociHost(FakeHost(try Sample(problems: false), library: try SampleLibrary()))
+    .environment(\.standIns, StandIns(webPage: NSImage(size: CGSize(width: 10, height: 10)), overlayPage: Self.page))
+    .defaultAppStorage(LibrarySnapshots.defaults(panel: true))
+    .frame(width: size.width, height: size.height)
+    let window = NSWindow(
+      contentRect: CGRect(origin: CGPoint(x: -20_000, y: -20_000), size: size), styleMask: [.titled],
+      backing: .buffered, defer: false)
+    window.contentView = NSHostingView(rootView: view)
+    window.orderBack(nil)
+    defer { window.orderOut(nil) }
+    try await eventually("the page to open over the conversation") { !browser.peeks.isEmpty }
+    try await Task.sleep(for: .seconds(1))
+
+    let side = WebOverlaySizing(room: size).ideal
+    let card = CGRect(
+      x: (size.width - side.width) / 2, y: (size.height - side.height) / 2, width: side.width, height: side.height)
+    Self.click(
+      window,
+      at: CGPoint(
+        x: card.maxX - 10 - Size.iconButton - 2 - Size.iconButton / 2,
+        y: size.height - card.minY - WebOverlay.barHeight / 2))
+
+    try await eventually("the browser to show") { shown.window?.place == .browser }
+    #expect(browser.peeks.isEmpty)
+  }
+
+  /// The window as it last remembered itself.
+  @MainActor final class Shown {
+    var window: WindowState?
+  }
+
   private static let page = URL(string: "https://blog.cloudflare.com/how-we-built-pingora")
 
   private static func window(_ browser: BrowserSession, standIns: StandIns, defaults: UserDefaults) throws -> NSWindow {

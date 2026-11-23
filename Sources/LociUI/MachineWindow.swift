@@ -119,6 +119,8 @@ struct MachineWindow: View {
     .ignoresSafeArea(edges: .top)
     .background(Palette.canvas)
     .peekingLinks()
+    .environment(\.openPage, OpenPage { window.pages.append($0) })
+    .environment(\.openPlace, openPlace)
   }
 
   /// Closes the page on top and goes back to the one under it, or to the place.

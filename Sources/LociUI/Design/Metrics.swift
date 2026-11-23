@@ -117,6 +117,7 @@ enum Size {
   static let linkField: CGFloat = 44
   static let siteTile: CGFloat = 58
   static let videoPicker: CGFloat = 372
+  static let keepList: CGFloat = 340
   static let pickerThumbnail: CGFloat = 96
 
   static let settingsTile: CGFloat = 38

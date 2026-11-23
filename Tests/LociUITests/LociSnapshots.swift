@@ -79,7 +79,38 @@ struct LociSnapshots {
       "talk-web-overlay", try SampleLibrary(), at: WindowState(), appearance: appearance,
       standIns: StandIns(
         webPage: LibrarySnapshots.webPage("article", appearance),
-        overlayPage: URL(string: "https://blog.cloudflare.com/how-we-built-pingora")))
+        overlayPage: URL(string: "https://blog.cloudflare.com/how-we-built-pingora"),
+        overlayFacts: PageFacts(hasArticle: true)))
+  }
+
+  /// H-S7: the page links to talks and papers; the library button counts them and its list is open.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func keepingWhatAPageLinksTo(appearance: Snapshot.Appearance) async throws {
+    let talks = [
+      ("Scheduling at Scale: Inside the Kubernetes Scheduler", "kube"),
+      ("Keeping etcd Healthy at 10,000 Nodes", "etcd"),
+      ("Kueue: Fair Sharing for Batch and AI Workloads", "kueue"),
+    ]
+    let facts = PageFacts(
+      videos: talks.compactMap { title, id in
+        URL(string: "https://www.youtube.com/watch?v=\(id)").map {
+          FoundVideo(
+            url: $0, title: title,
+            thumbnail: Bundle.module.url(forResource: id, withExtension: "jpg", subdirectory: "Fixtures/Covers"),
+            duration: nil)
+        }
+      },
+      papers: [
+        FoundPaper(url: URL(string: "https://raft.github.io/raft.pdf")!, title: "In Search of an Understandable Consensus Algorithm"),
+        FoundPaper(url: URL(string: "https://arxiv.org/abs/1706.03762")!, title: "Attention Is All You Need"),
+      ],
+      hasArticle: true)
+    try await LibrarySnapshots.shoot(
+      "talk-web-overlay-keep", try SampleLibrary(), at: WindowState(), appearance: appearance,
+      standIns: StandIns(
+        webPage: LibrarySnapshots.webPage("article", appearance),
+        overlayPage: URL(string: "https://blog.cloudflare.com/how-we-built-pingora"), overlayFacts: facts,
+        keepListOpen: true))
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)

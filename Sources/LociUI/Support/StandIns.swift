@@ -8,6 +8,10 @@ struct StandIns {
   var webPage: NSImage?
   /// This page is open over the conversation.
   var overlayPage: URL?
+  /// What the page open over the conversation reports about itself.
+  var overlayFacts: PageFacts?
+  /// The list under the page's library button is open.
+  var keepListOpen = false
   var moment: MediaMoment?
   /// The list of a page's videos is open.
   var videoPickerOpen = false

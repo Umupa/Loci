@@ -32,6 +32,24 @@ struct PageTaker {
     }
   }
 
+  /// Keeps what was chosen from the page in `tab`: the page as `addPage` does, the papers as links, and the
+  /// videos, the page among them when it is one, through the import panel.
+  func keep(_ chosen: [PageFinds.Find], from tab: BrowserTab) async {
+    guard changesAllowed else { return }
+    let pageIsVideo = tab.address.map { LinkKind($0) == .video } ?? false
+    if chosen.contains(where: { $0.kind == .page }), !pageIsVideo { await addPage(in: tab) }
+    for paper in chosen where paper.kind == .paper {
+      await handOverSignIn(for: paper.url)
+      do throws(HostError) {
+        _ = try await host.run(AddLink(url: paper.url))
+      } catch {
+        failed(error)
+      }
+    }
+    let videos = chosen.filter { $0.kind == .video || ($0.kind == .page && pageIsVideo) }.map(\.url)
+    if !videos.isEmpty { await takeVideos(videos) }
+  }
+
   private func handOverSignIn(for link: URL) async {
     let cookies = await session.cookies(for: link)
     if !cookies.isEmpty { _ = try? await host.run(HandOverBrowserCookies(cookies)) }

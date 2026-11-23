@@ -8253,6 +8253,40 @@
         }
       }
     },
+    "overlay.saveSome %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存进 %lld 项"
+          }
+        }
+      }
+    },
+    "overlay.inLibrary": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Library"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在资料库中"
+          }
+        }
+      }
+    },
     "overlay.openInBrowser": {
       "extractionState": "manual",
       "localizations": {
