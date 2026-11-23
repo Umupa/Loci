@@ -33,7 +33,8 @@ struct PageFinds: Equatable {
 
   init?(at url: URL, title: String, facts: PageFacts, library: [Item]) {
     let kept = Dictionary(
-      library.compactMap { item in item.source.map { (PageAddress($0), item.id) } }, uniquingKeysWith: { first, _ in first })
+      library.compactMap { item in item.source.map { (PageAddress($0), item.id) } },
+      uniquingKeysWith: { first, _ in first })
     var seen: Set<PageAddress> = []
     var all: [Find] = []
     func add(_ kind: Kind, _ link: URL, _ title: String, thumbnail: URL? = nil) {

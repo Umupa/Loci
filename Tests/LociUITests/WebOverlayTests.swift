@@ -83,13 +83,14 @@ struct WebOverlayTests {
       memory: WindowMemory(recall: { WindowState() }, remember: { shown.window = $0 }), browser: browser
     )
     .lociHost(FakeHost(try Sample(problems: false), library: library))
-      .environment(
-        \.standIns,
-        StandIns(
-          webPage: NSImage(size: CGSize(width: 10, height: 10)), overlayPage: kept,
-          overlayFacts: PageFacts(hasArticle: true)))
-      .defaultAppStorage(LibrarySnapshots.defaults(panel: true))
-      .frame(width: size.width, height: size.height)
+    .environment(
+      \.standIns,
+      StandIns(
+        webPage: NSImage(size: CGSize(width: 10, height: 10)), overlayPage: kept,
+        overlayFacts: PageFacts(hasArticle: true))
+    )
+    .defaultAppStorage(LibrarySnapshots.defaults(panel: true))
+    .frame(width: size.width, height: size.height)
     let window = NSWindow(
       contentRect: CGRect(origin: CGPoint(x: -20_000, y: -20_000), size: size), styleMask: [.titled],
       backing: .buffered, defer: false)

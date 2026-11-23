@@ -250,7 +250,7 @@ private struct MenuEntry: View {
     Button(action: choose) {
       HStack(spacing: Spacing.xs) {
         Text(verbatim: on ? "✓" : "").font(.system(size: 12)).foregroundStyle(Palette.ink)
-        .frame(width: 12)
+          .frame(width: 12)
         Text(title).font(.system(size: 13)).foregroundStyle(Palette.ink)
         Spacer(minLength: 0)
       }

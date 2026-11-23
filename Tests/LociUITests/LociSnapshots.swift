@@ -101,7 +101,9 @@ struct LociSnapshots {
         }
       },
       papers: [
-        FoundPaper(url: URL(string: "https://raft.github.io/raft.pdf")!, title: "In Search of an Understandable Consensus Algorithm"),
+        FoundPaper(
+          url: URL(string: "https://raft.github.io/raft.pdf")!,
+          title: "In Search of an Understandable Consensus Algorithm"),
         FoundPaper(url: URL(string: "https://arxiv.org/abs/1706.03762")!, title: "Attention Is All You Need"),
       ],
       hasArticle: true)

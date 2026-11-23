@@ -113,7 +113,8 @@ struct PageScriptTests {
         </body></html>
         """,
       at: "https://raft.github.io/")
-    #expect(facts.papers.map(\.title) == ["In Search of an Understandable Consensus Algorithm", "Attention Is All You Need"])
+    #expect(
+      facts.papers.map(\.title) == ["In Search of an Understandable Consensus Algorithm", "Attention Is All You Need"])
     #expect(facts.papers.first?.url.absoluteString == "https://raft.github.io/raft.pdf")
   }
 

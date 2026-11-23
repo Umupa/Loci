@@ -22,10 +22,12 @@ import Testing
   }
 
   static let talks = (1...3).map {
-    FoundVideo(url: URL(string: "https://www.youtube.com/watch?v=t\($0)")!, title: "Talk \($0)", thumbnail: nil, duration: nil)
+    FoundVideo(
+      url: URL(string: "https://www.youtube.com/watch?v=t\($0)")!, title: "Talk \($0)", thumbnail: nil, duration: nil)
   }
   static let papers = [
-    FoundPaper(url: URL(string: "https://raft.github.io/raft.pdf")!, title: "In Search of an Understandable Consensus Algorithm"),
+    FoundPaper(
+      url: URL(string: "https://raft.github.io/raft.pdf")!, title: "In Search of an Understandable Consensus Algorithm"),
     FoundPaper(url: URL(string: "https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf")!, title: "Consensus"),
   ]
 
@@ -77,7 +79,8 @@ import Testing
   }
 
   @Test func aLinkToThePageItselfIsNotListedTwice() throws {
-    let facts = PageFacts(papers: [FoundPaper(url: URL(string: "https://example.com/a.pdf#page=2")!, title: "A")], isPDF: true)
+    let facts = PageFacts(
+      papers: [FoundPaper(url: URL(string: "https://example.com/a.pdf#page=2")!, title: "A")], isPDF: true)
     let finds = try #require(finds("https://example.com/a.pdf", facts, library: []))
     #expect(finds.all.count == 1)
   }

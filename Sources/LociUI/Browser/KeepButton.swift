@@ -168,7 +168,8 @@ struct KeepList: View {
       .frame(width: 48, height: 27)
       .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
       .overlay(
-        RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+        RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline)
+      )
     case .paper:
       PaperSheet()
     }
@@ -207,6 +208,8 @@ private struct PaperSheet: View {
     .padding(.horizontal, 4)
     .frame(width: 21, height: 27)
     .background(RoundedRectangle(cornerRadius: 2.5, style: .continuous).fill(Palette.paper))
-    .overlay(RoundedRectangle(cornerRadius: 2.5, style: .continuous).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+    .overlay(
+      RoundedRectangle(cornerRadius: 2.5, style: .continuous).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline)
+    )
   }
 }

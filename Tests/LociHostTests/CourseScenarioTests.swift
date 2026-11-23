@@ -180,14 +180,17 @@ struct CourseScenarioTests {
       await session.finish()
       try await idle(course.id, on: host)
 
-      _ = try await host.run(SendMessage(to: .course(course.id), text: "Publish the remaining lessons.", lesson: reading))
+      _ = try await host.run(
+        SendMessage(to: .course(course.id), text: "Publish the remaining lessons.", lesson: reading))
       _ = try await turn(for: course.id, on: agent, number: 2)
       for lesson in plan.dropFirst(3) {
         let markdown = "A lesson about \(lesson.title)."
         try await run(.writeLesson(lesson.id, markdown: markdown), in: access, on: host)
         #expect(try await host.run(ReadLesson(course: course.id, lesson: lesson.id)) == markdown)
       }
-      let published = await value(host.subscribe(WatchCourse(course.id))) { $0.lessons.allSatisfy { $0.body == .written } }
+      let published = await value(host.subscribe(WatchCourse(course.id))) {
+        $0.lessons.allSatisfy { $0.body == .written }
+      }
       #expect(published?.course.readLessons == [reading])
       #expect(await session.prompts.last?.contains("save multiple planned lessons in this turn") == true)
       await session.finish()

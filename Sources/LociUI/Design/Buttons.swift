@@ -33,7 +33,9 @@ private struct CapsuleFace: View {
 
   var body: some View {
     configuration.label
-      .font(look == .quiet ? Typography.button.weight(.medium) : large ? Typography.buttonLarge : Typography.buttonStrong)
+      .font(
+        look == .quiet ? Typography.button.weight(.medium) : large ? Typography.buttonLarge : Typography.buttonStrong
+      )
       .foregroundStyle(words)
       .lineLimit(1)
       .padding(.horizontal, large ? 18 : 15)
