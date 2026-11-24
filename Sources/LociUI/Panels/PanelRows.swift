@@ -9,7 +9,7 @@ struct PanelRows: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-        view(of: row).panelRow()
+        view(of: row)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -18,20 +18,21 @@ struct PanelRows: View {
   @ViewBuilder private func view(of row: PanelRow) -> some View {
     switch row {
     case .sentence(let text):
-      PanelSentence(text: text).padding(.bottom, 14)
+      PanelSentence(text: text).padding(.bottom, 14).panelRow()
     case .cells(let cells):
-      PanelCells(cells: cells).padding(.bottom, Spacing.m)
+      PanelCells(cells: cells).padding(.bottom, Spacing.m).panelRow()
     case .label(let text):
       Text(verbatim: text).font(.system(size: 14, weight: .medium)).foregroundStyle(Palette.ink)
         .padding(.top, Spacing.xxs).padding(.bottom, 10)
+        .panelRow()
     case .list(let items):
       PanelList(items: items, actions: actions).padding(.bottom, Spacing.m)
     case .prominent(let title, let subtitle):
-      PanelProminent(title: title, subtitle: subtitle).padding(.bottom, Spacing.xs)
+      PanelProminent(title: title, subtitle: subtitle).padding(.bottom, Spacing.xs).panelRow()
     case .bars(let bars):
-      PanelBars(bars: bars).padding(.bottom, Spacing.m)
+      PanelBars(bars: bars).padding(.bottom, Spacing.m).panelRow()
     case .picture(let url, let link):
-      PanelPicture(url: url, link: link, open: actions.open).padding(.bottom, Spacing.m)
+      PanelPicture(url: url, link: link, open: actions.open).padding(.bottom, Spacing.m).panelRow()
     case .items(let section):
       PanelItemsView(section: section)
     }

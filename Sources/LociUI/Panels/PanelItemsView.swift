@@ -49,6 +49,7 @@ struct PanelItemsView: View {
       if let name = section.name {
         Text(verbatim: name).font(.system(size: 12, weight: .medium)).foregroundStyle(Palette.inkMuted)
           .padding(.horizontal, Spacing.xs).padding(.bottom, Spacing.xxs)
+          .panelRow()
       }
       ForEach(rows.rows, id: \.id) { row in
         if let item = row.item {

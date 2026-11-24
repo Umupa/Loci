@@ -89,6 +89,26 @@ struct PanelTests {
     #expect(PageTurn(from: 1, to: 0) == .back)
   }
 
+  @Test func aLongPanelKeepsItsLastFittingRowClearAndPreviewsWhatFollows() throws {
+    let preview = try #require(PanelPreview(height: 421, rowEnds: [52, 117, 199, 278, 353, 411]))
+    #expect(preview.showsRow(endingAt: 278))
+    #expect(!preview.showsRow(endingAt: 353))
+    #expect(preview.height == 302)
+  }
+
+  @Test func aShortPanelOrOneWithOnlyTrailingSpaceHasNoPreview() {
+    #expect(PanelPreview(height: 330, rowEnds: [52, 240, 322]) == nil)
+    #expect(PanelPreview(height: 352, rowEnds: [52, 296]) == nil)
+  }
+
+  @Test func aTallFirstRowStaysWholeAndOnlyFollowingContentCanBePreviewed() throws {
+    #expect(PanelPreview(height: 399, rowEnds: [399]) == nil)
+    let preview = try #require(PanelPreview(height: 412, rowEnds: [399, 412]))
+    #expect(preview.showsRow(endingAt: 399))
+    #expect(!preview.showsRow(endingAt: 412))
+    #expect(preview.height == 412)
+  }
+
   @Test func aRequestIsMarkedWithTheSitesItNames() {
     let zh = Locale(identifier: "zh-Hans")
     #expect(PanelSources.named(in: "盯着 https://github.com/openai/codex 的发布", locale: zh).sites == ["github.com"])
