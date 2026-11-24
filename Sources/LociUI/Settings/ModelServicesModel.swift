@@ -157,7 +157,7 @@ final class ModelServicesModel {
     switch error {
     case .invalidRequest(let reason), .storage(let reason): reason
     case .notFound(let what): what
-    case .alreadyExists, .invalidFile, .offline: String(localized: Messages.describe(error))
+    case .alreadyExists, .invalidFile, .offline, .olderMac: String(localized: Messages.describe(error))
     }
   }
 }

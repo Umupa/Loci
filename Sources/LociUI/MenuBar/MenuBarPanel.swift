@@ -20,8 +20,8 @@ public struct MenuBarPanel: View {
       header
       Rectangle().fill(Palette.lineStrong).frame(height: Size.hairline).padding(.vertical, 5)
         .padding(.horizontal, Spacing.xs)
-      row(.open, symbol: Symbols.window, title: Text(.loci("menuBar.open")))
-      row(.quit, symbol: Symbols.quit, title: Text(.loci("menuBar.quit")), shortcut: "⌘Q")
+      row(.open, symbol: Symbols.window, title: Text(.loci("menubar.open")))
+      row(.quit, symbol: Symbols.quit, title: Text(.loci("menubar.quit")), shortcut: "⌘Q")
     }
     .padding(5)
     .frame(width: Self.width)
