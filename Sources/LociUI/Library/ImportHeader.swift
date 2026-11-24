@@ -128,7 +128,7 @@ struct ImportHeader: View {
   static func length(of item: Item) -> Duration? {
     switch item.kind {
     case .video(let duration), .audio(let duration): duration
-    case .article, .paper, .repository: nil
+    case .article, .paper, .repository, .book: nil
     }
   }
 

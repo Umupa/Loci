@@ -91,6 +91,7 @@ extension Item {
     case .video: "video"
     case .audio: "audio"
     case .repository: "repository"
+    case .book: "book"
     }
   }
 }

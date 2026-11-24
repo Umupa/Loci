@@ -1,3 +1,4 @@
+import Foundation
 import LociModel
 
 /// The SF Symbols the interface uses, by meaning.
@@ -22,6 +23,13 @@ enum Symbols {
   static let picture = "photo"
   static let panel = "sidebar.right"
   static let contents = "list.bullet"
+  static let followedBack = "arrow.uturn.backward"
+  /// The text-size glyphs: SF Symbols draws them as words in some languages, so they are drawn in
+  /// `latinGlyphs` to stay the aA glyph everywhere.
+  static let textSize = "textformat.size"
+  static let textSmaller = "textformat.size.smaller"
+  static let textLarger = "textformat.size.larger"
+  static let latinGlyphs = Locale(identifier: "en")
   static let atlas = "rectangle.3.group"
   static let stop = "stop.fill"
   static let done = "checkmark"
@@ -99,6 +107,7 @@ enum Symbols {
     case .article: kind(.article)
     case .video: kind(.video)
     case .audio: kind(.audio)
+    case .book: kind(.book)
     }
   }
 
@@ -109,13 +118,14 @@ enum Symbols {
     case .video: "play.rectangle"
     case .audio: "headphones"
     case .repository: "chevron.left.forwardslash.chevron.right"
+    case .book: "book"
     }
   }
 }
 
 /// An item's kind without its associated values, for item icons and labels.
 enum ItemKind: Equatable {
-  case video, audio, article, paper, repository
+  case video, audio, article, paper, repository, book
 
   init(_ kind: Item.Kind) {
     switch kind {
@@ -124,6 +134,7 @@ enum ItemKind: Equatable {
     case .video: self = .video
     case .audio: self = .audio
     case .repository: self = .repository
+    case .book: self = .book
     }
   }
 }

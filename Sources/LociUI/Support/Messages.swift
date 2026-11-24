@@ -12,6 +12,7 @@ enum Messages {
     case .storage: .loci("error.storage")
     case .offline: .loci("error.offline")
     case .olderMac: .loci("error.olderMac")
+    case .unsupportedBook(let problem): describe(problem)
     }
   }
 
@@ -24,11 +25,21 @@ enum Messages {
     }
   }
 
+  static func describe(_ problem: BookProblem) -> LocalizedStringResource {
+    switch problem {
+    case .notABook: .loci("book.notABook")
+    case .damaged: .loci("book.damaged")
+    case .fixedLayout: .loci("book.fixedLayout")
+    case .protected: .loci("book.protected")
+    }
+  }
+
   static func name(of category: LibraryCategory) -> LocalizedStringResource {
     switch category {
     case .article: .loci("kind.article")
     case .video: .loci("kind.video")
     case .audio: .loci("kind.audio")
+    case .book: .loci("kind.book")
     }
   }
 
@@ -39,6 +50,7 @@ enum Messages {
     case .video: name(of: LibraryCategory.video)
     case .audio: name(of: LibraryCategory.audio)
     case .repository: .loci("library.typeRepository")
+    case .book: name(of: LibraryCategory.book)
     }
   }
 }

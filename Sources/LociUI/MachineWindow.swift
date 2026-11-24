@@ -7,6 +7,7 @@ struct MachineWindow: View {
   @Environment(\.host) private var host
   @Environment(\.machineChoice) private var machineChoice
   @Environment(\.changesAllowed) private var changesAllowed
+  @Environment(\.openedFiles) private var openedFiles
   @State private var window = WindowState()
   @State private var restored = false
   @State private var items: Feed<[Item]>?
@@ -64,6 +65,7 @@ struct MachineWindow: View {
       .subscribing(SavingNow(), into: $saving)
       .onAppear(perform: restore)
       .task { await openModelSetup() }
+      .onChange(of: openedFiles?.waiting, initial: true) { openBooks() }
       .onChange(of: window) { memory.remember(window) }
       .onChange(of: itemIDs) { _, items in
         if let items { window = window.keeping(items: items) }
@@ -305,6 +307,21 @@ struct MachineWindow: View {
 
   private var takeIn: TakeIn {
     TakeIn(host: host, ask: { dialogs.intake = $0 }, failed: { dialogs.failure = $0 })
+  }
+
+  /// Takes in the books the Finder opened with Loci and opens the last one.
+  private func openBooks() {
+    guard changesAllowed, let files = openedFiles?.take().filter(Dropped.isBook), !files.isEmpty else { return }
+    Task {
+      for file in files {
+        do throws(HostError) {
+          let book = try await takeIn.book(file)
+          window = window.opening(book.id)
+        } catch {
+          dialogs.failure = error
+        }
+      }
+    }
   }
 
   /// The items there are, once the list has arrived.

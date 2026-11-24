@@ -147,7 +147,14 @@ public enum MainWindow {
   }
 }
 
-/// Keeps Loci running with every window closed, so the companion goes on working and the menu bar stays.
+/// Keeps Loci running with every window closed, so the companion goes on working and the menu bar stays, and
+/// hands the files the Finder opens with Loci to the window.
 public final class LociAppDelegate: NSObject, NSApplicationDelegate {
+  @MainActor public let opened = OpenedFiles()
+
   public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+  @MainActor public func application(_ application: NSApplication, open urls: [URL]) {
+    opened.open(urls)
+  }
 }

@@ -84,6 +84,7 @@ struct LibraryRow: View {
     case .lines(let code):
       let file = code.path.split(separator: "/").last ?? Substring(code.path)
       return Text(verbatim: "\(file):\(code.lines.lowerBound)")
+    case .spot(let spot): return Text(spot.share.value, format: .percent.precision(.fractionLength(0)))
     }
   }
 }

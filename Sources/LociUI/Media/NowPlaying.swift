@@ -59,7 +59,7 @@ final class NowPlaying {
     switch item.kind {
     case .audio: return .bar
     case .video: return inSystem ? .system : front == item.id ? .none : .corner
-    case .article, .paper, .repository: return .none
+    case .article, .paper, .repository, .book: return .none
     }
   }
 }

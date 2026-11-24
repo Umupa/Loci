@@ -11,7 +11,7 @@ extension LocalHost {
       switch item.kind {
       case .video: audio = false
       case .audio: audio = true
-      case .article, .paper, .repository: return nil
+      case .article, .paper, .repository, .book: return nil
       }
       return ItemSpace(
         item: item.id, isAudio: audio, bytes: try? store.mediaBytes(of: item.id), fromLink: item.source != nil)

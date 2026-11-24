@@ -77,10 +77,27 @@ struct Cover: View {
           .frame(width: frame.size.width, height: frame.size.height)
         }
         .saturation(dimmed ? 0.7 : 1).brightness(dimmed ? -0.2 : 0)
+      } else if item.kind == .book, squareInset != nil {
+        GeometryReader { frame in
+          ZStack {
+            if let wash = picture.wash {
+              Image(nsImage: wash).resizable().scaledToFill()
+                .frame(width: frame.size.width, height: frame.size.height)
+            }
+            let page = RoundedRectangle(cornerRadius: 2, style: .continuous)
+            Image(nsImage: image).resizable().scaledToFit()
+              .clipShape(page)
+              .background { SoftShadow(shape: page, opacity: 0.35, radius: 6, y: 3, steps: 4) }
+              .padding(.vertical, frame.size.height * 0.08)
+          }
+          .frame(width: frame.size.width, height: frame.size.height)
+        }
       } else {
         Image(nsImage: image).resizable().scaledToFill()
           .saturation(dimmed ? 0.7 : 1).brightness(dimmed ? -0.2 : 0)
       }
+    } else if item.kind == .book {
+      BookPaperCover(item: item)
     } else {
       PaperCover(item: item)
     }

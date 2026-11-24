@@ -20,13 +20,14 @@ enum Place: Codable, Hashable {
 }
 
 enum LibraryCategory: String, Codable, CaseIterable, Hashable {
-  case video, audio, article
+  case video, audio, article, book
 
   init?(_ kind: Item.Kind) {
     switch kind {
     case .video: self = .video
     case .audio: self = .audio
     case .article, .paper: self = .article
+    case .book: self = .book
     case .repository: return nil
     }
   }

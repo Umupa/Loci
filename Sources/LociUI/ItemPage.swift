@@ -22,6 +22,7 @@ struct ItemScreen: View {
       case .video, .audio:
         MediaScreen(item: page.item, initialTime: destination.locator?.time?.start).id(page.item.id)
       case .paper: PaperScreen(page: page)
+      case .book: BookScreen(item: page.item).id(page.item.id)
       case .article, .repository: ItemView(page: page, openingQuote: destination.locator?.quote)
       }
     } else {

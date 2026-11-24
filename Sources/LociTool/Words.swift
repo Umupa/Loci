@@ -101,6 +101,7 @@ enum Words {
     case .video(let duration): "video" + length(duration)
     case .audio(let duration): "audio" + length(duration)
     case .repository(let commit): "repository at \(commit)"
+    case .book: "book"
     }
   }
 

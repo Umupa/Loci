@@ -49,14 +49,16 @@ private struct DialogsModifier: ViewModifier {
 
   private func importing(_ content: some View) -> some View {
     content.fileImporter(
-      isPresented: $dialogs.importing, allowedContentTypes: [.text, .audiovisualContent], allowsMultipleSelection: true
+      isPresented: $dialogs.importing, allowedContentTypes: [.text, .epub, .audiovisualContent],
+      allowsMultipleSelection: true
     ) { result in
       guard changesAllowed else { return }
       let chosen = (try? result.get()) ?? []
       let media = chosen.filter(Dropped.isMedia)
-      let files = chosen.filter { !media.contains($0) }.compactMap { try? TextFile(reading: $0) }
+      let books = chosen.filter(Dropped.isBook)
+      let files = chosen.filter { !media.contains($0) && !books.contains($0) }.compactMap { try? TextFile(reading: $0) }
       TakeIn(host: host, ask: { dialogs.intake = $0 }, failed: { dialogs.failure = $0 })
-        .files(media: media, text: files)
+        .files(media: media, text: files, books: books)
     }
   }
 

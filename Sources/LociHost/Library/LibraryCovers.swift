@@ -58,6 +58,8 @@ extension LibraryContext {
         }
         let podcast = if case .audio = item.kind { true } else { false }
         cover = await artwork(at: source, thumbnail: thumbnail, podcast: podcast)
+      case .book:
+        continue
       case .paper:
         guard let source = item.source else { continue }
         cover = await covers.finder.webpage(at: source, includeBody: true)

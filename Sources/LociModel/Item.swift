@@ -56,6 +56,8 @@ public struct Item: Hashable, Sendable {
     case audio(duration: Duration?)
     /// A repository is always read at one pinned commit.
     case repository(commit: CommitID)
+    /// An EPUB or plain-text book, read page by page.
+    case book
   }
 }
 
@@ -65,7 +67,7 @@ extension Item: Codable {
   }
 
   private enum KindName: String, Codable {
-    case article, paper, video, audio, repository
+    case article, paper, video, audio, repository, book
   }
 
   public init(from decoder: any Decoder) throws {
@@ -85,6 +87,7 @@ extension Item: Codable {
     switch name {
     case .article: kind = .article
     case .paper: kind = .paper
+    case .book: kind = .book
     case .video: kind = .video(duration: duration)
     case .audio: kind = .audio(duration: duration)
     case .repository:
@@ -118,6 +121,8 @@ extension Item: Codable {
       try container.encode(KindName.article, forKey: .kind)
     case .paper:
       try container.encode(KindName.paper, forKey: .kind)
+    case .book:
+      try container.encode(KindName.book, forKey: .kind)
     case .video(let duration):
       try container.encode(KindName.video, forKey: .kind)
       try container.encodeIfPresent(duration.map { Double($0.roundedMilliseconds) / 1000 }, forKey: .duration)
@@ -144,7 +149,7 @@ extension Item.Kind {
     switch self {
     case .video(let duration): .video(duration: try Self.toMilliseconds(duration))
     case .audio(let duration): .audio(duration: try Self.toMilliseconds(duration))
-    case .article, .paper, .repository: self
+    case .article, .paper, .repository, .book: self
     }
   }
 

@@ -65,6 +65,7 @@ enum Failure: Error, Hashable {
     case .host(.storage(let reason)): "The library could not be written: \(reason)"
     case .host(.offline): "The Mac with the library cannot be reached."
     case .host(.olderMac): "The Mac with the library runs an older Loci that cannot do this."
+    case .host(.unsupportedBook(let problem)): "Loci cannot read that as a book: \(problem.rawValue)."
     case .socket(.notListening):
       "Loci is not running, or this is not the Loci that started you. The person needs to open Loci."
     case .socket(.closed): "Loci stopped before it answered. Try again."

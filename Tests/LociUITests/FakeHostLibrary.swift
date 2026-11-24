@@ -18,6 +18,21 @@ extension FakeHost {
   func addLink(_ command: AddLink) async throws(HostError) -> Item { sample.items[0] }
   func importMediaFile(_ command: ImportMediaFile) async throws(HostError) -> Item { sample.items[0] }
 
+  func importBook(_ command: ImportBook) async throws(HostError) -> Item {
+    guard let books else { throw .unsupportedBook(.notABook) }
+    return books.nahan
+  }
+
+  func bookContents(of item: EntityID) async throws(HostError) -> BookContents {
+    guard let contents = books?.contents[item] else { throw .notFound(item.description) }
+    return contents
+  }
+
+  func bookFile(_ command: ReadBookFile) async throws(HostError) -> Data {
+    guard let books else { throw .notFound(command.path) }
+    return try books.file(command.path, of: command.item)
+  }
+
   func retryJob(_ item: EntityID) async throws(HostError) -> Job {
     Job(item: item, stage: .resolve, state: .queued)
   }

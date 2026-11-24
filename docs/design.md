@@ -153,6 +153,7 @@
 │     ├─ item.json            种类、标题、作者、来源链接、语言、时长、内容哈希、为什么收它
 │     ├─ import.json          导入选择：保存到本地或在线看、画质、字幕、识别、翻译；没有就是保存到本地
 │     ├─ content.md           文章正文；论文是 content.pdf
+│     ├─ book.epub            书：拖进来的 EPUB 原样保存，读时直接从压缩包里取章节和图；TXT 书是 book.txt
 │     ├─ images/              正文里的图
 │     ├─ cover.*              封面
 │     ├─ media.*              音视频
@@ -205,7 +206,10 @@ loci://courses/<课程 id>/<课时 id>#quote=<原文>            课时选段
 loci://library/<id>#page=3&rect=…                          PDF
 loci://library/<id>#path=src/vm.rs&L=12-40&rev=<sha>       代码
 loci://library/<id>                                         整篇
+loci://library/<id>#chapter=3&node=1.0.8&char=51&share=4231  书：第几章、章里的节点路径和字、全书万分比
 ```
+
+书的位置不存页码：换字号或窗口大小后页码会变，节点路径和字不会。`share` 只给资料库显示读到百分之几。
 
 文本用引文加上下文而不是字符偏移，原文重新抓取后还能重新对上；对不上时标成失效而不是指错地方。
 

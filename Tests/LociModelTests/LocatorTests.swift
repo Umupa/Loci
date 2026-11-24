@@ -17,6 +17,8 @@ struct LocatorTests {
     "loci://library/\(item)#path=src/vm.rs&L=12-40&rev=\(commit)",
     "loci://library/\(item)#path=README.md&L=7&rev=\(commit)",
     "loci://library/\(item)",
+    "loci://library/\(item)#chapter=3&node=1.0.8&char=51&share=4231",
+    "loci://library/\(item)#chapter=0&node=0&char=0&share=0",
   ]
 
   @Test(arguments: canonical)
@@ -44,6 +46,10 @@ struct LocatorTests {
       (
         "loci://library/\(Self.item)#path=a/b.swift&L=3-5&rev=\(Self.commit)",
         .item(Fixture.item, .lines(try CodeLines(path: "a/b.swift", lines: 3...5, commit: Fixture.commit)))
+      ),
+      (
+        "loci://library/\(Self.item)#chapter=12&node=1.0&char=7&share=10000",
+        .item(Fixture.item, .spot(try BookSpot(chapter: 12, node: [1, 0], character: 7, share: Fraction(1))))
       ),
     ]
     for (text, locator) in expected {
@@ -82,6 +88,7 @@ struct LocatorTests {
       .item(Fixture.item, .time(try TimeSpan(start: .seconds(0.0004)))),
       .item(Fixture.item, .time(try TimeSpan(start: .seconds(3_600), end: .milliseconds(3_600_001)))),
       .item(Fixture.item, .page(try PageRegion(page: 1, rect: .init(x: -0.004, y: 0.1, width: 0.01, height: 1e6)))),
+      .item(Fixture.item, .spot(try BookSpot(chapter: 2, node: [3, 1], character: 9, share: Fraction(0.123456)))),
     ]
     for locator in values {
       #expect(Locator(locator.description) == locator)
@@ -108,6 +115,12 @@ struct LocatorTests {
     "loci://library/\(item)#t=1e3",
     "loci://library/\(item)#t=+1",
     "loci://library/\(item)#t=1,2,3",
+    "loci://library/\(item)#chapter=1&node=0&char=0",
+    "loci://library/\(item)#chapter=1&node=&char=0&share=0",
+    "loci://library/\(item)#chapter=1&node=0..1&char=0&share=0",
+    "loci://library/\(item)#chapter=-1&node=0&char=0&share=0",
+    "loci://library/\(item)#chapter=1&node=0&char=0&share=10001",
+    "loci://library/\(item)#chapter=1&node=0&char=0&share=0&t=1",
     "loci://library/\(item)#quote=",
     "loci://library/\(item)#quote=%20%20",
     "loci://library/\(item)#quote=x&pre=",

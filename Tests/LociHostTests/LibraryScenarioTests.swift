@@ -23,7 +23,7 @@ struct LibraryScenarioTests {
 
   @Test func withoutAHeadingTheFileNameIsTheTitle() async throws {
     try await withHost { host, _, _ in
-      let named = try await host.run(AddTextItem(fileName: "调度笔记.txt", text: "没有标题"))
+      let named = try await host.run(AddTextItem(fileName: "调度笔记.md", text: "没有标题"))
       let dotted = try await host.run(AddTextItem(fileName: "notes.v2.md", text: ""))
 
       #expect(named.title == "调度笔记")

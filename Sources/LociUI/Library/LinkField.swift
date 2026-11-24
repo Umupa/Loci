@@ -61,6 +61,7 @@ struct LinkField: View {
     case .video: .loci("link.promptVideo")
     case .audio: .loci("link.promptAudio")
     case .article: .loci("link.promptArticle")
+    case .book: .loci("link.promptBook")
     case nil: .loci("link.prompt")
     }
   }

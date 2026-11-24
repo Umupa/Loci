@@ -14,7 +14,7 @@ extension LocalHost {
     let item = try attempt { try store.item(command.item) }
     switch item.kind {
     case .article, .video, .audio: break
-    case .paper, .repository: throw .invalidRequest("Key points are picked for videos, audio and articles")
+    case .paper, .repository, .book: throw .invalidRequest("Key points are picked for videos, audio and articles")
     }
     guard try await library.context.models.options().model(preferring: command.choice.model, for: .transcripts) != nil
     else { throw .invalidRequest("No model service is configured to pick key points.") }

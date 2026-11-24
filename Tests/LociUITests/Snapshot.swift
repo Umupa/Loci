@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Testing
+import WebKit
 
 @testable import LociUI
 
@@ -39,7 +40,8 @@ enum Snapshot {
       try await Task.sleep(for: settle)
       bitmap = try picture(of: host, in: window)
     }
-    guard let png = bitmap.representation(using: .png, properties: [:]) else { throw RenderingFailed() }
+    guard let png = try await underlayingWebViews(of: host, under: bitmap).representation(using: .png, properties: [:])
+    else { throw RenderingFailed() }
 
     let file = directory.appending(path: "\(name)-\(appearance.rawValue).png")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -127,6 +129,38 @@ enum Snapshot {
     bitmap.size = size
     view.cacheDisplay(in: view.bounds, to: bitmap)
     return bitmap
+  }
+
+  /// What the web views in `root` show, drawn under the rest of the picture: `cacheDisplay` leaves a web view
+  /// out, and what floats over it stays on top.
+  private static func underlayingWebViews(of root: NSView, under bitmap: NSBitmapImageRep) async throws
+    -> NSBitmapImageRep
+  {
+    let webViews = Self.webViews(in: root)
+    guard !webViews.isEmpty else { return bitmap }
+    var pictures: [(NSImage, CGRect)] = []
+    for webView in webViews {
+      let configuration = WKSnapshotConfiguration()
+      configuration.afterScreenUpdates = true
+      let picture = try await webView.takeSnapshot(configuration: configuration)
+      let frame = webView.convert(webView.bounds, to: root)
+      let flipped =
+        root.isFlipped
+        ? CGRect(x: frame.minX, y: root.bounds.height - frame.maxY, width: frame.width, height: frame.height) : frame
+      pictures.append((picture, flipped))
+    }
+    let blank = try Self.bitmap(of: NSView(frame: root.bounds))
+    NSGraphicsContext.saveGraphicsState()
+    defer { NSGraphicsContext.restoreGraphicsState() }
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: blank)
+    for (picture, frame) in pictures { picture.draw(in: frame) }
+    bitmap.draw(in: root.bounds, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: false, hints: nil)
+    return blank
+  }
+
+  private static func webViews(in view: NSView) -> [WKWebView] {
+    if let webView = view as? WKWebView { return [webView] }
+    return view.subviews.flatMap(webViews)
   }
 
   /// Panels a view floats over the window, such as the bar over a selection, drawn where they sit.

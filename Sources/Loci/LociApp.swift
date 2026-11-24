@@ -16,6 +16,7 @@ struct LociApp: App {
         )
         .id(launch.generation)
         .resetFailure($launch.resetFailure)
+        .openingFiles(delegate.opened)
       case .problem(let problem):
         StartupProblemView(problem: problem, rebuild: launch.rebuild)
       }

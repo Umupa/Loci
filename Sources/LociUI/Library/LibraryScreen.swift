@@ -30,7 +30,7 @@ struct LibraryScreen: View {
   @AppStorage(LibraryPresentation.key) private var presentation = LibraryPresentation.gallery
 
   var body: some View {
-    let items = shown
+    let items = progress.ordered(shown, by: category)
     let itemIDs = items.map(\.id)
     ScrollView {
       VStack(alignment: .leading, spacing: 0) {
@@ -74,7 +74,7 @@ struct LibraryScreen: View {
     .subscribing(AllJobs(), into: $jobs)
     .subscribing(SavingNow(), into: $saving)
     .subscribing(StorageUse(), into: $storage)
-    .task(id: itemIDs) { await readProgress(itemIDs) }
+    .task(id: Set(itemIDs)) { await readProgress(itemIDs) }
     .onChange(of: itemIDs) { selection.keep(itemIDs) }
     .task(id: deletions?.latest) {
       guard let deletion = deletions?.latest else { return }

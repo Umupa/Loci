@@ -69,7 +69,7 @@ actor KeyPointPicker {
         throw HostError.invalidRequest("\(item.title) has no text yet")
       }
       return .article(passages: ArticlePassages.of(text, title: item.title), title: item.title)
-    case .paper, .repository:
+    case .paper, .repository, .book:
       throw HostError.invalidRequest("Key points are picked for videos, audio and articles")
     }
   }

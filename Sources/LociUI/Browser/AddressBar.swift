@@ -110,12 +110,16 @@ struct IconButton: View {
   var size: CGFloat = Size.iconButton
   var symbolSize: CGFloat = 14
   var tint: Color = Palette.inkMuted
+  /// The language the glyph is drawn in, for a symbol SF Symbols would otherwise draw as a word.
+  var glyphLocale: Locale?
   let action: () -> Void
+  @Environment(\.locale) private var locale
   @State private var hovering = false
 
   var body: some View {
     Button(action: action) {
       Image(systemName: symbol)
+        .environment(\.locale, glyphLocale ?? locale)
         .font(.system(size: symbolSize))
         .foregroundStyle(hovering ? Palette.ink : tint)
         .frame(width: size, height: size)

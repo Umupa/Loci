@@ -9,7 +9,7 @@ struct ItemTests {
   @Test func eachKindSurvivesItemJSON() throws {
     let kinds: [Item.Kind] = [
       .article, .paper, .video(duration: .milliseconds(1_234_500)), .video(duration: nil),
-      .audio(duration: .seconds(60)), .repository(commit: Fixture.commit),
+      .audio(duration: .seconds(60)), .repository(commit: Fixture.commit), .book,
     ]
     for kind in kinds {
       let item = try Item(
@@ -49,6 +49,7 @@ struct ItemTests {
     #""kind":"article","title":"x","language":"english language""#,
     #""kind":"article","title":"x","contentHash":"md5:abc""#,
     #""kind":"audio","duration":0,"title":"x""#,
+    #""kind":"book","duration":3,"title":"x""#,
   ]
 
   @Test(arguments: broken)

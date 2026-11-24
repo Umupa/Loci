@@ -37,7 +37,7 @@ enum JobSteps {
   /// The steps an item of this kind goes through, in order.
   static func steps(for kind: Item.Kind) -> [Step] {
     switch kind {
-    case .article, .paper, .repository: [.fetch]
+    case .article, .paper, .repository, .book: [.fetch]
     case .video: [.fetch, .download, .recognize, .translate, .outline]
     case .audio: [.fetch, .download, .recognize, .diarize, .translate, .outline]
     }

@@ -67,7 +67,7 @@ struct GalleryCard: View {
       title.padding(.top, Self.titleGap)
       HStack(spacing: 6) {
         Image(systemName: Symbols.kind(ItemKind(item.kind))).font(.system(size: 11))
-        Text(verbatim: item.byline).lineLimit(1)
+        Text(verbatim: byline).lineLimit(1)
       }
       .font(.system(size: 11.5).monospaced())
       .foregroundStyle(Palette.inkMuted)
@@ -77,6 +77,14 @@ struct GalleryCard: View {
     .frame(maxHeight: .infinity, alignment: .top)
     .contentShape(Rectangle())
     .onHover { pointing = $0 }
+  }
+
+  /// A book's authors and how far into it the reader is; another item's length and source.
+  private var byline: String {
+    guard item.kind == .book else { return item.byline }
+    let read = share.map { $0.formatted(.percent.precision(.fractionLength(0))) }
+    return ([item.authors.joined(separator: ", ")].filter { !$0.isEmpty } + [read].compactMap { $0 })
+      .joined(separator: " · ")
   }
 
   private static let titleGap: CGFloat = 11

@@ -18,6 +18,15 @@ struct LibraryCodingTests {
     #expect(try Self.roundTrips(ReadPlayback(item: Fixture.item, refresh: true)))
     #expect(try Self.roundTrips(ReadCover(item: Fixture.item)))
     #expect(try Self.roundTrips(ReadItemPDF(item: Fixture.item)))
+    #expect(try Self.roundTrips(ImportBook(upload: Upload(id: Fixture.item))))
+    #expect(try Self.roundTrips(ReadBookContents(item: Fixture.item)))
+    #expect(try Self.roundTrips(ReadBookFile(item: Fixture.item, path: "OPS/c1.xhtml")))
+    #expect(
+      try Self.roundTrips(
+        BookContents(
+          chapters: [.init(path: "OPS/c1.xhtml", length: 120)],
+          toc: [.init(title: "一", depth: 0, chapter: 0, anchor: "s1")], language: "zh")))
+    #expect(try Self.roundTrips(HostError.unsupportedBook(.fixedLayout)))
     #expect(try Self.roundTrips(ReadItemImage(item: Fixture.item, name: "images/a.png")))
     #expect(try Self.roundTrips(ReadMediaPage(item: Fixture.item)))
     #expect(try Self.roundTrips(RenameSpeaker(item: Fixture.item, speaker: 1, name: "Maya")))

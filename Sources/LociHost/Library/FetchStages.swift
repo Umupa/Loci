@@ -167,14 +167,14 @@ extension Item {
   var isMedia: Bool {
     switch kind {
     case .video, .audio: true
-    case .article, .paper, .repository: false
+    case .article, .paper, .repository, .book: false
     }
   }
 
   var duration: Duration? {
     switch kind {
     case .video(let duration), .audio(let duration): duration
-    case .article, .paper, .repository: nil
+    case .article, .paper, .repository, .book: nil
     }
   }
 }

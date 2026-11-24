@@ -9,13 +9,15 @@ enum Dropped: Equatable, Sendable {
   case textFile(TextFile)
   /// A video or audio file on this Mac.
   case mediaFile(URL)
+  /// An EPUB or plain-text file on this Mac, taken in as a book.
+  case bookFile(URL)
 
   /// The kinds of drag a page accepts: a file, a link, or text that is a link.
   static let types: [UTType] = [.fileURL, .url, .plainText]
 
-  /// Starts reading each dragged thing during the drop, while it can still be read: a video or audio file as
-  /// itself, another file as a text file, a link as itself, text when it holds one link. Anything else comes
-  /// to nothing.
+  /// Starts reading each dragged thing during the drop, while it can still be read: a video, audio, EPUB or
+  /// `.txt` file as itself, another file as a text file, a link as itself, text when it holds one link. Anything
+  /// else comes to nothing.
   static func reading(_ providers: [NSItemProvider]) -> [AsyncStream<Dropped>] {
     providers.map(reading)
   }
@@ -41,6 +43,7 @@ enum Dropped: Equatable, Sendable {
       load(URL.self) { file in
         guard file.isFileURL else { return nil }
         if isMedia(file) { return .mediaFile(file) }
+        if isBook(file) { return .bookFile(file) }
         return (try? TextFile(reading: file)).map(Dropped.textFile)
       }
     } else if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
@@ -57,6 +60,11 @@ enum Dropped: Equatable, Sendable {
     UTType(filenameExtension: file.pathExtension)?.conforms(to: .audiovisualContent) == true
   }
 
+  /// EPUBs and plain `.txt` files are books; Markdown and other text files are articles.
+  static func isBook(_ file: URL) -> Bool {
+    ["epub", "txt"].contains(file.pathExtension.lowercased())
+  }
+
   /// Text that is a link, or holds exactly one among other words.
   static func link(in text: String) -> URL? {
     if let url = URL(webLinkText: text) { return url }
@@ -68,7 +76,7 @@ enum Dropped: Equatable, Sendable {
 }
 
 extension View {
-  /// A text, video or audio file or a link dropped anywhere on the view is taken in, staying on the page. While
+  /// A text, video, audio or book file or a link dropped anywhere on the view is taken in, staying on the page. While
   /// something is dragged over it the view is outlined in amber.
   func acceptingDrops() -> some View {
     modifier(AcceptingDrops())

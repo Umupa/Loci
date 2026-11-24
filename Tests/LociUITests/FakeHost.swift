@@ -34,6 +34,8 @@ final class FakeHost: LociModel.Host, CommandHandler {
   let sampleConnectors: Connectors
   /// Whether Loci remembers anything and noted anything today.
   let remembers: Bool
+  /// The books this host serves; none unless a test gives them.
+  let books: SampleBooks?
 
   init(
     _ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false, working: Bool = false,
@@ -41,13 +43,15 @@ final class FakeHost: LociModel.Host, CommandHandler {
     lastChoice: ImportChoice? = nil, keyPoints: SampleKeyPoints = .picked,
     modelSettings: (any ModelSettingsAccess)? = nil, piWork: Transfer? = nil, courses: SampleCourses? = nil,
     modelOptions: ModelOptions = .sample,
-    timers: SampleTimers = .none, connectors: Connectors = SampleConnectors.empty, remembers: Bool = true
+    timers: SampleTimers = .none, connectors: Connectors = SampleConnectors.empty, remembers: Bool = true,
+    books: SampleBooks? = nil
   ) {
     self.modelOptions = modelOptions
     self.remembers = remembers
     self.sampleTimers = timers
     self.sampleConnectors = connectors
     self.courses = courses
+    self.books = books
     self.lastChoice = lastChoice
     self.modelSettings = modelSettings
     self.piWork = piWork
@@ -95,6 +99,9 @@ final class FakeHost: LociModel.Host, CommandHandler {
   func itemText(_ item: EntityID) async throws(HostError) -> String { sample.text }
 
   func itemPage(_ item: EntityID) async throws(HostError) -> ItemPage {
+    if let books, let found = [books.nahan, books.meditations].first(where: { $0.id == item }) {
+      return ItemPage(item: found, text: nil)
+    }
     if let library, let found = library.items.first(where: { $0.id == item }) {
       return ItemPage(item: found, text: found.id == library.article.id ? SampleLibrary.articleText : nil)
     }

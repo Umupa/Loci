@@ -85,7 +85,7 @@ extension StoreDatabase {
   private static func text(of item: Item, reading content: () throws -> String) -> String? {
     switch item.kind {
     case .article, .paper: try? content()
-    case .video, .audio, .repository: nil
+    case .video, .audio, .repository, .book: nil
     }
   }
 }

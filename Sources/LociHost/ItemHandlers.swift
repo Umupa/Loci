@@ -125,7 +125,10 @@ extension LocalHost {
   }
 
   public func itemText(_ item: EntityID) async throws(HostError) -> String {
-    try attempt { try store.content(of: item) }
+    if try attempt({ try store.item(item) }).kind == .book {
+      throw .invalidRequest("a book's text is for its reader only; its title and authors are in the library")
+    }
+    return try attempt { try store.content(of: item) }
   }
 
   public func itemPage(_ id: EntityID) async throws(HostError) -> ItemPage {

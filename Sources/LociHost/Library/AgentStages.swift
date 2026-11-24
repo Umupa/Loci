@@ -117,6 +117,7 @@ extension JobRun {
     case .invalidFile(let problem): problem.reason
     case .offline: "the Mac is offline"
     case .olderMac: "the other Mac runs an older Loci"
+    case .unsupportedBook(let problem): "not a book Loci can read: \(problem.rawValue)"
     }
   }
 }

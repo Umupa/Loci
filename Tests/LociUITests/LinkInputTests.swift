@@ -79,6 +79,19 @@ struct LinkInputTests {
     #expect(text.text == "# Notes\n")
   }
 
+  /// A-S3, BK-S1, BK-S3: an EPUB or a `.txt` file is taken in as a book, a Markdown file as an article.
+  @Test func aDraggedEPUBOrTextFileIsABook() async throws {
+    for name in ["nahan.epub", "水滸.TXT"] {
+      let file = FileManager.default.temporaryDirectory.appending(path: "loci-drop-\(UUID().uuidString)-\(name)")
+      try Data("book".utf8).write(to: file)
+      defer { try? FileManager.default.removeItem(at: file) }
+
+      let dropped = await Dropped.collect(Dropped.reading([try #require(NSItemProvider(contentsOf: file))]))
+
+      #expect(dropped == [.bookFile(file)])
+    }
+  }
+
   /// A-S3: a video or audio file is added as itself, not read as text.
   @Test func aDraggedVideoOrAudioFileIsAddedAsMedia() async throws {
     for name in ["talk.mp4", "episode.m4a"] {
@@ -107,6 +120,7 @@ struct LinkInputTests {
     #expect(LinkField.prompt(for: .video).key == "link.promptVideo")
     #expect(LinkField.prompt(for: .audio).key == "link.promptAudio")
     #expect(LinkField.prompt(for: .article).key == "link.promptArticle")
+    #expect(LinkField.prompt(for: .book).key == "link.promptBook")
   }
 
   @Test func aDraggedLinkThatIsNotOnTheWebIsLeftOut() async {

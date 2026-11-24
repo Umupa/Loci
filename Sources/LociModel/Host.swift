@@ -67,6 +67,8 @@ public enum HostError: Error, Hashable, Codable, Sendable {
   case offline
   /// The host is another Mac whose Loci is too old to know the command. Nothing was changed there.
   case olderMac
+  /// The file cannot be read as a book.
+  case unsupportedBook(BookProblem)
 }
 
 /// Why a host could not start. Nothing on disk is changed when this is thrown.
@@ -121,6 +123,9 @@ public protocol CommandHandler: Sendable {
   func importChoice() async throws(HostError) -> ImportChoice
   func addLink(_ command: AddLink) async throws(HostError) -> Item
   func importMediaFile(_ command: ImportMediaFile) async throws(HostError) -> Item
+  func importBook(_ command: ImportBook) async throws(HostError) -> Item
+  func bookContents(of item: EntityID) async throws(HostError) -> BookContents
+  func bookFile(_ command: ReadBookFile) async throws(HostError) -> Data
   func retryJob(_ item: EntityID) async throws(HostError) -> Job
   func pauseJob(_ item: EntityID) async throws(HostError) -> Done
   func savingBatch() async -> SavingBatch?

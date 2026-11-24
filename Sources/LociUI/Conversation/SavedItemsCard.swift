@@ -86,7 +86,7 @@ struct SavedItemByline: Equatable {
     }
     switch item.kind {
     case .video(let length), .audio(let length): duration = length
-    case .article, .paper, .repository: duration = nil
+    case .article, .paper, .repository, .book: duration = nil
     }
   }
 
@@ -108,6 +108,7 @@ struct SavedItemByline: Equatable {
     case .video: .loci("added.video")
     case .audio: .loci("added.audio")
     case .repository: .loci("added.repository")
+    case .book: .loci("added.book")
     }
   }
 }

@@ -15,7 +15,7 @@ enum PendingImport: Hashable, Identifiable {
 }
 
 /// Takes in what is pasted, typed, dropped or chosen, without leaving the page: a video or episode link and
-/// video or audio files wait in the import panel; an article, a paper or a text file goes straight in.
+/// video or audio files wait in the import panel; an article, a paper, a text file or a book goes straight in.
 struct TakeIn {
   let host: any LociModel.Host
   let ask: @MainActor (PendingImport) -> Void
@@ -37,27 +37,38 @@ struct TakeIn {
   }
 
   @MainActor
-  func files(media: [URL], text: [TextFile]) {
+  func files(media: [URL], text: [TextFile], books: [URL]) {
     if !text.isEmpty {
       run { () async throws(HostError) in
         for file in text { _ = try await host.run(AddTextItem(fileName: file.fileName, text: file.text)) }
       }
     }
+    for book in books {
+      run { () async throws(HostError) in _ = try await self.book(book) }
+    }
     if !media.isEmpty { ask(.files(media)) }
+  }
+
+  /// Sends an EPUB or text file to the host and takes it in as a book.
+  @MainActor
+  func book(_ file: URL) async throws(HostError) -> Item {
+    try await host.run(ImportBook(upload: try await host.upload(LocalFile(file))))
   }
 
   @MainActor
   func dropped(_ dropped: [Dropped]) {
     var media: [URL] = []
     var text: [TextFile] = []
+    var books: [URL] = []
     for each in dropped {
       switch each {
       case .link(let url): link(url)
       case .textFile(let file): text.append(file)
       case .mediaFile(let file): media.append(file)
+      case .bookFile(let file): books.append(file)
       }
     }
-    files(media: media, text: text)
+    files(media: media, text: text, books: books)
   }
 
   @MainActor

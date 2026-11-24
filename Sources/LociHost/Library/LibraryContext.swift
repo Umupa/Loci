@@ -99,7 +99,7 @@ extension Job.Stage {
       let stages: [Job.Stage] = item.source == nil ? [] : [.fetchPage, .extract, .findCover]
       return choice?.translation == nil ? stages : stages + [.translate]
     case .paper: return [.extract]
-    case .repository: return []
+    case .repository, .book: return []
     case .video, .audio:
       guard let choice else {
         let start: [Job.Stage] = item.source == nil ? [] : [.resolve, .download]

@@ -6,6 +6,7 @@ public enum ItemAnchor: Hashable, Sendable {
   case quote(TextQuote)
   case page(PageRegion)
   case lines(CodeLines)
+  case spot(BookSpot)
 
   init?(taking fragment: inout Fragment) {
     if let time = fragment.take("t") {
@@ -14,6 +15,9 @@ public enum ItemAnchor: Hashable, Sendable {
     } else if let page = fragment.take("page") {
       guard let region = PageRegion(page: page, taking: &fragment) else { return nil }
       self = .page(region)
+    } else if let chapter = fragment.take("chapter") {
+      guard let spot = BookSpot(chapter: chapter, taking: &fragment) else { return nil }
+      self = .spot(spot)
     } else if let path = fragment.take("path") {
       guard let lines = CodeLines(path: path, taking: &fragment) else { return nil }
       self = .lines(lines)
@@ -31,6 +35,7 @@ public enum ItemAnchor: Hashable, Sendable {
     case .quote(let quote): quote.fragment
     case .page(let region): region.fragment
     case .lines(let lines): lines.fragment
+    case .spot(let spot): spot.fragment
     }
   }
 }

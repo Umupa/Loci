@@ -120,6 +120,7 @@ extension AgentContext {
     case .video: "a video"
     case .audio: "an audio episode"
     case .repository: "a repository"
+    case .book: "a book"
     }
   }
 }

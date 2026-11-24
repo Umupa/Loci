@@ -61,6 +61,7 @@ extension AgentContext {
     case .video: "a video; its transcript has a line per sentence with times in seconds"
     case .audio: "an audio episode; its transcript has a line per sentence with times in seconds"
     case .repository(let commit): "a code repository at commit \(commit)"
+    case .book: "a book; only its title and authors are for you, its text is for the reader to read"
     }
   }
 
