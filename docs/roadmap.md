@@ -54,108 +54,11 @@
 | 1.7.7 | 更新源 | 2026-11-23 | 1.7.7 | 检查更新和下载先走 dl.umupa.fun（Cloudflare R2），取不到再回落到 GitHub release，不再调用 GitHub API；安装包先核对校验和（UI-S22、UI-S23） | 被 GitHub API 限流的网络里从 1.7.7 升到下一版 |
 | 1.7.8 | 伙伴的心情与疲劳 | 2026-11-23 | 1.7.8 | 对齐 Alma：基础情绪与每条对话的情绪、随消息和深夜增长的疲劳、`loci mood`/`sleep`/`wake`，每轮前缀带上，伙伴页显示（L-S21–L-S24）；资料库活动只进伙伴上下文，主对话只剩聊天和交付（L-S9、UI-S17）；伙伴保持真人角色（L-S20）；纸白底图标 | 真实 CLI 上伙伴是否主动调 `loci mood`/`sleep`；真实应用里的伙伴页 |
 | 1.7.9 | 主页布局与可编辑面板 | 2026-11-24 | 1.7.9 | 主对话和面板栏成组居中，面板拖到任一栏或新开一栏、对话换位、栏宽可拖、布局按钮、窄窗口折成小胶囊，长面板按行截断并用角标展开（P-S1、P-S2、P-S9、P-S11–P-S16）；面板里的条目段：你直接加、勾、改、排序、置顶、备注、删除并可撤销，条目分你的和伙伴的，刷新保留你的一切，伙伴用 `loci panel add` 主动记事或提议，每轮看到你未完成的条目，盯着的面板可置顶、备注、不想再看（P-S17–P-S24） | 远程访问里编辑面板；伙伴主动记事的频率；真实键盘上拖动中按 Esc |
+| 1.8.0 | 会自己醒来的伙伴 | 2026-11-24 | 1.8.0 | 后台 run：inbox、scheduler、worker，schedule 与 follow-up（`loci schedule`、`loci followup`），结果只进面板和笔记、下次说话时伙伴知道；面板刷新和每日回顾并入同一队列；关窗不退出、菜单栏、登录时打开；伙伴页的定时（WK-S1–WK-S10）。连接器：凭据代理与只读放行，MCP 本机 OAuth（Notion、Linear、Sentry、Atlassian、任意地址）、GitHub 与只读 `gh`、网站登录（X、V2EX、小红书、哔哩哔哩）、日历与提醒事项；伙伴页的连接器一页（CN-S1–CN-S13、CN-S15）；带登录读网页一律只发 GET。记忆分层：索引与 wiki、只读锁、回顾核对与搬运、`loci recall`、`AGENTS.md` 不超过 10K、伙伴页的记忆一页（ME-S1–ME-S9）。`script/eval` 的安静、重复、记忆、成本四组 | 真实账号的 MCP 授权与网站登录、日历授权弹窗；连接器、记忆、WK-S5 的黑盒；`script/eval` 的真实运行；格式说明挪进 `loci help` 后面板与课程的出错率 |
 
 ## 接下来
 
-### 1.8.x：会自己醒来的伙伴
+### 1.8.x 余下
 
-现在的伙伴只在被问时干活；面板刷新和每日回顾各有一套「到点没、忙不忙、错过补不补」的循环，记忆是每轮整份注入的扁平文件。1.8.x 把它改成一个**会自己醒来去看、记得住也记得准**的伙伴，再在这上面接连接器。它不主动给你发消息：看到的东西放进面板，或者记进笔记，你下次说话时它就知道。
-
-术语照搬两篇文章，不另起名字：[Building always-on agents](https://claude.com/resources/articles/building-always-on-agents)（event、inbox、worker、scheduler、timer、run、session、credential proxy、outbox）和 [The components of agent memory](https://www.anthropic.com/research/components-of-agent-memory)（transcripts、memory notes、wiki、injected context、dreaming）。代码里的类型名用同样的英文词。
-
-#### 架构
-
-```
-  timer                             Host（数据所在的那台 Mac，应用开着就在）
-┌──────────────┐  ┌────────────────────────────────────────────────────┐
-│ schedule     │  │ scheduler：每分钟找到期的 timer，往 inbox 投 event        │
-│ follow-up    │─▶│      │                                             │
-│ 面板到期      │  │      ▼                                             │
-│ 每日回顾      │  │ inbox（SQLite，持久，按来源去重）                        │
-└──────────────┘  │      │                                             │
-                  │      ▼                                             │
-                  │ worker：一次一个 run；你在说话时不开始新的；同时到期的合成一个 │
-                  │      │                                             │
-                  │      ▼                                             │
-                  │ run：一个新 session，按种类装上下文，跑在伙伴的 runtime 上   │
-                  │      │  └─ loci connector（credential proxy，只放行只读）  │
-                  │      ▼                                             │
-                  │ 结果：面板（loci panel）· 当天笔记 · run 记录              │
-                  └────────────────────────────────────────────────────┘
-                         │
-                         ▼  你下次说话时，主对话的前缀里带着笔记和 run 记录的指针
-记忆：injected context（SOUL · USER · MEMORY.md 索引）← dreaming 搬运 → wiki（memory/）
-      ← memory notes（notes/，只追加）← transcripts（conversations/ 与 runs/，loci recall 可搜）
-```
-
-**Event 与 inbox。** 一切后台的事都先变成一条 event，写进 inbox（SQLite 的一张表）；inbox 是唯一的真相，应用崩了、Mac 合盖了，event 还在，重开接着做。每条 event 有状态，按来源 ID 去重。
-
-**Scheduler 与 worker。** 都在 `LociHost`，文章里的两个角色照分。scheduler 每分钟和应用醒来时看一眼，把到期的 timer 变成 event 投进 inbox，自己不启动 run。worker 是唯一的后台工作者：从 inbox 取 event，同一时刻到期的合成一个 run；一次只跑一个；你有回合在跑时不开始新的。失败的重试三次，间隔拉长，记进 run 记录。错过的 timer 不管错过几次只补一次（`PanelSchedule` 的规则推广到所有 timer）。现在 `PanelKeeper` 和每日回顾各自的循环都迁到这两个角色上。
-
-**Timer。** 文章分两种，照分：
-- **schedule**：周期的（每小时、每天几点、每周几几点）。伙伴在对话里用 `loci schedule` 加，你在伙伴页的「定时」里改；面板的刷新频率仍写在面板文件里，scheduler 把它当 schedule 读。
-- **follow-up**：伙伴给自己定的一次性期限（`loci followup <何时> <什么>`），触发一次就结束。
-
-**Run 与 session。** 不再有一个 session 从头干到尾。照文章：接着之前工作的 event 续接原来的 session，其余都开新 session。你说话续接主对话的 session，你看到的仍是一条连续的聊天；每个后台 run 开一个新 session，做完就结束。它们之间靠文件接上（Soul、记忆、笔记、run 记录），伙伴是谁在 `agent/` 里，不在哪个 session 里。你说话不进 inbox，只让 worker 知道「现在有人在说话」。
-
-后台 run 的前缀只带这次要做的事、同一个 schedule 上一个 run 的记录（看过什么）、面板现在的样子。run 的种类决定 `loci` 放行哪些命令：都不能 `save`、`import`（每一份都是你挑的），只能写它那个 schedule 的面板。run 的最后一句话作为小结记进 run 记录 `agent/runs/<日期>/<id>.md`：event、看了哪些来源、调了哪些连接器、找到了什么。
-
-**没有 outbox，也不推送。** 文章说正式的 outbox 只在要控制发消息的节奏时才需要；伙伴不主动发消息，所以不要它。run 的结果只有两个去处：要盯着的放进面板；值得记的追加到当天笔记。主对话每轮前缀本来就带今天的笔记，你下次说话时伙伴就知道，话题相关时自然提起，你问起时按指针读 run 记录细说，不重查。follow-up 是伙伴答应过的事，你下次说话时它一并告诉你结果。
-
-**连接器与 credential proxy。** 伙伴只通过 `loci connector` 用连接器；token 在钥匙串里，调用时由应用加上，agent CLI 从头到尾拿不到。只读由机制保证：MCP 只放行 `readOnlyHint` 的工具，命令行只放行读的子命令，网站只发读的请求。每次调用都记下来。读回来的内容标明是外部内容，只当资料不当指令。四种来源：
-
-| 种类 | 怎么连 | 例子 |
-|---|---|---|
-| MCP | 本机 OAuth（PKCE、动态注册、回环地址接回调），不需要服务器 | Notion、Linear、GitHub、粘贴任意 MCP 地址 |
-| 网站登录 | 已有的登录（内置浏览器、Chrome） | X、V2EX、小红书、B 站 |
-| 本机 | 系统授权 | 日历、提醒事项、邮件（Mail.app） |
-| 命令行 | 检测到已登录 | `gh` |
-
-**定时和连接器在伙伴页。** 它们是伙伴的能力，不是应用的设置：伙伴页从 Soul、记忆、日记三页变成五页，多了定时、连接器。
-
-**记忆分层。** 照第二篇文章的四层：
-
-| 层 | 文件 | 谁写 | 进不进每轮上下文 |
-|---|---|---|---|
-| injected context | `SOUL.md`、`USER.md`、`MEMORY.md`（只是索引，应用只带前 200 行） | 每日回顾；`USER.md` 对话中也改 | 进 |
-| wiki | `memory/` 下一个实体一页：人、项目、跟进的话题、在学的东西，页之间互相链接 | 每日回顾 | 不进，按索引的链接读 |
-| memory notes | `notes/<日期>.md` | 任何 session，只追加 | 今天和昨天的进 |
-| transcripts | `conversations/`、`runs/` | 应用 | 不进，`loci recall` 搜 |
-
-- 只记看不到的东西：资料库事件、连接器数据、面板内容随时能查回来，不进记忆；记判断、计划、偏好、确认过的事实和指针。
-- 每日回顾就是文章里的 dreaming，多做三件事：拿 transcripts 核对笔记、在层之间搬（索引沉到 wiki、留链接）、修死链和删过时的；每周一次多看一遍整个 wiki。只有一个写者这条不变。
-- 规则对记忆只说用途，不再逐条规定；`AGENTS.md` 减到 10K 字符以内，格式说明挪进 `loci help`。
-
-**一直开着。** run、连接器、凭据都只在数据所在的那台 Mac 上。关掉窗口不退出（菜单栏常驻、登录时打开）；run 跑时用 `ProcessInfo` 的活动声明挡住 App Nap，否则没窗口时 timer 会被推迟。一直开着的 Mac mini 适合放数据，别的 Mac 用远程访问打开同一个伙伴。
-
-**评测（evals）。** 每一版都用一个新的评测脚本验收：在隔离的数据根里，用 Codex 跑多天的模拟场景（假的连接器数据、假的时钟），规则加判分模型打分。四组：该记的记了、不该放的没放进面板（安静）；连着几个 run 不把同一件事再放一遍（重复）；多天后记得对、纠正过的不再错（记忆）；`MEMORY.md` 和 `memory/` 的大小、每个 run 的 token（成本）。
-
-#### 模块与数据
-
-- 新模块 `LociConnect`：MCP 客户端（Streamable HTTP）、OAuth、本机来源（EventKit）、命令行来源。可以用网络、启动外部程序；`Architecture.swift` 和 [architecture.md](architecture.md) 同一次改动里改。凭据经 `LociStore` 存钥匙串。
-- `LociStore` 新增表：inbox、timer、run、连接器调用；`conversations/` 和 `runs/` 进全文索引。
-- `LociHost`：scheduler、worker、run、连接器的 credential proxy；`PanelKeeper` 和每日回顾的触发迁上来，行为不变。
-- `LociTool`：`schedule`、`followup`、`connector`、`recall`。
-- 界面：伙伴页的定时、连接器、记忆三页，菜单栏。全部经 Host 协议，远程照样能看能改。
-
-#### 版本
-
-每一版按 [releasing.md](releasing.md) 单独发；场景在 [features.md](features.md#18x会自己醒来的伙伴)。
-
-| 版本 | 主题 | 内容 | 场景 |
-|---|---|---|---|
-| 1.8.0 | 会自己醒来 | inbox、scheduler、worker、run 与 run 记录、schedule 与 follow-up、伙伴页的定时；面板刷新和每日回顾迁上来；关窗不退出、菜单栏、登录时打开；评测的安静与重复两组 | WK-S1–WK-S10 |
-| 1.8.1 | 连接器 | `LociConnect`、MCP 的 OAuth 与只读放行、`loci connector`、伙伴页的连接器与调用记录、外部内容标记；面板和 schedule 用连接器 | CN-S1–CN-S10 |
-| 1.8.2 | 更多来源 | 网站登录、日历与提醒事项、邮件、`gh` | CN-S11–CN-S15 |
-| 1.8.3 | 记忆分层 | 索引与上限、wiki、dreaming 的核对与搬运、`loci recall`、规则改说用途、`AGENTS.md` 瘦身、伙伴页的记忆页；评测的记忆与成本两组 | ME-S1–ME-S9 |
-
-#### 开工前的验证
-
-放在 `spike/*` 分支，结论写进 `docs/spikes/`：
-
-1. **MCP 无服务器授权**：Notion、Linear 的动态注册在回环地址上走通；GitHub 远程 MCP 要不要注册 OAuth 应用，不行就只用 `gh`。（1.8.1 前）
-2. **邮件**：读 Mail.app 的本机数据（要完全磁盘访问）还是用脚本问 Mail.app；Gmail 的 Google OAuth 受限权限要审核，不走。（1.8.2 前）
-3. **后台常驻**：关窗后 App Nap 与 timer 的准点程度、合盖唤醒后的补跑。（1.8.0 前）
-4. **run 的成本**：一个后台 run 在 Codex 上的 token 和时间，`AGENTS.md` 占多少。（1.8.0 前）
-
-1.8.x 发完，README 和 AGENTS.md 的定位跟着改。
+- **邮件（CN-S14）。** 读 Mail.app 的本机数据，等用户在开了完全磁盘访问的终端里实测（见 [spikes/mail.md](spikes/mail.md)）。
+- **黑盒。** 1.8.0 里没在真实应用里验过的：MCP 真实授权与刷新、网站登录与 `loci read`、日历授权、记忆页的悬停与忘掉、WK-S5 的去重。
