@@ -187,7 +187,7 @@ final class ReaderTableView: NSTextView, NSTextViewDelegate {
   private var shares: [CGFloat] = []
   private var minimumWidth: CGFloat = 0
   private var measuredWidth: CGFloat = 0
-  private var marked: [(note: EntityID, range: NSRange, dot: Bool)] = []
+  private var marked: [(note: EntityID, range: NSRange, dot: Bool, thought: Bool)] = []
   private var noteDots: [EntityID: NoteDot] = [:]
 
   func configure(_ table: ReaderTableContent) {
@@ -276,15 +276,22 @@ final class ReaderTableView: NSTextView, NSTextViewDelegate {
 
   func placeMarks(_ marks: [ReaderMark]) {
     guard let layoutManager, let textStorage else { return }
-    let local = marks.compactMap { mark -> (EntityID, NSRange, Bool)? in
+    let local = marks.compactMap { mark -> (note: EntityID, range: NSRange, dot: Bool, thought: Bool)? in
       guard let source = mark.original else { return nil }
       let part = NSIntersectionRange(source, original)
       guard part.length > 0 else { return nil }
-      return (mark.note, NSRange(location: part.location - original.location, length: part.length), mark.marginMark)
+      let range = NSRange(location: part.location - original.location, length: part.length)
+      return (mark.note, range, mark.marginMark, mark.thought != nil)
     }
-    layoutManager.removeTemporaryAttribute(.backgroundColor, forCharacterRange: textStorage.fullRange)
-    for (_, range, _) in local {
-      layoutManager.addTemporaryAttribute(.backgroundColor, value: Tones.readerMark, forCharacterRange: range)
+    for key in [NSAttributedString.Key.backgroundColor, .underlineStyle, .underlineColor] {
+      layoutManager.removeTemporaryAttribute(key, forCharacterRange: textStorage.fullRange)
+    }
+    for mark in local {
+      layoutManager.addTemporaryAttribute(.backgroundColor, value: Tones.readerMark, forCharacterRange: mark.range)
+      guard mark.thought else { continue }
+      layoutManager.addTemporaryAttributes(
+        [.underlineStyle: NSUnderlineStyle.thick.rawValue, .underlineColor: Tones.accent], forCharacterRange: mark.range
+      )
     }
     marked = local
     if measuredWidth > 0 { placeDots() }

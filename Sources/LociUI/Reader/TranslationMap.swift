@@ -168,15 +168,47 @@ extension ReadingText {
     return NSRange(found, in: original)
   }
 
-  /// The original words a shown range stands for, quoted with their context.
-  func quote(_ range: NSRange) -> (quote: TextQuote, excerpt: String)? {
-    quoteOriginal(map.original(range))
+  /// The original words a shown range stands for, quoted with their context, and the pictures among them.
+  func quote(_ range: NSRange) -> ReaderPassage? {
+    quoteOriginal(map.original(range)).map {
+      ReaderPassage(quote: $0.quote, excerpt: $0.excerpt, pictures: pictures(in: range))
+    }
   }
 
-  func quoteOriginal(_ range: NSRange) -> (quote: TextQuote, excerpt: String)? {
+  func quoteOriginal(_ range: NSRange) -> ReaderPassage? {
     let original = original
     guard let words = Range(range, in: original), let quote = try? TextQuote(quoting: words, in: original)
     else { return nil }
-    return (quote, String(original[words]))
+    return ReaderPassage(quote: quote, excerpt: ReaderPassage.words(String(original[words])), pictures: [])
   }
+
+  /// The addresses of the pictures shown in `range`, in reading order.
+  func pictures(in range: NSRange) -> [String] {
+    var found: [String] = []
+    guard NSMaxRange(range) <= string.length else { return found }
+    string.enumerateAttribute(.readerPicture, in: range) { value, _, _ in
+      if let address = value as? String { found.append(address) }
+    }
+    return found
+  }
+}
+
+/// A passage chosen in the reading text: where it is, its words without the pictures among them, and those
+/// pictures by their address in the item's text.
+struct ReaderPassage: Equatable {
+  let quote: TextQuote
+  /// `nil` when only pictures were chosen.
+  let excerpt: String?
+  let pictures: [String]
+
+  /// Text without the characters pictures stand on, trimmed; `nil` when nothing else is left.
+  static func words(_ text: String) -> String? {
+    let words = text.replacing("\u{FFFC}", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+    return words.isEmpty ? nil : words
+  }
+}
+
+extension NSAttributedString.Key {
+  /// On the character a picture stands on: the address the item's text names the picture with.
+  static let readerPicture = NSAttributedString.Key("lociPicture")
 }

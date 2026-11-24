@@ -64,7 +64,13 @@ enum Size {
   static let sidebarToggleLeading: CGFloat = 84
   /// The narrowest the reading column gets when the panel beside it is dragged wide.
   static let readerMinimum: CGFloat = 320
-  static let thoughtFieldWidth: CGFloat = 300
+  static let thoughtFieldWidth: CGFloat = 240
+  /// The tallest a picture stands on a highlight's card.
+  static let notePicture: CGFloat = 160
+  /// The largest a picture opened from a highlight gets.
+  static let openedPicture: CGFloat = 900
+  /// The cover beside the thought on a whole item.
+  static let wholeCover = CGSize(width: 34, height: 44)
   static let iconButton: CGFloat = 28
   static let avatarTiny: CGFloat = 16
   static let emptySymbol: CGFloat = 44

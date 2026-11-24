@@ -1,13 +1,23 @@
+import AppKit
 import LociModel
 import SwiftUI
 
-/// One highlight in the panel: the words it marks, the thought, and each question with its answer.
+/// One highlight in the panel: the words and pictures it marks, the thought, and each question with its answer.
+/// A click finds it in the text; the card chosen last keeps a field for its thought at its foot.
 struct NoteCard: View {
   @Environment(\.host) private var host
+  @Environment(\.showFailure) private var showFailure
+  @Environment(\.changesAllowed) private var changesAllowed
   let content: ContentRef
   let placed: PlacedNote
-  /// Changes each time the highlight is chosen in the text, which outlines and flashes the card.
-  let chosen: Int?
+  /// The item's pictures by their address, for the pictures the highlight covers.
+  var images: [String: NSImage] = [:]
+  /// Whether it is the card chosen last, in the panel or in the text.
+  let selected: Bool
+  /// Just made from a picture, with nothing to type a thought into but this card: its field takes typing at once.
+  var writing = false
+  /// Changes each time the highlight is chosen in the text, which flashes the card.
+  let flash: Int?
   /// Hands the highlight to Loci's composer; `nil` where the words are gone.
   let ask: (() -> Void)?
   let select: () -> Void
@@ -15,24 +25,27 @@ struct NoteCard: View {
   @State private var draft = ""
   @State private var flashing = false
   @State private var hovering = false
+  @FocusState private var focused: Bool
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 9) {
-      excerpt
+    VStack(alignment: .leading, spacing: 0) {
+      marked
       if let thought = placed.note.thought, !editing {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-          Image(systemName: Symbols.thought).font(Typography.caption).foregroundStyle(Palette.inkFaint)
-          Text(verbatim: thought)
-        }
-        .font(Typography.body)
-        .foregroundStyle(Palette.inkMuted)
+        Text(verbatim: thought)
+          .font(Typography.body)
+          .foregroundStyle(Palette.inkMuted)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .contentShape(Rectangle())
+          .onTapGesture { edit(thought) }
+          .underCard()
       }
-      if editing { field }
+      if editing || (selected && placed.note.thought == nil && changesAllowed) {
+        field.underCard().transition(.opacity.combined(with: .move(edge: .top)))
+      }
       ForEach(Array(placed.note.exchanges.enumerated()), id: \.offset) { _, exchange in
         ExchangeView(exchange: exchange)
       }
     }
-    .textSelection(.enabled)
     .padding(.horizontal, 14)
     .padding(.vertical, 13)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -42,16 +55,19 @@ struct NoteCard: View {
     )
     .overlay(
       RoundedRectangle(cornerRadius: Radius.card).strokeBorder(
-        chosen != nil ? Palette.accent.opacity(0.6) : hovering ? Palette.lineStrong : Palette.line,
-        lineWidth: chosen != nil ? 1 : Size.hairline)
+        selected ? Palette.accent.opacity(0.6) : hovering ? Palette.lineStrong : Palette.line,
+        lineWidth: selected ? 1 : Size.hairline)
     )
-    .shadow(color: .black.opacity(hovering || chosen != nil ? 0.06 : 0), radius: 8, y: 4)
+    .shadow(color: .black.opacity(hovering || selected ? 0.06 : 0), radius: 8, y: 4)
     .contentShape(RoundedRectangle(cornerRadius: Radius.card))
     .onTapGesture(perform: select)
     .onHover { hovering = $0 }
-    .contextMenu { menu.changesData() }
-    .onChange(of: chosen) { _, chosen in
-      guard chosen != nil else { return }
+    .contextMenu { menu }
+    .animation(Motion.standard, value: selected)
+    .task(id: writing) { if writing, changesAllowed { focused = true } }
+    .onChange(of: selected) { _, selected in if !selected { editing = false } }
+    .onChange(of: flash) { _, flash in
+      guard flash != nil else { return }
       flashing = true
       Task {
         try? await Task.sleep(for: Motion.flashHold)
@@ -60,13 +76,15 @@ struct NoteCard: View {
     }
   }
 
-  private var excerpt: some View {
-    VStack(alignment: .leading, spacing: Spacing.xxs) {
-      Quote(
-        text: placed.note.excerpt ?? placed.note.locator.quote?.text ?? "", font: Typography.highlightQuote,
-        at: placed.note.locator.time.map { MediaTime.text($0.start) }
-      )
-      .foregroundStyle(Palette.ink)
+  private var marked: some View {
+    VStack(alignment: .leading, spacing: Spacing.xs) {
+      if let words = placed.words {
+        Quote(
+          text: words, font: Typography.highlightQuote, at: placed.note.locator.time.map { MediaTime.text($0.start) }
+        )
+        .foregroundStyle(Palette.ink)
+      }
+      if !placed.pictures.isEmpty { NotePictures(addresses: placed.pictures, images: images) }
       if placed.range == nil {
         Label {
           Text(.loci("note.lost"))
@@ -80,11 +98,13 @@ struct NoteCard: View {
   }
 
   @ViewBuilder private var menu: some View {
-    Button {
-      draft = placed.note.thought ?? ""
-      editing = true
-    } label: {
-      Text(placed.note.thought == nil ? .loci("note.writeThought") : .loci("note.editThought"))
+    if let words = placed.words {
+      Button {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(words, forType: .string)
+      } label: {
+        Text(.loci("note.copy"))
+      }
     }
     if let ask {
       Button(action: ask) {
@@ -92,10 +112,11 @@ struct NoteCard: View {
       }
     }
     Button(role: .destructive) {
-      Task { _ = try? await host.run(DeleteNote(content: content, note: placed.id)) }
+      run(DeleteNote(content: content, note: placed.id))
     } label: {
       Text(.loci("note.delete"))
     }
+    .changesData()
   }
 
   private var field: some View {
@@ -104,17 +125,52 @@ struct NoteCard: View {
     }
     .textFieldStyle(.plain)
     .font(Typography.body)
+    .foregroundStyle(Palette.ink)
     .lineLimit(1...6)
+    .focused($focused)
     .onSubmit(save)
-    .onExitCommand { editing = false }
+    .onExitCommand {
+      editing = false
+      draft = ""
+    }
+  }
+
+  private func edit(_ thought: String) {
+    guard changesAllowed else { return }
+    select()
+    draft = thought
+    editing = true
+    focused = true
   }
 
   private func save() {
     let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    let thought = text.isEmpty ? nil : text
     editing = false
+    draft = ""
+    guard thought != placed.note.thought else { return }
+    run(SetNoteThought(content: content, note: placed.id, thought: thought))
+  }
+
+  private func run<C: Command>(_ command: C) {
     Task {
-      _ = try? await host.run(SetNoteThought(content: content, note: placed.id, thought: text.isEmpty ? nil : text))
+      do throws(HostError) {
+        _ = try await host.run(command)
+      } catch {
+        showFailure(error)
+      }
     }
+  }
+}
+
+extension View {
+  /// A part of a highlight's card under its words, set off by a hairline.
+  fileprivate func underCard() -> some View {
+    padding(.top, 9)
+      .padding(.top, 10)
+      .overlay(alignment: .top) {
+        Rectangle().fill(Palette.line).frame(height: Size.hairline).padding(.top, 10)
+      }
   }
 }
 

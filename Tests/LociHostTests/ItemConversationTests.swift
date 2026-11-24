@@ -74,6 +74,40 @@ struct ItemConversationTests {
     }
   }
 
+  /// HL-S6: the thought on the whole item is in what a new session on it is told.
+  @Test func theFirstMessageOnAnItemCarriesTheThoughtOnTheWhole() async throws {
+    try await withHost { host, _, world in
+      let item = try await article(host)
+      _ = try await host.run(SetWholeThought(item: item.id, thought: "Pools per worker are the real cost."))
+
+      _ = try await host.run(SendMessage(to: .item(item.id), text: "Why?"))
+      _ = try #require(await settled(host, .item(item.id)))
+
+      let first = try #require(world.agent.prompts.first)
+      #expect(first.contains("Their thought on the whole item: Pools per worker are the real cost."))
+      #expect(!first.contains("> (a place)"))
+    }
+  }
+
+  /// HL-S3: asking about a picture tells Loci where the picture is, so it can look at it.
+  @Test func askingAboutAPictureTellsLociWhereThePictureIs() async throws {
+    try await withHost { host, place, world in
+      let item = try await article(host)
+      let passage = Passage(
+        locator: .item(item.id, .quote(try TextQuote("worker"))), excerpt: "", pictures: ["images/pool.png"])
+
+      _ = try await host.run(SendMessage(to: .item(item.id), text: "What does this show?", passage: passage))
+      _ = try #require(await settled(host, .item(item.id)))
+
+      let sent = try #require(world.agent.prompts.last)
+      let folder = try place.store.itemFolder(item.id).lastPathComponent
+      #expect(sent.contains("../library/\(folder)/images/pool.png"))
+      let note = try #require(place.store.notes(on: .item(item.id)).value.first)
+      #expect(note.pictures == ["images/pool.png"])
+      #expect(note.excerpt == nil)
+    }
+  }
+
   @Test func askingAgainAboutTheSamePassageAddsToTheSameHighlight() async throws {
     try await withHost { host, place, _ in
       let item = try await article(host)

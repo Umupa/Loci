@@ -51,6 +51,28 @@ struct HostCodingTests {
     #expect(try Self.roundTrips(RemoveSchedule(.schedule(Fixture.item))))
     #expect(try Self.roundTrips(CancelFollowUp(Fixture.item)))
     #expect(try Self.roundTrips(ListTimers()))
+    #expect(try Self.roundTrips(SetWholeThought(item: Fixture.item, thought: "拆得好")))
+    #expect(try Self.roundTrips(SetWholeThought(item: Fixture.item, thought: nil)))
+  }
+
+  @Test func aPassageOverAPictureNamesThePicture() throws {
+    let passage = Passage(
+      locator: .item(Fixture.item, .quote(try TextQuote("\u{FFFC}"))), excerpt: "", pictures: ["images/a.png"])
+    let quoted = QuotedPassage(
+      locator: passage.locator, excerpt: "", pictures: ["images/a.png"], note: Fixture.id(4))
+
+    #expect(try Self.roundTrips(SendMessage(to: .item(Fixture.item), text: "这张图在说什么", passage: passage)))
+    #expect(try Self.roundTrips(quoted))
+  }
+
+  @Test func aPassageFromAnEarlierVersionHasNoPictures() throws {
+    let locator = Locator.item(Fixture.item, .quote(try TextQuote("打分")))
+    let passage = try Fixture.decode(Passage.self, #"{"locator":"\#(locator)","excerpt":"打分"}"#)
+    let quoted = try Fixture.decode(
+      QuotedPassage.self, #"{"locator":"\#(locator)","excerpt":"打分","note":"\#(Fixture.id(4))"}"#)
+
+    #expect(passage.pictures.isEmpty)
+    #expect(quoted.pictures.isEmpty)
   }
 
   @Test func everyReplyAndFeedSurvivesJSON() throws {

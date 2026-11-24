@@ -193,7 +193,7 @@ struct MediaScreen: View {
             ConversationScreen(ref: .item(item.id), draft: $draft, revealPassage: reveal)
           case .highlights:
             MediaNotesPage(
-              item: item.id, notes: notes?.value ?? [], segments: readable?.segments ?? [], play: player.seek,
+              item: item, notes: notes?.value ?? [], segments: readable?.segments ?? [], play: player.seek,
               ask: { ask($0.locator, excerpt: $0.excerpt ?? "") })
           }
         }
@@ -297,12 +297,12 @@ struct MediaScreen: View {
         guard let passage = readable.passage(range, of: item.id) else { return nil }
         return try? await host.run(AddNote(locator: passage.locator, excerpt: passage.excerpt)).id
       },
-      think: { note, thought in
-        Task { _ = try? await host.run(SetNoteThought(content: .item(item.id), note: note, thought: thought)) }
-      },
       ask: { range in
         guard let passage = readable.passage(range, of: item.id) else { return }
         ask(passage.locator, excerpt: passage.excerpt)
+      },
+      note: .on(.item(item.id), host: host, changesAllowed: changesAllowed) { id in
+        if let note = notes?.value?.first(where: { $0.id == id }) { ask(note.locator, excerpt: note.excerpt ?? "") }
       }, changes: changesAllowed)
   }
 

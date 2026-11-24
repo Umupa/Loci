@@ -45,7 +45,7 @@ struct ItemView: View {
     Group {
       if let text = page.text {
         ContentReader(
-          content: .item(page.item.id), title: page.item.title, markdown: text,
+          content: .item(page.item.id), item: page.item, title: page.item.title, markdown: text,
           byline: Byline.of(page.item, companion: name, locale: locale),
           images: images,
           serif: true, pane: .itemPanel,

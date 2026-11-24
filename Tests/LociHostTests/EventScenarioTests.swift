@@ -29,6 +29,23 @@ struct EventScenarioTests {
     }
   }
 
+  /// HL-S6: a thought on a whole item reaches Loci like a highlight does.
+  @Test func aThoughtOnAWholeItemGivesLociContext() async throws {
+    try await withHost { host, _, world in
+      _ = try await host.run(SendMessage(to: .main, text: "Hi"))
+      _ = try #require(await settled(host))
+      world.advance(minutes: 1)
+      let item = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n\nterm and index\n"))
+      _ = try await host.run(SetWholeThought(item: item.id, thought: "Leases beat heartbeats here"))
+
+      _ = try await host.run(SendMessage(to: .main, text: "Again"))
+      _ = try #require(await settled(host, prompts: 2))
+
+      let sent = try #require(world.agent.prompts.last)
+      #expect(sent.contains("wrote about the whole of \"Raft\" (library/\(item.id)): \"Leases beat heartbeats here\""))
+    }
+  }
+
   @Test func aLinkBeingFetchedDoesNotPostInTheMainConversation() async throws {
     try await withHost { host, _, _ in
       _ = try await host.run(AddLink(url: try #require(URL(string: "https://example.com/post"))))

@@ -57,6 +57,18 @@ struct CheckerTests {
     #expect(BoundaryTests.violations(of: Architecture.restricted, in: file).map(\.line) == [3])
   }
 
+  @Test func flagsASparklesSymbolInAnyCase() {
+    let file = SourceFile(
+      path: "Sources/LociUI/Example.swift", module: "LociUI",
+      text: """
+        static let magic = "sparkles"
+        Image(systemName: "wand.and.Sparkles")
+        let fine = "list.star"
+        """)
+
+    #expect(CodeRuleTests.symbolViolations(in: file).map(\.line) == [1, 2])
+  }
+
   @Test func ownersMayUseWhatTheyOwn() {
     let file = SourceFile(
       path: "Sources/LociStore/Example.swift", module: "LociStore", text: "let files = FileManager.default")

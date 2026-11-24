@@ -16,6 +16,7 @@ struct LocatorTests {
     "loci://library/\(item)#page=3&rect=72,-10.5,200.25,14",
     "loci://library/\(item)#path=src/vm.rs&L=12-40&rev=\(commit)",
     "loci://library/\(item)#path=README.md&L=7&rev=\(commit)",
+    "loci://library/\(item)",
   ]
 
   @Test(arguments: canonical)
@@ -48,6 +49,11 @@ struct LocatorTests {
     for (text, locator) in expected {
       #expect(Locator(text) == locator)
     }
+  }
+
+  @Test func aLinkToAnItemWithoutAPlaceInsideItMeansTheWholeItem() {
+    #expect(Locator("loci://library/\(Self.item)") == .item(Fixture.item, .whole))
+    #expect(Locator.item(Fixture.item, .whole).description == "loci://library/\(Self.item)")
   }
 
   @Test func quotesWithAwkwardCharactersSurviveAsValues() throws {
@@ -85,8 +91,8 @@ struct LocatorTests {
   static let invalid = [
     "",
     "https://library/\(item)#t=1",
-    "loci://library/\(item)",
     "loci://library/\(item)#",
+    "loci://courses/\(Fixture.id(2))/intro",
     "loci://library/not-an-id#t=1",
     "loci://library/3f2b8c1e-9d4a-4b6f-8a1c-2e5d7f9b0c3a#t=1",
     "loci://library/\(item.uppercased())#t=1",

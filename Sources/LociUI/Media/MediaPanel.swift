@@ -1,17 +1,20 @@
 import LociModel
 import SwiftUI
 
-/// The highlights left on a video or podcast, in time order; a click plays from one.
+/// The highlights left on a video or podcast, in time order, under the thought on the whole of it; a click
+/// plays from one.
 struct MediaNotesPage: View {
-  let item: EntityID
+  let item: Item
   let notes: [Note]
   let segments: [Transcript.Segment]
   let play: (Duration) -> Void
   let ask: (Note) -> Void
+  @State private var selected: EntityID?
 
   var body: some View {
     let placed =
       notes
+      .filter { !$0.isWhole }
       .sorted { ($0.locator.time?.start ?? .zero) < ($1.locator.time?.start ?? .zero) }
       .map { note in
         let index = note.locator.time.flatMap { TranscriptFollow.playing(in: segments, at: $0.start) } ?? 0
@@ -19,8 +22,12 @@ struct MediaNotesPage: View {
       }
     ScrollView {
       LazyVStack(alignment: .leading, spacing: Spacing.xs) {
+        WholeCard(item: item, thought: notes.first(where: \.isWhole)?.thought)
         ForEach(placed) { note in
-          NoteCard(content: .item(item), placed: note, chosen: nil, ask: { ask(note.note) }) {
+          NoteCard(
+            content: .item(item.id), placed: note, selected: selected == note.id, flash: nil, ask: { ask(note.note) }
+          ) {
+            selected = note.id
             if let time = note.note.locator.time { play(time.start) }
           }
         }

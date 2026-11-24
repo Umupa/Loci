@@ -7,8 +7,10 @@ public struct Note: Hashable, Sendable {
   /// Stays the same across edits.
   public let id: EntityID
   public let locator: Locator
-  /// The words or transcript lines that were marked.
+  /// The words or transcript lines that were marked, without the pictures among them.
   public let excerpt: String?
+  /// The pictures the highlight covers, by the address the item's text names each with, in reading order.
+  public let pictures: [String]
   public let thought: String?
   /// In the order they were asked. Only finished answers are kept.
   public let exchanges: [Exchange]
@@ -16,15 +18,22 @@ public struct Note: Hashable, Sendable {
   public let savedAt: Timestamp
 
   public init(
-    id: EntityID, locator: Locator, excerpt: String? = nil, thought: String? = nil, exchanges: [Exchange] = [],
-    savedAt: Timestamp
+    id: EntityID, locator: Locator, excerpt: String? = nil, pictures: [String] = [], thought: String? = nil,
+    exchanges: [Exchange] = [], savedAt: Timestamp
   ) throws {
     self.id = id
     self.locator = locator
     self.excerpt = try excerpt.requiringText("excerpt")
+    self.pictures = pictures
     self.thought = try thought.requiringText("thought")
     self.exchanges = exchanges
     self.savedAt = savedAt
+  }
+
+  /// Whether this is the thought on the item as a whole rather than on a place in it.
+  public var isWhole: Bool {
+    if case .item(_, .whole) = locator { return true }
+    return false
   }
 
   /// A question about the place and Loci's answer.
@@ -71,7 +80,7 @@ public enum NoteEntry: Hashable, Sendable {
 
 extension NoteEntry: Codable {
   private enum CodingKeys: String, CodingKey {
-    case event, id, locator, excerpt, thought, exchanges, savedAt, at
+    case event, id, locator, excerpt, pictures, thought, exchanges, savedAt, at
   }
 
   private enum Event: String, Codable {
@@ -87,13 +96,15 @@ extension NoteEntry: Codable {
     case .saved:
       let locator = try container.decode(Locator.self, forKey: .locator)
       let excerpt = try container.decodeIfPresent(String.self, forKey: .excerpt)
+      let pictures = try container.decodeIfPresent([String].self, forKey: .pictures) ?? []
       let thought = try container.decodeIfPresent(String.self, forKey: .thought)
       let exchanges = try container.decodeIfPresent([Note.Exchange].self, forKey: .exchanges) ?? []
       let savedAt = try container.decode(Timestamp.self, forKey: .savedAt)
       self = .saved(
         try decoder.validated {
           try Note(
-            id: id, locator: locator, excerpt: excerpt, thought: thought, exchanges: exchanges, savedAt: savedAt)
+            id: id, locator: locator, excerpt: excerpt, pictures: pictures, thought: thought, exchanges: exchanges,
+            savedAt: savedAt)
         })
     }
   }
@@ -110,6 +121,7 @@ extension NoteEntry: Codable {
       try container.encode(note.id, forKey: .id)
       try container.encode(note.locator, forKey: .locator)
       try container.encodeIfPresent(note.excerpt, forKey: .excerpt)
+      if !note.pictures.isEmpty { try container.encode(note.pictures, forKey: .pictures) }
       try container.encodeIfPresent(note.thought, forKey: .thought)
       if !note.exchanges.isEmpty { try container.encode(note.exchanges, forKey: .exchanges) }
       try container.encode(note.savedAt, forKey: .savedAt)

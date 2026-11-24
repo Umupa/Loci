@@ -11,6 +11,7 @@ enum Messages {
     case .invalidRequest: .loci("error.invalidRequest")
     case .storage: .loci("error.storage")
     case .offline: .loci("error.offline")
+    case .olderMac: .loci("error.olderMac")
     }
   }
 

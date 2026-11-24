@@ -143,11 +143,15 @@ struct EpisodePage<Pending: View>: View {
       let end = Self.union(lines[chosen.upperBound])
     {
       PassageBar(
-        actions: model.actions(transcript), range: NSRange(location: chosen.lowerBound, length: chosen.count),
+        actions: model.actions(transcript),
+        mode: .selection(NSRange(location: chosen.lowerBound, length: chosen.count)),
         typing: {},
         done: { self.chosen = nil }
       )
-      .background(Capsule().fill(Palette.floating).shadow(color: .black.opacity(0.18), radius: 18, y: 12))
+      .background(
+        RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(Palette.floating)
+          .shadow(color: .black.opacity(0.18), radius: 18, y: 12)
+      )
       .offset(x: end.minX, y: end.maxY + Spacing.xs)
     }
   }

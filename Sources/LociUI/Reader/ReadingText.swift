@@ -103,7 +103,7 @@ struct MarkdownRenderer {
       if paragraph.childCount == 1, let picture = paragraph.child(at: 0) as? Markdown.Image,
         let source = picture.source, let image = images[source]
       {
-        figure(image, in: setting)
+        figure(image, source: source, in: setting)
         return
       }
       if let latex = Formula.display(in: paragraph.plainText), formulaBlock(latex, in: setting) { return }
@@ -198,8 +198,9 @@ struct MarkdownRenderer {
     output.addAttribute(.paragraphStyle, value: widened, range: paragraph)
   }
 
-  /// A picture on a line of its own, as wide as the column at most, with rounded corners.
-  private func figure(_ image: NSImage, in setting: Setting) {
+  /// A picture on a line of its own, as wide as the column at most, with rounded corners. The character it
+  /// stands on carries its address, so highlights over it can name it.
+  private func figure(_ image: NSImage, source: String, in setting: Setting) {
     let width = min(image.size.width, Typography.readingWidth - setting.indent)
     let size = CGSize(width: width, height: image.size.height * width / max(image.size.width, 1))
     let rounded = NSImage(size: size, flipped: false) { frame in
@@ -211,6 +212,7 @@ struct MarkdownRenderer {
     attachment.image = rounded
     attachment.bounds = CGRect(origin: .zero, size: size)
     let line = NSMutableAttributedString(attachment: attachment)
+    line.addAttribute(.readerPicture, value: source, range: line.fullRange)
     line.append(NSAttributedString(string: "\n", attributes: attributes(font: body)))
     let paragraphStyle = style(in: setting)
     paragraphStyle.paragraphSpacingBefore = 4

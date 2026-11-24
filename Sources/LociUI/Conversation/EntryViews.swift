@@ -14,7 +14,7 @@ struct AskedMessage: View {
         Button {
           revealPassage(passage.locator)
         } label: {
-          QuotedLine(text: passage.excerpt)
+          QuotedLine(text: passage.excerpt, pictures: !passage.pictures.isEmpty)
         }
         .buttonStyle(.plain)
         .padding(.top, 2)
@@ -24,13 +24,17 @@ struct AskedMessage: View {
   }
 }
 
-/// Quoted words in serif, behind a thin amber bar.
+/// Quoted words in serif, behind a thin amber bar; a picture among them shows as a picture symbol first.
 struct QuotedLine: View {
   let text: String
+  var pictures = false
 
   var body: some View {
     HStack(alignment: .top, spacing: 9) {
       Rectangle().fill(Palette.accent).frame(width: 2)
+      if pictures {
+        Image(systemName: Symbols.picture).font(Typography.body).foregroundStyle(Palette.accentInk)
+      }
       Text(serif: text, Typography.quote)
         .foregroundStyle(Palette.inkMuted)
         .lineSpacing(3)

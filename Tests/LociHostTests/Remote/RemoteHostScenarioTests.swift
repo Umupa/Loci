@@ -33,6 +33,38 @@ struct RemoteHostScenarioTests {
     }
   }
 
+  /// HL-S2, HL-S6: a thought on a whole item and a highlight over a picture reach the other Mac intact.
+  @Test func wholeThoughtsAndPicturesTravelToTheOtherMac() async throws {
+    try await TwoMacs.with { macs in
+      try await macs.pair()
+      let remote = macs.laptop.service.open(macs.studio.machine.id)
+      let item = try await remote.run(AddTextItem(fileName: "raft.md", text: "# Raft\n\nterm and index\n"))
+
+      _ = try await remote.run(SetWholeThought(item: item.id, thought: "Leases"))
+      _ = try await remote.run(
+        AddNote(
+          locator: .item(item.id, .quote(try TextQuote("term"))), excerpt: "term", pictures: ["images/a.png"]))
+
+      let notes = await value(remote.subscribe(NotesOn(content: .item(item.id)))) { $0.count == 2 }
+      #expect(notes?.first?.isWhole == true)
+      #expect(notes?.last?.pictures == ["images/a.png"])
+    }
+  }
+
+  /// A Mac on an older Loci answers a command it does not know in its own words; this Mac says it is older.
+  @Test func aCommandAnOlderMacDoesNotKnowSaysTheMacIsOlder() async throws {
+    try await withHost { host, _, _ in
+      do throws(HostError) {
+        _ = try await WireCodec.run("note.someday", body: Data("{}".utf8), on: host)
+        Issue.record("an unknown command ran")
+      } catch {
+        #expect(WireCodec.answered(error, to: "note.someday") == .olderMac)
+        #expect(WireCodec.answered(error, to: "note.other") == error)
+        #expect(WireCodec.answered(.offline, to: "note.someday") == .offline)
+      }
+    }
+  }
+
   /// R-S9: the studio's own window and the laptop follow the same conversation.
   @Test func bothMacsSeeTheSameConversation() async throws {
     try await TwoMacs.with { macs in

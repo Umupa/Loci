@@ -17,6 +17,12 @@ final class ReaderTextView: NSTextView {
   private(set) var selecting = false
   /// Runs when a highlight or its note dot is clicked.
   var markClicked: (EntityID) -> Void = { _ in }
+  /// Runs when the mouse comes onto a picture in the text, or leaves the one it was on.
+  var pictureHovered: (ReaderPictureSpot?) -> Void = { _ in }
+  var hoveredPicture: ReaderPictureSpot?
+  /// The pictures in highlights, framed in amber, with the highlight each is in.
+  private(set) var markedPictures: [(note: EntityID, frame: CGRect)] = []
+  private var underlines: [CGRect] = []
   var tableSelectionEnded: (ReaderTableView) -> Void = { _ in }
   var tableLinkOpened: (URL) -> Void = { _ in }
   private(set) var tables = NSHashTable<ReaderTableView>.weakObjects()
@@ -45,7 +51,7 @@ final class ReaderTextView: NSTextView {
     textStorage?.setAttributedString(text)
     wholeLaidOutAt = nil
   }
-  private var highlights: [(note: EntityID, rects: [CGRect], bands: [CGRect])] = []
+  private(set) var highlights: [(note: EntityID, rects: [CGRect], bands: [CGRect])] = []
 
   convenience init() {
     ReaderTableAttachment.registerViewProvider()
@@ -123,12 +129,39 @@ final class ReaderTextView: NSTextView {
     selectionEnded()
   }
 
-  /// Draws the saved highlights behind the text.
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    for area in trackingAreas where area.owner === self && area.userInfo?["pictures"] != nil {
+      removeTrackingArea(area)
+    }
+    addTrackingArea(
+      NSTrackingArea(
+        rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self,
+        userInfo: ["pictures": true]))
+  }
+
+  override func mouseMoved(with event: NSEvent) {
+    super.mouseMoved(with: event)
+    hover(pictureSpot(at: convert(event.locationInWindow, from: nil)))
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    super.mouseExited(with: event)
+    hover(nil)
+  }
+
+  /// Draws the saved highlights behind the text: a wash behind words, an amber line under words with a
+  /// thought, and around a picture an amber frame with a bar in the margin beside it.
   override func drawBackground(in rect: NSRect) {
     super.drawBackground(in: rect)
     Tones.readerMark.setFill()
     for band in highlights.flatMap(\.bands) where band.intersects(rect) {
       NSBezierPath(roundedRect: band, xRadius: 3, yRadius: 3).fill()
+    }
+    Tones.accent.setFill()
+    for line in underlines where line.intersects(rect) { NSBezierPath(rect: line).fill() }
+    for picture in markedPictures.map(\.frame) where Self.markedArea(of: picture).intersects(rect) {
+      Self.drawMarked(picture)
     }
   }
 
@@ -151,19 +184,28 @@ final class ReaderTextView: NSTextView {
       self.marks = marks
       for table in tables.allObjects { table.placeMarks(marks) }
     }
+    var pictures: [(note: EntityID, frame: CGRect)] = []
     let laidOut = marks.map { mark -> (note: EntityID, rects: [CGRect], bands: [CGRect]) in
       let lines = segments(of: mark.range).filter { line in
         line.rect.width > 0
           && !(textStorage?.attribute(.attachment, at: line.location, effectiveRange: nil)
             is ReaderTableAttachment)
       }
-      let bands = lines.map { Self.band(behind: $0.rect, baseline: $0.baseline, font: font(at: $0.location)) }
-      return (mark.note, zip(lines, bands).map { $0.rect.union($1) }, bands)
+      let framed = lines.compactMap { pictureFrame(at: $0.location) }
+      pictures += framed.map { (mark.note, $0) }
+      let words = lines.filter { pictureFrame(at: $0.location) == nil }
+      let bands = words.map { Self.band(behind: $0.rect, baseline: $0.baseline, font: font(at: $0.location)) }
+      return (mark.note, zip(words, bands).map { $0.rect.union($1) } + framed, bands)
     }
-    if laidOut.map(\.bands) != highlights.map(\.bands) {
-      for band in (laidOut + highlights).flatMap(\.bands) { setNeedsDisplay(band.insetBy(dx: -1, dy: -1)) }
+    let lines = zip(marks, laidOut).filter { $0.0.thought != nil }.flatMap(\.1.bands).map(Self.underline)
+    let drawn = highlights.flatMap(\.bands) + markedPictures.map { Self.markedArea(of: $0.frame) }
+    let drawing = laidOut.flatMap(\.bands) + pictures.map { Self.markedArea(of: $0.frame) }
+    if drawn != drawing || lines != underlines {
+      for area in drawn + drawing { setNeedsDisplay(area.insetBy(dx: -1, dy: -2)) }
     }
     highlights = laidOut
+    markedPictures = pictures
+    underlines = lines
     var placed: [EntityID: NoteDot] = [:]
     for (mark, layout) in zip(marks, laidOut) {
       let note = mark.note
@@ -301,40 +343,5 @@ final class ReaderTextView: NSTextView {
       let end = storage.location(start, offsetBy: range.length)
     else { return nil }
     return NSTextRange(location: start, end: end)
-  }
-}
-
-/// The amber dot at the end of a highlight that has a thought or questions.
-final class NoteDot: NSView {
-  static let size: CGFloat = 4
-  var clicked: () -> Void = {}
-
-  override func draw(_ dirtyRect: NSRect) {
-    Tones.accent.setFill()
-    NSBezierPath(ovalIn: bounds).fill()
-  }
-
-  override func mouseDown(with event: NSEvent) {
-    clicked()
-  }
-
-  override func resetCursorRects() {
-    addCursorRect(bounds, cursor: .pointingHand)
-  }
-}
-
-/// The scroll view's clip view, which says when the reader has scrolled.
-final class ReaderClipView: NSClipView {
-  var scrolled: () -> Void = {}
-
-  override func setBoundsOrigin(_ newOrigin: NSPoint) {
-    super.setBoundsOrigin(newOrigin)
-    scrolled()
-  }
-
-  /// Not every scroll goes through `setBoundsOrigin`; hearing one twice does no harm.
-  override func scroll(to newOrigin: NSPoint) {
-    super.scroll(to: newOrigin)
-    scrolled()
   }
 }

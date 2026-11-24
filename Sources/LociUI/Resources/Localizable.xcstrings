@@ -1922,6 +1922,23 @@
         }
       }
     },
+    "error.olderMac": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Loci on that Mac is older. Update it to do this."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "那台 Mac 上的 Loci 版本较旧，更新后才能这样做。"
+          }
+        }
+      }
+    },
     "error.storage": {
       "extractionState": "manual",
       "localizations": {
@@ -3714,6 +3731,74 @@
         }
       }
     },
+    "note.copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝"
+          }
+        }
+      }
+    },
+    "note.wholePrompt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the whole piece"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "整篇的想法"
+          }
+        }
+      }
+    },
+    "passage.askPicture": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask about Picture"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "问问这张图"
+          }
+        }
+      }
+    },
+    "picture.open": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Picture"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "看大图"
+          }
+        }
+      }
+    },
     "menuBar.open": {
       "extractionState": "manual",
       "localizations": {
@@ -5091,23 +5176,6 @@
         }
       }
     },
-    "note.editThought": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit Thought"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "改想法"
-          }
-        }
-      }
-    },
     "note.lost": {
       "extractionState": "manual",
       "localizations": {
@@ -5121,23 +5189,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "原文已找不到"
-          }
-        }
-      }
-    },
-    "note.writeThought": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Write a Thought"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "写想法"
           }
         }
       }

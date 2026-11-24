@@ -10,6 +10,10 @@ struct CodeRuleTests {
       })
   }
 
+  @Test func noForbiddenSymbols() throws {
+    report(try Repository.files(in: "Sources").flatMap(Self.symbolViolations))
+  }
+
   @Test func sourcesCarryNoComments() throws {
     report(try Repository.files(in: "Sources").flatMap(Self.commentViolations))
   }
@@ -41,6 +45,18 @@ struct CodeRuleTests {
           file: "Sources/\($0)", line: 1, found: "no Tests/\($0)Tests",
           fix: "Add the test target with the first behaviour of the module.")
       })
+  }
+
+  /// Symbols are named in string literals, which `code` leaves out, so the whole line is searched, comments aside.
+  static func symbolViolations(in file: SourceFile) -> [Violation] {
+    Architecture.forbiddenSymbols.flatMap { restriction -> [Violation] in
+      guard let pattern = try? Regex(restriction.pattern).ignoresCase() else { return [] }
+      return file.lines.filter { $0.remark == nil }.compactMap { line in
+        guard let match = line.text.firstMatch(of: pattern) else { return nil }
+        return Violation(
+          file: file.path, line: line.number, found: String(line.text[match.range]), fix: restriction.fix)
+      }
+    }
   }
 
   static func commentViolations(in file: SourceFile) -> [Violation] {

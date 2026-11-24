@@ -109,7 +109,7 @@ struct Composer: View {
 
   private func quoted(_ draft: PassageDraft) -> some View {
     HStack(alignment: .top, spacing: Spacing.xs) {
-      QuotedLine(text: draft.excerpt).lineLimit(3)
+      QuotedLine(text: draft.excerpt, pictures: !draft.pictures.isEmpty).lineLimit(3)
       Button {
         self.draft = nil
       } label: {

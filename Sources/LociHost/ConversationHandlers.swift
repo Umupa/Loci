@@ -20,17 +20,26 @@ extension LocalHost {
     }
     guard await run.isIdle else { throw .invalidRequest(AgentRun.busy) }
     let quoted = QuotedPassage(
-      locator: passage.locator, excerpt: passage.excerpt, note: try await note(on: passage).id)
+      locator: passage.locator, excerpt: passage.excerpt, pictures: passage.pictures,
+      note: try await note(on: passage).id)
     try await run.send(
-      Prompt(text: text, purpose: .chat, passage: quoted), saying: Prompts.ask(text, about: passage))
+      Prompt(text: text, purpose: .chat, passage: quoted),
+      saying: Prompts.ask(text, about: passage, pictures: picturePaths(passage.pictures, in: item)))
     return Done()
+  }
+
+  /// Where the pictures of an item are, the way Loci's own tools reach them.
+  private func picturePaths(_ pictures: [String], in item: EntityID) -> [String] {
+    guard !pictures.isEmpty, let folder = try? store.itemFolder(item) else { return pictures }
+    let resolved = folder.resolvingSymlinksInPath()
+    return pictures.map { AgentContext.path(resolved.appending(path: $0), from: store.agentFolder) }
   }
 
   /// The note on exactly this passage, made now when there is none.
   func note(on passage: Passage) async throws(HostError) -> Note {
     let notes = store.notes(on: passage.locator.content).value
     if let existing = notes.first(where: { $0.locator == passage.locator }) { return existing }
-    return try await addNote(AddNote(locator: passage.locator, excerpt: passage.excerpt))
+    return try await addNote(AddNote(locator: passage.locator, excerpt: passage.excerpt, pictures: passage.pictures))
   }
 
   private func sendCourseMessage(_ command: SendMessage, text: String, course: EntityID)
@@ -42,7 +51,8 @@ extension LocalHost {
       else { throw .invalidRequest("the passage is not in this course lesson") }
       guard try await courses.page(course).activity == .idle else { throw .invalidRequest(AgentRun.busy) }
       let quoted = QuotedPassage(
-        locator: passage.locator, excerpt: passage.excerpt, note: try await note(on: passage).id)
+        locator: passage.locator, excerpt: passage.excerpt, pictures: passage.pictures,
+        note: try await note(on: passage).id)
       try await courses.say(
         Prompt(text: text, purpose: .chat, passage: quoted), text: Prompts.ask(text, about: passage),
         about: lesson, in: course)

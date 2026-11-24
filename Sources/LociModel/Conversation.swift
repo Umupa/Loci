@@ -189,12 +189,35 @@ public struct ToolActivity: Hashable, Codable, Sendable {
 public struct QuotedPassage: Hashable, Codable, Sendable {
   public let locator: Locator
   public let excerpt: String
+  /// By their address in the item's text.
+  public let pictures: [String]
   public let note: EntityID
 
-  public init(locator: Locator, excerpt: String, note: EntityID) {
+  public init(locator: Locator, excerpt: String, pictures: [String] = [], note: EntityID) {
     self.locator = locator
     self.excerpt = excerpt
+    self.pictures = pictures
     self.note = note
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case locator, excerpt, pictures, note
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    locator = try container.decode(Locator.self, forKey: .locator)
+    excerpt = try container.decode(String.self, forKey: .excerpt)
+    pictures = try container.decodeIfPresent([String].self, forKey: .pictures) ?? []
+    note = try container.decode(EntityID.self, forKey: .note)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(locator, forKey: .locator)
+    try container.encode(excerpt, forKey: .excerpt)
+    if !pictures.isEmpty { try container.encode(pictures, forKey: .pictures) }
+    try container.encode(note, forKey: .note)
   }
 }
 

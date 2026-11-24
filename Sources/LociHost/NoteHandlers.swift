@@ -10,8 +10,8 @@ extension LocalHost {
   public func addNote(_ command: AddNote) async throws(HostError) -> Note {
     let note = try attempt {
       try Note(
-        id: environment.newID(), locator: command.locator, excerpt: command.excerpt.flatMap(Self.text),
-        thought: command.thought.flatMap(Self.text), savedAt: environment.now())
+        id: environment.newID(), locator: command.locator, excerpt: command.excerpt.flatMap(Self.words),
+        pictures: command.pictures, thought: command.thought.flatMap(Self.text), savedAt: environment.now())
     }
     let saved = try await save(note)
     if case .item(let item) = note.locator.content { happened(.highlighted(item, note: note.id)) }
@@ -24,8 +24,27 @@ extension LocalHost {
     }
     let changed = try attempt {
       try Note(
-        id: note.id, locator: note.locator, excerpt: note.excerpt, thought: command.thought.flatMap(Self.text),
-        exchanges: note.exchanges, savedAt: environment.now())
+        id: note.id, locator: note.locator, excerpt: note.excerpt, pictures: note.pictures,
+        thought: command.thought.flatMap(Self.text), exchanges: note.exchanges, savedAt: environment.now())
+    }
+    return try await save(changed)
+  }
+
+  public func setWholeThought(_ command: SetWholeThought) async throws(HostError) -> Note? {
+    _ = try attempt { try store.item(command.item) }
+    let content = ContentRef.item(command.item)
+    let existing = store.notes(on: content).value.first(where: \.isWhole)
+    guard let thought = command.thought.flatMap(Self.text) else {
+      if let existing { try await appendNote(.deleted(existing.id, at: environment.now()), on: content) }
+      return nil
+    }
+    guard let existing else {
+      return try await addNote(AddNote(locator: .item(command.item, .whole), excerpt: nil, thought: thought))
+    }
+    let changed = try attempt {
+      try Note(
+        id: existing.id, locator: existing.locator, thought: thought, exchanges: existing.exchanges,
+        savedAt: environment.now())
     }
     return try await save(changed)
   }
@@ -50,6 +69,11 @@ extension LocalHost {
       try attempt { try store.append(entry, on: content) }
     }
     await follow([.notes(content)])
+  }
+
+  /// Marked words without the characters pictures stand on, trimmed; none when only pictures were marked.
+  private static func words(_ excerpt: String) -> String? {
+    text(excerpt.replacing("\u{FFFC}", with: ""))
   }
 
   /// Text with something in it, trimmed; blank text means none.

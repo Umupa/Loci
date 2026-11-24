@@ -33,10 +33,22 @@ enum WireCodec {
     return try decode(type, from: body)
   }
 
+  /// What a Mac answers for a command it does not know. Every Loci so far has answered with these words, so a
+  /// newer Mac can tell that the other one is older.
+  static func unknown(_ name: String) -> String {
+    "\(name) cannot be used from another Mac"
+  }
+
+  /// The error the other Mac answered with, as this Mac reports it: a Mac too old to know the command is
+  /// `olderMac` rather than a request that sounds malformed.
+  static func answered(_ error: HostError, to name: String) -> HostError {
+    error == .invalidRequest(unknown(name)) ? .olderMac : error
+  }
+
   /// Runs a command named on the wire against a host, for the Mac being opened.
   static func run(_ name: String, body: Data, on host: any LociModel.Host) async throws(HostError) -> Data {
     guard let route = Wire.commands.first(where: { $0.name == name }) else {
-      throw .invalidRequest("\(name) cannot be used from another Mac")
+      throw .invalidRequest(unknown(name))
     }
     return try await run(route.command, body: body, on: host)
   }

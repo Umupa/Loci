@@ -172,10 +172,13 @@ struct TranscriptView: View {
     .overlay(alignment: .bottomLeading) {
       if let chosen, chosen.upperBound == index, dragStart == nil {
         PassageBar(
-          actions: actions, range: NSRange(location: chosen.lowerBound, length: chosen.count), typing: {},
+          actions: actions, mode: .selection(NSRange(location: chosen.lowerBound, length: chosen.count)), typing: {},
           done: { self.chosen = nil }
         )
-        .background(Capsule().fill(Palette.floating).shadow(color: .black.opacity(0.18), radius: 18, y: 12))
+        .background(
+          RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(Palette.floating)
+            .shadow(color: .black.opacity(0.18), radius: 18, y: 12)
+        )
         .offset(x: Size.timeColumn + Spacing.xs, y: Size.iconButton + Spacing.xs)
         .zIndex(2)
       }

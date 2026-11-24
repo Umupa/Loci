@@ -61,7 +61,9 @@ struct ReaderTableTests {
       let layout = try #require(table.layoutManager)
       let color = layout.temporaryAttribute(.backgroundColor, atCharacterIndex: firstWord.location, effectiveRange: nil)
       #expect(color as? NSColor == Tones.readerMark)
-      #expect(table.subviews.contains { $0 is NoteDot })
+      let underline = layout.temporaryAttribute(
+        .underlineColor, atCharacterIndex: firstWord.location, effectiveRange: nil)
+      #expect(underline as? NSColor == Tones.accent)
     }
 
     let quote = try TextQuote("网络\tCubeVS\tnftables\t出网策略")
