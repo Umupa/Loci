@@ -110,7 +110,7 @@ struct VideoStage: View {
           .padding(.leading, Spacing.xs)
       }
       Spacer(minLength: Spacing.xs)
-      if let only = model.onlyKeyPoints { OnlyKeyPointsPill(on: only, compact: compact) }
+      if let only = model.onlyKeyPoints { OnlyKeyPointsButton(on: only) }
       if !compact { SpeedChip(player: model.player) }
       SubtitleChip(model: model, symbol: true, named: !compact)
       RoundIconButton(
@@ -120,39 +120,6 @@ struct VideoStage: View {
         NSApp.keyWindow?.toggleFullScreen(nil)
       }
     }
-  }
-}
-
-/// Plays only the key points, one after another; amber while on.
-struct OnlyKeyPointsPill: View {
-  @Binding var on: Bool
-  var compact = false
-  @State private var hovering = false
-
-  var body: some View {
-    Button {
-      withAnimation(Motion.quick) { on.toggle() }
-    } label: {
-      HStack(spacing: 6) {
-        Image(systemName: Symbols.keyPoints)
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(on ? Palette.onAccent : Palette.inkMuted)
-        if !compact { Text(.loci("keypoints.only")) }
-      }
-      .font(.system(size: 12, weight: .semibold))
-      .foregroundStyle(on ? Palette.onAccent : Palette.inkMuted)
-      .padding(.horizontal, 10)
-      .frame(height: 26)
-      .background(Capsule().fill(on ? Palette.accent : hovering ? Palette.fill : .clear))
-      .overlay(Capsule().strokeBorder(on ? .clear : Palette.lineStrong, lineWidth: 1))
-      .contentShape(Capsule())
-      .fixedSize()
-    }
-    .buttonStyle(PressStyle())
-    .onHover { hovering = $0 }
-    .help(Text(.loci("keypoints.only")))
-    .accessibilityLabel(Text(.loci("keypoints.only")))
-    .accessibilityAddTraits(on ? .isSelected : [])
   }
 }
 

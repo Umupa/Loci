@@ -77,6 +77,7 @@ struct LibraryRow: View {
     if reading?.finished == true { return Text(.loci("talk.finished")) }
     guard case .item(_, let anchor)? = reading?.position else { return Text(verbatim: "—") }
     switch anchor {
+    case .whole: return Text(verbatim: "—")
     case .time(let span): return Text(verbatim: MediaTime.text(span.start))
     case .quote(let quote): return Text(verbatim: quote.text)
     case .page(let region): return Text(.loci("library.page \(region.page)"))

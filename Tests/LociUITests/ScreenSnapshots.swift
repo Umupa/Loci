@@ -41,8 +41,8 @@ struct ScreenSnapshots {
 
   @Test(arguments: Snapshot.Appearance.allCases)
   func selectionBar(appearance: Snapshot.Appearance) async throws {
-    let actions = PassageActions(highlight: { _ in nil }, think: { _, _ in }, ask: { _ in })
-    let bar = PassageBar(actions: actions, range: NSRange(), typing: {}, done: {})
+    let actions = PassageActions(highlight: { _ in nil }, ask: { _ in }, note: .ignored)
+    let bar = PassageBar(actions: actions, mode: .selection(NSRange()), typing: {}, done: {})
       .padding(Spacing.xl)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(Palette.canvas)

@@ -56,7 +56,10 @@ struct ReaderEvents {
   /// What a selected passage offers; `nil` offers nothing.
   var passage: PassageActions?
   var tablePassage: PassageActions?
+  /// A highlight was chosen in the text, by clicking it or by highlighting a picture.
   var noteClicked: (EntityID) -> Void = { _ in }
+  /// A picture was just highlighted from its tools, which leave no bar to write its thought in.
+  var pictureHighlighted: (EntityID) -> Void = { _ in }
 }
 
 @MainActor
@@ -83,6 +86,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   private var marks: [ReaderMark] = []
   private var marksStale = false
   private let passageBar: PassagePopover
+  private let pictureTools = PictureToolsHost()
   private var revealed: Int?
   private var selecting: String?
   private var selected: String?
@@ -133,13 +137,34 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
       }
     }
     textView.dragEnded = { [weak self] in self?.dragEnded() }
-    textView.markClicked = { [weak self] in self?.events.noteClicked($0) }
+    textView.markClicked = { [weak self] in self?.chose($0) }
+    textView.pictureHovered = { [weak self] in self?.hovered($0) }
     return scrollView
+  }
+
+  /// Puts the picture tools over the picture the mouse is on, or away when it is on none.
+  private func hovered(_ spot: ReaderPictureSpot?) {
+    guard let spot, let textView, let actions = events.passage else { return pictureTools.hide() }
+    pictureTools.show(
+      spot, marked: textView.markedPictures.first { $0.frame == spot.frame }?.note, in: textView, actions: actions,
+      locale: locale, chose: { [weak self] in self?.chose($0) },
+      highlighted: { [weak self] in self?.events.pictureHighlighted($0) })
+  }
+
+  /// A highlight clicked in the text: its card is chosen, and the bar for its thought floats over it.
+  private func chose(_ note: EntityID) {
+    events.noteClicked(note)
+    guard let textView, let actions = events.passage,
+      let lines = textView.highlights.first(where: { $0.note == note })?.rects, !lines.isEmpty
+    else { return }
+    let thought = marks.first { $0.note == note }?.thought
+    passageBar.show(actions, note: note, thought: thought, over: lines, in: textView, locale: locale)
   }
 
   func show(_ text: ReadingText, from start: TextQuote?) {
     guard let textView, current?.string !== text.string else { return }
     passageBar.close()
+    pictureTools.hide()
     let keep = current == nil ? start : held ?? topQuote()
     aligning = true
     current = text
@@ -159,6 +184,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     guard marks != self.marks else { return }
     self.marks = marks
     textView?.placeMarginMarks(marks)
+    if let spot = pictureTools.spot { hovered(spot) }
   }
 
   /// Scrolls the passage a third of the way down the window and flashes it.

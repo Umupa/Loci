@@ -138,6 +138,7 @@ extension JobRun {
     case .alreadyExists(let id): "already exists: \(id)"
     case .invalidFile(let problem): problem.reason
     case .offline: "the Mac is offline"
+    case .olderMac: "the other Mac runs an older Loci"
     }
   }
 }

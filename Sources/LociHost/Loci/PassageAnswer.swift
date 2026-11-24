@@ -15,7 +15,7 @@ extension AgentRun {
       let exchange = try Note.Exchange(
         question: turn.prompt.text, answer: answer, askedAt: turn.startedAt)
       let saved = try Note(
-        id: note.id, locator: note.locator, excerpt: note.excerpt, thought: note.thought,
+        id: note.id, locator: note.locator, excerpt: note.excerpt, pictures: note.pictures, thought: note.thought,
         exchanges: note.exchanges + [exchange], savedAt: now)
       try store.append(.saved(saved), on: content)
     } catch {

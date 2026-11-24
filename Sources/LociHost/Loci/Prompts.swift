@@ -82,9 +82,11 @@ struct Prompts: Sendable {
       + named.joined(separator: "\n") + "\n"
   }
 
-  /// A question about a passage, with the passage quoted so Loci sees what the person sees.
-  static func ask(_ question: String, about passage: Passage) -> String {
-    let quoted = "> " + passage.excerpt.replacing("\n", with: "\n> ")
+  /// A question about a passage, with the passage quoted so Loci sees what the person sees, and where each
+  /// picture in it is so Loci can look at it.
+  static func ask(_ question: String, about passage: Passage, pictures: [String] = []) -> String {
+    let lines = (passage.excerpt.isEmpty ? [] : [passage.excerpt]) + pictures.map { "[picture: \($0)]" }
+    let quoted = "> " + lines.joined(separator: "\n").replacing("\n", with: "\n> ")
     return """
       I am reading this passage (\(passage.locator)):
 

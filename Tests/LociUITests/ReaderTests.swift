@@ -47,7 +47,7 @@ struct ReaderTests {
   @Test func leavingTheReaderDismissesItsSelectionBar() async throws {
     let (coordinator, _, window) = Self.reader(heard: Heard())
     defer { window.orderOut(nil) }
-    coordinator.events.passage = PassageActions(highlight: { _ in nil }, think: { _, _ in })
+    coordinator.events.passage = PassageActions(highlight: { _ in nil }, note: .ignored)
     coordinator.show(ReadingText(markdown: Self.long), from: nil)
     coordinator.select("调度器先过滤")
     try await eventually("the selection bar") { window.childWindows?.count == 1 }

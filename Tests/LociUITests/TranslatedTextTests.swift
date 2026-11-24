@@ -65,7 +65,7 @@ struct TranslatedTextTests {
       let text = Self.text(mode)
       let passage = try #require(text.quote(Self.range(of: "流畅", in: text)))
       #expect(passage.excerpt == "Systems that respond quickly feel more fluid.")
-      #expect(try #require(Self.text(nil).range(of: passage.quote)).length == passage.excerpt.utf16.count)
+      #expect(try #require(Self.text(nil).range(of: passage.quote)).length == passage.excerpt?.utf16.count)
     }
   }
 

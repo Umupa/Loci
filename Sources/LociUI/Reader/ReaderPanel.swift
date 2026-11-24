@@ -11,7 +11,13 @@ enum SideTab: Hashable {
 /// highlight left on it.
 struct ReaderPanel: View {
   let content: ContentRef
+  /// The item being read, for the card of the thought on the whole of it; `nil` for a lesson.
+  var item: Item?
+  /// The thought on the whole item, if there is one.
+  var whole: Note?
   let notes: [PlacedNote]
+  /// The item's pictures by their address, for highlights over pictures.
+  var images: [String: NSImage] = [:]
   let keyPoints: KeyPointsPage?
   /// `nil` for what has no key points, such as a paper; the panel then has no page for them.
   let openKeyPoint: ((KeyPoint) -> Void)?
@@ -23,6 +29,7 @@ struct ReaderPanel: View {
   let revealPassage: @MainActor (Locator) -> Void
   let ask: (PlacedNote) -> Void
   let collapse: () -> Void
+  @State private var selected: EntityID?
 
   var body: some View {
     VStack(spacing: 0) {
@@ -55,11 +62,15 @@ struct ReaderPanel: View {
     ScrollViewReader { proxy in
       ScrollView {
         LazyVStack(alignment: .leading, spacing: Spacing.xs) {
+          if let item { WholeCard(item: item, thought: whole?.thought) }
           ForEach(notes) { placed in
             NoteCard(
-              content: content, placed: placed, chosen: chosen?.note == placed.id ? chosen?.serial : nil,
+              content: content, placed: placed, images: images, selected: selected == placed.id,
+              writing: chosen?.writing == true && chosen?.note == placed.id,
+              flash: chosen?.note == placed.id ? chosen?.serial : nil,
               ask: placed.range == nil ? nil : { ask(placed) }
             ) {
+              selected = placed.id
               if placed.range != nil { reveal(placed) }
             }
             .id(placed.id)
@@ -69,8 +80,11 @@ struct ReaderPanel: View {
         .padding(.bottom, Spacing.l)
       }
       .scrollIndicators(.never)
+      .onAppear { selected = selected ?? chosen?.note }
       .onChange(of: chosen) { _, chosen in
-        if let chosen { withAnimation(Motion.standard) { proxy.scrollTo(chosen.note, anchor: .center) } }
+        guard let chosen else { return }
+        selected = chosen.note
+        withAnimation(Motion.standard) { proxy.scrollTo(chosen.note, anchor: .center) }
       }
     }
   }
@@ -80,6 +94,8 @@ struct ReaderPanel: View {
 struct ChosenNote: Equatable {
   let note: EntityID
   let serial: Int
+  /// Just highlighted where there is no bar to write in, so the card's field is ready for typing.
+  var writing = false
 }
 
 /// The square button that folds the panel away, or brings it back.

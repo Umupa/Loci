@@ -82,4 +82,50 @@ struct NoteScenarioTests {
       }
     }
   }
+
+  /// HL-S6: an item has one thought on it as a whole, which can be changed and cleared.
+  @Test func anItemKeepsOneThoughtOnTheWhole() async throws {
+    try await withHost { host, _, _ in
+      let item = try await Self.article(host)
+      let notes = host.subscribe(NotesOn(content: .item(item)))
+
+      let first = try #require(try await host.run(SetWholeThought(item: item, thought: " 拆得好 ")))
+      let second = try #require(try await host.run(SetWholeThought(item: item, thought: "定时器和收件箱分开")))
+
+      #expect(first.id == second.id)
+      #expect(second.locator == .item(item, .whole))
+      let one = await value(notes) { $0.map(\.thought) == ["定时器和收件箱分开"] }
+      #expect(one?.first?.isWhole == true)
+
+      #expect(try await host.run(SetWholeThought(item: item, thought: "  ")) == nil)
+      #expect(await value(notes) { $0.isEmpty } != nil)
+      #expect(try await host.run(SetWholeThought(item: item, thought: nil)) == nil)
+    }
+  }
+
+  @Test func aThoughtOnTheWholeOfAnItemThatIsGoneIsRefused() async throws {
+    try await withHost { host, _, world in
+      let missing = world.nextID()
+      await #expect(throws: HostError.notFound(missing.description)) {
+        try await host.run(SetWholeThought(item: missing, thought: "x"))
+      }
+    }
+  }
+
+  /// HL-S2: the words of a highlight over a picture are kept without the picture's placeholder character.
+  @Test func aHighlightOverAPictureKeepsTheWordsAndNamesThePicture() async throws {
+    try await withHost { host, _, _ in
+      let item = try await Self.article(host)
+      let locator = Locator.item(item, .quote(try TextQuote("节点\u{FFFC}")))
+
+      let both = try await host.run(
+        AddNote(locator: locator, excerpt: "节点\n\u{FFFC}\n", pictures: ["images/a.png"]))
+      let only = try await host.run(AddNote(locator: locator, excerpt: "\u{FFFC}", pictures: ["images/a.png"]))
+
+      #expect(both.excerpt == "节点")
+      #expect(both.pictures == ["images/a.png"])
+      #expect(only.excerpt == nil)
+      #expect(only.pictures == ["images/a.png"])
+    }
+  }
 }

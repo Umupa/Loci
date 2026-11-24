@@ -52,7 +52,7 @@ public struct RemoteHost: LociModel.Host {
       guard let kept = folder.cached(C.name, request: request, on: machine) else { throw .offline }
       return try WireCodec.reply(C.Reply.self, from: kept)
     case .failure(let error):
-      throw error
+      throw WireCodec.answered(error, to: C.name)
     }
   }
 

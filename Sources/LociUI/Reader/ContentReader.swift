@@ -13,6 +13,8 @@ struct ContentReader: View {
   @Environment(\.changesAllowed) private var changesAllowed
   @Environment(\.colorScheme) private var colorScheme
   let content: ContentRef
+  /// The item being read, for the thought on the whole of it; `nil` for a lesson.
+  let item: Item?
   /// Set over the text, unless the text starts with a title of its own.
   let title: String?
   let markdown: String
@@ -56,7 +58,7 @@ struct ContentReader: View {
   @State private var placedNotes: [PlacedNote] = []
 
   init(
-    content: ContentRef, title: String?, markdown: String, byline: NSAttributedString? = nil,
+    content: ContentRef, item: Item? = nil, title: String?, markdown: String, byline: NSAttributedString? = nil,
     images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel, language: ArticleLanguage? = nil,
     openingQuote: TextQuote? = nil, placeholder: FetchingItem? = nil, cite: ((URL) -> Int?)? = nil,
     showsProgress: Bool = false, renderMermaid: @escaping MermaidRenderer.Render = MermaidRenderer.render
@@ -73,15 +75,16 @@ struct ContentReader: View {
     self.pane = pane
     _panelWidth = AppStorage(wrappedValue: Double(pane.ideal), pane.key)
     self.content = content
+    self.item = item
     self.title = title
     self.markdown = Self.titled(markdown, title)
   }
 
-  private var item: EntityID? { content.item }
+  private var itemID: EntityID? { content.item }
 
   /// Only an item has key points to open.
   private var keyPointOpener: ((KeyPoint) -> Void)? {
-    guard item != nil else { return nil }
+    guard itemID != nil else { return nil }
     return { open($0) }
   }
 
@@ -92,9 +95,9 @@ struct ContentReader: View {
         .animation(placeholder != nil && !reduceMotion ? Motion.standard : nil, value: text != nil)
     } panel: {
       ReaderPanel(
-        content: content, notes: placedNotes, keyPoints: keyPoints?.value, openKeyPoint: keyPointOpener, tab: $tab,
-        draft: $draft, chosen: chosen, reveal: show, revealPassage: show,
-        ask: { placed in ask(placed.note.locator, excerpt: placed.note.excerpt) }, collapse: closePanel
+        content: content, item: item, whole: notes?.value?.first(where: \.isWhole), notes: placedNotes,
+        images: images, keyPoints: keyPoints?.value, openKeyPoint: keyPointOpener, tab: $tab, draft: $draft,
+        chosen: chosen, reveal: show, revealPassage: show, ask: ask, collapse: closePanel
       )
       .overlay(alignment: .leading) {
         if beside {
@@ -134,8 +137,8 @@ struct ContentReader: View {
     }
     .onChange(of: notes) { remark() }
     .subscribing(NotesOn(content: content), into: $notes)
-    .task(id: item) {
-      guard let item else { return }
+    .task(id: itemID) {
+      guard let item = itemID else { return }
       for await delivered in host.subscribe(ItemKeyPoints(item: item)) { keyPoints = delivered }
     }
   }
@@ -167,10 +170,10 @@ struct ContentReader: View {
   /// The top corner over the text: playing only the key points, and translating.
   private var corner: some View {
     HStack(spacing: Spacing.xs) {
-      if !points.isEmpty { OnlyKeyPointsPill(on: $onlyKeyPoints) }
+      if !points.isEmpty { OnlyKeyPointsButton(on: $onlyKeyPoints) }
       if let language, !onlyKeyPoints {
         TranslateButton(language: language, mode: $mode) {
-          if let item { Task { _ = try? await host.run(TranslateArticle(item: item)) } }
+          if let itemID { Task { _ = try? await host.run(TranslateArticle(item: itemID)) } }
         }
       }
     }
@@ -278,115 +281,45 @@ struct ContentReader: View {
       },
       passage: passageActions(original: false),
       tablePassage: passageActions(original: true),
-      noteClicked: { note in
-        openPanel()
-        tab = .highlights
-        chosen = ChosenNote(note: note, serial: (chosen?.serial ?? 0) + 1)
-        if let placed = placedNotes.first(where: { $0.id == note }) { show(placed) }
-      })
+      noteClicked: { choose($0, writing: false) },
+      pictureHighlighted: { choose($0, writing: true) })
+  }
+
+  /// Turns the panel to the highlight's card; `writing` readies its field for typing.
+  private func choose(_ note: EntityID, writing: Bool) {
+    openPanel()
+    tab = .highlights
+    chosen = ChosenNote(note: note, serial: (chosen?.serial ?? 0) + 1, writing: writing)
   }
 
   /// Highlighting with an optional thought, and asking Loci about it.
   private func passageActions(original: Bool) -> PassageActions {
     PassageActions(
       highlight: { range in
-        guard let passage = passage(range, original: original) else { return nil }
-        return try? await host.run(AddNote(locator: passage.locator, excerpt: passage.excerpt)).id
-      },
-      think: { note, thought in
-        Task { _ = try? await host.run(SetNoteThought(content: content, note: note, thought: thought)) }
+        guard let passage = original ? text?.quoteOriginal(range) : text?.quote(range) else { return nil }
+        return try? await host.run(
+          AddNote(locator: Locator(passage.quote, in: content), excerpt: passage.excerpt, pictures: passage.pictures)
+        ).id
       },
       ask: { range in
-        guard let passage = passage(range, original: original) else { return }
-        ask(passage.locator, excerpt: passage.excerpt)
+        guard let passage = original ? text?.quoteOriginal(range) : text?.quote(range) else { return }
+        ask(Locator(passage.quote, in: content), excerpt: passage.excerpt, pictures: passage.pictures)
+      },
+      note: .on(content, host: host, changesAllowed: changesAllowed) { note in
+        if let placed = placedNotes.first(where: { $0.id == note }) { ask(placed) }
       }, changes: changesAllowed)
   }
 
+  private func ask(_ placed: PlacedNote) {
+    ask(placed.note.locator, excerpt: placed.words, pictures: placed.pictures)
+  }
+
   /// Puts the passage above Loci's composer and turns the panel to the conversation.
-  private func ask(_ locator: Locator, excerpt: String?) {
-    draft = PassageDraft(content: content, locator: locator, excerpt: excerpt ?? locator.quote?.text ?? "")
+  private func ask(_ locator: Locator, excerpt: String?, pictures: [String]) {
+    draft = PassageDraft(
+      content: content, locator: locator, excerpt: excerpt ?? (pictures.isEmpty ? locator.quote?.text ?? "" : ""),
+      pictures: pictures)
     tab = .conversation
     openPanel()
   }
-
-  private func passage(_ range: NSRange, original: Bool) -> (locator: Locator, excerpt: String)? {
-    guard let passage = original ? text?.quoteOriginal(range) : text?.quote(range) else { return nil }
-    return (Locator(passage.quote, in: content), passage.excerpt)
-  }
-}
-
-extension ContentRef {
-  /// The item this is, when it is one.
-  var item: EntityID? {
-    if case .item(let item) = self { return item }
-    return nil
-  }
-
-  /// The lesson this is, when it is one.
-  var lesson: Lesson.ID? {
-    if case .lesson(_, let lesson) = self { return lesson }
-    return nil
-  }
-
-  /// The conversation about it: an item's own, or its course's.
-  var conversation: ConversationRef {
-    switch self {
-    case .item(let item): .item(item)
-    case .lesson(let course, _): .course(course)
-    }
-  }
-}
-
-extension Page {
-  init?(_ content: ContentRef) {
-    guard case .item(let item) = content else { return nil }
-    self = .item(item)
-  }
-}
-
-/// Opens a page on top of the current place, as following a link does.
-struct OpenPage {
-  let action: (Page) -> Void
-
-  func callAsFunction(_ page: Page) {
-    action(page)
-  }
-
-  @MainActor func follow(_ locator: Locator, in conversation: ConversationRef, reveal: @MainActor (Locator) -> Void) {
-    switch locator.content {
-    case .item(let item):
-      if conversation == .item(item) {
-        reveal(locator)
-      } else {
-        action(.passage(locator))
-      }
-    case .lesson(let course, _) where conversation == .course(course):
-      reveal(locator)
-    case .lesson:
-      break
-    }
-  }
-
-  @MainActor func follow(_ url: URL, in conversation: ConversationRef, reveal: @MainActor (Locator) -> Void)
-    -> OpenURLAction.Result
-  {
-    guard url.scheme?.lowercased() == "loci" else { return .systemAction }
-    guard let locator = Locator(url.absoluteString) else { return .discarded }
-    follow(locator, in: conversation, reveal: reveal)
-    return .handled
-  }
-}
-
-/// Goes to a place in the sidebar, as a fix for stopped work does.
-struct OpenPlace {
-  let action: (Place) -> Void
-
-  func callAsFunction(_ place: Place) {
-    action(place)
-  }
-}
-
-extension EnvironmentValues {
-  @Entry var openPage = OpenPage { _ in }
-  @Entry var openPlace = OpenPlace { _ in }
 }

@@ -103,6 +103,16 @@ enum Architecture {
     ),
   ]
 
+  /// SF Symbols the interface never names, found in the string literals of `Sources`. Each message says why and
+  /// what to do instead.
+  static let forbiddenSymbols: [Restriction] = [
+    Restriction(
+      pattern: #""[^"]*sparkle[^"]*""#,
+      fix: "Sparkles are the stock sign for \"AI did this\" and say nothing about what the control does. Loci never "
+        + "uses them. Pick the SF Symbol that names the action itself, or draw a `Shape` for it, as `FoldOthers` does "
+        + "for showing only the key points.")
+  ]
+
   struct Restriction {
     let pattern: String
     let allowedIn: Set<String>

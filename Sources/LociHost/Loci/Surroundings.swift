@@ -49,10 +49,18 @@ extension AgentContext {
       return "- \(when) finished reading \(named)"
     case .saved:
       return "- \(when) saved \(Self.kind(of: item)) \(named) to the library"
-    case .highlighted(_, let note):
-      let excerpt = store.notes(on: .item(item.id)).value.first { $0.id == note }?.excerpt
-      return "- \(when) highlighted in \(named)" + (excerpt.map { ": \"\($0.replacing("\n", with: " "))\"" } ?? "")
+    case .highlighted(_, let id):
+      let note = store.notes(on: .item(item.id)).value.first { $0.id == id }
+      if let note, note.isWhole {
+        return "- \(when) wrote about the whole of \(named)" + Self.quoted(note.thought)
+      }
+      return "- \(when) highlighted in \(named)"
+        + Self.quoted(note?.excerpt ?? note?.pictures.first.map { "[picture: \($0)]" })
     }
+  }
+
+  private static func quoted(_ text: String?) -> String {
+    text.map { ": \"\($0.replacing("\n", with: " "))\"" } ?? ""
   }
 
   private func open(in conversation: ConversationRef, at now: Timestamp) -> String? {

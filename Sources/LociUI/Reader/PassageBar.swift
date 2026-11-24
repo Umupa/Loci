@@ -6,53 +6,45 @@ import SwiftUI
 struct PassageActions {
   /// Highlights the passage at once and says which highlight it made, or `nil` when it could not.
   var highlight: (NSRange) async -> EntityID?
-  var think: (EntityID, String) -> Void
   /// Hands the passage to Loci's composer; `nil` where it cannot be asked about.
   var ask: ((NSRange) -> Void)?
+  /// What can be done with the highlight once it is made.
+  var note: NoteActions
   /// Whether the Mac behind the window can take changes now; the bar's buttons are off while it cannot.
   var changes = true
 }
 
-/// The glass capsule over a selection: highlight it, or ask Loci. Highlighting turns the capsule into
-/// a field for a thought, which may be left empty.
+/// The glass bar over the text. Over a selection it offers to highlight or ask, as icons; over a highlight,
+/// whether just made or clicked, it is a field for the thought with asking and deleting beside it.
 struct PassageBar: View {
+  enum Mode {
+    case selection(NSRange)
+    case note(EntityID, thought: String?)
+  }
+
   let actions: PassageActions
-  let range: NSRange
-  /// Lets the bar take typing, once it turns into the field for a thought.
+  let mode: Mode
+  /// Lets the bar take typing, once it shows the field for a thought.
   let typing: () -> Void
   let done: () -> Void
-  @State private var note: EntityID?
+  @State private var made: EntityID?
   @State private var thought = ""
   @FocusState private var focused: Bool
 
   var body: some View {
     Group {
       if let note {
-        TextField(text: $thought) {
-          Text(.loci("passage.thoughtPrompt"))
-        }
-        .textFieldStyle(.plain)
-        .font(Typography.body)
-        .focused($focused)
-        .onSubmit { finish(note) }
-        .onExitCommand(perform: done)
-        .frame(width: Size.thoughtFieldWidth, height: Size.iconButton)
-        .padding(.horizontal, Spacing.s)
-        .onAppear {
-          typing()
-          focused = true
-        }
-      } else {
-        HStack(spacing: 0) {
-          button(.loci("passage.highlight"), Symbols.highlight) {
+        noteBar(note)
+      } else if case .selection(let range) = mode {
+        HStack(spacing: 2) {
+          GlassIconButton(symbol: Symbols.highlight, title: .loci("passage.highlight"), enabled: actions.changes) {
             Task {
-              note = await actions.highlight(range)
-              if note == nil { done() }
+              made = await actions.highlight(range)
+              if made == nil { done() }
             }
           }
           if let ask = actions.ask {
-            Rectangle().fill(Palette.lineStrong).frame(width: Size.hairline, height: Spacing.m)
-            button(.loci("passage.ask"), Symbols.ask) {
+            GlassIconButton(symbol: Symbols.ask, title: .loci("passage.ask")) {
               ask(range)
               done()
             }
@@ -61,31 +53,90 @@ struct PassageBar: View {
       }
     }
     .padding(Spacing.xxs)
-    .solidGlass(in: Capsule())
+    .solidGlass(in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
     .fixedSize()
   }
 
-  private func button(_ title: LocalizedStringResource, _ symbol: String, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      HStack(spacing: 6) {
-        Image(systemName: symbol).font(Typography.body).foregroundStyle(
-          actions.changes ? Palette.accent : Palette.inkFaint)
-        Text(title)
+  private var note: EntityID? {
+    if case .note(let note, _) = mode { return note }
+    return made
+  }
+
+  private var saved: String? {
+    if case .note(_, let thought) = mode { return thought }
+    return nil
+  }
+
+  private func noteBar(_ note: EntityID) -> some View {
+    HStack(spacing: 2) {
+      TextField(text: $thought) {
+        Text(.loci("passage.thoughtPrompt"))
       }
-      .font(Typography.bodyEmphasis)
-      .foregroundStyle(actions.changes ? Palette.accent : Palette.inkFaint)
-      .padding(.horizontal, Spacing.s)
-      .frame(height: Size.iconButton)
-      .contentShape(Capsule())
+      .textFieldStyle(.plain)
+      .font(Typography.body)
+      .focused($focused)
+      .onSubmit { finish(note) }
+      .onExitCommand(perform: done)
+      .disabled(!actions.changes)
+      .frame(width: Size.thoughtFieldWidth, height: Size.iconButton)
+      .padding(.leading, Spacing.xs)
+      Rectangle().fill(Palette.lineStrong).frame(width: Size.hairline, height: 18).padding(.horizontal, 3)
+      if let ask = askNote(note) {
+        GlassIconButton(symbol: Symbols.ask, title: .loci("passage.ask")) {
+          ask()
+          done()
+        }
+      }
+      GlassIconButton(symbol: Symbols.delete, title: .loci("note.delete"), enabled: actions.changes) {
+        actions.note.delete(note)
+        done()
+      }
     }
-    .buttonStyle(PressStyle())
-    .disabled(!actions.changes)
+    .onAppear {
+      thought = saved ?? ""
+      typing()
+      focused = true
+    }
+  }
+
+  /// A highlight just made from the selection is asked about by the selection, which its quote came from.
+  private func askNote(_ note: EntityID) -> (() -> Void)? {
+    if case .selection(let range) = mode, let ask = actions.ask { return { ask(range) } }
+    guard let ask = actions.note.ask else { return nil }
+    return { ask(note) }
   }
 
   private func finish(_ note: EntityID) {
     let written = thought.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !written.isEmpty { actions.think(note, written) }
+    let wanted = written.isEmpty ? nil : written
+    if wanted != saved { actions.note.think(note, wanted) }
     done()
+  }
+}
+
+/// A square icon in the glass bar, named by its tooltip.
+struct GlassIconButton: View {
+  let symbol: String
+  let title: LocalizedStringResource
+  var enabled = true
+  var lit = false
+  let action: () -> Void
+  @State private var hovering = false
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: symbol)
+        .font(.system(size: 14, weight: .medium))
+        .foregroundStyle(!enabled ? Palette.inkFaint : lit ? Palette.accent : hovering ? Palette.ink : Palette.inkMuted)
+        .frame(width: Size.iconButton, height: Size.iconButton)
+        .background(RoundedRectangle(cornerRadius: Radius.row).fill(hovering && enabled ? Palette.fillStrong : .clear))
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(PressStyle())
+    .disabled(!enabled)
+    .onHover { hovering = $0 }
+    .help(Text(title))
+    .accessibilityLabel(Text(title))
   }
 }
 
@@ -114,6 +165,20 @@ final class PassagePopover {
   func show(
     _ actions: PassageActions, for range: NSRange, over lines: [CGRect], in view: NSView, locale: Locale
   ) {
+    show(actions, .selection(range), over: lines, in: view, locale: locale)
+  }
+
+  /// The bar over a highlight that was clicked: its thought to change, asking, deleting.
+  func show(
+    _ actions: PassageActions, note: EntityID, thought: String?, over lines: [CGRect], in view: NSView,
+    locale: Locale
+  ) {
+    show(actions, .note(note, thought: thought), over: lines, in: view, locale: locale)
+  }
+
+  private func show(
+    _ actions: PassageActions, _ mode: PassageBar.Mode, over lines: [CGRect], in view: NSView, locale: Locale
+  ) {
     close()
     guard let window = view.window else { return }
     let panel = PassagePanel()
@@ -124,7 +189,7 @@ final class PassagePopover {
       panel.setFrame(window.convertToScreen(view.convert(frame, to: nil)), display: true)
     }
     let host = NSHostingView(
-      rootView: PassageBar(actions: actions, range: range, typing: { [weak panel] in panel?.makeKey() }) {
+      rootView: PassageBar(actions: actions, mode: mode, typing: { [weak panel] in panel?.makeKey() }) {
         [weak self] in self?.close()
       }
       .onGeometryChange(for: CGSize.self, of: \.size) { size in place(size) }

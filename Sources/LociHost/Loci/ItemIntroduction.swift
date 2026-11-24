@@ -31,13 +31,20 @@ extension AgentContext {
     lines += [
       text,
       "Answer from the item, and say when you go beyond it.",
-      "The person's highlights on it are in `\(path(files.notes, from: folder))`, one JSON object per line.",
+      "The person's highlights on it are in `\(path(files.notes, from: folder))`, one JSON object per line; "
+        + "the one whose locator has no `#` is their thought on the whole item, and `pictures` names pictures "
+        + "in the item's folder.",
     ]
-    let marked = notes.filter { $0.excerpt != nil || $0.thought != nil }
+    if let whole = notes.first(where: \.isWhole)?.thought {
+      lines.append("Their thought on the whole item: " + whole)
+    }
+    let marked = notes.filter { !$0.isWhole && ($0.excerpt != nil || $0.thought != nil || !$0.pictures.isEmpty) }
     if !marked.isEmpty {
       lines.append("What they have marked so far:")
       for note in marked.prefix(introducedNotes) {
-        let excerpt = note.excerpt.map { "> " + $0.replacing("\n", with: " ") } ?? "> (a place)"
+        let pictures = note.pictures.map { "[picture: \($0)]" }
+        let words = ([note.excerpt?.replacing("\n", with: " ")].compactMap(\.self) + pictures).joined(separator: " ")
+        let excerpt = "> " + (words.isEmpty ? "(a place)" : words)
         lines.append(excerpt + (note.thought.map { "\n  Their thought: " + $0 } ?? ""))
       }
       if marked.count > introducedNotes {
@@ -58,8 +65,8 @@ extension AgentContext {
   }
 
   /// `../library/…` from Loci's folder, the way Loci's own tools will reach it.
-  private static func path(_ url: URL, from folder: URL) -> String {
-    let base = folder.standardizedFileURL.deletingLastPathComponent().path(percentEncoded: false)
+  static func path(_ url: URL, from folder: URL) -> String {
+    let base = folder.resolvingSymlinksInPath().deletingLastPathComponent().path(percentEncoded: false)
     let full = url.standardizedFileURL.path(percentEncoded: false)
     let prefix = base.hasSuffix("/") ? base : base + "/"
     return full.hasPrefix(prefix) ? "../" + full.dropFirst(prefix.count) : full

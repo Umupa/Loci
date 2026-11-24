@@ -102,6 +102,7 @@ final class FakeHost: LociModel.Host, CommandHandler {
   }
   func addNote(_ command: AddNote) async throws(HostError) -> Note { sample.notes[0] }
   func setNoteThought(_ command: SetNoteThought) async throws(HostError) -> Note { sample.notes[0] }
+  func setWholeThought(_ command: SetWholeThought) async throws(HostError) -> Note? { nil }
   func deleteNote(_ command: DeleteNote) async throws(HostError) -> Done { Done() }
 
   func health() async -> Health { sample.health }

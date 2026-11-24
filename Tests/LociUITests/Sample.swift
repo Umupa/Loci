@@ -7,7 +7,7 @@ import LociModel
 struct Sample: Sendable {
   let borg: Item
   let items: [Item]
-  let notes: [Note]
+  var notes: [Note]
   var health: Health
   /// Borg in Chinese, when the reader should see it translated.
   var translation: ArticleTranslation?

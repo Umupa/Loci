@@ -61,6 +61,8 @@ public enum HostError: Error, Hashable, Codable, Sendable {
   case storage(String)
   /// The host is another Mac that cannot be reached now. Nothing was changed, as far as this Mac knows.
   case offline
+  /// The host is another Mac whose Loci is too old to know the command. Nothing was changed there.
+  case olderMac
 }
 
 /// Why a host could not start. Nothing on disk is changed when this is thrown.
@@ -89,6 +91,7 @@ public protocol CommandHandler: Sendable {
   func notes(on content: ContentRef) async throws(HostError) -> [Note]
   func addNote(_ command: AddNote) async throws(HostError) -> Note
   func setNoteThought(_ command: SetNoteThought) async throws(HostError) -> Note
+  func setWholeThought(_ command: SetWholeThought) async throws(HostError) -> Note?
   func deleteNote(_ command: DeleteNote) async throws(HostError) -> Done
   func health() async -> Health
   func sendMessage(_ command: SendMessage) async throws(HostError) -> Done

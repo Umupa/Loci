@@ -32,6 +32,31 @@ struct NoteTests {
     #expect(note.exchanges == [try Note.Exchange(question: "q", answer: "a", askedAt: Fixture.instant)])
   }
 
+  @Test func aHighlightKeepsThePicturesItCovers() throws {
+    let note = try Note(
+      id: Fixture.id(5), locator: Self.locator, excerpt: "图上", pictures: ["images/a.png", "images/b.png"],
+      savedAt: Fixture.instant)
+    let line = String(decoding: try JSONEncoder().encode(NoteEntry.saved(note)), as: UTF8.self)
+
+    #expect(line.contains(#""pictures":["images\/a.png","images\/b.png"]"#))
+    #expect(try Fixture.roundTrip(NoteEntry.saved(note)) == .saved(note))
+  }
+
+  @Test func aHighlightSavedBeforePicturesReadsWithNone() throws {
+    let line =
+      #"{"event":"saved","id":"\#(Fixture.id(5))","locator":"\#(Self.locator)","excerpt":"过滤","savedAt":"2025-11-17T00:00:00.123Z"}"#
+
+    guard case .saved(let note) = try Fixture.decode(NoteEntry.self, line) else { throw ModelError("not saved") }
+    #expect(note.pictures.isEmpty)
+  }
+
+  @Test func aHighlightWithoutPicturesWritesNoPictures() throws {
+    let note = try Note(id: Fixture.id(5), locator: Self.locator, excerpt: "过滤", savedAt: Fixture.instant)
+    let line = String(decoding: try JSONEncoder().encode(NoteEntry.saved(note)), as: UTF8.self)
+
+    #expect(!line.contains("pictures"))
+  }
+
   @Test func aDeletionSurvivesJSON() throws {
     let entry = NoteEntry.deleted(Fixture.id(5), at: Fixture.instant)
 

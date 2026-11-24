@@ -81,13 +81,35 @@ public struct OneConversation: Subscription {
   }
 }
 
-/// Words the person picked in something they are reading.
+/// Words the person picked in something they are reading, and the pictures among them.
 public struct Passage: Hashable, Codable, Sendable {
   public let locator: Locator
+  /// Empty when only a picture was picked.
   public let excerpt: String
+  /// By their address in the item's text. A Mac before pictures ignores them.
+  public let pictures: [String]
 
-  public init(locator: Locator, excerpt: String) {
+  public init(locator: Locator, excerpt: String, pictures: [String] = []) {
     self.locator = locator
     self.excerpt = excerpt
+    self.pictures = pictures
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case locator, excerpt, pictures
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    locator = try container.decode(Locator.self, forKey: .locator)
+    excerpt = try container.decode(String.self, forKey: .excerpt)
+    pictures = try container.decodeIfPresent([String].self, forKey: .pictures) ?? []
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(locator, forKey: .locator)
+    try container.encode(excerpt, forKey: .excerpt)
+    if !pictures.isEmpty { try container.encode(pictures, forKey: .pictures) }
   }
 }
