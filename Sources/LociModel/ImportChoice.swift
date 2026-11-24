@@ -27,12 +27,12 @@ public struct ImportChoice: Hashable, Codable, Sendable {
   }
 
   /// The choice before any was made: kept on this Mac at 720p, the site's subtitles when it has them and
-  /// recognition otherwise, translated into the reader's language by whatever Loci runs on.
+  /// recognition otherwise, translated into the reader's language with the model translation is done with.
   public static func first(readerLanguage: String, speechModel: SpeechModel) -> ImportChoice {
     ImportChoice(
       keeping: .local, quality: .hd720, siteSubtitles: true,
       recognition: Recognizing(language: nil, model: speechModel),
-      translation: Translating(language: readerLanguage, runtime: nil))
+      translation: Translating(language: readerLanguage, model: nil))
   }
 
   public enum Keeping: String, Hashable, Codable, Sendable {
@@ -72,12 +72,12 @@ public struct ImportChoice: Hashable, Codable, Sendable {
   public struct Translating: Hashable, Codable, Sendable {
     /// A BCP 47 tag.
     public var language: String
-    /// `nil` runs on whatever Loci runs on.
-    public var runtime: Runtime?
+    /// `nil`, or one no longer configured, follows the model translation is done with.
+    public var model: ModelChoice?
 
-    public init(language: String, runtime: Runtime?) {
+    public init(language: String, model: ModelChoice?) {
       self.language = language
-      self.runtime = runtime
+      self.model = model
     }
   }
 }

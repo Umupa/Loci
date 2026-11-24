@@ -30,7 +30,7 @@ extension JobLine.Fix {
         Text(verbatim: model.sizeText).font(Typography.mono).foregroundStyle(Palette.inkMuted)
       }
     case .signIn: Text(.loci("job.signIn"))
-    case .chooseAgent: Text(.loci("job.chooseAgent"))
+    case .configureModels: Text(.loci("keypoints.configureModels"))
     case .update(let component): Text(joining: Text(.loci("job.update")), Text(verbatim: " " + component.name))
     case .chooseBrowserLogin: Text(.loci("job.chooseBrowserLogin"))
     case .openSource: Text(.loci("job.openSource"))

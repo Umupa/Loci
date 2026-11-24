@@ -155,7 +155,7 @@ struct ComponentRow: View {
     case .ytDlp: Symbols.download
     case .ffmpeg: "film"
     case .quickJS: "curlybraces"
-    case .bundledPi: ModelSettingsPage.symbol
+    case .bundledPi: Symbols.models
     }
   }
 }

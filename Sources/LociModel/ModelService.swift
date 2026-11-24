@@ -1,66 +1,39 @@
 import Foundation
 
-public enum ModelServiceProvider: String, Codable, CaseIterable, Sendable {
-  case openAI, anthropic, openRouter, deepSeek, compatible
-}
-
-public struct ModelService: Hashable, Codable, Sendable {
-  public let provider: ModelServiceProvider
+/// One model on one provider, ready to be asked: where to send requests and which key to send them with.
+/// Only `ModelSettings` makes one, from a provider that is on and a model checked on it.
+public struct ModelService: Hashable, Sendable {
+  public let provider: ModelProviderID
+  public let preset: ModelPreset
+  public let api: ModelAPI
+  public let address: ModelAddress
   public let model: String
-  public let endpoint: URL
+  public let keyAccount: String
 
-  public init?(provider: ModelServiceProvider, model: String, baseURL: URL? = nil) {
-    let model = model.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !model.isEmpty else { return nil }
-    let base: URL?
-    switch provider {
-    case .openAI: base = URL(string: "https://api.openai.com/v1")
-    case .anthropic: base = URL(string: "https://api.anthropic.com/v1")
-    case .openRouter: base = URL(string: "https://openrouter.ai/api/v1")
-    case .deepSeek: base = URL(string: "https://api.deepseek.com")
-    case .compatible: base = baseURL
+  init?(_ provider: ModelProvider, model: String) {
+    guard provider.enabled, let address = provider.address, provider.checkedModels.contains(model) else {
+      return nil
     }
-    guard let base, let host = base.host(), !host.isEmpty, base.user() == nil, base.password() == nil,
-      base.query() == nil, base.fragment() == nil,
-      base.scheme?.lowercased() == "https" || (base.scheme?.lowercased() == "http" && Self.loopback.contains(host))
-    else { return nil }
-    self.provider = provider
+    self.init(on: provider, at: address, model: model)
+  }
+
+  /// The provider at `address`, asked with `model` whether or not it is checked: for trying a provider out.
+  public init(on provider: ModelProvider, at address: ModelAddress, model: String) {
+    self.provider = provider.id
+    preset = provider.preset
+    api = provider.api
+    self.address = address
     self.model = model
-    let route = provider == .anthropic ? "messages" : "chat/completions"
-    if base.path().hasSuffix("/" + route) {
-      endpoint = base
-    } else {
-      endpoint = base.appending(path: route)
-    }
+    keyAccount = provider.keyAccount
   }
 
-  public var baseURL: URL {
-    provider == .anthropic
-      ? endpoint.deletingLastPathComponent()
-      : endpoint.deletingLastPathComponent().deletingLastPathComponent()
+  public var choice: ModelChoice { ModelChoice(provider: provider, model: model) }
+
+  /// Where a request for an answer goes.
+  public var endpoint: URL {
+    api.route(api == .anthropic ? "messages" : "chat/completions", at: address)
   }
 
-  private static let loopback: Set<String> = ["localhost", "127.0.0.1", "::1", "[::1]"]
-
-  private enum CodingKeys: String, CodingKey {
-    case provider, model, baseURL
-  }
-
-  public init(from decoder: any Decoder) throws {
-    let values = try decoder.container(keyedBy: CodingKeys.self)
-    let provider = try values.decode(ModelServiceProvider.self, forKey: .provider)
-    let model = try values.decode(String.self, forKey: .model)
-    let baseURL = try values.decodeIfPresent(URL.self, forKey: .baseURL)
-    guard let service = ModelService(provider: provider, model: model, baseURL: baseURL) else {
-      throw DecodingError.dataCorruptedError(forKey: .baseURL, in: values, debugDescription: "Invalid model service")
-    }
-    self = service
-  }
-
-  public func encode(to encoder: any Encoder) throws {
-    var values = encoder.container(keyedBy: CodingKeys.self)
-    try values.encode(provider, forKey: .provider)
-    try values.encode(model, forKey: .model)
-    if provider == .compatible { try values.encode(baseURL, forKey: .baseURL) }
-  }
+  /// Where the provider lists its models.
+  public var models: URL { api.route("models", at: address) }
 }

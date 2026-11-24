@@ -3,12 +3,12 @@ import LociMedia
 import LociModel
 import LociStore
 
-/// The stages an agent does: translating the transcript and finding chapters.
+/// The stages a model service does: translating the transcript and finding chapters.
 extension JobRun {
   /// How many sentences go to the agent at once; each batch is kept as it comes back.
   static let translationBatch = 60
 
-  /// Translates into the language chosen when the item was taken in, or the reader's, on the runtime chosen
+  /// Translates into the language chosen when the item was taken in, or the reader's, with the model chosen
   /// for it; unless the transcript is in that language already or a translation fits. Batches are kept in the
   /// work folder as they come back and reported as a share, so a paused or quit translation carries on from the
   /// first sentence not yet translated.
@@ -20,19 +20,12 @@ extension JobRun {
     if let spoken = transcript.language, Self.primary(spoken) == Self.primary(target) { return }
     let translations = try stored { try context.store.translations(of: item.id) }
     if translations.contains(where: { $0.language == target && $0.fits(transcript) }) { return }
-    let work = try await writer(chosen?.runtime)
+    let work = try await writer(chosen?.model, for: .translation)
     let sentences = transcript.segments.map(\.text)
     let prompt = work.prompt(.transcript, language: target, source: sentences)
     let identity = TranslationCacheKey(work.identity + prompt.cacheIdentity + sentences).digest
     let partial = Self.partial(target)
-    let lines: [String]
-    if work.usesRuntime {
-      lines = try await inTurn(queue.gates.agents, at: .translate) { () async throws(StageStop) in
-        try await translate(sentences, using: prompt, work: work, partial: partial, identity: identity)
-      }
-    } else {
-      lines = try await translate(sentences, using: prompt, work: work, partial: partial, identity: identity)
-    }
+    let lines = try await translate(sentences, using: prompt, work: work, partial: partial, identity: identity)
     if Task.isCancelled { return }
     let translation = try stored { try Translation(language: target, lines: lines) }
     guard translation.fits(transcript) else {
@@ -55,7 +48,7 @@ extension JobRun {
   private func translate(
     _ sentences: [String], using prompt: TranslationPrompt, work: TranscriptWork, partial: String, identity: String
   ) async throws(StageStop) -> [String] {
-    var lines = translatedSoFar(partial, of: sentences.count, identity: identity, work: work)
+    var lines = translatedSoFar(partial, of: sentences.count, identity: identity)
     await queue.progress(item, stage: .translate, Fraction(Double(lines.count) / Double(sentences.count)))
     let batches = Batches.pieces(of: Array(sentences.dropFirst(lines.count)), size: Self.translationBatch)
     let translate = { @Sendable (_: Int, batch: [String]) async throws(StageStop) -> [String] in
@@ -77,20 +70,11 @@ extension JobRun {
     return lines
   }
 
-  private func translatedSoFar(_ name: String, of count: Int, identity: String, work: TranscriptWork) -> [String] {
-    guard let text = try? context.store.workText(named: name, of: item) else { return [] }
-    let data = Data(text.utf8)
-    let decoder = JSONDecoder()
-    if let saved = try? decoder.decode(PartialTranslation.self, from: data) {
-      return saved.identity == identity && saved.lines.count <= count ? saved.lines : []
-    }
-    if work.usesRuntime, !work.settings.smart,
-      work.settings.transcriptPrompt == TranslationSettings.defaultTranscriptPrompt,
-      let lines = try? decoder.decode([String].self, from: data), lines.count <= count
-    {
-      return lines
-    }
-    return []
+  private func translatedSoFar(_ name: String, of count: Int, identity: String) -> [String] {
+    guard let text = try? context.store.workText(named: name, of: item),
+      let saved = try? JSONDecoder().decode(PartialTranslation.self, from: Data(text.utf8))
+    else { return [] }
+    return saved.identity == identity && saved.lines.count <= count ? saved.lines : []
   }
 
   /// Asks for chapters, unless the site gave them.
@@ -98,32 +82,26 @@ extension JobRun {
     guard let transcript = try stored({ try context.store.transcript(of: item.id) }), !transcript.segments.isEmpty,
       try stored({ try context.store.outline(of: item.id) })?.chapters.isEmpty ?? true
     else { return }
-    let work = try await writer(nil)
-    let write = { () async throws(StageStop) -> Outline in
-      do throws(HostError) {
-        return try await work.agent.outline(transcript, title: item.title)
-      } catch {
-        throw .failed(Self.describe(error))
-      }
+    let work = try await writer(nil, for: .transcripts)
+    let outline: Outline
+    do throws(HostError) {
+      outline = try await work.agent.outline(transcript, title: item.title)
+    } catch {
+      throw .failed(Self.describe(error))
     }
-    let outline =
-      if work.usesRuntime {
-        try await inTurn(queue.gates.agents, at: .outline, write)
-      } else {
-        try await write()
-      }
     if Task.isCancelled { return }
     try stored { try context.store.save(outline, of: item.id) }
   }
 
-  func writer(_ runtime: Runtime?) async throws(StageStop) -> TranscriptWork {
+  /// The model service `use` is done with, preferring `choice`; waits until one is configured.
+  func writer(_ choice: ModelChoice?, for use: ModelUse) async throws(StageStop) -> TranscriptWork {
     let work: TranscriptWork?
     do throws(HostError) {
-      work = try await context.transcriptWork(runtime)
+      work = try await context.modelWork(preferring: choice, for: use)
     } catch {
       throw .failed(Self.describe(error))
     }
-    guard let work else { throw .wait(.agent) }
+    guard let work else { throw .wait(.modelService) }
     return work
   }
 

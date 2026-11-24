@@ -139,13 +139,18 @@ struct RuntimeMenu: View {
   }
 }
 
+/// Chooses what Loci runs on. The bundled Pi, before it is ready, opens the model services when none offers a
+/// model yet, else the companion's settings, where it downloads.
 @MainActor
 func chooseRuntime(_ runtime: Runtime, on host: any LociModel.Host, openPlace: OpenPlace) async {
   guard (try? await host.run(SetRuntime(runtime))) != nil, runtime.provider == .bundledPi,
-    await host.modelSettingsAccess() != nil
+    let access = await host.modelSettingsAccess()
   else { return }
   let installations = (try? await host.run(DetectAgents())) ?? []
-  if !Agents.bundledPiIsReady(installations) { openPlace(.settings(.models)) }
+  guard !Agents.bundledPiIsReady(installations) else { return }
+  let state = try? await access.readModelSettings()
+  let offered = state.map { state in state.settings.groups.contains { state.keys.contains($0.provider) } } ?? false
+  openPlace(.settings(offered ? .agents : .models))
 }
 
 /// A round glyph in the field at the foot of a conversation, washed on hover.

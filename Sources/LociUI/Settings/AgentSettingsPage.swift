@@ -2,12 +2,15 @@ import LociModel
 import SwiftUI
 
 /// What Loci runs on: every agent this Mac might run, which are installed and at what version, the one
-/// chosen, and its model and thinking effort. One setting for the whole app.
+/// chosen, and its model and thinking effort. One setting for the whole app. On the bundled Pi the model is one
+/// the model services offer, and the Pi itself downloads here.
 struct AgentSettingsPage: View {
   @Environment(\.host) private var host
   @Environment(\.openPlace) private var openPlace
   @State private var installations: [AgentInstallation]?
   @State private var runtime: Feed<Runtime>?
+  @State private var options: Feed<ModelOptions>?
+  @State private var equipment: Feed<MediaSetup>?
   @State private var models: [String] = []
 
   var body: some View {
@@ -25,12 +28,19 @@ struct AgentSettingsPage: View {
             SettingsRow {
               Text(.loci("agents.model"))
             } trailing: {
-              PopupPicker(
-                selection: model(current),
-                options: [(String?.none, Text(.loci("agents.anyModel")))]
-                  + Agents.offered(models, keeping: current.model).map {
-                    (String?.some($0), Text(verbatim: Agents.modelName($0)))
-                  })
+              if current.provider == .bundledPi {
+                piModel(current)
+              } else {
+                PopupPicker(
+                  selection: model(current),
+                  options: [(String?.none, Text(.loci("agents.anyModel")))]
+                    + Agents.offered(models, keeping: current.model).map {
+                      (String?.some($0), Text(verbatim: Agents.modelName($0)))
+                    })
+              }
+            }
+            if current.provider == .bundledPi, let status = piStatus {
+              ComponentRow(status: status, work: piWork, install: piInstall)
             }
             if !current.provider.efforts.isEmpty {
               SettingsRow {
@@ -50,6 +60,8 @@ struct AgentSettingsPage: View {
       .changesData()
     }
     .subscribing(CurrentRuntime(), into: $runtime)
+    .subscribing(AvailableModels(), into: $options)
+    .subscribing(MediaSettings(), into: $equipment)
     .task { installations = (try? await host.run(DetectAgents())) ?? [] }
     .task(id: runtime?.value) {
       guard let provider = runtime?.value?.provider else { return }
@@ -57,6 +69,39 @@ struct AgentSettingsPage: View {
       let found = (try? await host.run(AgentModels(provider: provider))) ?? []
       if !Task.isCancelled { models = found }
     }
+  }
+
+  /// The companion's model on the bundled Pi: one the model services offer, or a way to configure them.
+  @ViewBuilder private func piModel(_ current: Runtime) -> some View {
+    if let groups = options?.value?.groups, !groups.isEmpty {
+      ModelChoiceMenu(
+        groups: groups,
+        selection: Binding {
+          current.model.flatMap(ModelChoice.init(runtimeModel:))
+        } set: { choice in
+          change(Runtime(provider: .bundledPi, model: choice?.runtimeModel, effort: current.effort))
+        })
+    } else if options != nil {
+      Button {
+        openPlace(.settings(.models))
+      } label: {
+        Text(.loci("keypoints.configureModels"))
+      }
+      .buttonStyle(AmberButtonStyle())
+    }
+  }
+
+  private var piStatus: ComponentStatus? {
+    equipment?.value?.components.first { $0.component == .bundledPi }
+  }
+
+  private var piWork: Transfer? {
+    equipment?.value?.componentWork.first { $0.component == .bundledPi }?.state
+  }
+
+  private var piInstall: (() -> Void)? {
+    guard options?.value?.groups.isEmpty == false else { return nil }
+    return { Task { _ = try? await host.run(InstallComponent(.bundledPi)) } }
   }
 
   private func model(_ current: Runtime) -> Binding<String?> {

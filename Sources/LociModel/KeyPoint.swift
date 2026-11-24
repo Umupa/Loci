@@ -67,14 +67,14 @@ public struct KeyPoints: Hashable, Sendable {
   }
 }
 
-/// What key points are picked with: the runtime, and how many.
+/// What key points are picked with: the model, and how many.
 public struct KeyPointChoice: Hashable, Codable, Sendable {
-  /// `nil` follows what Loci runs on.
-  public let runtime: Runtime?
+  /// `nil`, or one no longer configured, follows the model chapters and key points are done with.
+  public let model: ModelChoice?
   public let count: KeyPointCount
 
-  public init(runtime: Runtime? = nil, count: KeyPointCount = .some) {
-    self.runtime = runtime
+  public init(model: ModelChoice? = nil, count: KeyPointCount = .some) {
+    self.model = model
     self.count = count
   }
 
@@ -108,11 +108,14 @@ public struct KeyPointsPage: Hashable, Codable, Sendable {
   public let picking: KeyPointPicking?
   /// What picking starts with: the choice made last on this host.
   public let choice: KeyPointChoice
+  /// The model picking would use now; `nil` when the model services are not configured for it.
+  public let model: ModelChoice?
 
-  public init(keyPoints: KeyPoints?, picking: KeyPointPicking?, choice: KeyPointChoice) {
+  public init(keyPoints: KeyPoints?, picking: KeyPointPicking?, choice: KeyPointChoice, model: ModelChoice?) {
     self.keyPoints = keyPoints
     self.picking = picking
     self.choice = choice
+    self.model = model
   }
 }
 

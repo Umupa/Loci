@@ -3,6 +3,8 @@ import LociMedia
 import LociModel
 import LociStore
 
+/// The model services on this Mac: the settings, the providers' keys, and asking the models. Whether a key is
+/// saved is told without reading it; a key is read only for a request, once, and kept for the rest of the run.
 actor ModelServices {
   let gate: Gate
   let parallelism: Int
@@ -10,12 +12,15 @@ actor ModelServices {
   private let store: Store
   private let keys: (any ModelKeyStore)?
   private let client: ModelClient
+  private let writer: (@Sendable (ModelService) -> any TranscriptAgent)?
+  private var known: [String: String] = [:]
   private var piCredentialRevision = 0
 
   init(store: Store, environment: HostEnvironment) {
     self.store = store
     keys = environment.modelKeys
     client = environment.modelClient
+    writer = environment.modelWriter
     parallelism = environment.modelParallelism
     gate = Gate(limit: parallelism)
     cache = TranslationCache(store: store)
@@ -26,57 +31,88 @@ actor ModelServices {
   }
 
   func read() async throws(HostError) -> ModelSettingsState {
-    let bytes = await cache.bytes()
-    let settings = try configuration()
-    return try state(for: settings, bytes: bytes)
+    state(try configuration(), bytes: await cache.bytes())
   }
 
-  func save(_ settings: ModelSettings, key: ModelKeyChange) async throws(HostError) -> ModelSettingsState {
-    let bytes = await cache.bytes()
-    let before = try configuration()
-    let changed: (ModelService, String?)?
-    switch key {
-    case .keep: changed = nil
-    case .replace(let value):
-      guard let service = settings.service, let value = Self.cleaned(value), keys != nil else {
-        throw .invalidRequest("Choose a model service and enter an API key.")
-      }
-      changed = (service, value)
-    case .remove:
-      changed = (settings.service ?? before.service).map { ($0, nil) }
-    }
+  func save(_ settings: ModelSettings) async throws(HostError) -> ModelSettingsState {
+    var settings = settings
+    settings.fillUses()
     try attempt { try store.saveModelSettings(settings) }
-    if let (service, value) = changed {
-      do {
-        try keys?.setKey(value, for: service)
-        piCredentialRevision += 1
-      } catch {
-        try attempt { try store.saveModelSettings(before) }
-        throw .storage("Keychain (\(error.status))")
-      }
-    }
-    return try state(for: settings, bytes: bytes)
+    return state(settings, bytes: await cache.bytes())
   }
 
-  private func state(for settings: ModelSettings, bytes: Int64) throws(HostError) -> ModelSettingsState {
-    let key = if let service = settings.service { try storedKey(for: service) } else { nil as String? }
-    return ModelSettingsState(settings: settings, hasKey: key != nil, cacheBytes: bytes)
+  func setKey(_ key: String?, for id: ModelProviderID) async throws(HostError) -> ModelSettingsState {
+    let settings = try configuration()
+    let provider = try Self.provider(id, in: settings)
+    guard let keys else { throw .invalidRequest("Keys cannot be saved on this Mac.") }
+    let value = Self.cleaned(key)
+    do {
+      try keys.setKey(value, account: provider.keyAccount)
+    } catch {
+      throw .storage("Keychain (\(error.status))")
+    }
+    known[provider.keyAccount] = value
+    piCredentialRevision += 1
+    return state(settings, bytes: await cache.bytes())
   }
 
-  func test(_ service: ModelService, key: String?) async throws(HostError) {
-    let credential = if let supplied = Self.cleaned(key) { supplied } else { try storedKey(for: service) }
-    guard let key = credential else {
-      throw .invalidRequest("Enter an API key.")
-    }
+  func key(for id: ModelProviderID) throws(HostError) -> String? {
+    try storedKey(account: try Self.provider(id, in: try configuration()).keyAccount)
+  }
+
+  func fetchModels(for id: ModelProviderID) async throws(HostError) -> ModelSettingsState {
+    let provider = try Self.provider(id, in: try configuration())
+    let (address, key) = try request(on: provider)
     let client = client
-    try await gate.through { () async throws(HostError) in
-      guard !Task.isCancelled else { throw .invalidRequest("The request was cancelled.") }
+    let found = try await gate.through { () async throws(HostError) in
       do throws(FetchError) {
-        try await client.test(service, key: key)
+        return try await client.models(api: provider.api, at: address, key: key)
       } catch {
         throw .invalidRequest(error.reason)
       }
     }
+    var settings = try configuration()
+    guard let index = settings.providers.firstIndex(where: { $0.id == id }) else { throw .notFound(id.rawValue) }
+    settings.providers[index].offer(found)
+    return try await save(settings)
+  }
+
+  func test(_ model: String?, on id: ModelProviderID) async throws(HostError) -> Duration {
+    let provider = try Self.provider(id, in: try configuration())
+    let (address, key) = try request(on: provider)
+    guard let model = model ?? provider.checkedModels.first ?? provider.models.first?.id else {
+      throw .invalidRequest("Add a model first.")
+    }
+    let service = ModelService(on: provider, at: address, model: model)
+    let client = client
+    return try await gate.through { () async throws(HostError) in
+      do throws(FetchError) {
+        return try await client.test(service, key: key)
+      } catch {
+        throw .invalidRequest(error.reason)
+      }
+    }
+  }
+
+  /// The models the menus offer: checked ones on providers that are on and have a key.
+  func options() throws(HostError) -> ModelOptions {
+    let settings = try configuration()
+    let saved = state(settings, bytes: 0).keys
+    return ModelOptions(groups: settings.groups.filter { saved.contains($0.provider) }, uses: settings.uses)
+  }
+
+  /// What `use` is done with, preferring `choice`; `nil` when the model services are not configured for it.
+  func work(preferring choice: ModelChoice?, for use: ModelUse) throws(HostError)
+    -> (settings: TranslationSettings, service: ModelService, agent: any TranscriptAgent)?
+  {
+    let settings = try configuration()
+    guard let chosen = try options().model(preferring: choice, for: use), let service = settings.service(for: chosen),
+      let key = try storedKey(account: service.keyAccount)
+    else { return nil }
+    let agent =
+      writer?(service)
+      ?? ModelTranscriptAgent(service: service, key: key, client: client, gate: gate, parallelism: parallelism)
+    return (settings.translation, service, agent)
   }
 
   struct PiCredential: Sendable {
@@ -85,67 +121,51 @@ actor ModelServices {
     let revision: Int
   }
 
-  func piCredential() throws(HostError) -> PiCredential? {
-    guard let service = try configuration().service else { return nil }
-    return PiCredential(service: service, key: try storedKey(for: service), revision: piCredentialRevision)
-  }
-
-  func selection() throws(HostError) -> (TranslationSettings, ModelTranscriptAgent?) {
+  /// The model the companion runs on with the bundled Pi: the one `runtime` names, else the first offered.
+  func piCredential(for runtime: Runtime) throws(HostError) -> PiCredential? {
     let settings = try configuration()
-    guard let service = settings.service, let key = try storedKey(for: service) else {
-      return (settings.translation, nil)
-    }
-    let agent = ModelTranscriptAgent(service: service, key: key, client: client, gate: gate, parallelism: parallelism)
-    return (settings.translation, agent)
+    let offered = try options().groups.flatMap { $0.choices() }
+    let named = runtime.model.flatMap(ModelChoice.init(runtimeModel:))
+    guard let chosen = offered.first(where: { $0 == named }) ?? offered.first,
+      let service = settings.service(for: chosen)
+    else { return nil }
+    return PiCredential(
+      service: service, key: try storedKey(account: service.keyAccount), revision: piCredentialRevision)
   }
 
-  private func storedKey(for service: ModelService) throws(HostError) -> String? {
-    do {
-      return Self.cleaned(try keys?.key(for: service))
-    } catch {
-      throw .storage("Keychain (\(error.status))")
+  private func state(_ settings: ModelSettings, bytes: Int64) -> ModelSettingsState {
+    let saved = settings.providers.filter { provider in
+      if known[provider.keyAccount] != nil { return true }
+      return (try? keys?.hasKey(account: provider.keyAccount)) ?? false
     }
+    return ModelSettingsState(settings: settings, keys: Set(saved.map(\.id)), cacheBytes: bytes)
+  }
+
+  private func request(on provider: ModelProvider) throws(HostError) -> (ModelAddress, String) {
+    guard let address = provider.address else { throw .invalidRequest("Enter the provider's address.") }
+    guard let key = try storedKey(account: provider.keyAccount) else { throw .invalidRequest("Enter an API key.") }
+    return (address, key)
+  }
+
+  private func storedKey(account: String) throws(HostError) -> String? {
+    if let key = known[account] { return key }
+    let key: String?
+    do {
+      key = Self.cleaned(try keys?.key(account: account))
+    } catch {
+      throw .storage("The keychain did not let Loci read the key (\(error.status)).")
+    }
+    known[account] = key
+    return key
+  }
+
+  private static func provider(_ id: ModelProviderID, in settings: ModelSettings) throws(HostError) -> ModelProvider {
+    guard let provider = settings.providers.first(where: { $0.id == id }) else { throw .notFound(id.rawValue) }
+    return provider
   }
 
   private static func cleaned(_ key: String?) -> String? {
     guard let key = key?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else { return nil }
     return key
-  }
-}
-
-extension LocalHost: ModelSettingsAccess {
-  public func modelSettingsAccess() async -> (any ModelSettingsAccess)? { self }
-
-  public func readModelSettings() async throws(HostError) -> ModelSettingsState {
-    try await library.context.models.read()
-  }
-
-  public func saveModelSettings(_ settings: ModelSettings, key: ModelKeyChange)
-    async throws(HostError) -> ModelSettingsState
-  {
-    let previous = try? store.modelSettings().service
-    let saved = try await library.context.models.save(settings, key: key)
-    if previous != saved.settings.service, let runtime = agents.savedRuntime, runtime.provider == .bundledPi {
-      _ = try attempt {
-        try store.changeSettings { $0.runtime = Runtime(provider: .bundledPi, effort: runtime.effort) }
-      }
-    }
-    if saved.hasKey, environment.bundledPi != nil, agents.savedRuntime == nil,
-      await agents.chosen().provider == .bundledPi
-    {
-      _ = try attempt { try store.changeSettings { $0.runtime = $0.runtime ?? Runtime(provider: .bundledPi) } }
-    }
-    await provisionPiIfSelected(retry: true)
-    await hub.refresh([.everything])
-    if saved.hasKey { await library.queue.wake { $0 == .agent } }
-    return saved
-  }
-
-  public func testModelService(_ service: ModelService, key: String?) async throws(HostError) {
-    try await library.context.models.test(service, key: key)
-  }
-
-  public func clearTranslationCache() async throws(HostError) {
-    try await library.context.models.cache.clear()
   }
 }

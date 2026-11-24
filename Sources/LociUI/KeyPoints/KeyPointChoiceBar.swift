@@ -1,62 +1,83 @@
-import AppKit
 import LociModel
 import SwiftUI
 
-/// Over the key points: what they are picked with, how many, and picking them again.
+/// Over the key points: the model they are picked with, how many, and picking them again.
 struct KeyPointChoiceBar: View {
   @Binding var choice: KeyPointChoice
+  /// The model picking would use now; `nil` when the model services are not configured for it.
+  let model: ModelChoice?
   let picking: Bool
   let pick: () -> Void
+  @State private var options: Feed<ModelOptions>?
 
   var body: some View {
     HStack(spacing: Spacing.xs) {
-      KeyPointRuntimeMenu(
-        runtime: Binding {
-          choice.runtime
+      ModelChoiceMenu(
+        groups: options?.value?.groups ?? [],
+        selection: Binding {
+          choice.model
         } set: {
-          choice = KeyPointChoice(runtime: $0, count: choice.count)
-        })
-      Menu {
-        Picker(
-          selection: Binding {
-            choice.count
-          } set: {
-            choice = KeyPointChoice(runtime: choice.runtime, count: $0)
-          }
-        ) {
-          ForEach(KeyPointCount.allCases, id: \.self) { count in
-            Text(KeyPointWords.count(count)).tag(count)
-          }
-        } label: {
-          EmptyView()
-        }
-        .pickerStyle(.inline)
-      } label: {
-        PopupLabel { Text(KeyPointWords.count(choice.count)) }
-      }
-      .menuStyle(.button)
-      .buttonStyle(.plain)
-      .menuIndicator(.hidden)
-      .fixedSize()
+          choice = KeyPointChoice(model: $0, count: choice.count)
+        },
+        shown: model, following: .loci("keypoints.followSettings"))
       Spacer(minLength: 0)
+      CountSegments(
+        count: Binding {
+          choice.count
+        } set: {
+          choice = KeyPointChoice(model: choice.model, count: $0)
+        })
       Button(action: pick) {
         Image(systemName: Symbols.restart)
           .font(.system(size: 12.5, weight: .medium))
           .foregroundStyle(Palette.inkMuted)
           .frame(width: Size.iconButton, height: Size.iconButton)
-          .background(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).fill(Palette.fill))
-          .overlay(
-            RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(
-              Palette.lineStrong, lineWidth: Size.hairline)
-          )
           .contentShape(Rectangle())
       }
       .buttonStyle(PressStyle())
-      .disabled(picking)
-      .opacity(picking ? 0.4 : 1)
+      .disabled(picking || model == nil)
+      .opacity(picking || model == nil ? 0.4 : 1)
       .help(Text(.loci("keypoints.pickAgain")))
       .accessibilityLabel(Text(.loci("keypoints.pickAgain")))
     }
+    .subscribing(AvailableModels(), into: $options)
+  }
+}
+
+/// How many key points to pick, as a small segmented control of their ranges.
+private struct CountSegments: View {
+  @Binding var count: KeyPointCount
+  @Namespace private var thumb
+
+  var body: some View {
+    HStack(spacing: 0) {
+      ForEach(KeyPointCount.allCases, id: \.self) { option in
+        let chosen = option == count
+        Button {
+          withAnimation(Motion.quick) { count = option }
+        } label: {
+          Text(verbatim: "\(option.range.lowerBound)–\(option.range.upperBound)")
+            .font(.system(size: 11.5, weight: .medium).monospacedDigit())
+            .foregroundStyle(chosen ? Palette.ink : Palette.inkMuted)
+            .padding(.horizontal, 8)
+            .frame(height: 20)
+            .background {
+              if chosen {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                  .fill(Palette.thumb)
+                  .shadow(color: .black.opacity(0.12), radius: 1, y: 1)
+                  .matchedGeometryEffect(id: "thumb", in: thumb)
+              }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(KeyPointWords.count(option)))
+        .accessibilityAddTraits(chosen ? .isSelected : [])
+      }
+    }
+    .padding(2)
+    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Palette.fillStrong))
   }
 }
 
@@ -85,92 +106,5 @@ struct PopupLabel<Label: View>: View {
     )
     .contentShape(Rectangle())
     .onHover { hovering = $0 }
-  }
-}
-
-/// The runtime key points are picked with: following Loci, or an agent and model of their own.
-private struct KeyPointRuntimeMenu: View {
-  @Environment(\.host) private var host
-  @Environment(\.colorScheme) private var scheme
-  @Binding var runtime: Runtime?
-  @State private var loci: Feed<Runtime>?
-  @State private var installations: [AgentInstallation] = []
-  @State private var models: [String] = []
-
-  var body: some View {
-    let shown = runtime ?? loci?.value
-    Menu {
-      Button {
-        runtime = nil
-      } label: {
-        if runtime == nil { Image(systemName: Symbols.done) }
-        Text(.loci("keypoints.followLoci"))
-      }
-      Divider()
-      Picker(selection: provider) {
-        ForEach(Agents.choosable(installations, keeping: shown?.provider ?? .codex), id: \.self) { provider in
-          Label {
-            Text(Agents.label(of: provider))
-          } icon: {
-            AgentMark.image(provider, in: scheme).map { Image(nsImage: $0).renderingMode(.original) }
-          }
-          .tag(Provider?.some(provider))
-        }
-      } label: {
-        Text(.loci("agents.provider"))
-      }
-      .pickerStyle(.inline)
-      if let runtime {
-        Picker(selection: model(runtime)) {
-          Text(.loci("agents.anyModel")).tag(String?.none)
-          ForEach(Agents.offered(models, keeping: runtime.model), id: \.self) { model in
-            Text(verbatim: Agents.modelName(model)).tag(String?.some(model))
-          }
-        } label: {
-          Text(.loci("agents.model"))
-        }
-        .pickerStyle(.inline)
-      }
-    } label: {
-      PopupLabel {
-        if let shown { AgentMark(provider: shown.provider, size: 15) }
-        if runtime == nil {
-          Text(.loci("keypoints.followLoci"))
-        } else if let shown {
-          Text(Agents.label(of: shown.provider))
-          if let model = shown.model {
-            Text(verbatim: Agents.modelName(model)).font(.system(size: 11.5).monospaced()).foregroundStyle(
-              Palette.inkMuted)
-          }
-        }
-      }
-    }
-    .menuStyle(.button)
-    .buttonStyle(.plain)
-    .menuIndicator(.hidden)
-    .fixedSize()
-    .subscribing(CurrentRuntime(), into: $loci)
-    .task(id: runtime?.provider) {
-      installations = (try? await host.run(DetectAgents())) ?? []
-      if let provider = runtime?.provider {
-        models = (try? await host.run(AgentModels(provider: provider))) ?? []
-      }
-    }
-  }
-
-  private var provider: Binding<Provider?> {
-    Binding {
-      runtime?.provider
-    } set: { provider in
-      runtime = provider.map { Runtime(provider: $0) }
-    }
-  }
-
-  private func model(_ current: Runtime) -> Binding<String?> {
-    Binding {
-      current.model
-    } set: { model in
-      runtime = Runtime(provider: current.provider, model: model, effort: current.effort)
-    }
   }
 }

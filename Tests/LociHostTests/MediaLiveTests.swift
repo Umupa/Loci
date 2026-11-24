@@ -60,7 +60,7 @@ struct MediaLiveTests {
     Timings.note("\(name): playable (\(Self.describe(playing)))", since: started)
     let finished = await job(host, item.id, within: .seconds(900)) { job in
       switch job?.state {
-      case nil, .done?, .waiting(.agent)?, .failed?: true
+      case nil, .done?, .waiting(.modelService)?, .failed?: true
       default: false
       }
     }

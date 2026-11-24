@@ -23,8 +23,8 @@ struct JobFixes {
     case .signIn(let site):
       browser?.open(URL(string: "https://\(site)"))
       openPlace(.browser)
-    case .chooseAgent:
-      openPlace(.settings(.agents))
+    case .configureModels:
+      openPlace(.settings(.models))
     case .chooseBrowserLogin:
       openPlace(.settings(.media))
     case .openSource:
@@ -51,7 +51,7 @@ extension JobLine.Fix {
   var changesData: Bool {
     switch self {
     case .downloadComponent, .downloadModel, .update, .retry, .resume: true
-    case .signIn, .chooseAgent, .chooseBrowserLogin, .openSource: false
+    case .signIn, .configureModels, .chooseBrowserLogin, .openSource: false
     }
   }
 }

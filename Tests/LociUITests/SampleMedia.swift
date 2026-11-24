@@ -158,7 +158,7 @@ extension SampleLibrary {
 
   /// The key points of the video, the podcast or the article, as Loci picked them.
   func keyPoints(of item: EntityID) throws -> KeyPoints? {
-    let choice = KeyPointChoice(runtime: Runtime(provider: .codex, model: "gpt-5.2"), count: .some)
+    let choice = KeyPointChoice(model: nil, count: .some)
     func stretches(_ points: [(String, String, String, String)]) throws -> [KeyPoint] {
       var last = Duration.zero
       return try points.compactMap { point in

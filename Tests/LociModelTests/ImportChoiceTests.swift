@@ -13,14 +13,14 @@ struct ImportChoiceTests {
     #expect(choice.siteSubtitles)
     #expect(choice.subtitleLanguage == nil)
     #expect(choice.recognition == ImportChoice.Recognizing(language: nil, model: .small))
-    #expect(choice.translation == ImportChoice.Translating(language: "zh-Hans", runtime: nil))
+    #expect(choice.translation == ImportChoice.Translating(language: "zh-Hans", model: nil))
   }
 
   @Test func aChoiceSurvivesJSON() throws {
     let choice = ImportChoice(
       keeping: .online, quality: .audio, siteSubtitles: false, subtitleLanguage: "ja",
       recognition: .init(language: "ja", model: .largeV3Turbo),
-      translation: .init(language: "en", runtime: Runtime(provider: .codex, model: "gpt-5.2", effort: .low)))
+      translation: .init(language: "en", model: ModelChoice(provider: ModelProviderID(.openAI), model: "gpt-5.2")))
 
     #expect(try Fixture.roundTrip(choice) == choice)
   }

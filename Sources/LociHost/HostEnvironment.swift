@@ -30,6 +30,9 @@ public struct HostEnvironment: Sendable {
   public let modelKeys: (any ModelKeyStore)?
   public let modelClient: ModelClient
   public let modelParallelism: Int
+  /// What writes translations, chapters and key points with a model service; `nil` asks the service itself
+  /// through `modelClient`.
+  public let modelWriter: (@Sendable (ModelService) -> any TranscriptAgent)?
   public let bundledPi: BundledPiEnvironment?
   /// Waits a moment: how long a running turn holds what it said before showing it, so that the words
   /// streaming in are shown a few at a time.
@@ -54,6 +57,7 @@ public struct HostEnvironment: Sendable {
     wait: (@Sendable (Duration) async -> Void)? = nil,
     tool: AgentTool? = nil,
     modelKeys: (any ModelKeyStore)? = nil, modelClient: ModelClient = ModelClient(), modelParallelism: Int = 3,
+    modelWriter: (@Sendable (ModelService) -> any TranscriptAgent)? = nil,
     bundledPi: BundledPiEnvironment? = nil, sourceCache: URL? = nil, gitExecutable: URL = URL(filePath: "/usr/bin/git"),
     activity: @escaping @Sendable (_ reason: String) -> Activity = { _ in Activity {} }
   ) {
@@ -72,6 +76,7 @@ public struct HostEnvironment: Sendable {
     self.tool = tool
     self.modelKeys = modelKeys
     self.modelClient = modelClient
+    self.modelWriter = modelWriter
     self.modelParallelism = max(1, modelParallelism)
     self.bundledPi = bundledPi
     self.sourceCache = sourceCache

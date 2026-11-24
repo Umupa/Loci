@@ -39,12 +39,12 @@ struct ImportSnapshots {
     try await Self.shoot("import-video-en", .link(ImportSamples.video), appearance: appearance, english: true)
   }
 
-  /// I-S2: translating on a runtime of its own shows the model and effort under it.
+  /// I-S2, M-S11: translating with a model of its own shows it under its provider's mark.
   @Test(arguments: Snapshot.Appearance.allCases)
-  func translatingOnAChosenRuntime(appearance: Snapshot.Appearance) async throws {
+  func translatingWithAChosenModel(appearance: Snapshot.Appearance) async throws {
     var choice = ImportChoice.first(readerLanguage: "zh-Hans", speechModel: .largeV3Turbo)
-    choice.translation?.runtime = Runtime(provider: .codex, model: "gpt-6.1-sol", effort: .low)
-    try await Self.shoot("import-runtime", .link(ImportSamples.video), appearance: appearance, lastChoice: choice)
+    choice.translation?.model = ModelChoice(provider: ModelProviderID(.openRouter), model: "kimi-k3")
+    try await Self.shoot("import-model", .link(ImportSamples.video), appearance: appearance, lastChoice: choice)
   }
 
   /// Several videos chosen in the built-in browser wait in one panel.

@@ -80,7 +80,7 @@ enum Words {
     case .speechModel(let model):
       "it needs the \(model.rawValue) speech model; the person can download it in Settings › Media"
     case .login(let site): "\(site) wants a signed-in visitor; the person can sign in from the built-in browser"
-    case .agent: "no agent program is available to do this step"
+    case .modelService: "no model service is configured for it; the person can set one up in Settings › Model Services"
     }
   }
 

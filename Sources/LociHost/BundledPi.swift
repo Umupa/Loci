@@ -21,9 +21,15 @@ public struct BundledPiEnvironment: Sendable {
     self.package = package
   }
 
-  func driver(
-    executable: URL, directory: URL, tool: AgentTool?, credential: ModelServices.PiCredential? = nil
-  ) -> PiDriver {
+  func driver(executable: URL, configuration: PiConfiguration, tool: AgentTool?, key: String?) -> PiDriver {
+    driver(
+      executable: executable, directory: configuration.directory, tool: tool,
+      key: key.map { (configuration.keyVariable, $0) })
+  }
+
+  func driver(executable: URL, directory: URL, tool: AgentTool?, key: (variable: String, value: String)? = nil)
+    -> PiDriver
+  {
     let systemPaths = "/usr/bin:/bin:/usr/sbin:/sbin"
     let path = tool.map { $0.folder.path(percentEncoded: false) + ":" + systemPaths } ?? systemPaths
     var environment = variables.filter { ["HOME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "TERM"].contains($0.key) }
@@ -35,11 +41,9 @@ public struct BundledPiEnvironment: Sendable {
       environment[LocalCall.socketVariable] = tool.socket.path(percentEncoded: false)
       environment[LocalCall.commandVariable] = tool.folder.appending(path: "loci").path(percentEncoded: false)
     }
-    if let credential, let key = credential.key {
-      environment[credential.service.provider.piKeyVariable] = key
-    }
+    if let key { environment[key.variable] = key.value }
     return PiDriver.bundled(
-      executable: executable, environment: environment, launcher: launcher, clock: clock, ephemeral: credential == nil)
+      executable: executable, environment: environment, launcher: launcher, clock: clock, ephemeral: key == nil)
   }
 
   func smokeTest(_ executable: URL, in directory: URL, version: String) async throws(FetchError) {
@@ -52,28 +56,6 @@ public struct BundledPiEnvironment: Sendable {
       await session.close()
     } catch {
       throw FetchError(reason: "Pi could not start: \(error.explanation)")
-    }
-  }
-}
-
-extension ModelServiceProvider {
-  var piProvider: String {
-    switch self {
-    case .openAI: "openai"
-    case .anthropic: "anthropic"
-    case .openRouter: "openrouter"
-    case .deepSeek: "deepseek"
-    case .compatible: "loci-compatible"
-    }
-  }
-
-  var piKeyVariable: String {
-    switch self {
-    case .openAI: "OPENAI_API_KEY"
-    case .anthropic: "ANTHROPIC_API_KEY"
-    case .openRouter: "OPENROUTER_API_KEY"
-    case .deepSeek: "DEEPSEEK_API_KEY"
-    case .compatible: "LOCI_MODEL_API_KEY"
     }
   }
 }

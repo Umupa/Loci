@@ -4,7 +4,6 @@ import LociStore
 struct TranscriptWork: Sendable {
   let agent: any TranscriptAgent
   let parallelism: Int
-  let usesRuntime: Bool
   let identity: [String]
   let settings: TranslationSettings
   let cache: TranslationCache

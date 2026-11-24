@@ -149,7 +149,7 @@ extension LocalHost {
         case .queued: .running(Fraction(0))
         case .running(let fraction, _): .running(fraction ?? Fraction(0))
         case .failed(let failure): .failed(failure.reason)
-        case .waiting(.agent): .failed("No agent is available to translate on this Mac.")
+        case .waiting(.modelService): .failed("No model service is configured to translate.")
         case .paused, .waiting, .done: nil
         }
     } else {

@@ -124,6 +124,7 @@ public protocol CommandHandler: Sendable {
   func translateArticle(_ item: EntityID) async throws(HostError) -> Done
   func pickKeyPoints(_ command: PickKeyPoints) async throws(HostError) -> Done
   func keyPointsPage(_ item: EntityID) async throws(HostError) -> KeyPointsPage
+  func modelOptions() async throws(HostError) -> ModelOptions
   func jobs() async throws(HostError) -> [Job]
   func job(of item: EntityID) async throws(HostError) -> Job?
   func renameSpeaker(_ command: RenameSpeaker) async throws(HostError) -> Done

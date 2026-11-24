@@ -41,7 +41,8 @@ struct KeyPointTests {
 
   @Test func keyPointsSurviveTheirFile() throws {
     let media = try KeyPoints(
-      points: [try Self.stretch(1, 9)], choice: KeyPointChoice(runtime: Runtime(provider: .codex), count: .many))
+      points: [try Self.stretch(1, 9)],
+      choice: KeyPointChoice(model: ModelChoice(provider: ModelProviderID(.kimi), model: "kimi-k3"), count: .many))
     let article = try KeyPoints(points: [try Self.passage(2), try Self.passage(7)], choice: .standard)
 
     #expect(try Fixture.roundTrip(media) == media)
@@ -51,7 +52,7 @@ struct KeyPointTests {
   @Test func eachCountAllowsItsRange() {
     #expect(KeyPointCount.allCases.map(\.range) == [3...4, 4...6, 6...8])
     #expect(KeyPointChoice.standard.count == .some)
-    #expect(KeyPointChoice.standard.runtime == nil)
+    #expect(KeyPointChoice.standard.model == nil)
   }
 
   @Test func anOutlineFileWithTheOldHighlightsStillReadsItsChapters() throws {

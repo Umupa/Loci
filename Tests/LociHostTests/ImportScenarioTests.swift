@@ -80,7 +80,7 @@ struct ImportScenarioTests {
       #expect(choice.keeping == .local)
       #expect(choice.quality == .hd720)
       #expect(choice.siteSubtitles)
-      #expect(choice.translation == ImportChoice.Translating(language: "zh-Hans", runtime: nil))
+      #expect(choice.translation == ImportChoice.Translating(language: "zh-Hans", model: nil))
     }
   }
 
@@ -90,7 +90,7 @@ struct ImportScenarioTests {
       world.programs.site(Links.youtube, FakeSite(title: "Me at the zoo", subtitles: zooSubtitles))
       let choice = ImportChoice(
         keeping: .online, quality: .hd1080, siteSubtitles: true, recognition: nil,
-        translation: .init(language: "ja", runtime: Runtime(provider: .codex)))
+        translation: .init(language: "ja", model: MediaWorld.model))
 
       _ = try await host.run(AddLink(url: Links.url(Links.youtube), choice: choice))
 
