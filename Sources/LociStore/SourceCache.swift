@@ -107,9 +107,16 @@ public struct SourceCache: Sendable {
     }
   }
 
+  /// Keeps the text under `key`; a text kept there already stays.
   public func publish(text: String, for key: Key, from stage: Stage, at now: Timestamp) throws {
     try stage.directory.write(Data(text.utf8), as: "body")
     try publish(stage, for: key, at: now) { try $0.text("body") != nil }
+  }
+
+  /// Keeps the text under `key` in place of any kept there: what was just read is newer.
+  public func replace(text: String, for key: Key, from stage: Stage, at now: Timestamp) throws {
+    try stage.directory.write(Data(text.utf8), as: "body")
+    try publish(stage, for: key, at: now) { _ in false }
   }
 
   public func publishRepository(for key: Key, from stage: Stage, at now: Timestamp) throws -> URL {

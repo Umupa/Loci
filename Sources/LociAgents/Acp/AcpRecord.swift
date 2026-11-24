@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 /// A JSON-RPC message read from an ACP agent's standard output.
 enum AcpRecord: Hashable, Sendable {
@@ -45,7 +46,7 @@ enum AcpRecord: Hashable, Sendable {
 /// A record written to an ACP agent's standard input.
 enum AcpOutgoing {
   static func request(id: Int, method: String, params: JSONValue) -> Data {
-    line(["jsonrpc": .string("2.0"), "id": .number(Double(id)), "method": .string(method), "params": params])
+    line(["jsonrpc": .string("2.0"), "id": .integer(Int64(id)), "method": .string(method), "params": params])
   }
 
   static func notification(method: String, params: JSONValue) -> Data {
@@ -59,7 +60,7 @@ enum AcpOutgoing {
   static func methodNotFound(id: JSONValue, _ method: String) -> Data {
     line([
       "jsonrpc": .string("2.0"), "id": id,
-      "error": .object(["code": .number(-32601), "message": .string("Method not found: \(method)")]),
+      "error": .object(["code": .integer(-32601), "message": .string("Method not found: \(method)")]),
     ])
   }
 

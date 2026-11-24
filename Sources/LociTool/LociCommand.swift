@@ -20,7 +20,7 @@ enum LociCommand {
     } catch {
       return Tool.Outcome(text: error.message, status: 2)
     }
-    if parsed.request == .help { return .worked(ToolGuide.text) }
+    if case .help(let topic) = parsed.request { return Tool.help(topic) }
     guard let socket = environment[LocalCall.socketVariable], !socket.isEmpty else {
       return .failed(Failure.outsideLoci.message)
     }

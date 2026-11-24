@@ -209,6 +209,7 @@ struct MachineWindow: View {
 
   private var shownPlace: Place {
     if case .courses = window.place { return .courses(nil) }
+    if case .connector = window.place { return .loci }
     guard case .library = window.place, case .item(let id)? = window.pages.last,
       let item = items?.value?.first(where: { $0.id == id })
     else { return window.place }
@@ -225,6 +226,8 @@ struct MachineWindow: View {
       .onAppear(perform: talkShown)
     case .loci:
       LociScreen()
+    case .connector(let id):
+      LociScreen(tab: .connectors, connector: id)
     case .library(let category):
       LibraryScreen(
         category: category, chooseFiles: { dialogs.importing = true }, opened: { window = $0 },
@@ -280,7 +283,7 @@ struct MachineWindow: View {
     guard window.pages.isEmpty, changesAllowed else { return false }
     switch window.place {
     case .talk, .library: return true
-    case .loci, .browser, .settings, .courses: return false
+    case .loci, .connector, .browser, .settings, .courses: return false
     }
   }
 

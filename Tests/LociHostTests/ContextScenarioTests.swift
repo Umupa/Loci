@@ -27,6 +27,7 @@ struct ContextScenarioTests {
   @Test func memoryAndNotesAreShownOnceAndAgainOnlyWhenTheyChange() async throws {
     try await withHost { host, place, world in
       let memory = place.root.appending(path: "agent/MEMORY.md")
+      try place.store.setMemoryWritable(true)
       try place.edit(memory) { $0 + "- 2025-11-02 先给结论\n" }
 
       try await say("one", to: host, prompts: 1)
@@ -70,7 +71,7 @@ struct ContextScenarioTests {
       let prompt = try #require(world.agent.prompts.first)
       #expect(prompt.contains("note 1999"))
       #expect(!prompt.contains("note 0 "))
-      #expect(prompt.contains("move what is worth keeping into MEMORY.md"))
+      #expect(prompt.contains("the daily review moves what is worth keeping into memory/"))
     }
   }
 

@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 actor ClaudeCodeSession: AgentSession {
   nonisolated let handle: SessionHandle

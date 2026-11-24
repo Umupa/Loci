@@ -1,0 +1,66 @@
+#!/bin/sh
+# Evaluates the companion on this Mac's Codex, in a temporary data folder, on a clock the eval moves; it leaves
+# ~/Loci-Beta and any open Loci alone. quiet and repeat follow a schedule for several evenings against pages
+# served on 127.0.0.1; memory has the person talk for several days, each looked back on, then asks what was
+# remembered; cost measures the index, the wiki and every run's tokens on the same days. Reports go to
+# output/evals/<time>/: report.md for the background runs, memory-report.md for memory and cost.
+#   --group quiet|repeat|memory|cost|all   which group to run (default all)
+#   --keep                      keep each group's data folder, and write where it is next to the report
+#
+# Codex keeps its own record of these sessions under ~/.codex, as it does for any session.
+set -eu
+cd "$(dirname "$0")/.."
+. script/toolchain
+
+groups="quiet,repeat,memory,cost"
+keep=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --group)
+      case "${2:-}" in
+        quiet | repeat | memory | cost) groups="$2" ;;
+        all) groups="quiet,repeat,memory,cost" ;;
+        *)
+          echo "--group takes quiet, repeat, memory, cost or all" >&2
+          exit 2
+          ;;
+      esac
+      shift
+      ;;
+    --keep) keep=1 ;;
+    *)
+      echo "usage: script/eval [--group quiet|repeat|memory|cost|all] [--keep]" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+codex="$(command -v codex || true)"
+if [ -z "$codex" ]; then
+  echo "codex is not on the PATH; install it and sign in with \`codex login\`" >&2
+  exit 1
+fi
+if ! "$codex" login status >/dev/null 2>&1; then
+  echo "codex is not signed in; run \`codex login\` first" >&2
+  exit 1
+fi
+
+out="$PWD/output/evals/$(date '+%Y%m%d-%H%M%S')"
+mkdir -p "$out/helpers"
+swift build --product LociTool
+cp "$(swift build --show-bin-path)/LociTool" "$out/helpers/loci"
+
+LOCI_EVAL=1 LOCI_EVAL_OUT="$out" LOCI_EVAL_TOOL="$out/helpers" LOCI_EVAL_CODEX="$codex" \
+  LOCI_EVAL_GROUPS="$groups" LOCI_EVAL_KEEP="$keep" \
+  swift test --test-product LociHostTests --filter 'LociHostTests\.(BackgroundEvals|MemoryEvals)/' 2>&1 | tee "$out/test.log" |
+  grep -E '^(✔|✘|◇)|error:' || true
+
+if [ -f "$out/report.md" ] || [ -f "$out/memory-report.md" ]; then
+  for report in "$out/report.md" "$out/memory-report.md"; do
+    if [ -f "$report" ]; then echo "report: $report"; fi
+  done
+else
+  echo "no report was written; see $out/test.log" >&2
+  exit 1
+fi

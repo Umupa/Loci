@@ -91,7 +91,7 @@ extension LocalHost {
   }
 
   /// The titles of the items in the library, looked up once for a whole page.
-  private func itemTitles() -> @Sendable (EntityID) -> String? {
+  func itemTitles() -> @Sendable (EntityID) -> String? {
     let titles = Dictionary(
       ((try? database.items()) ?? []).map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
     return { titles[$0] }

@@ -29,6 +29,10 @@ public protocol RemoteCommand: Command {}
 /// A command offered to agents through the local tool socket.
 public protocol LocalToolCommand: Command {}
 
+/// A command only the Mac the companion lives on can run, such as connecting a connector, whose browser
+/// must come back to that Mac. Another Mac is told where to do it.
+public protocol HostOnlyCommand: Command {}
+
 /// The data one view needs, kept current.
 public protocol Subscription: Codable, Hashable, Sendable {
   associatedtype Value: Codable, Equatable, Sendable
@@ -176,9 +180,20 @@ public protocol CommandHandler: Sendable {
   func timers() async throws(HostError) -> Timers
   func runs(of schedule: ScheduleRef, limit: Int) async throws(HostError) -> [Run]
   func pauseSchedule(_ command: PauseSchedule) async throws(HostError) -> Done
-  func changeScheduleEvery(_ command: ChangeScheduleEvery) async throws(HostError) -> ScheduleEntry
+  func changeSchedule(_ command: ChangeSchedule) async throws(HostError) -> ScheduleEntry
   func removeSchedule(_ command: RemoveSchedule) async throws(HostError) -> Done
   func addSchedule(_ command: AddSchedule) async throws(HostError) -> ScheduleEntry
   func addFollowUp(_ command: AddFollowUp) async throws(HostError) -> FollowUp
   func cancelFollowUp(_ command: CancelFollowUp) async throws(HostError) -> Done
+  func recall(_ command: Recall) async throws(HostError) -> [RecallHit]
+  func wikiPage(_ name: String) async throws(HostError) -> WikiPage
+  func forgetWikiLine(_ command: ForgetWikiLine) async throws(HostError) -> Done
+  func connectors() async throws(HostError) -> Connectors
+  func connectorCalls(limit: Int) async throws(HostError) -> [ConnectorCall]
+  func connect(_ command: Connect) async throws(HostError) -> Authorization
+  func addMCPServer(_ command: AddMCPServer) async throws(HostError) -> Authorization
+  func cancelConnecting(_ command: CancelConnecting) async throws(HostError) -> Done
+  func disconnect(_ command: Disconnect) async throws(HostError) -> Done
+  /// `caller` is the session the `loci` command came from, for the record of calls.
+  func callConnector(_ command: CallConnector, from caller: ConnectorCall.Caller?) async throws(HostError) -> String
 }

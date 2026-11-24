@@ -1,3 +1,4 @@
+import LociModel
 import SwiftUI
 
 /// The answers Loci offers under its latest reply, on the person's side: one click sends it as theirs.
@@ -5,19 +6,41 @@ struct QuickReplyChips: View {
   let replies: [String]
   var size: CGFloat = 15
   let send: (String) -> Void
+  @Environment(\.openPlace) private var openPlace
 
   var body: some View {
     HStack(spacing: 8) {
       ForEach(replies, id: \.self) { reply in
+        let answer = QuickAnswer(reply)
         Button {
-          send(reply)
+          switch answer.place {
+          case let place?: openPlace(place)
+          case nil: send(reply)
+          }
         } label: {
-          Text(verbatim: reply).font(.system(size: size)).lineLimit(1)
+          Text(verbatim: answer.words).font(.system(size: size)).lineLimit(1)
         }
         .buttonStyle(QuickReplyStyle())
       }
     }
     .frame(maxWidth: .infinity, alignment: .trailing)
+  }
+}
+
+/// One answer Loci offers: words the person says, or, written `[words](loci://connectors/<id>)`, a place in
+/// the app the answer opens, such as a connector to connect again.
+struct QuickAnswer: Equatable {
+  let words: String
+  let place: Place?
+
+  init(_ reply: String) {
+    if let link = reply.wholeMatch(of: /\[([^\]]+)\]\(loci:\/\/connectors\/([A-Za-z0-9._-]+)\)/) {
+      words = String(link.1)
+      place = .connector(ConnectorID(String(link.2)))
+    } else {
+      words = reply
+      place = nil
+    }
   }
 }
 

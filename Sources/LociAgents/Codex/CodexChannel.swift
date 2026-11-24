@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 /// Routes Codex responses to pending requests and hands on everything else.
 actor CodexChannel {

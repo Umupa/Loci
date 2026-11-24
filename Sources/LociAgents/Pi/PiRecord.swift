@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 /// A record read from Pi's standard output.
 enum PiRecord: Hashable, Sendable {

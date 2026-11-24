@@ -10,9 +10,12 @@ struct RunPrompts {
   private var store: Store { context.store }
   private var timeZone: TimeZone { context.environment.timeZone }
 
-  func text(for run: Run, redo: Bool) throws(HostError) -> String {
+  /// `brief` is what the app worked out for a daily review.
+  func text(for run: Run, redo: Bool, brief: ReviewBrief? = nil) throws(HostError) -> String {
     let today = Day(containing: context.environment.now(), in: timeZone)
-    let parts = try run.kind.sources.map { source throws(HostError) in try text(for: source, run: run, today: today) }
+    let parts = try run.kind.sources.map { source throws(HostError) in
+      try text(for: source, run: run, today: today, brief: brief)
+    }
     var text =
       parts.count == 1
       ? parts[0]
@@ -27,7 +30,7 @@ struct RunPrompts {
     return text
   }
 
-  private func text(for source: Event.Source, run: Run, today: Day) throws(HostError) -> String {
+  private func text(for source: Event.Source, run: Run, today: Day, brief: ReviewBrief?) throws(HostError) -> String {
     switch source {
     case .panel(let name, _):
       guard let panel = store.panel(named: name)?.panel else { throw .notFound(name) }
@@ -43,7 +46,7 @@ struct RunPrompts {
         previous.day == day.adding(days: -1)
           ? (day: previous.day, at: TimeOfDay(of: previous.startedAt, in: timeZone)) : nil
       }
-      return context.prompts.review(of: day, since: previous)
+      return context.prompts.review(of: day, since: previous, brief: brief)
     }
   }
 

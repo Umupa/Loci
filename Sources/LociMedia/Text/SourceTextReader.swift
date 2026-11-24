@@ -11,7 +11,8 @@ public struct SourceTextReader: Sendable {
     self.timeout = timeout
   }
 
-  public func read(_ url: URL) async throws(FetchError) -> String {
+  /// `signedIn` renders the page with the built-in browser's sign-in, sending only GET (`ReadOnlyPage`).
+  public func read(_ url: URL, signedIn: Bool = false) async throws(FetchError) -> String {
     if let raw = Self.rawFile(for: url) {
       let (data, response) = try await network.data(for: URLRequest(url: raw))
       if let failure = PageReader.failure(status: response.statusCode) { throw failure }
@@ -21,7 +22,7 @@ public struct SourceTextReader: Sendable {
       return text
     }
     if LinkKind(url) == .paper { return try await paperText(at: url) }
-    switch try await PageReader.source(at: url, timeout: timeout) {
+    switch try await PageReader.source(at: url, timeout: timeout, signedIn: signedIn) {
     case .page(let page):
       guard !page.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
         throw FetchError(reason: "The page has no readable text.")

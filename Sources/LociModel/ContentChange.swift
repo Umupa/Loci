@@ -25,6 +25,9 @@ public enum ContentChange: Hashable, Codable, Sendable {
   case runtime
   /// A schedule or follow-up, the inbox, or a run changed. They live in the database only.
   case timers
+  /// A connector, a connection under way, or the record of calls changed. They live in the database and
+  /// the keychain.
+  case connectors
   /// Events were lost or a change could not be placed; read everything again.
   case everything
 }
@@ -44,4 +47,6 @@ public enum LociFile: String, Hashable, Codable, Sendable {
   case feelings
   /// Any panel's `panels/<name>.json`, or which panel is being refreshed.
   case panels
+  /// Any page of the wiki, `memory/<page>.md`.
+  case wiki
 }

@@ -5,7 +5,7 @@ import LociStore
 
 /// What a subscription receives on the wire.
 enum FeedFrame: Sendable {
-  case whole(JSON)
+  case whole(JSONValue)
   case delta(JSONDelta)
   case refused(HostError)
 }
@@ -146,7 +146,7 @@ actor CallerSession {
         }
       }
     case .feed(let id, let body):
-      guard let json = try? JSONDecoder().decode(JSON.self, from: body) else { return }
+      guard let json = try? JSONDecoder().decode(JSONValue.self, from: body) else { return }
       feeds[id]?.yield(.whole(json))
     case .delta(let id, let body):
       guard let delta = try? JSONDecoder().decode(JSONDelta.self, from: body) else { return }

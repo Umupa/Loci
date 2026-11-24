@@ -45,6 +45,7 @@ public struct HostEnvironment: Sendable {
   /// Tells macOS the app is doing work no window shows, so it does not nap while a run goes on; the
   /// activity ends when the run does.
   public let activity: @Sendable (_ reason: String) -> Activity
+  public let connect: ConnectEnvironment
 
   public init(
     newID: @escaping @Sendable () -> EntityID, now: @escaping @Sendable () -> Timestamp, timeZone: TimeZone = .gmt,
@@ -59,7 +60,8 @@ public struct HostEnvironment: Sendable {
     modelKeys: (any ModelKeyStore)? = nil, modelClient: ModelClient = ModelClient(), modelParallelism: Int = 3,
     modelWriter: (@Sendable (ModelService) -> any TranscriptAgent)? = nil,
     bundledPi: BundledPiEnvironment? = nil, sourceCache: URL? = nil, gitExecutable: URL = URL(filePath: "/usr/bin/git"),
-    activity: @escaping @Sendable (_ reason: String) -> Activity = { _ in Activity {} }
+    activity: @escaping @Sendable (_ reason: String) -> Activity = { _ in Activity {} },
+    connect: ConnectEnvironment = .disconnected
   ) {
     self.newID = newID
     self.now = now
@@ -82,6 +84,7 @@ public struct HostEnvironment: Sendable {
     self.sourceCache = sourceCache
     self.gitExecutable = gitExecutable
     self.activity = activity
+    self.connect = connect
   }
 
   /// The real clock and time zone, fresh identifiers, the Trash, and the agent programs installed on this Mac.
@@ -95,7 +98,9 @@ public struct HostEnvironment: Sendable {
       detectAgents: { await installed.detect(again: $0) }, models: { await installed.models(of: $0) },
       ticks: { everyMinute() }, media: .system(agents: { await installed.driver(for: $0) }), tool: tool,
       modelKeys: ModelKeychain(serviceName: "com.loci.native.dev.model-service"), bundledPi: BundledPiEnvironment(),
-      sourceCache: sourceCache, activity: ProcessActivity.begin)
+      sourceCache: sourceCache, activity: ProcessActivity.begin,
+      connect: .system(
+        githubLogin: { await installed.githubLogin() }, githubRead: { await installed.githubRead($0) }))
   }
 
   private static func everyMinute() -> AsyncStream<Void> {
@@ -138,6 +143,14 @@ actor InstalledAgents {
 
   func unavailability(of provider: Provider) async -> AgentStartFailure {
     AgentPrograms(search: await currentSearch(), tool: tool).unavailability(of: provider)
+  }
+
+  func githubLogin() async -> GitHubLogin? {
+    await GitHubCLI(search: await currentSearch()).login()
+  }
+
+  func githubRead(_ arguments: [String]) async -> GitHubReply {
+    await GitHubCLI(search: await currentSearch()).read(arguments)
   }
 
   func detect(again: Bool) async -> [AgentInstallation] {

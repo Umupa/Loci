@@ -1,5 +1,5 @@
-/// How Loci uses the `loci` command: what `loci help` prints, and the skill written for agent programs
-/// that read skills. There is one text, so the two never disagree.
+/// How Loci uses the `loci` command: what `loci help` prints, a topic at a time, and the skill written for agent
+/// programs that read skills. There is one text, so the two never disagree.
 public enum ToolGuide {
   public static let text = """
     loci: read sources, search and add to the person's library, keep panels, and write courses, from inside Loci.
@@ -24,12 +24,20 @@ public enum ToolGuide {
                                        for the person to take or not
       loci schedule add <name>         look into something on a schedule, from JSON on standard input;
                                        prints when it first runs
+      loci schedule change <name>      change a schedule or a panel's refresh: JSON on standard input with only
+                                       the fields to change, such as {"every": {"every": "day", "at": "15:49"}}
       loci schedule list               every schedule and panel refresh: how often, where it goes, next time
       loci schedule remove <name>      stop it; a panel's refresh stops and the panel stays
       loci followup <when> <what>      look at something again once, on your own; when is YYYY-MM-DD [HH:mm]
                                        (09:00 without a time), HH:mm (the next one), or in <n>m|h|d
       loci followup list               follow-ups still to come, with their ids
       loci followup cancel <id>
+      loci connector list [<connector>]
+                                       connected services and the tools each can read with;
+                                       with a connector, each tool's arguments as JSON Schema
+      loci connector call <connector> <tool> ['<JSON arguments>']
+                                       read with a connector's tool; the app adds the sign-in
+      loci connector call gh <words>   read with the gh signed in on this Mac (help connectors)
       loci course ask                  publish one question from JSON on standard input
       loci course goal                 update the goal from JSON on standard input
       loci course ready                mark the goal ready after the person confirms
@@ -45,7 +53,10 @@ public enum ToolGuide {
                                        your mood overall; valence and energy 0 to 10
       loci sleep                       go to sleep
       loci wake                        wake up
-      loci help                        this text
+      loci recall <words>              search every conversation and every run for what was said; prints the file
+                                       and the words around it
+      loci help [<topic>]              this text, or one topic: memory, notes, feelings, panels, schedules,
+                                       connectors, courses, locators
 
     Add --json to print the app's reply as it is.
 
@@ -59,83 +70,19 @@ public enum ToolGuide {
     - Exit status 0 means it worked; 1 means it did not, and the message says why; 2 means the
       command was written wrong.
 
-    A panel, as `loci panel save <name>` takes it. The name is short lowercase English: sandbox-radar.
-
-      {
-        "title": "沙箱雷达",
-        "sources": ["github.com"],
-        "follow": "盯着 CubeSandbox 的新版本和 PR",
-        "refresh": { "every": "day", "at": "10:00" },
-        "rows": [
-          { "row": "sentence", "text": "**v0.8.0** 正式版发布，修了快照恢复。" },
-          { "row": "cells", "cells": [{ "label": "最新版本", "value": "v0.8.0", "note": "8 天前" }] },
-          { "row": "label", "text": "可以认领" },
-          { "row": "list", "items": [{ "title": "#244 集成指南", "subtitle": "good first issue", "at": "昨天",
-            "link": "https://github.com/x/y/issues/244", "ask": "帮我分析 #244" }] },
-          { "row": "prominent", "title": "混元沙盒平台工程师", "subtitle": "深圳" },
-          { "row": "bars", "bars": [{ "name": "e2b-dev/E2B", "fraction": 1, "value": "+1.2k" }] },
-          { "row": "picture", "url": "https://example.com/a.png", "link": "https://example.com/a" },
-          { "row": "items", "id": "today", "name": "今天", "adds": true, "checks": true, "items": [
-            { "id": "kata-review", "text": "周五前回 Kata 的 review", "why": "你周三说的" },
-            { "id": "cat-food", "text": "买猫粮", "by": "you", "done": true, "note": "大袋" } ] }
-        ]
-      }
-
-    - The first row is always a sentence that sums the panel up, what matters in **bold**.
-    - cells: one to three, side by side. list items may also have "number" (a rank), "cover" (a picture
-      link) and "progress" (0 to 1). bars: "fraction" is the bar's length, 0 to 1.
-    - link, url and cover are http(s) links, or loci:// places in the library.
-    - In place of "rows", "pages" turns pages: [{ "name": "CubeSandbox", "rows": [...] }, ...], each page
-      named differently and starting with its own sentence.
-    - refresh: { "every": "hour" }, { "every": "day", "at": "HH:mm" }, or { "every": "week", "weekday": 1,
-      "at": "HH:mm" } where 1 is Sunday. Leave it out when nothing would change.
-    - "sources" are the sites it reads, by domain; "follow" says what to look for each time it is refreshed.
-    - items: a section the person and you both write in, such as a day of a to-do list. "id" is stable and
-      used once in the panel; "name" is its small heading; "adds" lets the person add items, "checks" gives
-      each item a circle to tick. A panel of items need not start with a sentence.
-    - An item: a stable "id" used once in the panel, "text", "done", "proposed" for a suggestion the person
-      takes or not, and "why", a few words on why it is there. Items are yours unless "by" is "you".
-    - The person's items ("by": "you") and their "pinned" and "note" on any item are theirs: whatever you
-      save, the app keeps them as they are. You may move items, tick them "done", and drop your own; keep
-      every section that holds the person's items.
-
-    A schedule, as `loci schedule add <name>` takes it. The name is short lowercase English, as for a panel.
-
-      { "title": "CubeSandbox 动静", "follow": "看看 CubeSandbox 有什么新版本、PR 和讨论",
-        "every": { "every": "day", "at": "21:00" }, "panel": "sandbox-radar" }
-
-    - "every" is written as a panel's "refresh": hour, day with "at", or week with "weekday" and "at".
-    - "panel" is where what it finds goes: a panel that exists, without a "refresh" of its own. Leave it
-      out and what it finds goes only into your notes.
-    - Each run starts fresh in the background, with "follow", what the last run found and the panel as it
-      is now. Its last sentence is kept as its summary; you see it when the person next talks to you.
-    - In a run, loci only reads, sets follow-ups and saves the run's panel.
-
-    The course and lesson commands work only during a turn in that course conversation. The session
-    supplies the course ID. Course sources are links, with a full commit SHA for a repository.
-
-    - ask: {"question":"…","options":[{"title":"…","detail":"…"},{"title":"…","detail":"…"}],"multiple":false}
-      Put the recommended answer first. Give 2 to 4 options. "field" can name the goal line this fills.
-      For a confirmation, use "confirmation":true with exactly two single choices: confirm, then revise.
-    - goal: any of "title", "subtitle", "purpose", "focus", "known", "depth", "length". Omitted fields keep
-      their values. Set the subtitle and length after confirmation, then run course ready.
-    - plan: [{"id":"first-claim","title":"The claim this lesson teaches"}]. Use stable IDs of 1 to 64
-      lowercase ASCII letters, digits or hyphens, starting and ending with a letter or digit. Keep the
-      IDs, titles and relative order of lessons already written.
-    - lesson write: give the ID from the plan and the path to the Markdown file. Writing again with
-      the same ID updates that lesson. Use ordinary Markdown links to cite the exact place in a source.
-    - atlas: {"gist":"…","blocks":[…]}, the whole atlas each time. Every text is one line; **bold** and
-      `code` are the only marks. "lessons" lists lesson IDs from the plan; it and any field marked * may be
-      left out. Blocks, by "kind":
-      figures: {"figures":[{"title","value","note"*}]}, 2 to 5
-      flow: {"title","lede"*,"lessons"*,"steps":[step],"aside"*}, 2 to 6 steps
-        step: {"label"*,"title","points"*:[text, up to 4],"key"*:true for the step it turns on,"lessons"*}
-      layers: {"title","lede"*,"lessons"*,"columns":[{"title","note"*,"layers":[{"text","marked"*}],"verdict"*}]}
-        2 to 4 columns of 2 to 6 layers, top of the stack first; mark the layer each column is about
-      cards: {"title","lede"*,"lessons"*,"cards":[{"label"*,"title","points":[1 to 5],"breaks"*,"lessons"*}]}, 1 to 4
-      dive: {"lesson","title","lede"*,"steps":[step, 2 to 6],"keep"*:[up to 3]}, one per lesson
-      table: {"title","lede"*,"lessons"*,"columns":[2 to 5],"rows":[{"label","cells":[text or null],"key"*,"lessons"*}]}
+    Run "$LOCI" help <topic> for how to write each thing: memory, notes, feelings, panels, schedules,
+    connectors, courses, locators.
     """
+
+  /// Each topic of `loci help <topic>`, in the order the overview names them.
+  public static let topics: [(name: String, text: String)] = [
+    ("memory", memory), ("notes", notes), ("feelings", feelings), ("panels", panels), ("schedules", schedules),
+    ("connectors", connectors), ("courses", courses), ("locators", locators),
+  ]
+
+  public static func topic(_ name: String) -> String? {
+    topics.first { $0.name == name.lowercased() }?.text
+  }
 
   /// `SKILL.md` for agent programs that look for skills in their working folder.
   public static let skill = """
@@ -145,5 +92,7 @@ public enum ToolGuide {
     ---
 
     \(text)
+
+    \(topics.map(\.text).joined(separator: "\n\n"))
     """
 }

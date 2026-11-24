@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 /// Owns one program's line transport, pending requests, diagnostics, and shutdown.
 actor ProgramConnection {

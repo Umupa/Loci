@@ -2,8 +2,7 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// A panel's frame: its sites' marks and title over what it shows. A panel taller than `panelTallest` is cut
-/// where a row ends, never through one, and two corner marks beside its title open it out and fold it back.
+/// A panel's frame keeps whole rows readable and previews the overflow until the panel is opened out.
 struct PanelFrame<Marks: View, Content: View>: View {
   let title: Text
   let menu: [PanelMenu]
@@ -13,7 +12,7 @@ struct PanelFrame<Marks: View, Content: View>: View {
   @Environment(\.reducesMotion) private var reduceMotion
   @State private var open: Bool
   @State private var height: CGFloat = 0
-  @State private var edges: [CGFloat] = []
+  @State private var rows: [ClosedRange<CGFloat>] = []
 
   /// `open` starts the panel opened out, for a snapshot.
   init(
@@ -30,20 +29,32 @@ struct PanelFrame<Marks: View, Content: View>: View {
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
-    let long = PanelCut.isLong(height)
+    let overflow = PanelPreview(height: height, rows: rows)
+    let preview = open ? nil : overflow
     VStack(alignment: .leading, spacing: 0) {
-      header.padding(.bottom, 14)
+      header(canOpen: overflow != nil).padding(.bottom, 14)
       content
+        .environment(\.panelPreview, preview)
         .fixedSize(horizontal: false, vertical: true)
-        .coordinateSpace(.named(PanelRowEdges.space))
-        .onPreferenceChange(PanelRowEdges.self) { edges = $0 }
+        .coordinateSpace(.named(PanelRowBounds.space))
+        .onPreferenceChange(PanelRowBounds.self) { rows = $0 }
         .onGeometryChange(for: CGFloat.self) {
           $0.size.height
         } action: {
           height = $0
         }
-        .frame(height: long && !open ? PanelCut.height(edges: edges) : nil, alignment: .top)
-        .clipShape(Rectangle().inset(by: long && !open ? 0 : -Spacing.s))
+        .frame(height: preview?.height, alignment: .top)
+        .clipShape(Rectangle().inset(by: preview == nil ? -Spacing.s : 0))
+        .overlay(alignment: .bottom) {
+          if let preview {
+            LinearGradient(
+              stops: [.init(color: .clear, location: 0.5), .init(color: Palette.surface, location: 1)],
+              startPoint: .top, endPoint: .bottom
+            )
+            .frame(height: preview.fadeHeight)
+            .allowsHitTesting(false)
+          }
+        }
     }
     .padding(.horizontal, 20)
     .padding(.top, 20)
@@ -64,12 +75,12 @@ struct PanelFrame<Marks: View, Content: View>: View {
     }
   }
 
-  private var header: some View {
+  private func header(canOpen: Bool) -> some View {
     HStack(spacing: Spacing.xs) {
       marks
       title.font(.system(size: 14, weight: .medium)).foregroundStyle(Palette.ink).lineLimit(1)
       Spacer(minLength: 0)
-      if PanelCut.isLong(height) {
+      if canOpen {
         OpenOutButton(open: open) {
           withAnimation(reduceMotion ? nil : Motion.standard) { open.toggle() }
         }
@@ -80,38 +91,74 @@ struct PanelFrame<Marks: View, Content: View>: View {
   }
 }
 
-/// Where a long panel is cut: at the lowest row's end that still fits.
-enum PanelCut {
-  /// How much taller than `panelTallest` a panel must be before it is cut, so it never hides a sliver.
-  static let slack: CGFloat = 40
+/// The boundary between readable rows and the strip hinting at more content.
+struct PanelPreview: Equatable {
+  private static let slack: CGFloat = 40
+  private static let rowPreviewHeight = Spacing.l + Spacing.s
+  private let clearHeight: CGFloat
+  let height: CGFloat
+  let fadeHeight: CGFloat
 
-  static func isLong(_ height: CGFloat) -> Bool {
-    height > Size.panelTallest + slack
+  init?(height: CGFloat, rows: [ClosedRange<CGFloat>]) {
+    let rowEnds = rows.map(\.upperBound)
+    guard height > Size.panelTallest + Self.slack, let first = rowEnds.min() else { return nil }
+    let clearHeight = rowEnds.filter { $0 <= Size.panelTallest }.max() ?? first
+    let hidden = rows.filter { $0.upperBound > clearHeight }
+    guard let next = hidden.min(by: { $0.lowerBound < $1.lowerBound }) else { return nil }
+    let previewTop = max(clearHeight, next.lowerBound)
+    self.clearHeight = clearHeight
+    self.height = min(previewTop + Self.rowPreviewHeight, next.upperBound)
+    fadeHeight = self.height - previewTop
   }
 
-  static func height(edges: [CGFloat]) -> CGFloat {
-    edges.filter { $0 <= Size.panelTallest }.max() ?? Size.panelTallest
+  func showsRow(endingAt end: CGFloat) -> Bool {
+    end <= clearHeight
   }
 }
 
-/// Where each row of a panel ends, measured from the top of its rows.
-struct PanelRowEdges: PreferenceKey {
-  static let space = "panelRows"
-  static let defaultValue: [CGFloat] = []
+extension EnvironmentValues {
+  @Entry fileprivate var panelPreview: PanelPreview?
+}
 
-  static func reduce(value: inout [CGFloat], nextValue: () -> [CGFloat]) {
+/// Where each row begins and ends, measured from the top of the panel's content.
+struct PanelRowBounds: PreferenceKey {
+  static let space = "panelRows"
+  static let defaultValue: [ClosedRange<CGFloat>] = []
+
+  static func reduce(value: inout [ClosedRange<CGFloat>], nextValue: () -> [ClosedRange<CGFloat>]) {
     value += nextValue()
   }
 }
 
 extension View {
-  /// Lets a long panel be cut where this row ends.
+  /// Marks a row that can be shown whole or seen only in the overflow preview.
   func panelRow() -> some View {
-    background {
-      GeometryReader { proxy in
-        Color.clear.preference(key: PanelRowEdges.self, value: [proxy.frame(in: .named(PanelRowEdges.space)).maxY])
+    modifier(PanelRowPresentation())
+  }
+}
+
+private struct PanelRowPresentation: ViewModifier {
+  @Environment(\.panelPreview) private var preview
+  @State private var bounds: ClosedRange<CGFloat>?
+
+  func body(content: Content) -> some View {
+    let shown = preview?.showsRow(endingAt: bounds?.upperBound ?? .infinity) ?? true
+    let blurred = !shown && (bounds?.lowerBound ?? .infinity) < (preview?.height ?? 0)
+    content
+      .opacity(shown ? 1 : 0)
+      .overlay {
+        if blurred { content.blur(radius: 3).drawingGroup() }
       }
-    }
+      .disabled(!shown)
+      .allowsHitTesting(shown)
+      .accessibilityHidden(!shown)
+      .preference(key: PanelRowBounds.self, value: bounds.map { [$0] } ?? [])
+      .onGeometryChange(for: ClosedRange<CGFloat>?.self) { proxy in
+        let frame = proxy.frame(in: .named(PanelRowBounds.space))
+        return frame.height > 0 ? frame.minY...frame.maxY : nil
+      } action: {
+        bounds = $0
+      }
   }
 }
 

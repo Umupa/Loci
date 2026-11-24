@@ -42,12 +42,16 @@ struct Prompts: Sendable {
 
   /// What the daily review is asked. `since` is when the review before it began, when that was on the day
   /// before: notes written after it are in that day's file and not yet looked back on.
-  func review(of day: Day, since previous: (day: Day, at: TimeOfDay)?) -> String {
+  func review(of day: Day, since previous: (day: Day, at: TimeOfDay)?, brief: ReviewBrief? = nil) -> String {
     let earlier = previous.map { ", and the lines after \($0.at) in `notes/\($0.day).md`" } ?? ""
+    let transcripts = brief.map { $0.transcripts.map { "- `\($0)`" }.joined(separator: "\n") } ?? ""
+    let checks = brief.map(\.checks).flatMap { $0.isEmpty ? nil : "\nBefore the rest:\n\($0)\n" } ?? ""
     return
       review
       .replacing("{{day}}", with: day.description)
       .replacing("{{earlier}}", with: earlier)
+      .replacing("{{transcripts}}", with: transcripts.isEmpty ? "- (none)" : transcripts)
+      .replacing("{{checks}}", with: checks)
       .replacing("{{traitLimit}}", with: String(Soul.traitLimit))
   }
 

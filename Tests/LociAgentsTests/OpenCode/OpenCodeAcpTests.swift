@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 import Testing
 
 @testable import LociAgents
@@ -79,7 +80,7 @@ struct OpenCodeAcpTests {
       #"{"sessionId":"s1","toolCall":{"toolCallId":"c1","title":"Run bash"},"options":[{"optionId":"once","kind":"allow_once","name":"Allow once"},{"optionId":"always","kind":"allow_always","name":"Always allow"},{"optionId":"reject","kind":"reject_once","name":"Reject"}]}"#
     )
     var state = AcpTurnState()
-    let event = state.ask(id: .number(7), params)
+    let event = state.ask(id: .integer(7), params)
     guard case .permission(let request) = event else {
       Issue.record("A permission request is expected")
       return
@@ -89,9 +90,9 @@ struct OpenCodeAcpTests {
     #expect(request.options.map(\.role) == [.allow, .allowAlways, .deny])
     let selected = try value(#"{"outcome":{"outcome":"selected","optionId":"always"}}"#)
     #expect(state.answer(request.id, with: .chosen("always"))?.1 == selected)
-    _ = state.ask(id: .number(7), params)
+    _ = state.ask(id: .integer(7), params)
     #expect(state.answer(request.id, with: .chosen("unknown"))?.1 == AcpTurnState.cancelled)
-    _ = state.ask(id: .number(7), params)
+    _ = state.ask(id: .integer(7), params)
     #expect(state.answer(request.id, with: .dismissed)?.1 == AcpTurnState.cancelled)
   }
 }

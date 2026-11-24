@@ -1,3 +1,5 @@
+import LociModel
+
 struct CodexTurnState: Sendable {
   var id: String?
   private var calls: Set<String> = []

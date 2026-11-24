@@ -1,3 +1,5 @@
+import LociModel
+
 /// What one ACP turn has seen so far. Session updates go in, the events a caller should see come out.
 struct AcpTurnState: Sendable {
   private var inputs: [String: JSONValue] = [:]

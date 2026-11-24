@@ -1,178 +1,163 @@
 import LociModel
 import SwiftUI
 
-/// What Loci remembers and knows about the person, each line with its day and where it happened, beside
-/// what it wrote down today.
+/// What the companion remembers: its index on the left, each line linking to a page of its wiki, and who the
+/// person is under it; on the right a sheet with the page opened, or today's notes when none is. Ink and gray,
+/// with no headings (ME-S7).
 struct MemoryTab: View {
   let memory: [Line<MemoryEntry>]
   let profile: [Line<MemoryEntry>]
   let today: DayNotes
+  @State private var opened: String?
+  @State private var width: CGFloat = 0
+  @Environment(\.reducesMotion) private var reduceMotion
+
+  static let columns = PageColumns(
+    spacing: 34, stackedSpacing: 28, narrowestFirst: 320, second: 340...620, share: 0.52)
+
+  /// `opened` starts with that page of the wiki open.
+  init(memory: [Line<MemoryEntry>], profile: [Line<MemoryEntry>], today: DayNotes, opened: String? = nil) {
+    self.memory = memory
+    self.profile = profile
+    self.today = today
+    _opened = State(initialValue: opened)
+  }
+
+  private var sideBySide: Bool { Self.columns.widths(for: width) != nil }
 
   var body: some View {
-    HStack(alignment: .top, spacing: 28) {
-      VStack(alignment: .leading, spacing: 6) {
-        PageLabel(title: Text(.loci("loci.remembered")), file: "MEMORY.md")
-        MemoryList(lines: memory, file: .memory).padding(.bottom, 16)
-        PageLabel(title: Text(.loci("loci.aboutYou")), file: "USER.md")
-        MemoryList(lines: profile, file: nil)
+    Self.columns {
+      MemoryIndex(memory: memory, profile: profile, opened: opened, tie: sideBySide, open: open)
+      Group {
+        if let opened {
+          WikiSheet(name: opened, open: open).id(opened)
+        } else {
+          TodaySheet(today: today)
+        }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      VStack(alignment: .leading, spacing: 6) {
-        PageLabel(title: Text(.loci("loci.today")), file: "notes/\(today.day).md")
-        TodayNotes(notes: today.notes)
+      .transition(.opacity)
+    }
+    .onGeometryChange(for: CGFloat.self, of: \.size.width) { width = $0 }
+  }
+
+  private func open(_ page: String?) {
+    withAnimation(reduceMotion ? nil : Motion.standard) { opened = page == opened ? nil : page }
+  }
+}
+
+/// The index and the person's profile under it, or a dashed outline when nothing is remembered yet.
+private struct MemoryIndex: View {
+  let memory: [Line<MemoryEntry>]
+  let profile: [Line<MemoryEntry>]
+  let opened: String?
+  /// Whether a thread ties the opened line to the sheet beside it.
+  let tie: Bool
+  let open: (String?) -> Void
+
+  var body: some View {
+    if memory.isEmpty && profile.isEmpty {
+      RoundedRectangle(cornerRadius: 14, style: .continuous)
+        .strokeBorder(Palette.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        .frame(height: 132)
+        .overlay {
+          Image(systemName: "doc.text").font(.system(size: 22, weight: .light)).foregroundStyle(Palette.inkFaint)
+        }
+        .accessibilityHidden(true)
+    } else {
+      VStack(alignment: .leading, spacing: 0) {
+        ForEach(Array(memory.enumerated()), id: \.offset) { _, line in
+          MemoryLine(line: line, forget: .index, opened: opened, tie: tie, open: open)
+        }
+        if !memory.isEmpty && !profile.isEmpty {
+          Rectangle().fill(Palette.line).frame(height: 1).padding(.vertical, 14).padding(.horizontal, 12)
+        }
+        ForEach(Array(profile.enumerated()), id: \.offset) { _, line in
+          MemoryLine(line: line, forget: nil, opened: nil, tie: false, open: open, muted: true)
+        }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 }
 
-/// Lines of a memory file on one card. With `file`, each line under the pointer offers to be forgotten.
-private struct MemoryList: View {
-  let lines: [Line<MemoryEntry>]
-  let file: MemoryFile?
-  @State private var forgotten: Set<String> = []
+/// A sheet of paper beside the index: a thin rule down its margin, a serif title, and its lines.
+struct MemorySheet<Content: View>: View {
+  let title: Text
+  @ViewBuilder let content: Content
 
   var body: some View {
-    let shape = RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
+    let shape = UnevenRoundedRectangle(
+      topLeadingRadius: 4, bottomLeadingRadius: 4, bottomTrailingRadius: 14, topTrailingRadius: 14,
+      style: .continuous)
     VStack(alignment: .leading, spacing: 0) {
-      ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-        MemoryRow(line: line, file: file, forgotten: $forgotten)
-          .overlay(alignment: .top) {
-            if index > 0 { Rectangle().fill(Palette.line).frame(height: Size.hairline).padding(.leading, 14) }
-          }
-      }
+      title.font(.system(size: 24, weight: .semibold, design: .serif)).padding(.bottom, 14)
+      content
     }
+    .padding(.top, 26)
+    .padding(.bottom, 22)
+    .padding(.leading, 34)
+    .padding(.trailing, 30)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Palette.surface)
-    .clipShape(shape)
-    .cardShadow(shape)
+    .background(alignment: .leading) {
+      Rectangle().fill(Palette.line).frame(width: 1.5).padding(.vertical, 22).padding(.leading, 14)
+    }
+    .background(Palette.surface, in: shape)
+    .overlay(shape.strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+    .shadow(color: .black.opacity(0.12), radius: 14, y: 8)
   }
 }
 
-private struct MemoryRow: View {
-  @Environment(\.host) private var host
-  @Environment(\.openPage) private var openPage
-  @Environment(\.showFailure) private var showFailure
-  let line: Line<MemoryEntry>
-  let file: MemoryFile?
-  @Binding var forgotten: Set<String>
-  @State private var hovering = false
+/// A page of the wiki, kept current, its links to other pages opening them.
+private struct WikiSheet: View {
+  let name: String
+  let open: (String?) -> Void
+  @State private var page: Feed<WikiPage>?
 
   var body: some View {
-    HStack(spacing: 10) {
-      VStack(alignment: .leading, spacing: Spacing.xxs) {
-        switch line {
-        case .entry(let entry):
-          Text(verbatim: entry.text)
-          meta(entry)
-        case .text(let text):
-          Text(verbatim: text)
+    MemorySheet(title: Text(verbatim: page?.value?.title ?? name)) {
+      if let lines = page?.value?.lines {
+        ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+          MemoryLine(line: line, forget: .page(name), opened: nil, tie: false, open: open, onSheet: true)
+            .rule(index > 0)
         }
       }
-      .font(.system(size: 13.5))
-      .lineSpacing(3)
-      .foregroundStyle(Palette.ink)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      if let file, case .entry(let entry) = line {
-        forget(entry, in: file).opacity(hovering ? 1 : 0)
-      }
     }
-    .padding(.vertical, 10)
-    .padding(.horizontal, 14)
-    .background(hovering ? Palette.fill : .clear)
-    .onHover { hovering = $0 }
-    .opacity(gone ? 0 : 1)
-    .offset(x: gone ? 14 : 0)
-    .animation(.easeOut(duration: 0.3), value: gone)
-  }
-
-  private var gone: Bool {
-    if case .entry(let entry) = line { return forgotten.contains(entry.line) }
-    return false
-  }
-
-  private func meta(_ entry: MemoryEntry) -> some View {
-    HStack(spacing: Spacing.xs) {
-      if let day = entry.day {
-        Text(verbatim: day.short).font(.system(size: 10.5).monospaced()).foregroundStyle(Palette.inkFaint)
-      }
-      if let source = entry.source, let title = source.itemTitle, let page = Page(source.locator.content) {
-        Button {
-          openPage(page)
-        } label: {
-          Text(verbatim: title)
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .font(.system(size: 11.5))
-            .foregroundStyle(Palette.accentInk)
-            .padding(.vertical, 1)
-            .padding(.horizontal, 7)
-            .background(Palette.tint, in: Capsule())
-        }
-        .buttonStyle(.plain)
-      }
-    }
-  }
-
-  private func forget(_ entry: MemoryEntry, in file: MemoryFile) -> some View {
-    Button {
-      forgotten.insert(entry.line)
-      Task {
-        do throws(HostError) {
-          _ = try await host.run(Forget(entry.line, in: file))
-        } catch {
-          forgotten.remove(entry.line)
-          showFailure(error)
-        }
-      }
-    } label: {
-      Image(systemName: Symbols.cancel)
-        .font(.system(size: 9, weight: .semibold))
-        .foregroundStyle(Palette.inkMuted)
-        .frame(width: 22, height: 22)
-        .background(Circle().fill(Palette.fillStrong.opacity(hovering ? 1 : 0)))
-        .contentShape(Circle())
-    }
-    .buttonStyle(.plain)
-    .changesData()
-    .help(Text(.loci("loci.forget")))
-    .accessibilityLabel(Text(.loci("loci.forget")))
+    .subscribing(WatchWikiPage(name), into: $page)
   }
 }
 
-/// What any conversation wrote down today, each line with its time and which conversation it came from.
-private struct TodayNotes: View {
-  let notes: [Line<DayNote>]
+/// What any session wrote down today, each line with its time and where it came from.
+private struct TodaySheet: View {
+  let today: DayNotes
 
   var body: some View {
-    VStack(alignment: .leading, spacing: Spacing.xs) {
-      ForEach(Array(notes.enumerated()), id: \.offset) { _, line in
-        HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+    MemorySheet(title: Text(.loci("loci.today"))) {
+      if today.notes.isEmpty {
+        Image(systemName: "text.alignleft").font(.system(size: 22, weight: .light)).foregroundStyle(Palette.inkFaint)
+          .frame(maxWidth: .infinity, minHeight: 64)
+          .accessibilityHidden(true)
+      }
+      ForEach(Array(today.notes.enumerated()), id: \.offset) { index, line in
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
           switch line {
           case .entry(let note):
             Text(verbatim: note.time?.description ?? "")
-              .font(.system(size: 11).monospaced())
-              .foregroundStyle(Palette.inkFaint)
-              .frame(width: 42, alignment: .leading)
-            Text(joining: Text(verbatim: note.text).foregroundStyle(Palette.ink), from(note.from))
+              .font(.system(size: 11.5).monospaced()).foregroundStyle(Palette.inkFaint).frame(
+                width: 38, alignment: .leading)
+            Text(joining: Text(verbatim: note.text).foregroundStyle(Palette.ink), Self.from(note.from))
           case .text(let text):
             Text(verbatim: text).foregroundStyle(Palette.ink)
           }
         }
+        .font(.system(size: 14))
+        .lineSpacing(3)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .rule(index > 0)
       }
     }
-    .font(.system(size: 13))
-    .lineSpacing(3)
-    .padding(.vertical, Spacing.s)
-    .padding(.horizontal, 14)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Palette.well, in: RoundedRectangle(cornerRadius: Radius.group, style: .continuous))
-    .overlay(
-      RoundedRectangle(cornerRadius: Radius.group, style: .continuous).strokeBorder(
-        Palette.line, lineWidth: Size.hairline))
   }
 
-  private func from(_ source: NoteSource?) -> Text {
+  static func from(_ source: NoteSource?) -> Text {
     let name: Text? =
       switch source {
       case .main: Text(.loci("loci.fromMain"))
@@ -182,6 +167,6 @@ private struct TodayNotes: View {
       case .course, .item(_, nil), nil: nil
       }
     guard let name else { return Text(verbatim: "") }
-    return Text(joining: Text(verbatim: " · "), name).foregroundStyle(Palette.inkMuted)
+    return Text(joining: Text(verbatim: " · "), name).font(.system(size: 12)).foregroundStyle(Palette.inkFaint)
   }
 }

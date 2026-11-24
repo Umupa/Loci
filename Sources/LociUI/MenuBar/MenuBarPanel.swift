@@ -18,6 +18,7 @@ public struct MenuBarPanel: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       header
+      if let next = companion.next { NextLine(next: next) }
       Rectangle().fill(Palette.lineStrong).frame(height: Size.hairline).padding(.vertical, 5)
         .padding(.horizontal, Spacing.xs)
       row(.open, symbol: Symbols.window, title: Text(.loci("menubar.open")))
@@ -100,6 +101,32 @@ public struct MenuBarPanel: View {
 
   private static let width: CGFloat = 260
   private static let face: CGFloat = 32
+}
+
+/// The timer that comes due next: a clock, what it is, and when.
+private struct NextLine: View {
+  @Environment(\.fixedNow) private var fixedNow
+  let next: NextTimer
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Image(systemName: Symbols.schedule)
+        .font(.system(size: 12))
+        .foregroundStyle(Palette.inkMuted)
+        .frame(width: 18)
+      Text(verbatim: next.title).lineLimit(1).truncationMode(.tail)
+      Spacer(minLength: Spacing.xs)
+      TimerTime.label(next.due.date, now: fixedNow ?? Date())
+        .font(.system(size: 11.5).monospaced())
+        .foregroundStyle(Palette.inkMuted)
+        .fixedSize()
+    }
+    .font(Typography.body)
+    .foregroundStyle(Palette.ink)
+    .padding(.horizontal, 8)
+    .frame(height: 26)
+    .accessibilityElement(children: .combine)
+  }
 }
 
 /// The app's main window, which the menu bar brings back after it was closed.

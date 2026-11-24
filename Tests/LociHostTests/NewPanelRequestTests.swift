@@ -21,6 +21,6 @@ struct PanelRefreshPromptTests {
     let refresh = try prompts.panel(PanelScenarioTests.radar, hidden: [:])
 
     #expect(refresh.contains("\(Self.unreachable), do not save anything"))
-    #expect(prompts.rules.contains("\(Self.unreachable) in a refresh, save nothing"))
+    #expect(ToolGuide.topic("panels")?.contains("\(Self.unreachable) in a refresh, save nothing") == true)
   }
 }

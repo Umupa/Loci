@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 /// Routes ACP responses, prompt completion, and live session messages.
 actor AcpChannel {

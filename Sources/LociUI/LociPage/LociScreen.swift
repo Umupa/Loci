@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The pages of Loci's own page.
 enum LociTab: Hashable {
-  case soul, memory, diary
+  case soul, memory, diary, timers, connectors
 }
 
 /// Loci's own page: its face, which the person can change, its name, what they have done together, and its
@@ -16,9 +16,17 @@ struct LociScreen: View {
   @State private var renaming = false
   @State private var draft = ""
   @State private var tab: LociTab
+  private let opened: ScheduleRef?
+  private let connector: ConnectorID?
+  private let wikiPage: String?
 
-  init(tab: LociTab = .soul) {
+  /// `opened` starts that schedule open on the Timers page; `connector` lights that connector's row; `wikiPage`
+  /// starts that page of the wiki open on the Memory page.
+  init(tab: LociTab = .soul, opened: ScheduleRef? = nil, connector: ConnectorID? = nil, wikiPage: String? = nil) {
     _tab = State(initialValue: tab)
+    self.opened = opened
+    self.connector = connector
+    self.wikiPage = wikiPage
   }
 
   var body: some View {
@@ -27,7 +35,10 @@ struct LociScreen: View {
         hero
         CapsulePicker(
           selection: $tab,
-          options: [(.soul, .loci("loci.soul")), (.memory, .loci("loci.memory")), (.diary, .loci("loci.diary"))]
+          options: [
+            (.soul, .loci("loci.soul")), (.memory, .loci("loci.memory")), (.diary, .loci("loci.diary")),
+            (.timers, .loci("loci.timers")), (.connectors, .loci("connectors.tab")),
+          ]
         )
         .padding(.top, 34)
         .padding(.bottom, 22)
@@ -35,8 +46,10 @@ struct LociScreen: View {
           Group {
             switch tab {
             case .soul: SoulTab(soul: page.soul)
-            case .memory: MemoryTab(memory: page.memory, profile: page.profile, today: page.today)
+            case .memory: MemoryTab(memory: page.memory, profile: page.profile, today: page.today, opened: wikiPage)
             case .diary: DiaryTab(diaries: page.diaries)
+            case .timers: TimersTab(opened: opened)
+            case .connectors: ConnectorsTab(focused: connector)
             }
           }
           .id(tab)
@@ -91,7 +104,7 @@ struct LociScreen: View {
           FeelingLine(feeling: feeling).padding(.bottom, Spacing.xxs)
         }
         if let together = page?.value?.together {
-          HStack(spacing: Spacing.xs) {
+          FlowRow(spacing: Spacing.xs) {
             FactPill(count: together.days, unit: .loci("loci.days"))
             FactPill(count: together.messages, unit: .loci("loci.messages"))
             FactPill(count: together.itemsReadTogether, unit: .loci("loci.readTogether"))
@@ -115,6 +128,7 @@ private struct FactPill: View {
     .padding(.vertical, Spacing.xxs)
     .padding(.horizontal, 10)
     .background(Palette.fill, in: Capsule())
+    .fixedSize()
   }
 }
 

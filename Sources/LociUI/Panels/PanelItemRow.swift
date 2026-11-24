@@ -72,7 +72,7 @@ struct PanelItemRow: View {
   }
 
   private var drag: some Gesture {
-    DragGesture(minimumDistance: 5, coordinateSpace: .named(PanelRowEdges.space))
+    DragGesture(minimumDistance: 5, coordinateSpace: .named(PanelRowBounds.space))
       .onChanged { dragging?.moved($0) }
       .onEnded { _ in dragging?.ended() }
   }

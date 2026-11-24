@@ -38,6 +38,16 @@ enum MarkArt {
     return mark
   }
 
+  /// A connector's mark in its colors, by the connector's id; `nil` for one the app draws no mark for.
+  static func connector(_ id: ConnectorID) -> NSImage? {
+    connectorArt[id.rawValue].flatMap { image($0, extension: "svg") }
+  }
+
+  private static let connectorArt = [
+    "notion": "connector-notion", "linear": "connector-linear", "sentry": "connector-sentry",
+    "atlassian": "connector-atlassian",
+  ]
+
   private static func image(_ name: String, extension fileType: String) -> NSImage? {
     if let image = loaded[name] { return image }
     guard let url = Bundle.module.url(forResource: name, withExtension: fileType),

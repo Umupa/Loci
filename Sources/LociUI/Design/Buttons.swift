@@ -22,6 +22,55 @@ struct QuietButtonStyle: ButtonStyle {
   }
 }
 
+/// A button in ink, for a page that does without amber: solid ink with paper words, or a gray wash that turns
+/// to solid ink while the pointer is on it. `failure` writes in red on the wash, for trying again.
+struct InkButtonStyle: ButtonStyle {
+  enum Look { case solid, wash, failure }
+
+  var look: Look = .wash
+
+  func makeBody(configuration: Configuration) -> some View {
+    InkFace(configuration: configuration, look: look)
+  }
+}
+
+private struct InkFace: View {
+  let configuration: ButtonStyleConfiguration
+  let look: InkButtonStyle.Look
+  @Environment(\.isEnabled) private var enabled
+  @State private var hovering = false
+
+  var body: some View {
+    configuration.label
+      .font(Typography.button.weight(.medium))
+      .foregroundStyle(words)
+      .lineLimit(1)
+      .fixedSize()
+      .padding(.horizontal, 14)
+      .frame(minWidth: 64, minHeight: 28)
+      .background(Capsule().fill(face))
+      .contentShape(Capsule())
+      .onHover { hovering = $0 }
+      .scaleEffect(configuration.isPressed ? Motion.pressScale : 1)
+      .animation(Motion.quick, value: configuration.isPressed)
+      .animation(Motion.quick, value: hovering)
+      .opacity(enabled ? 1 : 0.4)
+  }
+
+  private var solid: Bool { enabled && (look == .solid || (look == .wash && hovering)) }
+
+  private var face: Color {
+    if solid { return Palette.ink }
+    if look == .failure, hovering, enabled { return Palette.failure.opacity(0.16) }
+    return Palette.fill
+  }
+
+  private var words: Color {
+    if solid { return Palette.canvas }
+    return look == .failure ? Palette.failure : Palette.ink
+  }
+}
+
 private struct CapsuleFace: View {
   enum Look { case amber, quiet }
 

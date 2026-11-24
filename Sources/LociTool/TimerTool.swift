@@ -7,8 +7,12 @@ enum ScheduleRequest: Hashable, Sendable {
   case add(String)
   case list
   case remove(String)
+  /// Reads the fields to change as JSON from standard input.
+  case change(String)
 
-  static let usage = "loci schedule add <name> < schedule.json | loci schedule list | loci schedule remove <name>"
+  static let usage =
+    "loci schedule add <name> < schedule.json | loci schedule change <name> < change.json | loci schedule list"
+    + " | loci schedule remove <name>"
 
   static func parse(_ words: [String]) throws(UsageError) -> ScheduleRequest {
     switch (words.first, words.count) {
@@ -17,6 +21,7 @@ enum ScheduleRequest: Hashable, Sendable {
       if let problem = PanelCheck.problems(ofName: words[1]).first { throw UsageError(problem.reason) }
       return .add(words[1])
     case ("remove", 2): return .remove(words[1])
+    case ("change", 2): return .change(words[1])
     default: throw UsageError(usage)
     }
   }
@@ -90,16 +95,31 @@ extension Tool {
       let timers = try Failure.decoding(Timers.self, from: reply)
       guard !timers.schedules.isEmpty else { return .worked("There are no schedules yet.") }
       return .worked(timers.schedules.map { TimerWords.line($0, in: timeZone) }.joined(separator: "\n"))
+    case .change(let name):
+      let change: ScheduleChange
+      do {
+        change = try JSONDecoder().decode(ScheduleChange.self, from: readInput())
+      } catch {
+        return .failed(TimerWords.unreadable(error))
+      }
+      guard let entry = try await schedule(named: name) else { return .failed(TimerWords.none(name)) }
+      let reply = try await line.run(ChangeSchedule(entry.ref, change))
+      if json { return .worked(Self.text(reply)) }
+      return .worked(TimerWords.changed(try Failure.decoding(ScheduleEntry.self, from: reply), in: timeZone))
     case .remove(let name):
-      let timers = try Failure.decoding(Timers.self, from: try await line.run(ListTimers()))
-      let entries = timers.schedules.filter { $0.name == name }
-      guard let entry = entries.first(where: { if case .schedule = $0.ref { true } else { false } }) ?? entries.first
-      else { return .failed("There is no schedule \(name). Run `loci schedule list` to see them.") }
+      guard let entry = try await schedule(named: name) else { return .failed(TimerWords.none(name)) }
       let reply = try await line.run(RemoveSchedule(entry.ref))
       if json { return .worked(Self.text(reply)) }
       if case .panel = entry.ref { return .worked("The panel \(name) is no longer refreshed; it stays as it is.") }
       return .worked("Removed \(name).")
     }
+  }
+
+  /// A schedule by its name, one set with `loci schedule` before a panel's refresh of the same name.
+  private func schedule(named name: String) async throws(Failure) -> ScheduleEntry? {
+    let timers = try Failure.decoding(Timers.self, from: try await line.run(ListTimers()))
+    let entries = timers.schedules.filter { $0.name == name }
+    return entries.first { if case .schedule = $0.ref { true } else { false } } ?? entries.first
   }
 
   func followUp(_ request: FollowUpRequest, json: Bool) async throws(Failure) -> Outcome {
@@ -128,6 +148,15 @@ enum TimerWords {
   static func added(_ entry: ScheduleEntry, in timeZone: TimeZone) -> String {
     "Added \(entry.name), \(PanelWords.every(entry.every.refresh)), \(place(entry.destination))."
       + (entry.next.map { " It first runs \(moment($0, in: timeZone))." } ?? "")
+  }
+
+  static func changed(_ entry: ScheduleEntry, in timeZone: TimeZone) -> String {
+    "Changed \(entry.name): \(PanelWords.every(entry.every.refresh)), \(place(entry.destination))."
+      + (entry.next.map { " It next runs \(moment($0, in: timeZone))." } ?? " It is paused.")
+  }
+
+  static func none(_ name: String) -> String {
+    "There is no schedule \(name). Run `loci schedule list` to see them."
   }
 
   static func line(_ entry: ScheduleEntry, in timeZone: TimeZone) -> String {

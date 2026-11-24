@@ -33,12 +33,38 @@ struct SourceScenarioTests {
         #expect(text.utf8.count == content.utf8.count)
         #expect(text == content)
       }
-      #expect(await network.requests == 1)
+      #expect(await network.requests == 2)
       #expect(try await host.run(ListItems()).isEmpty)
       #expect(
         try FileManager.default.contentsOfDirectory(
           atPath: place.store.agentFolder.appending(path: "workspace").path
         ).isEmpty)
+    }
+  }
+
+  @Test func aRunInTheBackgroundReadsThePageAsItIsNowWhileConversationsKeepUsingTheCache() async throws {
+    let network = SourceFixtureNetwork("Monday's page")
+    try await withSourceHost(network: network) { host, _, world, _ in
+      let request = try requestForFile()
+      func read(from session: LocalSession) async throws -> String {
+        guard case .value(let data)? = await Background.call(request, from: session, on: host) else {
+          throw HostError.invalidRequest("the read failed")
+        }
+        return try JSONDecoder().decode(String.self, from: data)
+      }
+
+      let monday = try await read(from: .run(EntityID()))
+      await network.change(to: "Tuesday's page")
+      world.advance(minutes: 24 * 60)
+      let talking = try await read(from: .conversation(.main))
+      let tuesday = try await read(from: .run(EntityID()))
+      let afterwards = try await read(from: .conversation(.main))
+
+      #expect(monday == "Monday's page")
+      #expect(talking == "Monday's page")
+      #expect(tuesday == "Tuesday's page")
+      #expect(afterwards == "Tuesday's page")
+      #expect(await network.requests == 2)
     }
   }
 
@@ -243,10 +269,13 @@ struct SourceScenarioTests {
 }
 
 private actor SourceFixtureNetwork: LociMedia.Network {
-  private let body: Data
+  private var body: Data
   private(set) var requests = 0
 
   init(_ text: String) { body = Data(text.utf8) }
+
+  /// The page as it reads from now on.
+  func change(to text: String) { body = Data(text.utf8) }
 
   func data(for request: URLRequest) async throws(FetchError) -> (Data, HTTPURLResponse) {
     requests += 1

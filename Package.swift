@@ -38,8 +38,10 @@ let package = Package(
       resources: [.copy("Resources")],
       swiftSettings: strict),
     .target(name: "LociRemote", dependencies: ["LociModel"], swiftSettings: strict),
+    .target(name: "LociConnect", dependencies: ["LociModel"], swiftSettings: strict),
     .target(
-      name: "LociHost", dependencies: ["LociModel", "LociStore", "LociAgents", "LociMedia", "LociRemote"],
+      name: "LociHost",
+      dependencies: ["LociModel", "LociStore", "LociAgents", "LociMedia", "LociRemote", "LociConnect"],
       resources: [.copy("Resources")],
       swiftSettings: strict),
     .target(
@@ -61,9 +63,11 @@ let package = Package(
       name: "LociMediaTests", dependencies: ["LociMedia"], resources: [.copy("Fixtures")], swiftSettings: strict),
     .testTarget(
       name: "LociRemoteTests", dependencies: ["LociRemote"], resources: [.copy("Fixtures")], swiftSettings: strict),
+    .testTarget(name: "LociConnectTests", dependencies: ["LociConnect"], swiftSettings: strict),
     .testTarget(
-      name: "LociHostTests", dependencies: ["LociHost", "LociStore", "LociAgents", "LociMedia", "LociRemote"],
-      swiftSettings: strict),
+      name: "LociHostTests",
+      dependencies: ["LociHost", "LociStore", "LociAgents", "LociMedia", "LociRemote", "LociConnect"],
+      exclude: ["Evals/judge.md"], swiftSettings: strict),
     .testTarget(
       name: "LociUITests", dependencies: ["LociUI"], resources: [.copy("Fixtures")], swiftSettings: strict),
     .testTarget(name: "LociToolTests", dependencies: ["LociTool"], swiftSettings: strict),

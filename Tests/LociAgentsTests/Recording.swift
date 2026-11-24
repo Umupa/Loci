@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 import Synchronization
 
 @testable import LociAgents
@@ -38,7 +39,7 @@ enum Step: Equatable {
     case .to(let record): .object(["to": record])
     case .from(let record): .object(["from": record])
     case .close: .object(["close": .bool(true)])
-    case .exit(let code, let said): .object(["exit": .number(Double(code)), "stderr": .string(said)])
+    case .exit(let code, let said): .object(["exit": .integer(Int64(code)), "stderr": .string(said)])
     }
   }
 }

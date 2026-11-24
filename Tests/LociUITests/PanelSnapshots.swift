@@ -112,6 +112,21 @@ struct PanelSnapshots {
       "panels-pages", try Self.alone(view), appearance: appearance, size: CGSize(width: 380, height: 3000))
   }
 
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func onlyTheFoldedLongPanelPreviewsTheNextRow(appearance: Snapshot.Appearance) async throws {
+    let view = HStack(alignment: .top, spacing: Spacing.s) {
+      VStack(spacing: Spacing.s) {
+        PanelCard(panel: SamplePanels.radar, actions: Self.actions)
+        PanelCard(panel: SamplePanels.feed, actions: Self.actions)
+      }
+      PanelCard(panel: SamplePanels.radar, actions: Self.actions, open: true)
+    }
+    .padding(Spacing.s)
+    .frame(maxHeight: .infinity, alignment: .top)
+    try await ScreenSnapshots.shoot(
+      "panels-overflow", try Self.alone(view), appearance: appearance, size: CGSize(width: 760, height: 780))
+  }
+
   /// P-S6: the composer asking for a new panel over the blurred conversation.
   @Test(arguments: Snapshot.Appearance.allCases)
   func asking(appearance: Snapshot.Appearance) async throws {

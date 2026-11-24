@@ -61,7 +61,8 @@ enum WireCodec {
   }
 
   /// A subscription named on the wire, as a stream of its feeds in JSON.
-  static func feeds(_ name: String, body: Data, on host: any LociModel.Host) throws(HostError) -> AsyncStream<JSON> {
+  static func feeds(_ name: String, body: Data, on host: any LociModel.Host) throws(HostError) -> AsyncStream<JSONValue>
+  {
     guard let type = Wire.subscriptions.first(where: { $0.name == name }) else {
       throw .invalidRequest("\(name) cannot be followed from another Mac")
     }
@@ -69,14 +70,14 @@ enum WireCodec {
   }
 
   private static func feeds<S: Subscription>(_ type: S.Type, body: Data, on host: any LociModel.Host) throws(HostError)
-    -> AsyncStream<JSON>
+    -> AsyncStream<JSONValue>
   {
     let subscription = try decode(type, from: body)
     let source = host.subscribe(subscription)
     return AsyncStream { continuation in
       let forwarding = Task {
         for await feed in source {
-          if let json = try? JSON(encoding: feed) { continuation.yield(json) }
+          if let json = try? JSONValue(encoding: feed) { continuation.yield(json) }
         }
         continuation.finish()
       }

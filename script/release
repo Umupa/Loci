@@ -65,7 +65,12 @@ fi
 for nested in "$app"/Contents/Frameworks/* "$app"/Contents/Helpers/*; do
   if [ -e "$nested" ]; then codesign --force "$@" "$nested"; fi
 done
-codesign --force "$@" "$app"
+# With the hardened runtime, reading the calendars and reminders the person allowed needs its entitlement.
+if [ -n "$notarizable" ]; then
+  codesign --force "$@" --entitlements script/resources/Loci.entitlements "$app"
+else
+  codesign --force "$@" "$app"
+fi
 codesign --verify --strict "$app"
 
 if [ -n "$notarizable" ] && [ -n "$credentials" ]; then

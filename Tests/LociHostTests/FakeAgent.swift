@@ -22,6 +22,8 @@ final class FakeAgent: AgentDriver, Sendable {
     case compact(reply: String)
     /// The model's side fails partway, with these words.
     case fail(String)
+    /// Waits until the test lets it go, then replies.
+    case replyWhenLetGo(String, after: @Sendable () async -> Void)
   }
 
   let provider: Provider
@@ -153,6 +155,10 @@ private actor FakeSession: AgentSession {
       return .completed
     case .fail(let reason):
       return .failed(.provider(reason))
+    case .replyWhenLetGo(let text, let after):
+      await after()
+      out.yield(.text(text))
+      return .completed
     }
   }
 }

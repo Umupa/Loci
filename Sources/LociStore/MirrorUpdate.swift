@@ -8,6 +8,8 @@ enum MirrorUpdate: Sendable {
   case item(EntityID, Item?, content: String?)
   case notes(ContentRef, [Note])
   case course(EntityID, CoursePage?, notes: [ContentRef: [Note]])
+  /// A conversation copy or a run record, by its path under `agent/`, cut into passages; none when it is gone.
+  case transcript(String, passages: [String])
 
   func write(_ db: Database) throws {
     switch self {
@@ -17,6 +19,17 @@ enum MirrorUpdate: Sendable {
       if let item { try Self.insert(item, content: content, db) }
     case .course(let id, let page, let notes):
       try Self.updateCourse(id, page: page, notes: notes, in: db)
+    case .transcript(let path, let passages):
+      try db.execute(
+        sql: "DELETE FROM transcript WHERE rowid IN (SELECT transcript_rowid FROM transcript_file WHERE path = ?)",
+        arguments: [path])
+      try db.execute(sql: "DELETE FROM transcript_file WHERE path = ?", arguments: [path])
+      for passage in passages {
+        try db.cachedStatement(sql: "INSERT INTO transcript (original, text) VALUES (?, ?)")
+          .execute(arguments: [passage, SearchText.indexed(passage)])
+        try db.cachedStatement(sql: "INSERT INTO transcript_file (transcript_rowid, path) VALUES (?, ?)")
+          .execute(arguments: [db.lastInsertedRowID, path])
+      }
     case .notes(let content, let notes):
       let key = ContentKey.key(content)
       try db.execute(sql: "DELETE FROM note WHERE content = ?", arguments: [key])

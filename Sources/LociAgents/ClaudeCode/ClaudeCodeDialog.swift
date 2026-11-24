@@ -1,3 +1,5 @@
+import LociModel
+
 struct ClaudeCodeDialog: Hashable, Sendable {
   let id: String
   let name: String

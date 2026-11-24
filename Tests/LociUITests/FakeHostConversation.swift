@@ -30,7 +30,11 @@ extension FakeHost {
 
   func lociPage() async throws(HostError) -> LociPage {
     do {
-      return try (library ?? SampleLibrary()).lociPage
+      let page = try (library ?? SampleLibrary()).lociPage
+      guard !remembers else { return page }
+      return LociPage(
+        soul: page.soul, memory: [], profile: [], today: DayNotes(day: page.today.day, notes: []),
+        diaries: page.diaries, together: page.together, feeling: page.feeling)
     } catch {
       throw .storage(String(describing: error))
     }

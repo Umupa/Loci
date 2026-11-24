@@ -9,11 +9,16 @@ extension SampleLibrary {
   var lociPage: LociPage {
     get throws {
       let today = try Self.day(18)
-      func remembered(_ day: Int, _ text: String, _ source: (Item, String)? = nil) throws -> Line<MemoryEntry> {
+      func remembered(
+        _ day: Int, _ text: String, _ source: (Item, String)? = nil, page: (String, String)? = nil
+      ) throws -> Line<MemoryEntry> {
         let origin = try source.map { item, quote in
           MemoryEntry.Source(locator: .item(item.id, .quote(try TextQuote(quote))), itemTitle: item.title)
         }
-        return .entry(MemoryEntry(day: try Self.day(day), text: text, source: origin, line: "- \(text)"))
+        return .entry(
+          MemoryEntry(
+            day: try Self.day(day), text: text, source: origin, line: "- \(text)",
+            page: page.map { WikiLink(name: $0.0, title: $0.1) }))
       }
       func noted(_ time: String, _ text: String, _ from: NoteSource) -> Line<DayNote> {
         .entry(DayNote(time: TimeOfDay(time), text: text, from: from))
@@ -30,12 +35,11 @@ extension SampleLibrary {
         memory: [
           try remembered(2, "先给结论，再给依据"),
           try remembered(5, "不抠代码细节；要原理、取舍、数量级"),
-          try remembered(12, "混淆过 Raft 的 term 和 index，问过两次", (attention, "Scaled Dot-Product Attention")),
-          try remembered(1, "不要出题考，想考会自己说"),
-          try remembered(
-            17, "进程有独立 fd 表这层地基还不牢",
-            (article, "NGINX hands each request to a single worker process")),
-          .text("（这一行没有按格式写，原样显示）"),
+          try remembered(12, "Raft 的 term 和 index 混淆过两次，后来自己讲清了", page: ("raft", "Raft")),
+          try remembered(17, "进程有独立 fd 表这层地基还不牢", page: ("os-foundations", "操作系统地基")),
+          try remembered(20, "在学沙箱：CubeSandbox、E2B、Firecracker", page: ("sandboxes", "沙箱学习")),
+          try remembered(21, "求职方向：AI Infra 平台侧 + Agent 开发", page: ("career", "求职")),
+          try remembered(22, "不要考核和复习排期，读到底就算掌握"),
         ],
         profile: [try remembered(1, "中文，叫「你」就好"), try remembered(1, "后端工程师，在学沙箱和调度")],
         today: DayNotes(
@@ -57,6 +61,27 @@ extension SampleLibrary {
           valence: try JSONDecoder().decode(Score.self, from: Data("8".utf8)),
           energy: try JSONDecoder().decode(Score.self, from: Data("4".utf8)), fatigue: 56, tiredness: .sleepy))
     }
+  }
+
+  /// The design's wiki: a page on Raft, with a quote, two sources and a link to another page.
+  func wikiPage(_ name: String) throws -> WikiPage {
+    let text: String
+    switch name {
+    case "raft":
+      text = """
+        # Raft
+
+        - 2025-11-12 问「term 和 index 到底差在哪」，把两者当成同一个计数器。 loci://library/\(attention.id)#quote=term
+        - 2025-11-14 "term 是任期，index 是日志位置，一个任期里可以有很多条日志"——自己说对了。
+        - 2025-11-14 卡在为什么 leader 只提交当前 term 的条目；看了 Figure 8 才懂。 loci://library/\(article.id)#quote=term
+        - 2025-11-19 打算拿 etcd 的实现对照读，还没开始。 [沙箱学习](sandboxes.md)
+        """
+    case "sandboxes":
+      text = "# 沙箱学习\n\n- 2025-11-20 在比 CubeSandbox、E2B 和 Firecracker 的冷启动。\n"
+    default: throw HostError.notFound(name)
+    }
+    let titles = [attention.id: attention.title, article.id: article.title]
+    return WikiPage(name: name, parsing: text) { titles[$0] }
   }
 
   func diary(of day: Day) throws -> Diary {

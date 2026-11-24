@@ -23,6 +23,15 @@ struct OneShot: Sendable {
   }
 }
 
+extension OneShot {
+  /// What `work` gives, or `nil` once `limit` has passed.
+  static func first<Value: Sendable>(
+    of work: @escaping @Sendable () async -> Value, within limit: Duration, clock: any Clock<Duration>
+  ) async -> Value? {
+    await First.of(work, within: limit, clock: clock)
+  }
+}
+
 /// The first of two answers, whoever gives it; the other one is dropped.
 private actor First<Value: Sendable> {
   private var taken = false

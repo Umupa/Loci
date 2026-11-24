@@ -8,6 +8,24 @@ struct MemoryEntryTests {
     MemoryEntry.lines(of: text, title: { $0 == Fixture.item ? "Raft" : nil })
   }
 
+  /// ME-S1, ME-S2: an index line links to the page holding its detail.
+  @Test func anIndexLineLinksToItsWikiPageAndKeepsItsSource() throws {
+    let line = "- 2026-11-12 Raft 的 term 和 index 混过两次 [Raft](memory/raft.md) \(Self.link)"
+    let entry = try #require(Self.entries(line).first)
+    guard case .entry(let read) = entry else { throw ModelError("not an entry") }
+
+    #expect(read.text == "Raft 的 term 和 index 混过两次")
+    #expect(read.page == WikiLink(name: "raft", title: "Raft"))
+    #expect(read.source?.itemTitle == "Raft")
+  }
+
+  @Test func everyLinkToAPageIsFoundFromTheIndexOrFromAnotherPage() {
+    let text = "- a [Raft](memory/raft.md)\n- b [沙箱](sandboxes.md) [Raft](raft.md)\n- c [x](https://x.md)"
+
+    #expect(WikiLink.all(in: text).map(\.name) == ["raft", "sandboxes", "raft"])
+    #expect(WikiLink.isName("raft-notes") && !WikiLink.isName("Raft") && !WikiLink.isName("../x"))
+  }
+
   @Test func anEntryHasAnOptionalDayAndItsWords() {
     #expect(
       Self.entries("# Memory\n\n- 2026-11-02 先给结论\n- 不要出题考") == [

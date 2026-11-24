@@ -1,3 +1,5 @@
+import LociModel
+
 public struct ToolCall: Hashable, Sendable {
   public struct ID: Hashable, Sendable {
     public let value: String

@@ -14,7 +14,7 @@ actor GatewaySession {
   private let unpaired: @Sendable (MachineID) async -> Void
   private var calls: [UInt32: Task<Void, Never>] = [:]
   private var subscriptions: [UInt32: Task<Void, Never>] = [:]
-  private var lastSent: [UInt32: JSON] = [:]
+  private var lastSent: [UInt32: JSONValue] = [:]
   private var uploads: [UInt32: IncomingUpload] = [:]
 
   init(
@@ -94,7 +94,7 @@ actor GatewaySession {
     await send(answer)
   }
 
-  private func deliver(_ json: JSON, on id: UInt32) async {
+  private func deliver(_ json: JSONValue, on id: UInt32) async {
     guard subscriptions[id] != nil else { return }
     let frame: Frame?
     if let last = lastSent[id] {
