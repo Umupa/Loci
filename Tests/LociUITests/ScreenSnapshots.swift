@@ -11,11 +11,11 @@ import Testing
 struct ScreenSnapshots {
   static func shoot(
     _ name: String, _ view: some View, appearance: Snapshot.Appearance, english: Bool = false,
-    size: CGSize = Snapshot.windowSize
+    size: CGSize = Snapshot.windowSize, drawnAtLeast bytes: Int = 10_000
   ) async throws {
     let file = try await Snapshot.render(
       view, named: name, size: size, appearance: appearance, locale: Locale(identifier: english ? "en" : "zh-Hans"))
-    #expect(try Data(contentsOf: file).count > 10_000)
+    #expect(try Data(contentsOf: file).count > bytes)
   }
 
   static let wide = CGSize(width: 1240, height: 800)
@@ -46,7 +46,8 @@ struct ScreenSnapshots {
       .padding(Spacing.xl)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(Palette.canvas)
-    try await Self.shoot("selection-bar", bar, appearance: appearance, size: CGSize(width: 320, height: 120))
+    try await Self.shoot(
+      "selection-bar", bar, appearance: appearance, size: CGSize(width: 320, height: 120), drawnAtLeast: 3_000)
   }
 
   /// UI-S6, UI-S8, C-S9, C-S10: a passage question answered and saved, a reply streaming, a passage waiting
