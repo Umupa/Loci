@@ -11,7 +11,7 @@ public struct LociWorking: Subscription {
   public func isAffected(by changes: Set<ContentChange>) -> Bool {
     changes.contains { change in
       switch change {
-      case .conversation, .turnEnded, .review, .job, .loci(.panels), .everything: true
+      case .conversation, .turnEnded, .review, .job, .loci(.panels), .timers, .everything: true
       case .course, .courseActivity, .item, .notes, .reading, .media, .loci, .runtime: false
       }
     }
@@ -34,7 +34,7 @@ public struct LociHome: Subscription {
       switch change {
       case .loci(let file): file != .avatar && file != .panels && file != .name
       case .turnEnded, .item, .everything: true
-      case .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .review, .runtime: false
+      case .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .review, .runtime, .timers: false
       }
     }
   }

@@ -1,0 +1,318 @@
+import Foundation
+import LociModel
+import LociStore
+
+/// The one background worker: it takes events from the inbox and does them, one run at a time, each in a
+/// new session no conversation shows. Events due in the same minute share a run. While the person is
+/// talking it starts nothing, except a panel's refresh the person asked for.
+actor Worker {
+  let context: AgentContext
+  /// Whether a turn is running in any conversation.
+  private let talking: @Sendable () async -> Bool
+  private var current: Current?
+  private var work: Task<Void, Never>?
+  private var closing = false
+
+  /// How long a failed try waits before the next, after the first, second and third failure.
+  static let retryMinutes: [Int64] = [1, 5, 15]
+
+  struct Current {
+    var run: Run
+    let events: [Event]
+    /// Tries that failed before this one.
+    let tries: Int
+    let title: String
+    /// The panels the run may save.
+    var panels: Set<String>
+    var agent: AgentRun?
+    var stopped = false
+
+    var policy: RunPolicy {
+      switch run.kind {
+      case .review: .review
+      case .timers(let timed):
+        timed.sources.allSatisfy { if case .panel = $0 { true } else { false } } ? .panel : .timers
+      }
+    }
+  }
+
+  init(context: AgentContext, talking: @escaping @Sendable () async -> Bool) {
+    self.context = context
+    self.talking = talking
+  }
+
+  /// What the run under way is doing, for the line under the companion's name.
+  var status: LociWork? {
+    guard let current else { return nil }
+    switch current.run.kind {
+    case .review: return .reviewing
+    case .timers(let timed):
+      if case .panel = timed.first { return .refreshing(title: current.title) }
+      return .looking(title: current.title)
+    }
+  }
+
+  var refreshingPanels: Set<String> {
+    guard let current, case .timers(let timed) = current.run.kind else { return [] }
+    return Set(timed.sources.compactMap { if case .panel(let name, _) = $0 { name } else { nil } })
+      .intersection(current.panels)
+  }
+
+  /// What the run's session may do with `loci`; `nil` once the run is over.
+  func policy(of run: Run.ID) -> RunPolicy? {
+    current.flatMap { $0.run.id == run && !$0.stopped ? $0.policy : nil }
+  }
+
+  /// Whether the run may save the panel now.
+  func permission(toSave panel: String, from run: Run.ID) -> PanelPermission {
+    guard let current, current.run.id == run, !current.stopped else { return .stopped }
+    guard current.panels.contains(panel) else {
+      return current.policy == .review ? .none : .only(current.panels.sorted())
+    }
+    return .allowed
+  }
+
+  /// A removed panel can no longer be saved by the run under way; a run that was only for it stops.
+  func panelRemoved(_ name: String) {
+    guard var current, current.panels.contains(name) else { return }
+    current.panels.remove(name)
+    if current.panels.isEmpty, current.policy == .panel {
+      current.stopped = true
+      if let agent = current.agent { Task { await agent.stop() } }
+    }
+    self.current = current
+  }
+
+  /// Starts the next run when one can start. Returns at once; the run goes on in the background.
+  func consider() async {
+    guard current == nil, !closing else { return }
+    let busy = await talking()
+    guard current == nil, !closing else { return }
+    let now = context.environment.now()
+    let ready = ((try? context.database.openEvents()) ?? []).filter { event in
+      guard case .waiting(let retry) = event.state else { return false }
+      return retry?.notBefore.map { $0 <= now } ?? true
+    }
+    let wanted = ready.filter { event in
+      if isWanted(event) { return true }
+      try? context.database.update(event.with(.dropped))
+      return false
+    }
+    if let asked = wanted.first(where: \.isAsked) {
+      await start([asked], at: now)
+    } else if !busy, let first = wanted.first {
+      await start(Self.together(wanted, first: first), at: now)
+    }
+  }
+
+  /// The events that share a run with `first`: those raised for the first time, due in the same minute.
+  /// A review, and a run being tried again, run alone.
+  static func together(_ events: [Event], first: Event) -> [Event] {
+    guard case .waiting(nil) = first.state, !first.isReview else { return [first] }
+    let minute = first.due.millisecondsSince1970 / 60_000
+    return events.filter { event in
+      guard case .waiting(nil) = event.state else { return false }
+      return !event.isReview && !event.isAsked && event.due.millisecondsSince1970 / 60_000 == minute
+    }
+  }
+
+  private func isWanted(_ event: Event) -> Bool {
+    switch event.source {
+    case .schedule(let id):
+      guard let schedule = try? context.database.schedule(id) else { return false }
+      return !schedule.paused
+    case .panel(let name, _): return context.store.panel(named: name)?.panel != nil
+    case .followUp, .review: return true
+    }
+  }
+
+  private func start(_ events: [Event], at now: Timestamp) async {
+    guard let first = events.first else { return }
+    let retry: Event.Retry? = if case .waiting(let retry) = first.state { retry } else { nil }
+    let tries = retry?.tries ?? 0
+    let id = retry?.run ?? context.environment.newID()
+    let kind: Run.Kind =
+      if case .review(let day) = first.source { .review(day) } else {
+        .timers(Run.Timed(first.source, events.dropFirst().map(\.source)))
+      }
+    let begun = (try? context.database.run(id)) ?? nil
+    let record = Store.runRecordPath(of: id, on: Day(containing: now, in: context.environment.timeZone))
+    let run = (begun ?? Run(id: id, kind: kind, startedAt: now, outcome: .running(tries: tries), record: record))
+      .with(.running(tries: tries))
+    let titles = events.map { title(of: $0.source) }
+    current = Current(
+      run: run, events: events, tries: tries, title: titles.joined(separator: "、"), panels: panels(of: kind))
+    try? context.database.saveRun(run)
+    for event in events { try? context.database.update(event.with(.running(id, tries: tries))) }
+    if begun == nil {
+      let header = RunRecord.header(
+        run, events: events.map { describe($0) }, tries: tries, in: context.environment.timeZone)
+      try? context.store.saveRunRecord(header, at: run.record)
+    }
+    let panels = refreshingPanels
+    if !panels.isEmpty {
+      _ = try? context.store.changePanelState { state in for name in panels { state.refreshed[name] = now } }
+    }
+    if case .review(let day) = kind, (try? context.database.review(of: day)) == nil {
+      try? context.database.beginReview(of: day, at: now)
+    }
+    work = Task { await self.perform(run, redo: retry != nil) }
+    await context.follower.follow(changes(of: kind))
+  }
+
+  private func perform(_ run: Run, redo: Bool) async {
+    let activity = context.environment.activity("Loci is doing something in the background")
+    let result: RunResult
+    do throws(HostError) {
+      let owner: SessionOwner = if case .review(let day) = run.kind { .review(day) } else { .run(run.id) }
+      let agent = try AgentRun(owner: owner, session: .run(run.id), context: context)
+      current?.agent = agent
+      try await agent.startOver()
+      let text = try RunPrompts(context: context).text(for: run, redo: redo)
+      if current?.stopped == true {
+        result = .stopped
+      } else {
+        let purpose: Prompt.Purpose = if case .review(let day) = run.kind { .review(day) } else { .run(run.id) }
+        try await agent.send(Prompt(text: text, purpose: purpose), saying: text)
+        result = current?.stopped == true ? .stopped : RunResult(of: await agent.settle())
+      }
+      await agent.close()
+    } catch {
+      result = .failed(String(describing: error), again: false)
+    }
+    activity.end()
+    await finish(run, result)
+  }
+
+  private func finish(_ run: Run, _ result: RunResult) async {
+    guard let current else { return }
+    let database = context.database
+    let now = context.environment.now()
+    let review: Day? = if case .review(let day) = run.kind { day } else { nil }
+    if closing {
+      if let review { try? database.forgetReview(of: review) }
+      return
+    }
+    let tries = current.tries + 1
+    var record = (try? context.store.runRecord(at: run.record)).flatMap(\.self) ?? ""
+    switch result {
+    case .finished(let reply, let sources):
+      let summary = RunResult.summary(of: reply)
+      try? database.saveRun(run.with(.finished(summary: summary, sources: sources)))
+      for event in current.events { try? database.update(event.with(.done(run.id))) }
+      record += RunRecord.found(reply, summary: summary, sources: sources, tries: tries)
+      if let review { try? database.endReview(of: review, .finished) }
+    case .stopped:
+      try? database.saveRun(run.with(.failed("stopped", tries: tries)))
+      for event in current.events { try? database.update(event.with(.dropped)) }
+      record += RunRecord.failed(try: tries, "Stopped: the panel it was for was removed.", final: true)
+      if let review { try? database.forgetReview(of: review) }
+    case .failed(let reason, let again) where again && tries < Run.tries:
+      let wait = Self.retryMinutes[current.tries] * 60_000
+      let retry = Event.Retry(
+        run: run.id, tries: tries, notBefore: Timestamp(millisecondsSince1970: now.millisecondsSince1970 + wait))
+      try? database.saveRun(run.with(.running(tries: tries)))
+      for event in current.events { try? database.update(event.with(.waiting(retry))) }
+      record += RunRecord.failed(try: tries, reason, final: false)
+    case .failed(let reason, _):
+      try? database.saveRun(run.with(.failed(reason, tries: tries)))
+      for event in current.events { try? database.update(event.with(.failed(run.id, reason: reason))) }
+      record += RunRecord.failed(try: tries, reason, final: true)
+      if let review { try? database.endReview(of: review, .failed(reason)) }
+    }
+    try? context.store.saveRunRecord(record, at: run.record)
+    self.current = nil
+    work = nil
+    await context.follower.follow(changes(of: run.kind))
+    await consider()
+  }
+
+  /// Stops the run under way. Its events stay in the inbox and are done again when the app next opens.
+  func close() async {
+    closing = true
+    await current?.agent?.close()
+    await work?.value
+  }
+
+  private func changes(of kind: Run.Kind) -> Set<ContentChange> {
+    switch kind {
+    case .review: [.timers, .review]
+    case .timers: [.timers, .loci(.panels)]
+    }
+  }
+
+  private func panels(of kind: Run.Kind) -> Set<String> {
+    guard case .timers(let timed) = kind else { return [] }
+    return Set(
+      timed.sources.compactMap { source in
+        switch source {
+        case .panel(let name, _): return name
+        case .schedule(let id):
+          guard case .panel(let name)? = (try? context.database.schedule(id))??.destination else { return nil }
+          return name
+        case .followUp, .review: return nil
+        }
+      })
+  }
+
+  private func title(of source: Event.Source) -> String {
+    switch source {
+    case .panel(let name, _): context.store.panel(named: name)?.panel?.title ?? name
+    case .schedule(let id): ((try? context.database.schedule(id)) ?? nil)?.title ?? id.description
+    case .followUp(let id): ((try? context.database.followUp(id)) ?? nil)?.what ?? id.description
+    case .review(let day): "\(day)"
+    }
+  }
+
+  private func describe(_ event: Event) -> String {
+    let due = TimeOfDay(of: event.due, in: context.environment.timeZone)
+    switch event.source {
+    case .panel(let name, let asked): return "panel \(name)" + (asked ? ", asked for" : ", due \(due)")
+    case .schedule(let id):
+      let name = ((try? context.database.schedule(id)) ?? nil)?.name ?? id.description
+      return "schedule \(name), due \(due): \(title(of: event.source))"
+    case .followUp: return "follow-up due \(due): \(title(of: event.source))"
+    case .review(let day): return "the review of \(day)"
+    }
+  }
+}
+
+/// What a run's session may do with `loci`.
+enum RunPolicy: Equatable {
+  /// Only panels' refreshes: read, and save those panels.
+  case panel
+  /// Schedules and follow-ups: read, set follow-ups, and save the panels they keep.
+  case timers
+  /// The daily review: read, set follow-ups, and say how it feels.
+  case review
+
+  func refusal(_ name: String) -> String {
+    switch self {
+    case .panel: "A panel's refresh only reads and saves its own panel; loci cannot run \(name) in it."
+    case .timers:
+      "A run in the background only reads, sets follow-ups and saves its own panel; loci cannot run \(name) in it."
+    case .review: "The daily review only reads, sets follow-ups and sets your mood; loci cannot run \(name) in it."
+    }
+  }
+}
+
+/// Whether a run may save a panel.
+enum PanelPermission: Equatable {
+  case allowed
+  /// The run is over, or what it was for was removed.
+  case stopped
+  /// It may save only these.
+  case only([String])
+  /// It may save none.
+  case none
+}
+
+extension Event {
+  var isAsked: Bool {
+    if case .panel(_, asked: true) = source { true } else { false }
+  }
+
+  var isReview: Bool {
+    if case .review = source { true } else { false }
+  }
+}

@@ -27,7 +27,7 @@ public struct SavingNow: Subscription {
       switch change {
       case .job, .item, .everything: true
       case .course, .courseActivity, .notes, .reading, .media, .conversation, .turnEnded, .review, .loci,
-        .runtime:
+        .runtime, .timers:
         false
       }
     }

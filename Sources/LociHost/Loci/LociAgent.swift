@@ -2,17 +2,13 @@ import Foundation
 import LociModel
 import LociStore
 
-/// Loci: one run per conversation, made the first time each is needed, and the daily review. Runs keep
-/// going with no window open.
+/// Loci: one run per conversation, made the first time each is needed. Runs keep going with no window open.
 actor LociAgent {
   let context: AgentContext
   private var runs: [ConversationRef: AgentRun] = [:]
   /// Items being deleted. Their files are still on disk for a moment, so without this a refresh in that
   /// moment would make them a new run that outlives the deletion.
   private var leaving: Set<ConversationRef> = []
-  private var review: Task<Void, Never>?
-  private var reviewRun: AgentRun?
-  private var closing = false
 
   init(context: AgentContext) {
     self.context = context
@@ -44,13 +40,13 @@ actor LociAgent {
     runs[conversation]
   }
 
-  /// Whether a turn is running anywhere, or the day is being looked back on.
+  /// Whether a turn is running in any conversation.
   var isWorking: Bool {
     get async { await work != nil }
   }
 
-  /// A turn running in the main conversation, else in any other, else the review of the day. The tool is told
-  /// without what it printed, which the status does not show.
+  /// A turn running in the main conversation, else in any other. The tool is told without what it printed,
+  /// which the status does not show.
   var work: LociWork? {
     get async {
       let main = runs[.main].map { [$0] } ?? []
@@ -62,7 +58,7 @@ actor LociAgent {
             })
         }
       }
-      return review == nil ? nil : .reviewing
+      return nil
     }
   }
 
@@ -82,74 +78,8 @@ actor LociAgent {
     leaving.remove(conversation)
   }
 
-  /// Starts looking back on a day when one is due. Returns at once; the review goes on in the background.
-  func considerReview() async {
-    guard review == nil, !closing else { return }
-    let database = context.database
-    let store = context.store
-    let timeZone = context.environment.timeZone
-    let situation = DailyReview.Situation(
-      now: context.environment.now(), timeZone: timeZone, working: await isWorking,
-      lastSaid: { (try? database.talk())?.latest },
-      reviewed: { (try? database.review(of: $0)) != nil },
-      active: { day in
-        let start = day.start(in: timeZone)
-        let end = day.adding(days: 1).start(in: timeZone)
-        if ((try? database.typedMessages(from: start, to: end)) ?? 0) > 0 { return true }
-        let notes = DayNotes(day: day, parsing: (try? store.dayNotes(of: day)) ?? "", title: { _ in nil })
-        return !notes.notes.isEmpty
-      })
-    guard review == nil, !closing, let day = DailyReview.due(situation) else { return }
-    review = Task { await self.lookBack(on: day) }
-    await context.follower.follow([.review])
-  }
-
-  private func lookBack(on day: Day) async {
-    let now = context.environment.now()
-    let timeZone = context.environment.timeZone
-    let previous = (try? context.database.latestReview(before: day)).flatMap { previous in
-      previous.day == day.adding(days: -1) ? (previous.day, TimeOfDay(of: previous.startedAt, in: timeZone)) : nil
-    }
-    let outcome: ReviewOutcome
-    do throws(HostError) {
-      try attempt { try context.database.beginReview(of: day, at: now) }
-      let run = try AgentRun(owner: .review(day), session: nil, context: context)
-      reviewRun = run
-      let text = context.prompts.review(of: day, since: previous.map { (day: $0.0, at: $0.1) })
-      try await run.send(Prompt(text: text, purpose: .review(day)), saying: text)
-      outcome = Self.outcome(of: await run.settle())
-      await run.close()
-    } catch {
-      outcome = .failed(String(describing: error))
-    }
-    if closing {
-      try? context.database.forgetReview(of: day)
-    } else {
-      try? context.database.endReview(of: day, outcome)
-    }
-    reviewRun = nil
-    review = nil
-    await context.follower.follow([.review])
-  }
-
-  private static func outcome(of turn: [Message]) -> ReviewOutcome {
-    for message in turn {
-      switch message.body {
-      case .ended(.failed(let reason)): return .failed(reason)
-      case .ended(.unstarted(let provider, .notInstalled)): return .failed("\(provider.rawValue) is not installed")
-      case .ended(.unstarted(let provider, .wouldNotStart)): return .failed("\(provider.rawValue) would not start")
-      case .ended(.interrupted): return .failed("stopped")
-      default: continue
-      }
-    }
-    return .finished
-  }
-
-  /// Stops every run. A review cut short is forgotten, so it is done again next time.
+  /// Stops every run.
   func close() async {
-    closing = true
-    await reviewRun?.close()
-    await review?.value
     for run in runs.values { await run.close() }
     runs = [:]
   }

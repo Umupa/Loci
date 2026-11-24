@@ -7,6 +7,8 @@ enum Symbols {
   static let problem = "exclamationmark.triangle.fill"
   static let send = "arrow.up"
   static let settings = "gearshape"
+  static let window = "macwindow"
+  static let quit = "power"
   static let agents = "terminal"
   static let fold = "chevron.right"
   static let popup = "chevron.up.chevron.down"

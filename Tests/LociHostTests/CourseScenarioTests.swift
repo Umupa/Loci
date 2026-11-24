@@ -59,7 +59,7 @@ struct CourseScenarioTests {
       let access = try await tag(for: first.id, on: agent)
       let draft = try question()
       let rejectedSessions: [LocalSession?] = [
-        nil, .conversation(.main), .conversation(.course(first.id)), .panelRefresh(first.id),
+        nil, .conversation(.main), .conversation(.course(first.id)), .run(first.id),
       ]
       for outside in rejectedSessions {
         guard case .failed = await answer(.ask(draft), from: outside, on: host) else {

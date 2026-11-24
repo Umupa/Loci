@@ -22,6 +22,14 @@ public enum ToolGuide {
       loci panel add <name> <section> <text> [--propose]
                                        add your item at the end of an items section; --propose leaves it
                                        for the person to take or not
+      loci schedule add <name>         look into something on a schedule, from JSON on standard input;
+                                       prints when it first runs
+      loci schedule list               every schedule and panel refresh: how often, where it goes, next time
+      loci schedule remove <name>      stop it; a panel's refresh stops and the panel stays
+      loci followup <when> <what>      look at something again once, on your own; when is YYYY-MM-DD [HH:mm]
+                                       (09:00 without a time), HH:mm (the next one), or in <n>m|h|d
+      loci followup list               follow-ups still to come, with their ids
+      loci followup cancel <id>
       loci course ask                  publish one question from JSON on standard input
       loci course goal                 update the goal from JSON on standard input
       loci course ready                mark the goal ready after the person confirms
@@ -90,6 +98,18 @@ public enum ToolGuide {
     - The person's items ("by": "you") and their "pinned" and "note" on any item are theirs: whatever you
       save, the app keeps them as they are. You may move items, tick them "done", and drop your own; keep
       every section that holds the person's items.
+
+    A schedule, as `loci schedule add <name>` takes it. The name is short lowercase English, as for a panel.
+
+      { "title": "CubeSandbox 动静", "follow": "看看 CubeSandbox 有什么新版本、PR 和讨论",
+        "every": { "every": "day", "at": "21:00" }, "panel": "sandbox-radar" }
+
+    - "every" is written as a panel's "refresh": hour, day with "at", or week with "weekday" and "at".
+    - "panel" is where what it finds goes: a panel that exists, without a "refresh" of its own. Leave it
+      out and what it finds goes only into your notes.
+    - Each run starts fresh in the background, with "follow", what the last run found and the panel as it
+      is now. Its last sentence is kept as its summary; you see it when the person next talks to you.
+    - In a run, loci only reads, sets follow-ups and saves the run's panel.
 
     The course and lesson commands work only during a turn in that course conversation. The session
     supplies the course ID. Course sources are links, with a full commit SHA for a repository.

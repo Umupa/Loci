@@ -20,6 +20,8 @@ final class FakeAgent: AgentDriver, Sendable {
     case report(ContextUsage, reply: String)
     /// Compacts its context, then replies.
     case compact(reply: String)
+    /// The model's side fails partway, with these words.
+    case fail(String)
   }
 
   let provider: Provider
@@ -149,6 +151,8 @@ private actor FakeSession: AgentSession {
       out.yield(.notice(.compacting))
       out.yield(.text(reply))
       return .completed
+    case .fail(let reason):
+      return .failed(.provider(reason))
     }
   }
 }

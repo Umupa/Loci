@@ -178,6 +178,7 @@ private struct TodayNotes: View {
       case .main: Text(.loci("loci.fromMain"))
       case .item(_, let title?): Text(verbatim: title)
       case .review: Text(.loci("loci.fromReview"))
+      case .run: Text(.loci("loci.fromRun"))
       case .course, .item(_, nil), nil: nil
       }
     guard let name else { return Text(verbatim: "") }

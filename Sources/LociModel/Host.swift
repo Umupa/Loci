@@ -169,4 +169,12 @@ public protocol CommandHandler: Sendable {
   func openLesson(_ command: OpenLesson) async throws(HostError) -> Done
   func writeLessonNow(_ command: WriteLessonNow) async throws(HostError) -> Done
   func deleteCourse(_ command: DeleteCourse) async throws(HostError) -> Done
+  func timers() async throws(HostError) -> Timers
+  func runs(of schedule: ScheduleRef, limit: Int) async throws(HostError) -> [Run]
+  func pauseSchedule(_ command: PauseSchedule) async throws(HostError) -> Done
+  func changeScheduleEvery(_ command: ChangeScheduleEvery) async throws(HostError) -> ScheduleEntry
+  func removeSchedule(_ command: RemoveSchedule) async throws(HostError) -> Done
+  func addSchedule(_ command: AddSchedule) async throws(HostError) -> ScheduleEntry
+  func addFollowUp(_ command: AddFollowUp) async throws(HostError) -> FollowUp
+  func cancelFollowUp(_ command: CancelFollowUp) async throws(HostError) -> Done
 }

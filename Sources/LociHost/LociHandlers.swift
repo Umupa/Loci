@@ -5,10 +5,7 @@ import LociStore
 extension LocalHost {
   public func lociStatus() async -> LociStatus {
     if let work = await loci.work { return LociStatus(work: work) }
-    if let name = await panels.refreshingNames.first {
-      let title = await panels.entries().first { $0.name == name }?.panel?.title
-      return LociStatus(work: .refreshing(title: title ?? name))
-    }
+    if let work = await worker.status { return LociStatus(work: work) }
     if let batch = await library.queue.savingBatch, batch.finished < batch.items.count {
       return LociStatus(work: .saving)
     }

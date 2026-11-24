@@ -13,6 +13,8 @@ enum Request: Hashable, Sendable {
   case panel(PanelRequest)
   case course(CourseRequest)
   case feeling(FeelingRequest)
+  case schedule(ScheduleRequest)
+  case followUp(FollowUpRequest)
   case help
 
   /// The request in `arguments` (without the program's name), and whether to print the app's replies as
@@ -43,6 +45,8 @@ enum Request: Hashable, Sendable {
     case "import": return (try importing(words), json)
     case "panel": return (.panel(try PanelRequest.parse(words)), json)
     case "course": return (.course(try CourseRequest.parse(words)), json)
+    case "schedule": return (.schedule(try ScheduleRequest.parse(words)), json)
+    case "followup": return (.followUp(try FollowUpRequest.parse(words)), json)
     case "lesson": return (.course(try CourseRequest.lesson(words)), json)
     case "mood": return (.feeling(try mood(words)), json)
     case "sleep", "wake":

@@ -23,7 +23,7 @@
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |
 | `LociRemote` | 配对、加密通道（Noise）、中继（alma-relay 协议）、局域网发现（Bonjour）、`loci` 命令连进来的本机 unix socket；系统框架可用 CryptoKit、Network | `LociModel` |
 | `LociHost` | 命令层的实现：本机和远程；伙伴的会话、上下文拼装与每日回顾；系统框架可用 IOKit（有已配对的 Mac 时阻止空闲睡眠，读机型） | 以上全部 |
-| `LociUI` | 界面与设计系统；系统框架可用 AVKit、AVFoundation（播放）、PDFKit（论文）、WebKit（内置浏览器） | `LociModel`；第三方：swift-markdown、Textual、HighlightSwift、SwiftMath |
+| `LociUI` | 界面与设计系统、菜单栏；系统框架可用 AVKit、AVFoundation（播放）、PDFKit（论文）、WebKit（内置浏览器）、ServiceManagement（登录时打开） | `LociModel`；第三方：swift-markdown、Textual、HighlightSwift、SwiftMath |
 | `Loci` | 应用入口，把界面接到 Host 上 | `LociModel` `LociUI` `LociHost` |
 | `LociTool` | `loci` 命令：读参数，把动词翻成 Host 命令，经本机 socket 发给应用，打印回复。打包成 `Contents/Helpers/loci` | `LociModel` `LociRemote` |
 

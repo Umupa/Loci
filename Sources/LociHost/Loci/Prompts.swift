@@ -11,12 +11,15 @@ struct Prompts: Sendable {
   let review: String
   let panel: String
   let course: String
+  let schedule: String
+  let followUp: String
 
   static func bundled() throws(HostError) -> Prompts {
     Prompts(
       soul: try resource("soul"), previousSoul: try resource("soul-1.7"),
       rules: try resource("rules"), review: try resource("review"),
-      panel: try resource("panel"), course: try resource("course"))
+      panel: try resource("panel"), course: try resource("course"), schedule: try resource("schedule"),
+      followUp: try resource("followup"))
   }
 
   private static func resource(_ name: String) throws(HostError) -> String {
@@ -51,20 +54,21 @@ struct Prompts: Sendable {
   /// What a panel's refresh is asked: what the panel follows, the panel as it is now, and the lines the
   /// person no longer wants to see.
   func panel(_ panel: Panel, hidden marks: [PanelLineKey: PanelLineMark]) throws(HostError) -> String {
+    self.panel
+      .replacing("{{name}}", with: panel.name)
+      .replacing("{{follow}}", with: panel.follow)
+      .replacing("{{json}}", with: try Self.json(panel))
+      .replacing("{{hidden}}", with: Self.hidden(in: panel, marks: marks))
+  }
+
+  static func json(_ panel: Panel) throws(HostError) -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    let json: String
     do {
-      json = String(decoding: try encoder.encode(panel), as: UTF8.self)
+      return String(decoding: try encoder.encode(panel), as: UTF8.self)
     } catch {
       throw .storage(String(describing: error))
     }
-    return
-      self.panel
-      .replacing("{{name}}", with: panel.name)
-      .replacing("{{follow}}", with: panel.follow)
-      .replacing("{{json}}", with: json)
-      .replacing("{{hidden}}", with: Self.hidden(in: panel, marks: marks))
   }
 
   /// One line for each line of the panel's lists the person hid, by title and link.

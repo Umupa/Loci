@@ -44,7 +44,7 @@ enum Architecture {
       uses: ["LociModel"],
       frameworks: [
         "Foundation", "Observation", "SwiftUI", "AppKit", "PDFKit", "AVKit", "AVFoundation", "MediaPlayer",
-        "WebKit", "UniformTypeIdentifiers", "ImageIO", "os",
+        "WebKit", "UniformTypeIdentifiers", "ImageIO", "ServiceManagement", "os",
       ],
       packages: ["Markdown", "Textual", "HighlightSwift", "SwiftMath"]),
     "Loci": Module(

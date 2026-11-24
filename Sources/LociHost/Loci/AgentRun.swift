@@ -175,6 +175,7 @@ actor AgentRun {
     let remembered = session.with(sent: shown)
     try TurnFailure.from { () throws(HostError) in
       try attempt { try context.database.markSent(shown, in: remembered.id) }
+      try attempt { try context.database.markTold(surroundings.told, at: context.environment.now()) }
     }
     self.session = remembered
     var parts = [prefix]
@@ -329,7 +330,7 @@ actor AgentRun {
         ended ? [.conversation(conversation), .turnEnded(conversation)] : [.conversation(conversation)])
     case .review:
       await context.follower.follow([.review])
-    case .panel:
+    case .panel, .run:
       break
     }
   }

@@ -41,6 +41,16 @@ struct HostCodingTests {
     #expect(try Self.roundTrips(Forget("- 2026-11-02 先给结论", in: .memory)))
     #expect(try Self.roundTrips(SetAvatar(try Avatar(data: Data([1, 2, 3]), format: "PNG"))))
     #expect(try Self.roundTrips(ResetAvatar()))
+    let every = Every.week(.friday, at: try #require(TimeOfDay("21:00")))
+    let draft = ScheduleDraft(title: "动静", follow: "看看", every: every, destination: .panel("radar"))
+    #expect(try Self.roundTrips(AddSchedule("sandbox-news", draft)))
+    #expect(try Self.roundTrips(AddFollowUp(.at(try #require(Day("2025-11-21")), nil), "看看 #244", in: .main)))
+    #expect(try Self.roundTrips(AddFollowUp(.after(minutes: 90), "再看")))
+    #expect(try Self.roundTrips(PauseSchedule(.panel("radar"), paused: true)))
+    #expect(try Self.roundTrips(ChangeScheduleEvery(.schedule(Fixture.item), every: .hour)))
+    #expect(try Self.roundTrips(RemoveSchedule(.schedule(Fixture.item))))
+    #expect(try Self.roundTrips(CancelFollowUp(Fixture.item)))
+    #expect(try Self.roundTrips(ListTimers()))
   }
 
   @Test func everyReplyAndFeedSurvivesJSON() throws {

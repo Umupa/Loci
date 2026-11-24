@@ -127,6 +127,8 @@ public struct Prompt: Hashable, Codable, Sendable {
     case review(Day)
     /// The app asking Loci to refresh the panel by this name. It belongs to no conversation.
     case panel(String)
+    /// The app asking Loci to do a run in the background. It belongs to no conversation.
+    case run(Run.ID)
     case course(CourseEvent)
   }
 }

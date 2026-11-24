@@ -13,6 +13,7 @@ final class TestWorld: Sendable {
   private let looks = Mutex<[Bool]>([])
   private let clock = Mutex<Timestamp>(TestWorld.instant)
   private let ticking = AsyncStream.makeStream(of: Void.self)
+  private let activities = Mutex<[String]>([])
   /// What the Mac seems to have installed: Pi only.
   static let installed: [AgentInstallation] = Provider.allCases.map { provider in
     provider == .pi
@@ -47,8 +48,15 @@ final class TestWorld: Sendable {
       detectAgents: { [self] again in
         self.looks.withLock { $0.append(again) }
         return Self.installed
-      }, ticks: { [ticking] in ticking.stream }, tool: tool)
+      }, ticks: { [ticking] in ticking.stream }, tool: tool,
+      activity: { [self] _ in
+        self.activities.withLock { $0.append("begin") }
+        return Activity { self.activities.withLock { $0.append("end") } }
+      })
   }
+
+  /// Each time the host declared background work, and each time it ended it.
+  var activity: [String] { activities.withLock { $0 } }
 
   var now: Timestamp { clock.withLock { $0 } }
 

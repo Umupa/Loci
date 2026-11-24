@@ -3,10 +3,11 @@ import SwiftUI
 
 @main
 struct LociApp: App {
+  @NSApplicationDelegateAdaptor private var delegate: LociAppDelegate
   @State private var launch = Launch()
 
   var body: some Scene {
-    WindowGroup {
+    WindowGroup(id: MainWindow.id) {
       switch launch.state {
       case .running:
         RootView(
@@ -21,6 +22,13 @@ struct LociApp: App {
     }
     .windowStyle(.hiddenTitleBar)
     .commands { LociCommands() }
+
+    MenuBarExtra {
+      MenuBarPanel(companion: launch.companion)
+    } label: {
+      MenuBarGlyph(companion: launch.companion)
+    }
+    .menuBarExtraStyle(.window)
 
     Window(Text(AppUpdateWindow.title), id: AppUpdateWindow.id) {
       AppUpdateWindow(updates: launch.updater)

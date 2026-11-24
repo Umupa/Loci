@@ -11,6 +11,8 @@ struct Tool: Sendable {
   var readInput: @Sendable () -> Data = { FileHandle.standardInput.readDataToEndOfFile() }
   /// The id of an item Loci adds to a panel.
   var newID: @Sendable () -> EntityID = { EntityID() }
+  /// The time zone times are printed in.
+  var timeZone: TimeZone = .current
 
   struct Outcome: Hashable {
     let text: String
@@ -51,6 +53,8 @@ struct Tool: Sendable {
     case .wait(let id): return try await wait(id, json: json)
     case .panel(let request): return try await panel(request, json: json)
     case .course(let request): return await course(request, json: json)
+    case .schedule(let request): return try await schedule(request, json: json)
+    case .followUp(let request): return try await followUp(request, json: json)
     case .feeling(let request):
       let reply = try await line.send(.feeling(request))
       return .worked(json ? Self.text(reply) : try Failure.decoding(String.self, from: reply))

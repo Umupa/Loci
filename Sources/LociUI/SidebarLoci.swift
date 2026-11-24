@@ -72,6 +72,7 @@ extension LociWork {
     case .doing(let doing): doing.words
     case .refreshing(let title): .loci("sidebar.refreshing \(title)")
     case .reviewing: .loci("sidebar.reviewing")
+    case .looking(let title): .loci("sidebar.looking \(title)")
     case .saving: .loci("sidebar.saving")
     }
   }
@@ -83,6 +84,7 @@ extension LociWork {
     case .answering(let tool): .doing(tool.map(Doing.init) ?? .thinking)
     case .refreshing(let title): .refreshing(title)
     case .reviewing: .reviewing
+    case .looking(let title): .looking(title)
     case .saving: .saving
     }
   }
@@ -90,6 +92,7 @@ extension LociWork {
   enum Said: Hashable {
     case doing(Doing)
     case refreshing(String)
+    case looking(String)
     case reviewing, saving
   }
 }

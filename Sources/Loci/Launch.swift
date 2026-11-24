@@ -21,6 +21,8 @@ final class Launch {
   /// Why the last reset did not go through.
   var resetFailure: HostError?
   let host = DeferredHost()
+  /// This Mac's companion in the menu bar, which stays while every window is closed.
+  let companion: MenuBarCompanion
   private var local: LocalHost?
   /// The Macs the window can show: this one and the ones paired through the relay, or only this one in a build
   /// without a relay or when the device key cannot be kept.
@@ -34,6 +36,7 @@ final class Launch {
   private static let log = Logger(subsystem: "com.loci.native.dev", category: "launch")
 
   init() {
+    companion = MenuBarCompanion(host: host)
     let service: MachinesService?
     let choice = DataFolder.choose(environment: ProcessInfo.processInfo.environment, home: URL.homeDirectory)
     switch choice {

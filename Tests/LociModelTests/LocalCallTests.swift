@@ -15,21 +15,22 @@ struct LocalCallTests {
   }
 
   @Test func aSessionIsNamedByItsTag() throws {
-    let refresh = Fixture.id(7)
+    let run = Fixture.id(7)
     #expect(LocalSession(tag: "main") == .conversation(.main))
     #expect(LocalSession(tag: "library/\(Fixture.item)") == .conversation(.item(Fixture.item)))
-    #expect(LocalSession.panelRefresh(refresh).tag == "panel-refresh/\(refresh)")
-    #expect(LocalSession(tag: "panel-refresh/\(refresh)") == .panelRefresh(refresh))
-    #expect(LocalSession(tag: "panel-refresh/radar") == nil)
+    #expect(LocalSession.run(run).tag == "run/\(run)")
+    #expect(LocalSession.run(run).tag == NoteSource.run(run).tag)
+    #expect(LocalSession(tag: "run/\(run)") == .run(run))
+    #expect(LocalSession(tag: "run/radar") == nil)
     #expect(LocalSession(tag: "review") == nil)
-    #expect(LocalSession.panelRefresh(refresh).conversation == nil)
+    #expect(LocalSession.run(run).conversation == nil)
   }
 
   @Test func aCallReadsBackAsItWasSent() throws {
     let call = LocalCall(session: .conversation(.item(Fixture.item)), request: .itemFolder(Fixture.item))
     #expect(
       try HostCodingTests.roundTrips(
-        LocalCall(session: .panelRefresh(Fixture.id(7)), request: .itemFolder(Fixture.item))))
+        LocalCall(session: .run(Fixture.id(7)), request: .itemFolder(Fixture.item))))
     let read = try JSONDecoder().decode(LocalCall.self, from: try JSONEncoder().encode(call))
     #expect(read == call)
   }

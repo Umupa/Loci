@@ -122,6 +122,39 @@ enum Schema {
     migrator.registerMigration("7 paused job") { db in
       try db.execute(sql: #"UPDATE job SET state = '{"paused":{}}' WHERE state = '{"stopped":{}}'"#)
     }
+    migrator.registerMigration("8 timers") { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE timer (
+            id TEXT PRIMARY KEY NOT NULL,
+            kind TEXT NOT NULL,
+            name TEXT UNIQUE,
+            body TEXT NOT NULL,
+            due_at TEXT,
+            ended_at TEXT
+          );
+          CREATE TABLE inbox (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT NOT NULL UNIQUE,
+            key TEXT NOT NULL UNIQUE,
+            open INTEGER NOT NULL,
+            body TEXT NOT NULL
+          );
+          CREATE INDEX inbox_open ON inbox(open);
+          CREATE TABLE run (
+            id TEXT PRIMARY KEY NOT NULL,
+            started_at TEXT NOT NULL,
+            body TEXT NOT NULL,
+            told_at TEXT
+          );
+          CREATE TABLE run_schedule (
+            run_id TEXT NOT NULL REFERENCES run(id),
+            schedule TEXT NOT NULL,
+            PRIMARY KEY (run_id, schedule)
+          );
+          CREATE INDEX run_schedule_schedule ON run_schedule(schedule);
+          """)
+    }
     return migrator
   }
 

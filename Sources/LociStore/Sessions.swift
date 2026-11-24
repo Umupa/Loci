@@ -8,6 +8,8 @@ public enum SessionOwner: Hashable, Sendable {
   case review(Day)
   /// Refreshing the panel by this name.
   case panel(String)
+  /// A run in the background.
+  case run(EntityID)
 
   /// How the owner is written in the database and in the names of the conversation copies.
   var key: String {
@@ -17,6 +19,7 @@ public enum SessionOwner: Hashable, Sendable {
     case .conversation(.course(let course)): "courses-\(course)"
     case .review(let day): "review-\(day)"
     case .panel(let name): "panel-\(name)"
+    case .run(let run): "run-\(run)"
     }
   }
 
@@ -29,6 +32,8 @@ public enum SessionOwner: Hashable, Sendable {
       self = .conversation(.course(course))
     } else if key.hasPrefix("review-"), let day = Day(String(key.dropFirst(7))) {
       self = .review(day)
+    } else if key.hasPrefix("run-"), let run = EntityID(canonical: String(key.dropFirst(4))) {
+      self = .run(run)
     } else if key.hasPrefix("panel-"), key.count > 6 {
       self = .panel(String(key.dropFirst(6)))
     } else {

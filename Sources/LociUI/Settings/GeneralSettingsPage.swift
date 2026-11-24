@@ -19,6 +19,7 @@ struct GeneralSettingsPage: View {
 
   var body: some View {
     SettingsPage(symbol: Symbols.settings, title: .loci("settings.general")) {
+      SettingsGroup(title: nil) { LoginItemRow() }
       SettingsGroup(title: .loci("settings.appearance")) {
         HStack(spacing: 18) {
           ForEach(AppearanceChoice.allCases, id: \.self) { choice in

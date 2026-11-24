@@ -39,6 +39,9 @@ public struct HostEnvironment: Sendable {
   public let tool: AgentTool?
   public let sourceCache: URL?
   public let gitExecutable: URL
+  /// Tells macOS the app is doing work no window shows, so it does not nap while a run goes on; the
+  /// activity ends when the run does.
+  public let activity: @Sendable (_ reason: String) -> Activity
 
   public init(
     newID: @escaping @Sendable () -> EntityID, now: @escaping @Sendable () -> Timestamp, timeZone: TimeZone = .gmt,
@@ -51,7 +54,8 @@ public struct HostEnvironment: Sendable {
     wait: (@Sendable (Duration) async -> Void)? = nil,
     tool: AgentTool? = nil,
     modelKeys: (any ModelKeyStore)? = nil, modelClient: ModelClient = ModelClient(), modelParallelism: Int = 3,
-    bundledPi: BundledPiEnvironment? = nil, sourceCache: URL? = nil, gitExecutable: URL = URL(filePath: "/usr/bin/git")
+    bundledPi: BundledPiEnvironment? = nil, sourceCache: URL? = nil, gitExecutable: URL = URL(filePath: "/usr/bin/git"),
+    activity: @escaping @Sendable (_ reason: String) -> Activity = { _ in Activity {} }
   ) {
     self.newID = newID
     self.now = now
@@ -72,6 +76,7 @@ public struct HostEnvironment: Sendable {
     self.bundledPi = bundledPi
     self.sourceCache = sourceCache
     self.gitExecutable = gitExecutable
+    self.activity = activity
   }
 
   /// The real clock and time zone, fresh identifiers, the Trash, and the agent programs installed on this Mac.
@@ -85,7 +90,7 @@ public struct HostEnvironment: Sendable {
       detectAgents: { await installed.detect(again: $0) }, models: { await installed.models(of: $0) },
       ticks: { everyMinute() }, media: .system(agents: { await installed.driver(for: $0) }), tool: tool,
       modelKeys: ModelKeychain(serviceName: "com.loci.native.dev.model-service"), bundledPi: BundledPiEnvironment(),
-      sourceCache: sourceCache)
+      sourceCache: sourceCache, activity: ProcessActivity.begin)
   }
 
   private static func everyMinute() -> AsyncStream<Void> {

@@ -36,27 +36,26 @@ public struct LocalCall: Hashable, Codable, Sendable {
 /// The Loci session a `loci` command runs in, which decides what the command may do.
 public enum LocalSession: Hashable, Codable, Sendable {
   case conversation(ConversationRef)
-  /// One background refresh of a panel, by an id of its own: once the refresh is over or the panel is
-  /// removed, nothing it asks to save is kept.
-  case panelRefresh(EntityID)
+  /// One run in the background, by its id: once the run is over, nothing it asks to save is kept.
+  case run(Run.ID)
   case course(EntityID, access: EntityID)
 
-  static let refreshPrefix = "panel-refresh/"
+  static let runPrefix = "run/"
   static let coursePrefix = "course-tool/"
 
-  /// A conversation tag, panel refresh or course tool scope.
+  /// A conversation tag, the run's notes tag, or course tool scope.
   public var tag: String {
     switch self {
     case .conversation(let conversation): conversation.tag
-    case .panelRefresh(let refresh): Self.refreshPrefix + refresh.description
+    case .run(let run): Self.runPrefix + run.description
     case .course(let course, let access): "\(Self.coursePrefix)\(course)/\(access)"
     }
   }
 
   public init?(tag: String) {
-    if tag.hasPrefix(Self.refreshPrefix) {
-      guard let refresh = EntityID(canonical: String(tag.dropFirst(Self.refreshPrefix.count))) else { return nil }
-      self = .panelRefresh(refresh)
+    if tag.hasPrefix(Self.runPrefix) {
+      guard let run = EntityID(canonical: String(tag.dropFirst(Self.runPrefix.count))) else { return nil }
+      self = .run(run)
     } else if tag.hasPrefix(Self.coursePrefix) {
       let parts = tag.dropFirst(Self.coursePrefix.count).split(separator: "/", omittingEmptySubsequences: false)
       guard parts.count == 2, let course = EntityID(canonical: String(parts[0])),
@@ -74,7 +73,7 @@ public enum LocalSession: Hashable, Codable, Sendable {
     switch self {
     case .conversation(let conversation): conversation
     case .course(let id, _): .course(id)
-    case .panelRefresh: nil
+    case .run: nil
     }
   }
 }
@@ -102,7 +101,7 @@ extension ConversationRef {
     case .main: self = .main
     case .item(let item, _): self = .item(item)
     case .course(let id): self = .course(id)
-    case .review, nil: return nil
+    case .review, .run, nil: return nil
     }
   }
 }

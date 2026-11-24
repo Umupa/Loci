@@ -1,7 +1,9 @@
 /// Every command and subscription another Mac may use, and how each travels. A type missing here cannot be
 /// used remotely, and the architecture check fails until it is added.
 public enum Wire {
-  public static let toolCommands: [any LocalToolCommand.Type] = [ReadSource.self, FetchSourceRepository.self]
+  public static let toolCommands: [any LocalToolCommand.Type] = [
+    ReadSource.self, FetchSourceRepository.self, AddSchedule.self, AddFollowUp.self,
+  ]
 
   public static let commands: [CommandRoute] = [
     .writes(SendMessage.self), .writes(StopTurn.self), .writes(StartOver.self),
@@ -33,6 +35,8 @@ public enum Wire {
     .writes(BeginCourseSources.self), .writes(AddCourseSource.self), .writes(RemoveCourseSource.self),
     .writes(BeginCourseWriting.self), .reads(ReadLesson.self), .writes(OpenLesson.self),
     .writes(WriteLessonNow.self), .writes(DeleteCourse.self), .writes(RestoreDeletedCourse.self),
+    .reads(ListTimers.self), .writes(PauseSchedule.self), .writes(ChangeScheduleEvery.self),
+    .writes(RemoveSchedule.self), .writes(CancelFollowUp.self),
   ]
 
   public static let subscriptions: [any Subscription.Type] = [
@@ -41,6 +45,7 @@ public enum Wire {
     AllItems.self, OneItem.self, ItemCover.self, NotesOn.self, AllJobs.self, ItemJob.self, SavingNow.self,
     ItemMedia.self, WatchCourses.self, WatchCourse.self, WatchLesson.self,
     MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self, WatchPanelColumn.self,
+    WatchTimers.self, WatchScheduleRuns.self,
   ]
 
   /// The route of a command type, or `nil` when it is not registered.

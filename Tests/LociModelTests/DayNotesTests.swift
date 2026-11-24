@@ -33,12 +33,22 @@ struct DayNotesTests {
       Self.notes("- 10:00 [later] 想法") == [.entry(DayNote(time: TimeOfDay("10:00"), text: "[later] 想法", from: nil))])
   }
 
+  @Test func aRunsNoteIsTaggedWithTheRun() {
+    let notes = Self.notes("- 21:03 [run/\(Fixture.item)] CubeSandbox 发了 v0.9.0")
+    #expect(notes.count == 1)
+    guard case .entry(let note) = notes.first else { return }
+    #expect(note.from == .run(Fixture.item))
+  }
+
   @Test func aNoteWithoutWordsAndOtherLinesShowAsWritten() {
     #expect(Self.notes("- 10:00 [main]\nsome prose") == [.text("- 10:00 [main]"), .text("some prose")])
   }
 
   @Test func everyPlaceWritesTheTagItIsReadBackFrom() {
-    for source in [NoteSource.main, .review, .item(Fixture.item, title: "Pingora"), .course(Fixture.item)] {
+    let sources: [NoteSource] = [
+      .main, .review, .item(Fixture.item, title: "Pingora"), .course(Fixture.item), .run(Fixture.item),
+    ]
+    for source in sources {
       #expect(NoteSource(tag: source.tag, title: { _ in "Pingora" }) == source)
     }
   }

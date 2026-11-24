@@ -55,7 +55,7 @@ enum ConversationMirror {
       case .chat: return ("You", quoted + prompt.text)
       case .course(.started), .course(.answered), .course(.confirmedGoal), .course(.askedToReviseGoal):
         return ("You", prompt.text)
-      case .review, .panel, .course: return ("App", prompt.text)
+      case .review, .panel, .run, .course: return ("App", prompt.text)
       }
     case .reply(let text):
       return ("Companion", text)

@@ -95,6 +95,8 @@ public enum LociWork: Hashable, Codable, Sendable {
   case refreshing(title: String)
   /// Looking back on a day.
   case reviewing
+  /// Doing what a schedule or a follow-up with this title is for.
+  case looking(title: String)
   /// Taking in items it saved.
   case saving
 }

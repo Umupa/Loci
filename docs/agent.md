@@ -27,6 +27,7 @@
 | 动态 | 最近在读的资料 | 每轮消息前缀 | 切换时 |
 | 动态 | 你写进面板还没做完的条目、你对条目和各行的置顶备注隐藏、伙伴还没被收下的提议（最多 20 条） | 每轮消息前缀 | 只在变了时再附一次 |
 | 动态 | 情绪与疲劳（见第 9 节） | 每轮消息前缀 | 每轮 |
+| 动态 | 上次说话以来后台 run 的小结和记录的位置；到期的 follow-up 做成了什么、没做成的原因（只在主对话） | 每轮消息前缀 | follow-up 只说一次 |
 
 为什么这样分：
 
@@ -52,6 +53,7 @@ Loci/
 │  ├─ panels/<名字>.json  面板，只用 `loci panel save` 和 `loci panel add` 写；格式见 `loci help`
 │  ├─ feelings.json      情绪与疲劳，只由应用写；伙伴用 `loci mood`、`loci sleep`、`loci wake` 改
 │  ├─ conversations/     对话原文的只读镜像，按天按会话，供它查原话
+│  ├─ runs/<日期>/<id>.md  后台每个 run 的记录：做了哪些 event、看了哪些来源、找到了什么、小结；只由应用写
 │  ├─ .claude/skills/loci/、.agents/skills/loci/   应用生成的 `loci` skill，正文就是 `loci help`
 │  └─ workspace/         它的工作目录：下载、clone、实验
 ├─ run/loci.sock         应用听 `loci` 命令的 socket；`run/` 只有本用户能进
@@ -69,7 +71,7 @@ Loci/
 | 主对话 | 1 条，一直聊下去 | 上下文满、换 runtime、`AGENTS.md` 变了时自动换新会话；用户只看到一条连续的聊天 |
 | 资料上的对话 | 每份资料 1 条 | 每份资料一个会话，带着这份资料、收它时写的「为什么收它」和划线 |
 | 后台任务（翻译、章节、重点） | 不显示为对话 | 一次性调用，跑在伙伴的 runtime 上（翻译和重点可另选），不带 Soul 和记忆；重点的理由读 `USER.md` 和收它时写的那句话，用伙伴对你说的口吻 |
-| 面板刷新 | 不显示为对话 | 每次一个新会话，带规则和 Soul；提示词只给面板的 `follow` 和现在的 JSON，让它用 `loci panel save` 重写，你写的条目和你对条目、各行的态度原样保留，不想再看的几行列给它别再放回来。到点、应用开着、伙伴空闲时跑，一次一个；错过的下次打开补一次。这个会话里 `loci` 只能读、只能存它刷新的那个面板；面板在刷新途中被移除，它的保存一律被拒 |
+| 后台 run（面板刷新、schedule、follow-up、每日回顾） | 不显示为对话 | 到期的 timer 由 scheduler 变成 event 放进 inbox，worker 一次取一个 run 跑：每个 run 一个新会话，带规则和 Soul，不带任何对话；同一分钟到期的合成一个 run。面板刷新只给面板的 `follow` 和现在的 JSON；schedule 给它要看的事、同一 schedule 上一个 run 的记录和目标面板现在的样子；你写的条目和你对条目、各行的态度原样保留，不想再看的几行列给它别再放回来。你在说话时不开始新的（你点的刷新除外）；错过的醒来补一次；中途失败的隔 1、5、15 分钟重试，三次为止；应用退出时做到一半的，下次打开用同一个 run 重做。会话里 `loci` 只能读、定 follow-up、存它那个 run 的面板，回顾另外能改心情；`save`、`import` 一律被拒 |
 
 - 会话之间靠记忆层接上：所有会话都往当天笔记追加，每轮前缀带「上次以来发生的事」。
 - `/new` 只开新会话，对话记录不删，加一条分隔线。
@@ -106,7 +108,7 @@ Loci/
 
 ## 5. 每日回顾
 
-每天一次，23:00 后、10 分钟没说话、没有回合在跑时触发；错过了，第二天补前一天的；什么都没发生的日子不回顾。它是一次普通的 agent 会话：读当天的笔记、对话和 Soul，写日记，整理 `MEMORY.md`，这一天确实改变了它时给 `## Evolved Traits` 加一条。
+每天一次，23:00 后、10 分钟没说话时由 scheduler 放进 inbox，worker 在没有回合在跑时开始；错过了，第二天补前一天的；什么都没发生的日子不回顾。它是一次普通的 agent 会话：读当天的笔记、对话和 Soul，写日记，整理 `MEMORY.md`，这一天确实改变了它时给 `## Evolved Traits` 加一条。
 
 日记写在 `diary/<日期>.md`，不写在当天笔记后面：笔记只追加，回顾之后的笔记会落在日记后面。日记是给伙伴自己的，但用户可以读到。
 
@@ -116,7 +118,7 @@ Loci/
 
 应用的东西读文件，查和写用 `loci` 命令。资料库的正文、`item.json`、划线照旧从 `../library/`、`../notes/library/` 读；全文搜索、存链接、导入它写的 Markdown 或下好的音视频、等任务跑完，走 `loci`。为什么不让它直接往 `library/` 里写文件：一份资料要有 id、要排任务、要进索引、要告诉界面，这些是应用的不变量，文件格式守不住。
 
-`loci` 很薄。它是随应用打包的小程序（`Contents/Helpers/loci`），经 `LOCI_SOCKET` 指的本机 socket 发现成的 Host 命令，应用只放行 `search`、`show`、`save`、`import`、`wait` 用到的那几个，以及改情绪与睡眠的 `mood`、`sleep`、`wake`。应用启动 agent 程序时把它的目录放在 PATH 最前，`LOCI` 给出它的完整路径（agent CLI 用登录 shell 跑命令时，用户的 profile 可能把别的 `loci` 排到前面），并用 `LOCI_SESSION` 告诉它在哪条对话（`main` 或 `library/<id>`，和笔记的标签一样）。伙伴用 `save` 或 `import` 存进的资料作为这一轮的交付出现在对话里，显示成卡片。伙伴已经知道自己存了什么，下一轮省去这条活动。
+`loci` 很薄。它是随应用打包的小程序（`Contents/Helpers/loci`），经 `LOCI_SOCKET` 指的本机 socket 发现成的 Host 命令，应用只放行 `search`、`show`、`save`、`import`、`wait` 用到的那几个，以及改情绪与睡眠的 `mood`、`sleep`、`wake`，定时的 `schedule`、`followup`。应用启动 agent 程序时把它的目录放在 PATH 最前，`LOCI` 给出它的完整路径（agent CLI 用登录 shell 跑命令时，用户的 profile 可能把别的 `loci` 排到前面），并用 `LOCI_SESSION` 告诉它在哪条对话（`main` 或 `library/<id>`，后台 run 是 `run/<id>`，和笔记的标签一样）。伙伴用 `save` 或 `import` 存进的资料作为这一轮的交付出现在对话里，显示成卡片。伙伴已经知道自己存了什么，下一轮省去这条活动。
 
 用法只写一份：`loci help` 的文字。`rules.md` 只说「读用文件、查和写用 `loci`、用法看 `loci help`」；支持 skill 的 runtime 另有一份内容相同的 `SKILL.md`。
 

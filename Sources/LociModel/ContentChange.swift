@@ -23,6 +23,8 @@ public enum ContentChange: Hashable, Codable, Sendable {
   case loci(LociFile)
   /// What Loci runs on changed.
   case runtime
+  /// A schedule or follow-up, the inbox, or a run changed. They live in the database only.
+  case timers
   /// Events were lost or a change could not be placed; read everything again.
   case everything
 }

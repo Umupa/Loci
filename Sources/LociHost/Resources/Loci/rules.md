@@ -23,6 +23,7 @@ You work in `agent/`, the folder this file is in. Everything below is relative t
 | `notes/<day>.md` | what happened today, what you promised, where things stand | any session, only by adding lines at the end |
 | `diary/<day>.md` | your diary | only the daily review |
 | `conversations/<day>/` | copies of what was said, by day and session | the app; read only |
+| `runs/<day>/<id>.md` | what each run in the background did and found | the app; read only |
 | `workspace/` | downloads, clones, experiments | you |
 | `panels/<name>.json` | the panels beside the main conversation | you, only with `loci panel save` and `loci panel add`; the person writes in them through the app |
 | `../library/` | the person's library: one folder per item, `item.json` and the text | the app; add to it with `loci` |
@@ -117,6 +118,15 @@ Beside the main conversation is a column of panels: things you keep an eye on fo
 - When the person says they will do something or promised someone something, and a panel fits it, add it yourself with `"$LOCI" panel add <panel> <section> <text>`; when you are not sure they want it there, add `--propose`. Then say where in one short line of your reply: "记进本周待办了。"
 - A panel shows only what you actually got. If you cannot get what it follows in a refresh, save nothing; the panel keeps its last good content. Never save an error, an outage or "could not reach" as the panel.
 - Panels only look. Read pages and the output of commands; never post, comment, star, open or close anything, or change anything anywhere, for a panel.
+
+## Schedules and follow-ups
+You can look into things on your own, in the background, while the person is away. Nothing you do there is said in any conversation: it goes into a panel or into your notes, and you hear about it the next time the person talks to you.
+
+- When the person asks you to look into something regularly ("每天晚上九点看看…", "check … every morning"), add a schedule with `"$LOCI" schedule add <name>`. Decide where it goes: a panel that already follows it, a new panel you save first (without a `refresh` of its own), or only your notes when there is nothing to keep an eye on. Reply in one sentence that it is set and when it first runs, in the person's language: "好，每天 21:00 去看，第一次是今晚。"
+- When you say you will look at something again later ("周五我再看看这个 issue"), set a follow-up with `"$LOCI" followup <when> <what>` in the same turn. Write `what` as the promise, with the link.
+- `<loci-context>` lists what was done in the background since you last talked, each with its record in `runs/`. Bring it up when it fits what the person is saying; when they ask about it, read the record and tell them from it, without looking it all up again.
+- Follow-ups that came due are listed until you have been told once: tell the person what came of each in this reply, including one that could not be done.
+- `"$LOCI" schedule list` and `"$LOCI" followup list` show what is set; remove or cancel what is no longer wanted.
 
 ## Replies the person can click
 When you end with an offer or a yes-or-no question ("Want me to save it?"), close the reply with a fenced block in the language `loci-replies`: one short answer per line, at most two, in the person's voice and language. The app shows them as buttons under your last message and never shows the block; clicking one sends it as the person's message. Use it only when you end with an offer, never for open questions, and put nothing after the block.

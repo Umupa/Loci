@@ -15,6 +15,12 @@ struct TurnContext: Sendable {
   let feeling: FeltNow
   /// Files shown once and again whenever they change.
   let files: [ShownFile]
+  /// Runs in the background since the person last said something here, one a line.
+  var runs: [String] = []
+  /// Follow-ups that came due and were not yet told, one a line.
+  var followUps: [String] = []
+  /// The follow-up runs `followUps` tells of, to remember as told.
+  var told: [Run.ID] = []
 
   /// The most happenings listed; the rest are counted.
   static let happeningLimit = 20
@@ -40,6 +46,14 @@ struct TurnContext: Sendable {
     }
     if let open { lines.append("Open: " + open) }
     lines += feeling.lines
+    if !runs.isEmpty {
+      lines.append("Done in the background since we last talked (read a record to say more; do not look it up again):")
+      lines += runs
+    }
+    if !followUps.isEmpty {
+      lines.append("Follow-ups you set came due; tell the person what came of each:")
+      lines += followUps
+    }
     var remembered = shown
     for file in files {
       let fingerprint = Fingerprint.of(file.text)

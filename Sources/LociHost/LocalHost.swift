@@ -15,6 +15,8 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   let hub: Hub
   let loci: LociAgent
   let panels: PanelKeeper
+  let worker: Worker
+  let scheduler: Scheduler
   let courses: CourseKeeper
   let deletions = Gate(limit: 1)
   let library: LibraryRuntime
@@ -43,7 +45,11 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     let loci = LociAgent(context: context)
     self.loci = loci
     courses = CourseKeeper(context: context, loci: loci)
-    panels = PanelKeeper(context: context) { await loci.isWorking }
+    let worker = Worker(context: context) { await loci.isWorking }
+    self.worker = worker
+    let scheduler = Scheduler(context: context)
+    self.scheduler = scheduler
+    panels = PanelKeeper(context: context, worker: worker, scheduler: scheduler)
     sources = SourceService(context: library.context)
     links = LinkPreviewReader(network: environment.media.network)
   }
@@ -107,19 +113,20 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       await host.rebuild(using: rebuild)
       for await batch in changes { await host.follow(batch) }
     }
+    try? database.recoverRunning()
     let ticks = environment.ticks()
     let reviews = Task {
       let started = Day(containing: environment.now(), in: environment.timeZone)
       var lastPurge: Day? = await host.sources.purge() ? started : nil
       for await _ in ticks {
         let today = Day(containing: environment.now(), in: environment.timeZone)
-        if lastPurge != today, !(await host.loci.isWorking), await host.panels.refreshingNames.isEmpty,
+        if lastPurge != today, !(await host.loci.isWorking), await host.worker.status == nil,
           !(await host.library.queue.isWorking), await host.sources.purge(whenIdle: true)
         {
           lastPurge = today
         }
-        await host.loci.considerReview()
-        await host.panels.consider()
+        await host.scheduler.look()
+        await host.worker.consider()
       }
     }
     await host.hub.hold(work)
@@ -144,7 +151,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     await library.picker.close()
     await courses.close()
     await discardSetAside()
-    await panels.close()
+    await worker.close()
     await loci.close()
     await hub.stop()
   }

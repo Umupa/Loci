@@ -62,6 +62,8 @@ public enum NoteSource: Hashable, Codable, Sendable {
   case course(EntityID)
   /// The daily review.
   case review
+  /// A run in the background.
+  case run(EntityID)
 
   /// The tag a session writes in its daily notes.
   public var tag: String {
@@ -70,6 +72,7 @@ public enum NoteSource: Hashable, Codable, Sendable {
     case .item(let item, _): "library/\(item)"
     case .course(let course): "courses/\(course)"
     case .review: "review"
+    case .run(let run): "run/\(run)"
     }
   }
 
@@ -80,6 +83,9 @@ public enum NoteSource: Hashable, Codable, Sendable {
     case _ where tag.hasPrefix("library/"):
       guard let item = EntityID(canonical: String(tag.dropFirst(8))) else { return nil }
       self = .item(item, title: title(item))
+    case _ where tag.hasPrefix("run/"):
+      guard let run = EntityID(canonical: String(tag.dropFirst(4))) else { return nil }
+      self = .run(run)
     case _ where tag.hasPrefix("courses/"):
       guard let course = EntityID(canonical: String(tag.dropFirst(8))) else { return nil }
       self = .course(course)

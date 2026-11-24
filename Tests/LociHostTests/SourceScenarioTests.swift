@@ -21,7 +21,7 @@ struct SourceScenarioTests {
         try await Task.sleep(for: .milliseconds(20))
       }
       let sessions: [LocalSession?] = [
-        .conversation(.main), .conversation(.item(EntityID())), .panelRefresh(EntityID()), nil,
+        .conversation(.main), .conversation(.item(EntityID())), .run(EntityID()), nil,
       ]
       for session in sessions {
         let reply = try await LocalSocket.call(.init(session: session, request: request), at: socket)
