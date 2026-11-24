@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 struct ClaudeCodeTurnState: Sendable {
   private var inputs: [String: JSONValue] = [:]

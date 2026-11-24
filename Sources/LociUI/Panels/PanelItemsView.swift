@@ -60,7 +60,7 @@ struct PanelItemsView: View {
             .accessibilityHidden(carried)
             .panelRow()
             .onGeometryChange(for: CGRect.self) {
-              $0.frame(in: .named(PanelRowEdges.space))
+              $0.frame(in: .named(PanelRowBounds.space))
             } action: { frame in
               if !carried { carry?.report(row: item.id, in: section.id, at: frame) }
             }
@@ -89,7 +89,7 @@ struct PanelItemsView: View {
     .padding(.top, section.name == nil ? Self.unnamedTop : Spacing.xxs)
     .padding(.bottom, Spacing.s)
     .onGeometryChange(for: CGRect.self) {
-      $0.frame(in: .named(PanelRowEdges.space))
+      $0.frame(in: .named(PanelRowBounds.space))
     } action: { frame in
       carry?.report(section: section.id, at: frame)
     }

@@ -27,6 +27,9 @@ public struct RemoteHost: LociModel.Host {
   }
 
   public func run<C: Command>(_ command: C) async throws(HostError) -> C.Reply {
+    if command is any HostOnlyCommand {
+      throw .invalidRequest("\(C.name) can only be done on the Mac the companion lives on")
+    }
     guard let route = Wire.route(of: C.self) else {
       throw .invalidRequest("\(C.name) cannot be used on another Mac")
     }
@@ -167,7 +170,7 @@ struct RemoteFollower<S: Subscription>: Sendable {
   }
 
   private func receive(_ frames: AsyncStream<FeedFrame>, id: UInt32, on session: CallerSession) async {
-    var current: JSON?
+    var current: JSONValue?
     for await frame in frames {
       switch frame {
       case .whole(let json):

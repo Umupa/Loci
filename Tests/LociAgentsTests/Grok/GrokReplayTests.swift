@@ -29,7 +29,7 @@ struct GrokReplayTests {
   @Test func theAgentsOwnRequestsForFilesAreRefused() async throws {
     var state = AcpTurnState()
     let event = state.ask(
-      id: .number(7),
+      id: .integer(7),
       .object([
         "toolCall": .object(["toolCallId": .string("call-1"), "title": .string("Execute `ls`")]),
         "options": .array([

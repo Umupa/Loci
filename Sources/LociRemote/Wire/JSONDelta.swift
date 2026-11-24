@@ -1,16 +1,18 @@
+import LociModel
+
 /// How one JSON value became another, small when little changed: a conversation that grew by a few words
 /// sends those words, not the conversation.
 public indirect enum JSONDelta: Hashable, Codable, Sendable {
-  case replace(JSON)
+  case replace(JSONValue)
   /// Changed and added members, and the names of removed ones.
   case object(changed: [String: JSONDelta], removed: [String])
   /// The first `kept` elements stay, with `changed` applied by index; `appended` follows them.
-  case array(kept: Int, changed: [Int: JSONDelta], appended: [JSON])
+  case array(kept: Int, changed: [Int: JSONDelta], appended: [JSONValue])
   /// The string grew at its end.
   case appendText(String)
 
   /// `nil` when the values are equal.
-  public static func from(_ old: JSON, to new: JSON) -> JSONDelta? {
+  public static func from(_ old: JSONValue, to new: JSONValue) -> JSONDelta? {
     guard old != new else { return nil }
     switch (old, new) {
     case (.object(let before), .object(let after)):
@@ -40,7 +42,7 @@ public indirect enum JSONDelta: Hashable, Codable, Sendable {
 
   /// The new value. A delta that does not fit the value it is applied to fails, which means the two sides
   /// disagree about the old value; the caller asks for the whole value again.
-  public func apply(to old: JSON) throws(DeltaMismatch) -> JSON {
+  public func apply(to old: JSONValue) throws(DeltaMismatch) -> JSONValue {
     switch (self, old) {
     case (.replace(let value), _):
       return value

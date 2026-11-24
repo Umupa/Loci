@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 import Testing
 
 @testable import LociAgents
@@ -59,13 +60,13 @@ struct CodexTurnStateTests {
     let params = try json(#"{"itemId":"c","command":"touch file"}"#)
     var state = CodexTurnState()
     let numeric = try #require(
-      CodexDialog(id: .number(1), method: "item/commandExecution/requestApproval", params: params))
+      CodexDialog(id: .integer(1), method: "item/commandExecution/requestApproval", params: params))
     let string = try #require(CodexDialog(id: .string("1"), method: "item/fileChange/requestApproval", params: params))
     #expect(numeric.request.id != string.request.id)
     _ = state.ask(numeric)
     _ = state.ask(string)
     let reply = state.answer(numeric.request.id, with: .chosen("accept"))
-    #expect(reply?["id"] == .number(1))
+    #expect(reply?["id"] == .integer(1))
     #expect(reply?["result"]?["decision"] == .string("accept"))
     #expect(state.answer(numeric.request.id, with: .chosen("accept")) == nil)
     let withdrawn = state.withdraw()
@@ -77,7 +78,7 @@ struct CodexTurnStateTests {
 
   @Test func serverResolvedApprovalsAreWithdrawnAndCannotBeAnswered() throws {
     var state = CodexTurnState()
-    let dialog = try #require(CodexDialog(id: .number(1), method: "item/fileChange/requestApproval", params: .null))
+    let dialog = try #require(CodexDialog(id: .integer(1), method: "item/fileChange/requestApproval", params: .null))
     _ = state.ask(dialog)
     #expect(
       state.receive("serverRequest/resolved", try json(#"{"requestId":1}"#)) == [.permissionClosed(dialog.request.id)])
@@ -86,7 +87,7 @@ struct CodexTurnStateTests {
 
   @Test func permissionGrantsAreLimitedToTheRequestedTurn() throws {
     let params = try json(#"{"permissions":{"network":{"enabled":true},"fileSystem":null}}"#)
-    let dialog = try #require(CodexDialog(id: .number(2), method: "item/permissions/requestApproval", params: params))
+    let dialog = try #require(CodexDialog(id: .integer(2), method: "item/permissions/requestApproval", params: params))
     #expect(
       dialog.reply(to: .chosen("accept"))["result"]?["permissions"]
         == .object(["network": .object(["enabled": .bool(true)])]))

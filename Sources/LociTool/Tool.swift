@@ -36,7 +36,13 @@ struct Tool: Sendable {
 
   private func carryOut(_ request: Request, json: Bool) async throws(Failure) -> Outcome {
     switch request {
-    case .help: return .worked(ToolGuide.text)
+    case .help(let topic): return Self.help(topic)
+    case .recall(let text):
+      let reply = try await line.run(Recall(text))
+      if json { return .worked(Self.text(reply)) }
+      let hits = try Failure.decoding([RecallHit].self, from: reply)
+      guard !hits.isEmpty else { return .worked("Nothing said in a conversation or a run matches \"\(text)\".") }
+      return .worked(hits.map { "\($0.path)\n    \($0.snippet)" }.joined(separator: "\n"))
     case .search(let text): return try await search(text, json: json)
     case .show(let id): return try await show(id, json: json)
     case .read(let url):
@@ -55,6 +61,7 @@ struct Tool: Sendable {
     case .course(let request): return await course(request, json: json)
     case .schedule(let request): return try await schedule(request, json: json)
     case .followUp(let request): return try await followUp(request, json: json)
+    case .connector(let request): return try await connector(request, json: json)
     case .feeling(let request):
       let reply = try await line.send(.feeling(request))
       return .worked(json ? Self.text(reply) : try Failure.decoding(String.self, from: reply))
@@ -128,6 +135,16 @@ struct Tool: Sendable {
     case .value(let job): return job
     case .unavailable(let error): throw .host(error)
     }
+  }
+
+  /// The overview, or one topic of it; it needs no app.
+  static func help(_ topic: String?) -> Outcome {
+    guard let topic else { return .worked(ToolGuide.text) }
+    guard let text = ToolGuide.topic(topic) else {
+      return .failed(
+        "loci help has no topic \"\(topic)\". Topics: \(ToolGuide.topics.map(\.name).joined(separator: ", ")).")
+    }
+    return .worked(text)
   }
 
   static func text(_ data: Data) -> String {

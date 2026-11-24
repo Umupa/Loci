@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 enum CodexRecord: Sendable {
   case response(String, Result<JSONValue, AgentError>)

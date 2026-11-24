@@ -8,6 +8,8 @@ enum Place: Codable, Hashable {
   case talk
   /// Loci's own page: its face, Soul, memory and diary.
   case loci
+  /// Loci's own page open at its connectors, with this one lit, as a reply asked.
+  case connector(ConnectorID)
   /// `nil` is every kind.
   case library(LibraryCategory?)
   /// The built-in browser, for finding things to add.

@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 enum ClaudeCodeRecord: Hashable, Sendable {
   case response(id: String, outcome: Result<JSONValue, AgentError>)

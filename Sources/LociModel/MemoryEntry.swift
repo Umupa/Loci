@@ -7,12 +7,15 @@ public struct MemoryEntry: Hashable, Codable, Sendable {
   public let source: Source?
   /// The entry's first line as written, which `Forget` matches.
   public let line: String
+  /// The wiki page that holds the detail, linked as `[title](memory/<page>.md)`; `nil` when it links none.
+  public let page: WikiLink?
 
-  public init(day: Day?, text: String, source: Source?, line: String) {
+  public init(day: Day?, text: String, source: Source?, line: String, page: WikiLink? = nil) {
     self.day = day
     self.text = text
     self.source = source
     self.line = line
+    self.page = page
   }
 
   /// Where it happened.
@@ -35,12 +38,13 @@ public struct MemoryEntry: Hashable, Codable, Sendable {
         return .text(line)
       case .item(let line, let text):
         let (day, rest) = Bullets.leadingDay(text)
-        let (words, locator) = SourceLink.take(from: rest)
+        let (linked, page) = WikiLink.take(from: rest)
+        let (words, locator) = SourceLink.take(from: linked)
         guard !words.isEmpty || locator != nil else { return .text(line) }
         let source = locator.map { locator in
           Source(locator: locator, itemTitle: locator.item.flatMap(title))
         }
-        return .entry(MemoryEntry(day: day, text: words, source: source, line: line))
+        return .entry(MemoryEntry(day: day, text: words, source: source, line: line, page: page))
       }
     }
   }

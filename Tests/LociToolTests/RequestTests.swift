@@ -19,8 +19,8 @@ struct RequestTests {
     #expect(
       try Request.parse(["import", "a.md", "--title", "Borg"]) == (.importFile(path: "a.md", title: "Borg"), false))
     #expect(try Request.parse(["import", "talk.mp4"]) == (.importFile(path: "talk.mp4", title: nil), false))
-    #expect(try Request.parse([]) == (.help, false))
-    #expect(try Request.parse(["help"]) == (.help, false))
+    #expect(try Request.parse([]) == (.help(nil), false))
+    #expect(try Request.parse(["help"]) == (.help(nil), false))
   }
 
   @Test func sourceCommandsTakeAWebLinkAndAnOptionalFullCommit() throws {

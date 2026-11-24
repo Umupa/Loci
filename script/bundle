@@ -46,6 +46,9 @@ cp "$bin/Loci" "$app/Contents/MacOS/Loci"
 mkdir -p "$app/Contents/Helpers"
 cp "$bin/LociTool" "$app/Contents/Helpers/loci"
 cp script/resources/Loci.icns "$app/Contents/Resources/Loci.icns"
+# What macOS says when it asks for the calendars and reminders, in Chinese; English is in Info.plist.
+mkdir -p "$app/Contents/Resources/zh-Hans.lproj"
+cp script/resources/zh-Hans.lproj/InfoPlist.strings "$app/Contents/Resources/zh-Hans.lproj/InfoPlist.strings"
 for bundle in "$bin"/*.bundle; do
   if [ -d "$bundle" ]; then cp -R "$bundle" "$app/Contents/Resources/"; fi
 done
@@ -84,6 +87,8 @@ cat >"$app/Contents/Info.plist" <<PLIST
   <key>NSHighResolutionCapable</key><true/>
   <key>NSLocalNetworkUsageDescription</key><string>Loci finds your other Macs on this network so you can pair them.</string>
   <key>NSBonjourServices</key><array><string>_loci._tcp</string></array>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>Loci reads your calendar for your companion when you connect it; it never adds or changes events.</string>
+  <key>NSRemindersFullAccessUsageDescription</key><string>Loci reads your reminders for your companion when you connect them; it never adds or changes reminders.</string>
   $relay
 </dict>
 </plist>

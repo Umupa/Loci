@@ -176,7 +176,7 @@ public struct AcpDriver: AgentDriver {
     }
     if !clientMetadata.isEmpty { capabilities["_meta"] = .object(clientMetadata) }
     return .object([
-      "protocolVersion": .number(1),
+      "protocolVersion": .integer(1),
       "clientCapabilities": .object(capabilities),
       "clientInfo": .object(["name": .string("loci"), "version": .string("1")]),
     ])

@@ -26,13 +26,23 @@ final class FakeHost: LociModel.Host, CommandHandler {
   let keyPoints: SampleKeyPoints
   /// The courses this host serves; none unless a test gives them.
   let courses: SampleCourses?
+  /// The schedules and follow-ups this host serves; none unless a test gives them.
+  let sampleTimers: SampleTimers
+  /// The connectors this host serves; none connected unless a test gives them.
+  let sampleConnectors: Connectors
+  /// Whether Loci remembers anything and noted anything today.
+  let remembers: Bool
 
   init(
     _ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false, working: Bool = false,
     avatar: Avatar? = nil, panels: PanelColumn = PanelColumn(slots: []), activity: Activity = Activity(),
     lastChoice: ImportChoice? = nil, keyPoints: SampleKeyPoints = .picked,
-    modelSettings: (any ModelSettingsAccess)? = nil, piWork: Transfer? = nil, courses: SampleCourses? = nil
+    modelSettings: (any ModelSettingsAccess)? = nil, piWork: Transfer? = nil, courses: SampleCourses? = nil,
+    timers: SampleTimers = .none, connectors: Connectors = SampleConnectors.empty, remembers: Bool = true
   ) {
+    self.remembers = remembers
+    self.sampleTimers = timers
+    self.sampleConnectors = connectors
     self.courses = courses
     self.lastChoice = lastChoice
     self.modelSettings = modelSettings

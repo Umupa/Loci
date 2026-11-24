@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 enum CodexCommand {
   static func request(_ method: String, params: JSONValue, id: String) -> JSONValue {

@@ -16,6 +16,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   let loci: LociAgent
   let panels: PanelKeeper
   let worker: Worker
+  let connectorKeeper: ConnectorKeeper
   let scheduler: Scheduler
   let courses: CourseKeeper
   let deletions = Gate(limit: 1)
@@ -50,6 +51,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     let scheduler = Scheduler(context: context)
     self.scheduler = scheduler
     panels = PanelKeeper(context: context, worker: worker, scheduler: scheduler)
+    connectorKeeper = ConnectorKeeper(database: database, environment: environment, follower: follower)
     sources = SourceService(context: library.context)
     links = LinkPreviewReader(network: environment.media.network)
   }
@@ -114,6 +116,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       for await batch in changes { await host.follow(batch) }
     }
     try? database.recoverRunning()
+    try? store.setMemoryWritable(false)
     let ticks = environment.ticks()
     let reviews = Task {
       let started = Day(containing: environment.now(), in: environment.timeZone)
@@ -131,6 +134,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     }
     await host.hub.hold(work)
     await host.hub.hold(reviews)
+    await host.hub.hold(Task { await host.connectorKeeper.watchSites() })
     if let tool = environment.tool {
       try? store.writeSkill(named: "loci", ToolGuide.skill)
       await host.hub.hold(Task { await ToolGateway.serve(host, at: tool.socket) })
@@ -152,6 +156,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     await courses.close()
     await discardSetAside()
     await worker.close()
+    await connectorKeeper.close()
     await loci.close()
     await hub.stop()
   }

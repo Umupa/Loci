@@ -75,6 +75,56 @@ extension ScheduleDraft: Codable {
   }
 }
 
+/// What `loci schedule change <name>` reads: the fields of `ScheduleDraft` to change, each left out to keep
+/// it. `"panel": null` sends what it finds only to the notes.
+public struct ScheduleChange: Hashable, Sendable {
+  public let title: String?
+  public let follow: String?
+  public let every: Every?
+  public let destination: Destination?
+
+  public init(title: String? = nil, follow: String? = nil, every: Every? = nil, destination: Destination? = nil) {
+    self.title = title
+    self.follow = follow
+    self.every = every
+    self.destination = destination
+  }
+
+  public var isEmpty: Bool { title == nil && follow == nil && every == nil && destination == nil }
+}
+
+extension ScheduleChange: Codable {
+  private enum CodingKeys: String, CodingKey {
+    case title, follow, every, panel
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    title = try container.decodeIfPresent(String.self, forKey: .title)
+    follow = try container.decodeIfPresent(String.self, forKey: .follow)
+    every = try container.decodeIfPresent(Every.self, forKey: .every)
+    if !container.contains(.panel) {
+      destination = nil
+    } else if try container.decodeNil(forKey: .panel) {
+      destination = .notes
+    } else {
+      destination = .panel(try container.decode(String.self, forKey: .panel))
+    }
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encodeIfPresent(title, forKey: .title)
+    try container.encodeIfPresent(follow, forKey: .follow)
+    try container.encodeIfPresent(every, forKey: .every)
+    switch destination {
+    case .panel(let name)?: try container.encode(name, forKey: .panel)
+    case .notes?: try container.encodeNil(forKey: .panel)
+    case nil: break
+    }
+  }
+}
+
 /// Which schedule: one set with `loci schedule`, or a panel's own refresh, which its file keeps.
 public enum ScheduleRef: Hashable, Codable, Sendable {
   case schedule(EntityID)
@@ -162,12 +212,14 @@ public struct ScheduleEntry: Hashable, Codable, Sendable, Identifiable {
   public let next: Timestamp?
   /// The last sentence of its last run that finished.
   public let lastSummary: String?
+  /// When that run started; `nil` from an older Mac, or before any run finished.
+  public let lastRun: Timestamp?
 
   public var id: String { ref.key }
 
   public init(
     ref: ScheduleRef, name: String, title: String, every: Every, destination: Destination, paused: Bool,
-    next: Timestamp?, lastSummary: String?
+    next: Timestamp?, lastSummary: String?, lastRun: Timestamp? = nil
   ) {
     self.ref = ref
     self.name = name
@@ -177,5 +229,6 @@ public struct ScheduleEntry: Hashable, Codable, Sendable, Identifiable {
     self.paused = paused
     self.next = next
     self.lastSummary = lastSummary
+    self.lastRun = lastRun
   }
 }

@@ -19,7 +19,9 @@ extension Store {
 
   /// Gives the companion its first files and updates an older default soul while preserving the person's edits.
   public func prepareAgent(soul: String, replacing previous: String? = nil) throws {
-    for folder in [Self.dayNotesFolder, Self.diaryFolder, Self.workspaceFolder, Self.conversationsFolder] {
+    for folder in [
+      Self.dayNotesFolder, Self.diaryFolder, Self.workspaceFolder, Self.conversationsFolder, Self.wikiFolder,
+    ] {
       try FileManager.default.createDirectory(
         at: agentFolder.appending(path: folder, directoryHint: .isDirectory), withIntermediateDirectories: true)
     }
@@ -64,8 +66,11 @@ extension Store {
     }
   }
 
+  /// Writes the file; the index stays read-only around the write when it was.
   public func saveAgentText(_ text: String, as file: AgentFile) throws {
-    try write(Data(text.utf8), to: agentFolder.appending(path: file.name))
+    let url = agentFolder.appending(path: file.name)
+    guard file == .memory else { return try write(Data(text.utf8), to: url) }
+    try writingMemory { try write(Data(text.utf8), to: url) }
   }
 
   /// `notes/<day>.md`, empty when nothing was noted that day.

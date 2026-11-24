@@ -32,6 +32,7 @@ struct TimerToolTests {
     #expect(try Request.parse(["schedule", "add", "sandbox-news"]) == (.schedule(.add("sandbox-news")), false))
     #expect(try Request.parse(["schedule", "list", "--json"]) == (.schedule(.list), true))
     #expect(try Request.parse(["schedule", "remove", "sandbox-news"]) == (.schedule(.remove("sandbox-news")), false))
+    #expect(try Request.parse(["schedule", "change", "sandbox-news"]) == (.schedule(.change("sandbox-news")), false))
     #expect(
       try Request.parse(["followup", "2025-11-21", "10:00", "看看", "#244"])
         == (.followUp(.add(.at(day, TimeOfDay("10:00")), "看看 #244")), false))
@@ -70,6 +71,31 @@ struct TimerToolTests {
     let draft = ScheduleDraft(
       title: "CubeSandbox 动静", follow: "看看", every: entry.every, destination: .panel("sandbox-radar"))
     #expect(line.requests == [.command(name: AddSchedule.name, body: Self.json(AddSchedule("sandbox-news", draft)))])
+  }
+
+  @Test func changingAScheduleSendsOnlyWhatChangesAndSaysWhenItNextRuns() async throws {
+    let entry = try Self.entry(.schedule(Self.id), "sandbox-news")
+    let timers = Timers(schedules: [entry], followUps: [], next: nil)
+    let line = ScriptedLine { request in
+      if case .command(ListTimers.name, _) = request { return [.success(Self.json(timers))] }
+      return [.success(Self.json(entry))]
+    }
+
+    let changed = await tool(line, input: #"{"every": {"every": "day", "at": "21:00"}, "panel": null}"#)
+      .run(.schedule(.change("sandbox-news")), json: false)
+    let missing = await tool(line, input: "{}").run(.schedule(.change("other")), json: false)
+
+    #expect(
+      changed
+        == .worked(
+          "Changed sandbox-news: every day at 21:00, into the panel sandbox-radar. It next runs 2025-11-17 21:00."))
+    let change = ScheduleChange(every: entry.every, destination: .notes)
+    let sent = line.requests.compactMap { request -> ChangeSchedule? in
+      guard case .command(ChangeSchedule.name, let body) = request else { return nil }
+      return try? JSONDecoder().decode(ChangeSchedule.self, from: body)
+    }
+    #expect(sent.map(\.schedule) == [.schedule(Self.id)] && sent.map(\.change) == [change])
+    #expect(missing == .failed("There is no schedule other. Run `loci schedule list` to see them."))
   }
 
   @Test func aScheduleThatIsNotJSONIsNotSent() async {

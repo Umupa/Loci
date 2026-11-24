@@ -35,7 +35,7 @@ struct PageReaderTests {
   func theReadableTextOfAPageComesOutAsMarkdown() async throws {
     let extraction = try await PageReader.read(
       .html(Self.html, base: URL(string: "https://blog.example.com/posts/scheduler")!), timeout: .seconds(20),
-      store: .nonPersistent())
+      as: .anonymous)
 
     #expect(extraction.title == "How the scheduler picks a node")
     #expect(extraction.author == "Ada Lovelace")
@@ -115,7 +115,7 @@ struct PageReaderTests {
 
     let extraction = try await PageReader.read(
       .html(html, base: URL(string: "https://martinfowler.com/bliki/TechnicalDebt.html")!), timeout: .seconds(20),
-      store: .nonPersistent())
+      as: .anonymous)
 
     let markdown = extraction.markdown
     let sketch = try #require(markdown.range(of: "https://martinfowler.com/bliki/images/tech-debt/sketch.png"))
@@ -147,9 +147,36 @@ struct PageReaderTests {
       "<article>", with: "<article><script>document.querySelector('article').remove()</script>")
     let url = try #require(URL(string: "https://blog.example.com/posts/scheduler"))
 
-    let extraction = try await PageReader.read(.html(html, base: url), timeout: .seconds(10), store: .nonPersistent())
+    let extraction = try await PageReader.read(.html(html, base: url), timeout: .seconds(10), as: .anonymous)
 
     #expect(extraction.markdown.contains("feasible set"))
     #expect(extraction.markdown.contains("https://blog.example.com/img/flow.png"))
+  }
+
+  /// A page whose own script tries to send a POST, and writes into its text what came of it.
+  static let posting = """
+    <!doctype html><html lang="en"><head><title>A signed-in page</title></head><body><article>
+    <h1>A signed-in page</h1>
+    <p>The page below says whether its script could send a POST while Loci read it.</p>
+    <p id="said">nothing yet</p>
+    <script>
+      try { const request = new XMLHttpRequest(); request.open("POST", "https://blog.example.com/like");
+        document.getElementById("said").textContent = "The POST went out."; }
+      catch (error) { document.getElementById("said").textContent = error.message; }
+    </script>
+    </article></body></html>
+    """
+
+  /// CN-S11: an article read signed in, as it is saved into the library, sends only GET like every other
+  /// signed-in read.
+  @Test(.timeLimit(.minutes(1)))
+  func anArticleReadSignedInSendsOnlyGet() async throws {
+    let encoded = Data(Self.posting.utf8).base64EncodedString()
+    let url = try #require(URL(string: "data:text/html;charset=utf-8;base64,\(encoded)"))
+
+    let extraction = try await PageReader.read(.url(url), timeout: .seconds(20))
+
+    #expect(extraction.markdown.contains("Loci reads this page; it sends only GET."))
+    #expect(!extraction.markdown.contains("The POST went out."))
   }
 }

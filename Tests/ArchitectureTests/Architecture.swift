@@ -37,8 +37,9 @@ enum Architecture {
       packages: ["whisper", "Markdown", "FluidAudio"]),
     "LociCode": Module(uses: ["LociModel"], frameworks: ["Foundation", "os"]),
     "LociRemote": Module(uses: ["LociModel"], frameworks: ["Foundation", "CryptoKit", "Network", "os"]),
+    "LociConnect": Module(uses: ["LociModel"], frameworks: ["Foundation", "CryptoKit", "EventKit", "Network", "os"]),
     "LociHost": Module(
-      uses: ["LociModel", "LociStore", "LociAgents", "LociMedia", "LociCode", "LociRemote"],
+      uses: ["LociModel", "LociStore", "LociAgents", "LociMedia", "LociCode", "LociRemote", "LociConnect"],
       frameworks: ["Foundation", "IOKit", "os"]),
     "LociUI": Module(
       uses: ["LociModel"],
@@ -62,8 +63,8 @@ enum Architecture {
       pattern: #"\bFileManager\b"#, allowedIn: ["LociStore"],
       fix: "Only LociStore touches the disk. Add what you need to the store and call that."),
     Restriction(
-      pattern: #"\bURLSession\b"#, allowedIn: ["LociMedia", "LociRemote"],
-      fix: "Only LociMedia (fetching) and LociRemote (the channel) use the network."),
+      pattern: #"\bURLSession\b"#, allowedIn: ["LociMedia", "LociRemote", "LociConnect"],
+      fix: "Only LociMedia (fetching), LociRemote (the channel) and LociConnect (connectors) use the network."),
     Restriction(
       pattern: #"\bUserDefaults\b"#, allowedIn: ["LociUI"],
       fix: "Preferences that matter belong in LociStore. UserDefaults is for per-window conveniences in LociUI."),
@@ -89,6 +90,17 @@ enum Architecture {
     Restriction(
       pattern: #"\b(DispatchSemaphore|DispatchGroup|NSLock|OperationQueue)\b|Thread\.sleep|Task\.detached"#,
       fix: "Use structured concurrency: async functions, task groups, actors, `Mutex`, `Task.sleep`."),
+    Restriction(
+      pattern: #"WKWebsiteDataStore\.default\(\)|(WKWebsiteDataStore|websiteDataStore)\s*=\s*\.default\(\)"#,
+      allowedFiles: [
+        "Sources/LociMedia/Text/PageReader.swift", "Sources/LociMedia/Network/SiteSignIns.swift",
+        "Sources/LociUI/Browser/BrowserSession.swift",
+      ],
+      fix: "The default WebKit store holds the person's sign-ins. Only the built-in browser shows pages with it "
+        + "(Sources/LociUI/Browser/BrowserSession.swift); Loci reads with it only through PageReader's "
+        + "`Visitor.signedIn`, which sends only GET (Sources/LociMedia/Text/PageReader.swift); "
+        + "Sources/LociMedia/Network/SiteSignIns.swift only looks at which cookies it has. Read a page through "
+        + "PageReader instead."),
     Restriction(
       pattern: #"\bDispatchQueue\b"#,
       allowedFiles: ["Sources/LociStore/FileEvents.swift", "Sources/LociUI/Media/RangedMedia.swift"],

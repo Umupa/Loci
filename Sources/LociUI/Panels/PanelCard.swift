@@ -12,7 +12,7 @@ struct PanelFrame<Marks: View, Content: View>: View {
   @Environment(\.reducesMotion) private var reduceMotion
   @State private var open: Bool
   @State private var height: CGFloat = 0
-  @State private var edges: [CGFloat] = []
+  @State private var rows: [ClosedRange<CGFloat>] = []
 
   /// `open` starts the panel opened out, for a snapshot.
   init(
@@ -29,15 +29,15 @@ struct PanelFrame<Marks: View, Content: View>: View {
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
-    let overflow = PanelPreview(height: height, rowEnds: edges)
+    let overflow = PanelPreview(height: height, rows: rows)
     let preview = open ? nil : overflow
     VStack(alignment: .leading, spacing: 0) {
       header(canOpen: overflow != nil).padding(.bottom, 14)
       content
         .environment(\.panelPreview, preview)
         .fixedSize(horizontal: false, vertical: true)
-        .coordinateSpace(.named(PanelRowEdges.space))
-        .onPreferenceChange(PanelRowEdges.self) { edges = $0 }
+        .coordinateSpace(.named(PanelRowBounds.space))
+        .onPreferenceChange(PanelRowBounds.self) { rows = $0 }
         .onGeometryChange(for: CGFloat.self) {
           $0.size.height
         } action: {
@@ -48,10 +48,10 @@ struct PanelFrame<Marks: View, Content: View>: View {
         .overlay(alignment: .bottom) {
           if let preview {
             LinearGradient(
-              stops: [.init(color: .clear, location: 0.4), .init(color: Palette.surface, location: 1)],
+              stops: [.init(color: .clear, location: 0.5), .init(color: Palette.surface, location: 1)],
               startPoint: .top, endPoint: .bottom
             )
-            .frame(height: preview.revealHeight)
+            .frame(height: preview.fadeHeight)
             .allowsHitTesting(false)
           }
         }
@@ -94,18 +94,21 @@ struct PanelFrame<Marks: View, Content: View>: View {
 /// The boundary between readable rows and the strip hinting at more content.
 struct PanelPreview: Equatable {
   private static let slack: CGFloat = 40
+  private static let rowPreviewHeight = Spacing.l + Spacing.s
   private let clearHeight: CGFloat
-  let revealHeight: CGFloat
-  var height: CGFloat { clearHeight + revealHeight }
+  let height: CGFloat
+  let fadeHeight: CGFloat
 
-  init?(height: CGFloat, rowEnds: [CGFloat]) {
-    guard height > Size.panelTallest + Self.slack, let first = rowEnds.min(), let last = rowEnds.max() else {
-      return nil
-    }
+  init?(height: CGFloat, rows: [ClosedRange<CGFloat>]) {
+    let rowEnds = rows.map(\.upperBound)
+    guard height > Size.panelTallest + Self.slack, let first = rowEnds.min() else { return nil }
     let clearHeight = rowEnds.filter { $0 <= Size.panelTallest }.max() ?? first
-    guard last > clearHeight else { return nil }
+    let hidden = rows.filter { $0.upperBound > clearHeight }
+    guard let next = hidden.min(by: { $0.lowerBound < $1.lowerBound }) else { return nil }
+    let previewTop = max(clearHeight, next.lowerBound)
     self.clearHeight = clearHeight
-    revealHeight = min(Spacing.l, last - clearHeight)
+    self.height = min(previewTop + Self.rowPreviewHeight, next.upperBound)
+    fadeHeight = self.height - previewTop
   }
 
   func showsRow(endingAt end: CGFloat) -> Bool {
@@ -117,12 +120,12 @@ extension EnvironmentValues {
   @Entry fileprivate var panelPreview: PanelPreview?
 }
 
-/// Where each row of a panel ends, measured from the top of its rows.
-struct PanelRowEdges: PreferenceKey {
+/// Where each row begins and ends, measured from the top of the panel's content.
+struct PanelRowBounds: PreferenceKey {
   static let space = "panelRows"
-  static let defaultValue: [CGFloat] = []
+  static let defaultValue: [ClosedRange<CGFloat>] = []
 
-  static func reduce(value: inout [CGFloat], nextValue: () -> [CGFloat]) {
+  static func reduce(value: inout [ClosedRange<CGFloat>], nextValue: () -> [ClosedRange<CGFloat>]) {
     value += nextValue()
   }
 }
@@ -142,14 +145,16 @@ private struct PanelRowPresentation: ViewModifier {
     let shown = preview?.showsRow(endingAt: bounds?.upperBound ?? .infinity) ?? true
     let blurred = !shown && (bounds?.lowerBound ?? .infinity) < (preview?.height ?? 0)
     content
-      .blur(radius: blurred ? 3 : 0)
-      .opacity(shown || blurred ? 1 : 0)
+      .opacity(shown ? 1 : 0)
+      .overlay {
+        if blurred { content.blur(radius: 3).drawingGroup() }
+      }
       .disabled(!shown)
       .allowsHitTesting(shown)
       .accessibilityHidden(!shown)
-      .preference(key: PanelRowEdges.self, value: bounds.map { [$0.upperBound] } ?? [])
+      .preference(key: PanelRowBounds.self, value: bounds.map { [$0] } ?? [])
       .onGeometryChange(for: ClosedRange<CGFloat>?.self) { proxy in
-        let frame = proxy.frame(in: .named(PanelRowEdges.space))
+        let frame = proxy.frame(in: .named(PanelRowBounds.space))
         return frame.height > 0 ? frame.minY...frame.maxY : nil
       } action: {
         bounds = $0

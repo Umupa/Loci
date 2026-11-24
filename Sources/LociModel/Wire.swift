@@ -2,14 +2,21 @@
 /// used remotely, and the architecture check fails until it is added.
 public enum Wire {
   public static let toolCommands: [any LocalToolCommand.Type] = [
-    ReadSource.self, FetchSourceRepository.self, AddSchedule.self, AddFollowUp.self,
+    ReadSource.self, FetchSourceRepository.self, AddSchedule.self, AddFollowUp.self, ListConnectors.self,
+    CallConnector.self, Recall.self,
+  ]
+
+  /// Commands only the Mac the companion lives on runs; another Mac is refused them.
+  public static let hostOnlyCommands: [any HostOnlyCommand.Type] = [
+    Connect.self, AddMCPServer.self, CancelConnecting.self,
   ]
 
   public static let commands: [CommandRoute] = [
     .writes(SendMessage.self), .writes(StopTurn.self), .writes(StartOver.self),
     .reads(ReadRuntime.self), .writes(SetRuntime.self), .reads(DetectAgents.self), .reads(AgentModels.self),
     .writes(RenameCompanion.self),
-    .writes(SaveSoul.self), .writes(Forget.self), .writes(SetAvatar.self, lane: .data), .writes(ResetAvatar.self),
+    .writes(SaveSoul.self), .writes(Forget.self), .writes(ForgetWikiLine.self), .writes(SetAvatar.self, lane: .data),
+    .writes(ResetAvatar.self),
     .writes(AddTextItem.self), .reads(ProbeLink.self), .reads(ReadImportChoice.self), .writes(AddLink.self),
     .writes(ImportMediaFile.self), .writes(DeleteItems.self),
     .writes(RestoreDeleted.self), .writes(RenameItem.self), .writes(SetCover.self),
@@ -35,8 +42,8 @@ public enum Wire {
     .writes(BeginCourseSources.self), .writes(AddCourseSource.self), .writes(RemoveCourseSource.self),
     .writes(BeginCourseWriting.self), .reads(ReadLesson.self), .writes(OpenLesson.self),
     .writes(WriteLessonNow.self), .writes(DeleteCourse.self), .writes(RestoreDeletedCourse.self),
-    .reads(ListTimers.self), .writes(PauseSchedule.self), .writes(ChangeScheduleEvery.self),
-    .writes(RemoveSchedule.self), .writes(CancelFollowUp.self),
+    .reads(ListTimers.self), .writes(PauseSchedule.self), .writes(ChangeSchedule.self),
+    .writes(RemoveSchedule.self), .writes(CancelFollowUp.self), .writes(Disconnect.self),
   ]
 
   public static let subscriptions: [any Subscription.Type] = [
@@ -45,7 +52,7 @@ public enum Wire {
     AllItems.self, OneItem.self, ItemCover.self, NotesOn.self, AllJobs.self, ItemJob.self, SavingNow.self,
     ItemMedia.self, WatchCourses.self, WatchCourse.self, WatchLesson.self,
     MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self, WatchPanelColumn.self,
-    WatchTimers.self, WatchScheduleRuns.self,
+    WatchTimers.self, WatchScheduleRuns.self, WatchWikiPage.self, WatchConnectors.self, WatchConnectorCalls.self,
   ]
 
   /// The route of a command type, or `nil` when it is not registered.

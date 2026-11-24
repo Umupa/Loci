@@ -26,6 +26,8 @@ actor Worker {
     var panels: Set<String>
     var agent: AgentRun?
     var stopped = false
+    /// What the app worked out for a daily review.
+    var brief: ReviewBrief?
 
     var policy: RunPolicy {
       switch run.kind {
@@ -153,8 +155,10 @@ actor Worker {
     if !panels.isEmpty {
       _ = try? context.store.changePanelState { state in for name in panels { state.refreshed[name] = now } }
     }
-    if case .review(let day) = kind, (try? context.database.review(of: day)) == nil {
-      try? context.database.beginReview(of: day, at: now)
+    if case .review(let day) = kind {
+      if (try? context.database.review(of: day)) == nil { try? context.database.beginReview(of: day, at: now) }
+      current?.brief = ReviewBrief.make(for: day, store: context.store, timeZone: context.environment.timeZone)
+      try? context.store.setMemoryWritable(true)
     }
     work = Task { await self.perform(run, redo: retry != nil) }
     await context.follower.follow(changes(of: kind))
@@ -163,25 +167,27 @@ actor Worker {
   private func perform(_ run: Run, redo: Bool) async {
     let activity = context.environment.activity("Loci is doing something in the background")
     let result: RunResult
+    var usage: ContextUsage?
     do throws(HostError) {
       let owner: SessionOwner = if case .review(let day) = run.kind { .review(day) } else { .run(run.id) }
       let agent = try AgentRun(owner: owner, session: .run(run.id), context: context)
       current?.agent = agent
       try await agent.startOver()
-      let text = try RunPrompts(context: context).text(for: run, redo: redo)
+      let text = try RunPrompts(context: context).text(for: run, redo: redo, brief: current?.brief)
       if current?.stopped == true {
         result = .stopped
       } else {
         let purpose: Prompt.Purpose = if case .review(let day) = run.kind { .review(day) } else { .run(run.id) }
         try await agent.send(Prompt(text: text, purpose: purpose), saying: text)
         result = current?.stopped == true ? .stopped : RunResult(of: await agent.settle())
+        usage = await agent.snapshot.context
       }
       await agent.close()
     } catch {
       result = .failed(String(describing: error), again: false)
     }
     activity.end()
-    await finish(run, result)
+    await finish(run.with(usage: usage), result)
   }
 
   private func finish(_ run: Run, _ result: RunResult) async {
@@ -190,11 +196,15 @@ actor Worker {
     let now = context.environment.now()
     let review: Day? = if case .review(let day) = run.kind { day } else { nil }
     if closing {
-      if let review { try? database.forgetReview(of: review) }
+      if let review {
+        try? database.forgetReview(of: review)
+        try? context.store.setMemoryWritable(false)
+      }
       return
     }
     let tries = current.tries + 1
     var record = (try? context.store.runRecord(at: run.record)).flatMap(\.self) ?? ""
+    if review != nil { tidyMemory(after: result, brief: current.brief) }
     switch result {
     case .finished(let reply, let sources):
       let summary = RunResult.summary(of: reply)
@@ -220,11 +230,25 @@ actor Worker {
       record += RunRecord.failed(try: tries, reason, final: true)
       if let review { try? database.endReview(of: review, .failed(reason)) }
     }
+    let calls = (try? database.connectorCalls(by: .run(run.id))) ?? []
+    if case .finished = result { record += RunRecord.connectors(calls) }
     try? context.store.saveRunRecord(record, at: run.record)
+    try? database.indexTranscript(run.record, from: context.store)
     self.current = nil
     work = nil
     await context.follower.follow(changes(of: run.kind))
     await consider()
+  }
+
+  /// After a daily review: on the first split, keeps any entry the review lost; keeps what the review left to
+  /// compare against later; and makes the index and wiki read-only again.
+  private func tidyMemory(after result: RunResult, brief: ReviewBrief?) {
+    let store = context.store
+    if case .finished = result {
+      if let entries = brief?.migrating { _ = try? ReviewBrief.keepLost(entries, store: store) }
+      try? store.keepMemory()
+    }
+    try? store.setMemoryWritable(false)
   }
 
   /// Stops the run under way. Its events stay in the inbox and are done again when the app next opens.

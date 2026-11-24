@@ -6,7 +6,7 @@ import GRDB
 /// Mirrors of the files are rebuilt instead: when `mirrorVersion` changes they are dropped and created
 /// again, empty, until the next rebuild fills them.
 enum Schema {
-  static let mirrorVersion = 3
+  static let mirrorVersion = 4
 
   static var migrator: DatabaseMigrator {
     var migrator = DatabaseMigrator()
@@ -155,10 +155,34 @@ enum Schema {
           CREATE INDEX run_schedule_schedule ON run_schedule(schedule);
           """)
     }
+    migrator.registerMigration("9 connectors") { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE connector (
+            id TEXT PRIMARY KEY NOT NULL,
+            body TEXT NOT NULL
+          );
+          CREATE TABLE connector_call (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT NOT NULL UNIQUE,
+            at TEXT NOT NULL,
+            connector TEXT NOT NULL,
+            caller TEXT NOT NULL,
+            body TEXT NOT NULL
+          );
+          CREATE INDEX connector_call_at ON connector_call(at);
+          CREATE INDEX connector_call_caller ON connector_call(caller);
+          """)
+    }
+    migrator.registerMigration("10 connector set aside") { db in
+      try db.execute(sql: "CREATE TABLE connector_set_aside (id TEXT PRIMARY KEY NOT NULL)")
+    }
     return migrator
   }
 
-  static let mirrorTables = ["course_lesson", "course", "item", "note", "search", "search_owner"]
+  static let mirrorTables = [
+    "course_lesson", "course", "item", "note", "search", "search_owner", "transcript", "transcript_file",
+  ]
   /// Mirrors an earlier version kept, dropped with the others when `mirrorVersion` changes.
   static let retiredMirrorTables = ["mentor", "lesson", "citation"]
 
@@ -212,6 +236,14 @@ enum Schema {
           owner TEXT NOT NULL
         );
         CREATE INDEX search_owner_owner ON search_owner(owner);
+        CREATE VIRTUAL TABLE transcript USING fts5(
+          original UNINDEXED, text, tokenize = 'unicode61 remove_diacritics 2'
+        );
+        CREATE TABLE transcript_file (
+          transcript_rowid INTEGER PRIMARY KEY NOT NULL,
+          path TEXT NOT NULL
+        );
+        CREATE INDEX transcript_file_path ON transcript_file(path);
         CREATE VIRTUAL TABLE search USING fts5(
           target UNINDEXED, field UNINDEXED, original UNINDEXED, locator UNINDEXED, text,
           tokenize = 'unicode61 remove_diacritics 2'

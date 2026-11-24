@@ -31,7 +31,7 @@ struct AntigravityProtocolTests {
       from: Data(
         #"{"toolCall":{"toolCallId":"interaction_goal","title":"Which goal?"},"options":[{"optionId":"kernel","kind":"allow_once","name":"Kernel"}]}"#
           .utf8))
-    let event = state.ask(id: .number(7), params)
+    let event = state.ask(id: .integer(7), params)
     guard case .permission(let request) = event else {
       Issue.record("Expected a question")
       return

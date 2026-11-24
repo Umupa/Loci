@@ -90,20 +90,27 @@ struct PanelTests {
   }
 
   @Test func aLongPanelKeepsItsLastFittingRowClearAndPreviewsWhatFollows() throws {
-    let preview = try #require(PanelPreview(height: 421, rowEnds: [52, 117, 199, 278, 353, 411]))
+    let preview = try #require(
+      PanelPreview(height: 421, rows: [0...52, 60...117, 125...199, 207...278, 286...353, 361...411]))
     #expect(preview.showsRow(endingAt: 278))
     #expect(!preview.showsRow(endingAt: 353))
-    #expect(preview.height == 302)
+    #expect(preview.height == 322)
   }
 
   @Test func aShortPanelOrOneWithOnlyTrailingSpaceHasNoPreview() {
-    #expect(PanelPreview(height: 330, rowEnds: [52, 240, 322]) == nil)
-    #expect(PanelPreview(height: 352, rowEnds: [52, 296]) == nil)
+    #expect(PanelPreview(height: 330, rows: [0...52, 60...240, 248...322]) == nil)
+    #expect(PanelPreview(height: 352, rows: [0...52, 60...296]) == nil)
+  }
+
+  @Test func theGapBetweenRowsLeavesRoomToRecognizeTheNextRow() throws {
+    let preview = try #require(PanelPreview(height: 420, rows: [0...92, 100...265, 285...356, 364...416]))
+    #expect(preview.height == 321)
+    #expect(preview.fadeHeight == 36)
   }
 
   @Test func aTallFirstRowStaysWholeAndOnlyFollowingContentCanBePreviewed() throws {
-    #expect(PanelPreview(height: 399, rowEnds: [399]) == nil)
-    let preview = try #require(PanelPreview(height: 412, rowEnds: [399, 412]))
+    #expect(PanelPreview(height: 399, rows: [0...399]) == nil)
+    let preview = try #require(PanelPreview(height: 453, rows: [0...399, 405...412, 420...453]))
     #expect(preview.showsRow(endingAt: 399))
     #expect(!preview.showsRow(endingAt: 412))
     #expect(preview.height == 412)

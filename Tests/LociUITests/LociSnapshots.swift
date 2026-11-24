@@ -129,7 +129,7 @@ struct LociSnapshots {
       avatar: try Self.avatar("late"))
   }
 
-  @Test(arguments: [LociTab.soul, .memory, .diary], Snapshot.Appearance.allCases)
+  @Test(arguments: [LociTab.soul, .diary], Snapshot.Appearance.allCases)
   func lociPage(tab: LociTab, appearance: Snapshot.Appearance) async throws {
     let library = try SampleLibrary()
     let view = HStack(spacing: 0) { LociScreen(tab: tab) }

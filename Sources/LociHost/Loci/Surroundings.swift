@@ -30,18 +30,44 @@ extension AgentContext {
       happenings: events.compactMap { happening($0, today: today) }, open: open(in: conversation, at: now),
       feeling: feeling,
       files: [
-        .init(path: "MEMORY.md", text: (try? store.agentText(.memory)) ?? "", keep: nil),
+        .init(path: "MEMORY.md", text: Self.index((try? store.agentText(.memory)) ?? ""), keep: nil),
         .init(path: "notes/\(today).md", text: (try? store.dayNotes(of: today)) ?? "", keep: Self.todaysNotes),
         .init(
           path: "notes/\(yesterday).md", text: (try? store.dayNotes(of: yesterday)) ?? "", keep: Self.yesterdaysNotes),
       ] + summary)
     if conversation == .main {
+      if let reconnect = connectorsToReconnect() { context.files.append(reconnect) }
       let news = runNews(since: after)
       context.runs = news.runs
       context.followUps = news.followUps
       context.told = news.told
     }
     return context
+  }
+
+  /// The connectors whose sign-in ran out, shown once and again when that changes.
+  private func connectorsToReconnect() -> TurnContext.ShownFile? {
+    let waiting = ((try? database.connectorRecords()) ?? []).compactMap { record -> String? in
+      guard case .needsReconnecting(let why) = record.status else { return nil }
+      return "- \(record.name) (\(record.id)): \(why)"
+    }
+    guard !waiting.isEmpty else { return nil }
+    return TurnContext.ShownFile(
+      path:
+        "Connectors that need the person to reconnect them (mention it once; offer [reconnect](loci://connectors/<id>))",
+      text: waiting.joined(separator: "\n"), keep: nil)
+  }
+
+  /// The most lines of `MEMORY.md` a turn is given.
+  static let indexLines = 200
+
+  /// The index as a turn sees it: its first lines, and a word on how many more there are.
+  static func index(_ text: String) -> String {
+    let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+    guard lines.count > indexLines else { return text }
+    return lines.prefix(indexLines).joined(separator: "\n")
+      + "\n(MEMORY.md has \(lines.count) lines; only the first \(indexLines) are here. In the daily review, sink "
+      + "detail into memory/ so the index stays short.)"
   }
 
   /// One fact, without a word on how to feel about it; `nil` for an item that is gone.

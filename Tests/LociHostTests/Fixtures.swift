@@ -1,5 +1,6 @@
 import Foundation
 import LociAgents
+import LociConnect
 import LociModel
 import LociStore
 import Synchronization
@@ -26,10 +27,12 @@ final class TestWorld: Sendable {
   static let instant = Timestamp(millisecondsSince1970: 1_763_337_600_123)
   static let timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .gmt
   let agent: FakeAgent
+  let connect: ConnectEnvironment
 
-  init(agent: FakeAgent = FakeAgent(), idOffset: UInt64 = 0) {
+  init(agent: FakeAgent = FakeAgent(), idOffset: UInt64 = 0, connect: ConnectEnvironment = .disconnected) {
     created = Mutex(idOffset)
     self.agent = agent
+    self.connect = connect
   }
 
   var environment: HostEnvironment {
@@ -52,7 +55,7 @@ final class TestWorld: Sendable {
       activity: { [self] _ in
         self.activities.withLock { $0.append("begin") }
         return Activity { self.activities.withLock { $0.append("end") } }
-      })
+      }, connect: connect)
   }
 
   /// Each time the host declared background work, and each time it ended it.
@@ -114,11 +117,12 @@ struct Place {
 
 /// Runs `body` against a host started in a new temporary place, then closes it and deletes the place.
 func withHost(
-  agent: FakeAgent = FakeAgent(), _ body: (LocalHost, Place, TestWorld) async throws -> Void
+  agent: FakeAgent = FakeAgent(), connect: ConnectEnvironment = .disconnected,
+  _ body: (LocalHost, Place, TestWorld) async throws -> Void
 ) async throws {
   let place = Place()
   defer { place.remove() }
-  let world = TestWorld(agent: agent)
+  let world = TestWorld(agent: agent, connect: connect)
   let host = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
   do {
     try await body(host, place, world)

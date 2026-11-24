@@ -59,19 +59,24 @@ public struct PauseSchedule: RemoteCommand {
   }
 }
 
-/// Changes how often a schedule comes due; a panel's refresh is changed in the panel's file.
-public struct ChangeScheduleEvery: RemoteCommand {
-  public static let name = "timers.changeEvery"
+/// Changes what is given of a schedule and keeps the rest. A panel's refresh is changed in the panel's file,
+/// and always goes to that panel.
+public struct ChangeSchedule: RemoteCommand {
+  public static let name = "timers.change"
   public let schedule: ScheduleRef
-  public let every: Every
+  public let change: ScheduleChange
+
+  public init(_ schedule: ScheduleRef, _ change: ScheduleChange) {
+    self.schedule = schedule
+    self.change = change
+  }
 
   public init(_ schedule: ScheduleRef, every: Every) {
-    self.schedule = schedule
-    self.every = every
+    self.init(schedule, ScheduleChange(every: every))
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> ScheduleEntry {
-    try await handler.changeScheduleEvery(self)
+    try await handler.changeSchedule(self)
   }
 }
 

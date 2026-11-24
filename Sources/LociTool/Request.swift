@@ -15,14 +15,17 @@ enum Request: Hashable, Sendable {
   case feeling(FeelingRequest)
   case schedule(ScheduleRequest)
   case followUp(FollowUpRequest)
-  case help
+  case connector(ConnectorRequest)
+  case recall(String)
+  /// The overview, or one topic of it.
+  case help(String?)
 
   /// The request in `arguments` (without the program's name), and whether to print the app's replies as
   /// they are.
   static func parse(_ arguments: [String]) throws(UsageError) -> (request: Request, json: Bool) {
     var words = arguments.filter { $0 != "--json" }
     let json = words.count != arguments.count
-    guard !words.isEmpty else { return (.help, json) }
+    guard !words.isEmpty else { return (.help(nil), json) }
     let verb = words.removeFirst()
     switch verb {
     case "search":
@@ -47,13 +50,19 @@ enum Request: Hashable, Sendable {
     case "course": return (.course(try CourseRequest.parse(words)), json)
     case "schedule": return (.schedule(try ScheduleRequest.parse(words)), json)
     case "followup": return (.followUp(try FollowUpRequest.parse(words)), json)
+    case "connector": return (.connector(try ConnectorRequest.parse(words)), json)
     case "lesson": return (.course(try CourseRequest.lesson(words)), json)
     case "mood": return (.feeling(try mood(words)), json)
     case "sleep", "wake":
       guard words.isEmpty else { throw UsageError("loci \(verb) takes nothing more: loci \(verb)") }
       return (.feeling(verb == "sleep" ? .sleep : .wake), json)
+    case "recall":
+      let text = words.joined(separator: " ").trimmingCharacters(in: .whitespaces)
+      guard !text.isEmpty else { throw UsageError("loci recall needs words to look for: loci recall <words>") }
+      return (.recall(text), json)
     case "help", "--help", "-h":
-      return (.help, json)
+      guard words.count <= 1 else { throw UsageError("loci help takes at most one topic: loci help [<topic>]") }
+      return (.help(words.first), json)
     default:
       throw UsageError("loci has no command \"\(verb)\". Run `loci help` to see the commands.")
     }

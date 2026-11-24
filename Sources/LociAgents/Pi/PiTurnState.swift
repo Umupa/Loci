@@ -1,3 +1,5 @@
+import LociModel
+
 /// What one turn has seen so far. Records go in, the events a caller should see come out.
 struct PiTurnState: Sendable {
   private var inputs: [String: JSONValue] = [:]

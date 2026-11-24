@@ -124,7 +124,7 @@ struct PanelSnapshots {
     .padding(Spacing.s)
     .frame(maxHeight: .infinity, alignment: .top)
     try await ScreenSnapshots.shoot(
-      "panels-overflow", try Self.alone(view), appearance: appearance, size: CGSize(width: 760, height: 740))
+      "panels-overflow", try Self.alone(view), appearance: appearance, size: CGSize(width: 760, height: 780))
   }
 
   /// P-S6: the composer asking for a new panel over the blurred conversation.

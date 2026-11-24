@@ -1,10 +1,11 @@
 import Foundation
+import LociModel
 import Testing
 
 @testable import LociRemote
 
 struct JSONDeltaTests {
-  static let pairs: [(JSON, JSON)] = [
+  static let pairs: [(JSONValue, JSONValue)] = [
     (.object(["a": .integer(1), "b": .string("x")]), .object(["a": .integer(2), "c": .bool(true)])),
     (.array([.integer(1), .integer(2)]), .array([.integer(1), .integer(3), .integer(4)])),
     (.array([.integer(1), .integer(2), .integer(3)]), .array([.integer(1)])),
@@ -28,8 +29,8 @@ struct JSONDeltaTests {
 
   @Test func aGrowingReplySendsOnlyTheNewWords() throws {
     let words = (0..<500).map { "word\($0)" }.joined(separator: " ")
-    let old = try JSON(encoding: ["messages": [["text": words]]])
-    let new = try JSON(encoding: ["messages": [["text": words + " and more"]]])
+    let old = try JSONValue(encoding: ["messages": [["text": words]]])
+    let new = try JSONValue(encoding: ["messages": [["text": words + " and more"]]])
 
     let delta = try #require(JSONDelta.from(old, to: new))
     let sent = try JSONEncoder().encode(delta)
@@ -55,6 +56,6 @@ struct JSONDeltaTests {
     }
     let value = Value(id: 1_763_337_600_123, ratio: 0.25, name: "调度", tags: ["a"], missing: nil)
 
-    #expect(try JSON(encoding: value).decode(Value.self) == value)
+    #expect(try JSONValue(encoding: value).decode(Value.self) == value)
   }
 }

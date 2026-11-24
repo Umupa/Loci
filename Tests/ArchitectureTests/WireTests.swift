@@ -25,6 +25,19 @@ struct WireTests {
     #expect(Self.problems(declarations, registry).map(\.found) == ["OpenLesson"])
   }
 
+  @Test func aHostOnlyCommandMustBeRegisteredAsOne() {
+    let declarations = """
+      public struct Connect: HostOnlyCommand {}
+      public struct Cancel: HostOnlyCommand {}
+      """
+    let registry = """
+      let commands = [.writes(Cancel.self)]
+      let hostOnlyCommands = [Connect.self]
+      let subscriptions = []
+      """
+    #expect(Self.problems(declarations, registry).map(\.found) == ["Cancel"])
+  }
+
   @Test func duplicateAndCrossRegisteredCommandsAreRejected() {
     let declarations = """
       public struct OpenLesson: RemoteCommand {}
@@ -59,7 +72,9 @@ struct WireTests {
   static func unregistered(in files: [SourceFile], registry: SourceFile) -> [Violation] {
     let wire = registry.lines.map(\.code).joined(separator: "\n")
     var registrations: [String: [String]] = [:]
-    for table in wire.matches(of: /\blet\s+(commands|toolCommands|subscriptions)\b[^=\n]*=\s*\[([^\]]*)\]/) {
+    for table in wire.matches(
+      of: /\blet\s+(commands|toolCommands|hostOnlyCommands|subscriptions)\b[^=\n]*=\s*\[([^\]]*)\]/)
+    {
       for registered in table.2.matches(of: /\b(\w+)\.self\b/) {
         registrations[String(registered.1), default: []].append(String(table.1))
       }
@@ -76,14 +91,15 @@ struct WireTests {
         }
         let name = String(declaration.1)
         let allowed = [
-          "RemoteCommand": "commands", "LocalToolCommand": "toolCommands", "Subscription": "subscriptions",
+          "RemoteCommand": "commands", "LocalToolCommand": "toolCommands", "HostOnlyCommand": "hostOnlyCommands",
+          "Subscription": "subscriptions",
         ]
         let tables = conformances.compactMap { allowed[$0] }
         if tables.isEmpty {
           guard conformances.contains("Command") else { return nil }
           return Violation(
             file: file.path, line: line, found: name,
-            fix: "Declare `\(name)` as `RemoteCommand` or `LocalToolCommand`.")
+            fix: "Declare `\(name)` as `RemoteCommand`, `LocalToolCommand` or `HostOnlyCommand`.")
         }
         guard tables.count != 1 || registrations[name] != tables else { return nil }
         return Violation(

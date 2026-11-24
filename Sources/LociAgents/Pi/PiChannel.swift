@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 /// Routes Pi responses to pending requests and hands on everything else.
 actor PiChannel {

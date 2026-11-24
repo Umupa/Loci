@@ -70,12 +70,26 @@ enum RunRecord {
   static func header(_ run: Run, events: [String], tries: Int, in timeZone: TimeZone) -> String {
     let started = "\(Day(containing: run.startedAt, in: timeZone)) \(TimeOfDay(of: run.startedAt, in: timeZone))"
     return "# \(started) · run \(run.id)\n\nevents:\n" + events.map { "- \($0)\n" }.joined()
-      + "connectors: none\n"
   }
 
   static func found(_ reply: String, summary: String, sources: [String], tries: Int) -> String {
     let read = sources.isEmpty ? "sources: none\n" : "sources:\n" + sources.map { "- \($0)\n" }.joined()
     return "\ntries: \(tries)\n\(read)\n## Found\n\n\(reply)\n\n## Summary\n\n\(summary)\n"
+  }
+
+  /// The connectors the run called, one call a line.
+  static func connectors(_ calls: [ConnectorCall]) -> String {
+    guard !calls.isEmpty else { return "\nconnectors: none\n" }
+    return "\nconnectors:\n"
+      + calls.map { call in
+        let outcome: String =
+          switch call.outcome {
+          case .read: "read"
+          case .refused(let why): "refused: \(why)"
+          case .failed(let why): "failed: \(why)"
+          }
+        return "- \(call.connector) \(call.tool), \(outcome)\n"
+      }.joined()
   }
 
   static func failed(try number: Int, _ reason: String, final: Bool) -> String {

@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 enum ClaudeCodeCommand: Hashable, Sendable {
   case control(String)

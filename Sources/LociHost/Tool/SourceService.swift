@@ -14,7 +14,9 @@ struct SourceService: Sendable {
     cache = context.environment.sourceCache.map(SourceCache.init(root:))
   }
 
-  func read(_ url: URL) async throws(HostError) -> String {
+  /// The text of a source. `fresh` fetches it again even when it is kept, and keeps what came, so a run in the
+  /// background sees a page as it is today rather than as it was when first read.
+  func read(_ url: URL, fresh: Bool = false) async throws(HostError) -> String {
     guard let cache else { throw .invalidRequest("The source cache is not available.") }
     guard url.isWebLink, var parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
       parts.user == nil
@@ -35,12 +37,18 @@ struct SourceService: Sendable {
       }
     return try await gate.through { () async throws(HostError) in
       try Self.checkCancellation()
-      if let text = try attempt({ try cache.text(for: key, at: context.now()) }) { return text }
+      if !fresh, let text = try attempt({ try cache.text(for: key, at: context.now()) }) { return text }
       let stage = try newStage(in: cache)
       defer { discard(stage, in: cache) }
       let text = try await fetch(address, using: stage)
       try Self.checkCancellation()
-      try attempt { try cache.publish(text: text, for: key, from: stage, at: context.now()) }
+      try attempt {
+        if fresh {
+          try cache.replace(text: text, for: key, from: stage, at: context.now())
+        } else {
+          try cache.publish(text: text, for: key, from: stage, at: context.now())
+        }
+      }
       await context.notify([.media])
       return text
     }

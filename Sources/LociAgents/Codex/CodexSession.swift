@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 actor CodexSession: AgentSession {
   nonisolated let handle: SessionHandle
@@ -119,7 +120,7 @@ actor CodexSession: AgentSession {
         reply = .object([
           "id": id,
           "error": .object([
-            "code": .number(-32601), "message": .string("Unsupported client request: \(method)"),
+            "code": .integer(-32601), "message": .string("Unsupported client request: \(method)"),
           ]),
         ])
         running?.pipe.yield(.notice(.message("Unsupported client request: \(method)")))

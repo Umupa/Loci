@@ -6,8 +6,11 @@ import LociModel
 extension Store {
   static let conversationsFolder = "conversations"
 
-  /// Adds a turn to its session's copies, each message under the day it was said on in `timeZone`.
-  public func mirror(_ messages: [Message], of session: SessionRecord, in timeZone: TimeZone) throws {
+  /// Adds a turn to its session's copies, each message under the day it was said on in `timeZone`. Gives the
+  /// copies it wrote to, relative to `agent/`.
+  @discardableResult
+  public func mirror(_ messages: [Message], of session: SessionRecord, in timeZone: TimeZone) throws -> [String] {
+    var written: [String] = []
     for (day, text) in ConversationMirror.render(messages, in: timeZone) {
       let url = agentFolder.appending(path: Self.conversationsFolder).appending(path: day.description)
         .appending(path: "\(session.owner.key)-\(session.id).md")
@@ -19,7 +22,9 @@ extension Store {
       let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
       try handle.write(contentsOf: Data(added.utf8))
       try handle.close()
+      written.append("\(Self.conversationsFolder)/\(day)/\(url.lastPathComponent)")
     }
+    return written
   }
 }
 

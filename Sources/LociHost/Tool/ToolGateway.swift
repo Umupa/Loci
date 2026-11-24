@@ -12,6 +12,7 @@ enum ToolGateway {
   /// which run may still save; `AddFollowUp` is told the conversation it was set in.
   static let reading: [any Command.Type] = [
     Search.self, ListItems.self, ListPanels.self, ListTimers.self, CancelFollowUp.self, RemoveSchedule.self,
+    ChangeSchedule.self,
   ]
   static let subscriptions: [any Subscription.Type] = [ItemJob.self]
 
@@ -82,11 +83,31 @@ enum ToolGateway {
   static let runCommands: Set<String> = Set(
     ([Search.self, ListItems.self, ListPanels.self, ListTimers.self, CancelFollowUp.self] as [any Command.Type]).map {
       $0.name
-    } + [ReadSource.name, FetchSourceRepository.name, AddFollowUp.name, SavePanel.name, EditPanel.name])
+    } + [
+      ReadSource.name, FetchSourceRepository.name, AddFollowUp.name, SavePanel.name, EditPanel.name,
+      ListConnectors.name, CallConnector.name, Recall.name,
+    ])
 
   private static func run(_ name: String, _ body: Data, for call: LocalCall, on host: LocalHost)
     async throws(HostError) -> Data
   {
+    if name == ReadSource.name {
+      let command = try WireCodec.decode(ReadSource.self, from: body)
+      if let caller = call.session?.caller, let site = await host.connectorKeeper.signedInSite(for: command.url) {
+        return try WireCodec.encode(try await host.connectorKeeper.readSite(command.url, record: site, by: caller))
+      }
+      if case .run? = call.session {
+        return try WireCodec.encode(try await host.sources.read(command.url, fresh: true))
+      }
+    }
+    if name == CallConnector.name {
+      let command = try WireCodec.decode(CallConnector.self, from: body)
+      return try WireCodec.encode(try await host.callConnector(command, from: call.session?.caller))
+    }
+    if name == ListConnectors.name {
+      await host.connectorKeeper.refreshAll()
+      return try WireCodec.encode(try await host.connectors().connected)
+    }
     if name == AddFollowUp.name {
       let command = try WireCodec.decode(AddFollowUp.self, from: body)
       let set = AddFollowUp(command.time, command.what, in: call.session?.conversation)
@@ -128,7 +149,7 @@ enum ToolGateway {
       try? await reply(.failed(.invalidRequest("loci cannot follow \(name)")))
       return
     }
-    let feeds: AsyncStream<JSON>
+    let feeds: AsyncStream<JSONValue>
     do throws(HostError) {
       feeds = try WireCodec.feeds(name, body: body, on: host)
     } catch {
@@ -160,5 +181,16 @@ enum ToolGateway {
     let shared = zip(from, to).prefix { $0 == $1 }.count
     let path = Array(repeating: "..", count: from.count - shared) + to.dropFirst(shared)
     return path.joined(separator: "/") + "/"
+  }
+}
+
+extension LocalSession {
+  /// Who a connector call is recorded as made by.
+  var caller: ConnectorCall.Caller {
+    switch self {
+    case .conversation(let conversation): .conversation(conversation)
+    case .course(let course, _): .conversation(.course(course))
+    case .run(let run): .run(run)
+    }
   }
 }

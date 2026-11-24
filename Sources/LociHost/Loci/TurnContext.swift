@@ -14,7 +14,7 @@ struct TurnContext: Sendable {
   /// How the companion feels and how tired it is.
   let feeling: FeltNow
   /// Files shown once and again whenever they change.
-  let files: [ShownFile]
+  var files: [ShownFile]
   /// Runs in the background since the person last said something here, one a line.
   var runs: [String] = []
   /// Follow-ups that came due and were not yet told, one a line.
@@ -71,7 +71,7 @@ struct TurnContext: Sendable {
     let text = file.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard let keep = file.keep, text.count > keep else { return text.isEmpty ? "(empty)" : text }
     return "…" + text.suffix(keep)
-      + "\n(Earlier notes are in \(file.path); move what is worth keeping into MEMORY.md.)"
+      + "\n(Earlier notes are in \(file.path); the daily review moves what is worth keeping into memory/.)"
   }
 
   /// `Wednesday 2026-11-18 09:12, morning (Asia/Shanghai)`.

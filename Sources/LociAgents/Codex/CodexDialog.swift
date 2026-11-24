@@ -1,3 +1,5 @@
+import LociModel
+
 struct CodexDialog: Sendable {
   let id: JSONValue
   let method: String
@@ -21,7 +23,7 @@ struct CodexDialog: Sendable {
   static func key(for id: JSONValue) -> String {
     switch id {
     case .string(let value): "string:\(value)"
-    case .number(let value): "number:\(value)"
+    case .integer, .number: "number:\(id.number ?? 0)"
     default: "invalid"
     }
   }

@@ -294,7 +294,9 @@ actor AgentRun {
   /// A copy that cannot be written loses nothing the app needs; it is logged and the turn stands.
   private static func mirror(_ messages: [Message], of session: SessionRecord, context: AgentContext) {
     do {
-      try context.store.mirror(messages, of: session, in: context.environment.timeZone)
+      for path in try context.store.mirror(messages, of: session, in: context.environment.timeZone) {
+        try context.database.indexTranscript(path, from: context.store)
+      }
     } catch {
       Logger(subsystem: "Loci", category: "agent").error(
         "could not copy the conversation: \(String(describing: error), privacy: .public)")

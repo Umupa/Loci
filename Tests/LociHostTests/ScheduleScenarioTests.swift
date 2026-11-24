@@ -38,6 +38,7 @@ struct ScheduleScenarioTests {
       #expect(record.contains("## Summary") && record.contains("schedule sandbox-news"))
       #expect(try await host.conversation(.main).messages.isEmpty)
       #expect(try await host.timers().schedules.first?.lastSummary == "CubeSandbox 发了 **v0.9.0**，修了快照恢复。")
+      #expect(try await host.timers().schedules.first?.lastRun == run.startedAt)
     }
   }
 
@@ -99,13 +100,51 @@ struct ScheduleScenarioTests {
       #expect(try await host.timers().next == nil)
 
       _ = try await host.run(PauseSchedule(entry.ref, paused: false))
-      let changed = try await host.run(ChangeScheduleEvery(entry.ref, every: .day(at: try Background.clock("22:00"))))
+      let changed = try await host.run(ChangeSchedule(entry.ref, every: .day(at: try Background.clock("22:00"))))
       world.set(to: "21:30")
       #expect(try await host.timers().schedules.first?.next == changed.next)
       #expect(changed.next.map { TimeOfDay(of: $0, in: TestWorld.timeZone) } == TimeOfDay("22:00"))
 
       _ = try await host.run(RemoveSchedule(entry.ref))
       #expect(try await host.timers().schedules.isEmpty)
+    }
+  }
+
+  @Test func theCompanionMovesAScheduleItSetToAnotherTimeAndKeepsWhatItDidNotChange() async throws {
+    try await withHost(agent: Background.agent(run: Self.noting)) { host, _, world in
+      _ = try await host.run(SavePanel(PanelScenarioTests.panel("sandbox-radar")))
+      let entry = try await Background.add(
+        "sandbox-news", Background.draft(.day(at: try Background.clock("21:00"))), on: host)
+      let change = ScheduleChange(every: .day(at: try Background.clock("15:49")), destination: .panel("sandbox-radar"))
+
+      let reply = await Background.call(ChangeSchedule(entry.ref, change), from: .conversation(.main), on: host)
+
+      guard case .value(let data)? = reply else { throw HostError.invalidRequest("\(String(describing: reply))") }
+      let changed = try JSONDecoder().decode(ScheduleEntry.self, from: data)
+      #expect(changed.every == .day(at: try Background.clock("15:49")))
+      #expect(changed.destination == .panel("sandbox-radar") && changed.title == entry.title)
+      #expect(changed.next.map { TimeOfDay(of: $0, in: TestWorld.timeZone) } == TimeOfDay("15:49"))
+      world.set(to: "15:49")
+      world.tick()
+      #expect(try await Background.ran(1, starting: Background.lookInto, on: host, world))
+      let prompt = try #require(Background.prompts(world, starting: Background.lookInto).first)
+      #expect(prompt.contains("看看 CubeSandbox 有什么新动静") && prompt.contains("panel save sandbox-radar"))
+    }
+  }
+
+  @Test func aPanelsRefreshChangesInItsFileButStaysWithThatPanel() async throws {
+    try await withHost(agent: Background.agent(run: Self.noting)) { host, place, _ in
+      _ = try await host.run(SavePanel(PanelScenarioTests.radar))
+      let hourly = ScheduleChange(title: "沙箱快讯", every: .hour)
+
+      let changed = try await host.run(ChangeSchedule(.panel("radar"), hourly))
+
+      #expect(changed.every == .hour && changed.title == "沙箱快讯")
+      let panel = try #require(place.store.panel(named: "radar")?.panel)
+      #expect(panel.refresh == PanelRefresh(every: .hour) && panel.title == "沙箱快讯")
+      await #expect(throws: HostError.self) {
+        _ = try await host.run(ChangeSchedule(.panel("radar"), ScheduleChange(destination: .notes)))
+      }
     }
   }
 

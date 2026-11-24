@@ -48,6 +48,11 @@ extension StoreDatabase {
 
   private static let context = 40
 
+  /// The words around the first place any term appears.
+  static func snippet(of terms: [String], in text: String) -> String {
+    snippet(around: firstMatch(of: terms, in: text), in: text)
+  }
+
   /// The first place any search term appears, widened to the end of a word it starts.
   private static func firstMatch(of terms: [String], in text: String) -> Range<String.Index>? {
     let found = terms.compactMap { text.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) }

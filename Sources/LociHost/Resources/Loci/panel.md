@@ -2,7 +2,7 @@ Refresh the panel `{{name}}` on your own. The person is not here and will not se
 
 It follows: {{follow}}
 
-1. Look again at what it follows: read the pages, and run the commands that only read, such as `gh`. Panels only look: never post, comment, star, open or close anything, or change anything anywhere.
+1. Look again at what it follows: read the pages, run the commands that only read, such as `gh`, and use the person's connectors when one has it (`"$LOCI" connector list`). Panels only look: never post, comment, star, open or close anything, or change anything anywhere.
 2. If you cannot get what it follows, do not save anything: a page or command fails, a source is unreachable, or you are not signed in. Do not write the failure into the panel; the person keeps seeing the last good one. Reply in one line saying what failed, and stop.
 3. Otherwise rewrite the whole panel with `"$LOCI" panel save {{name}}`, the JSON on standard input. Keep its title, sources, follow and refresh unless they no longer fit. The first row is one sentence that sums up what is there now, what matters in **bold**; when nothing changed, say so in it. Run `"$LOCI" help` for the format.
 4. In `items` rows, items with `"by": "you"` are the person's: the app keeps them whatever you save, with their words, and keeps every item's `pinned` and `note`. Replace only your own items. You may move items, tick them `done`, or drop your own; keep every section that holds the person's items.

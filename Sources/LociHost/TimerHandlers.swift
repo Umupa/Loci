@@ -34,16 +34,34 @@ extension LocalHost {
     return Done()
   }
 
-  public func changeScheduleEvery(_ command: ChangeScheduleEvery) async throws(HostError) -> ScheduleEntry {
+  public func changeSchedule(_ command: ChangeSchedule) async throws(HostError) -> ScheduleEntry {
+    let change = command.change
+    guard !change.isEmpty else { throw .invalidRequest("Say what to change: title, follow, every or panel.") }
+    for text in [change.title, change.follow].compactMap(\.self)
+    where text.trimmingCharacters(in: .whitespaces).isEmpty {
+      throw .invalidRequest("A schedule's title and follow cannot be blank.")
+    }
     switch command.schedule {
     case .schedule(let id):
-      let changed = try existing(id).with(every: command.every)
+      let schedule = try existing(id)
+      if case .panel(let panel) = change.destination, store.panel(named: panel)?.panel == nil {
+        throw .invalidRequest("There is no panel \(panel). Save it first with `loci panel save \(panel)`.")
+      }
+      let changed = Schedule(
+        id: id, name: schedule.name, title: change.title ?? schedule.title, follow: change.follow ?? schedule.follow,
+        every: change.every ?? schedule.every, destination: change.destination ?? schedule.destination,
+        paused: schedule.paused, createdAt: schedule.createdAt)
       try attempt { try database.saveSchedule(changed) }
       await follow([.timers])
       return entry(changed)
     case .panel(let name):
       let panel = try existingRefresh(of: name)
-      let changed = panel.with(refresh: command.every.refresh)
+      if let destination = change.destination, destination != .panel(name) {
+        throw .invalidRequest("A panel's refresh always goes to that panel; make a schedule to send it elsewhere.")
+      }
+      let changed = Panel(
+        name: name, title: change.title ?? panel.title, sources: panel.sources, follow: change.follow ?? panel.follow,
+        refresh: change.every?.refresh ?? panel.refresh, body: panel.body)
       try attempt { try store.savePanel(changed) }
       await follow([.timers, .loci(.panels)])
       guard let entry = entry(of: changed, state: store.panelState()) else { throw .notFound(name) }
@@ -129,7 +147,7 @@ extension LocalHost {
     return ScheduleEntry(
       ref: schedule.ref, name: schedule.name, title: schedule.title, every: schedule.every,
       destination: schedule.destination, paused: schedule.paused, next: next,
-      lastSummary: runs.lazy.compactMap(\.summary).first)
+      lastSummary: runs.lazy.compactMap(\.summary).first, lastRun: runs.first { $0.summary != nil }?.startedAt)
   }
 
   private func entry(of panel: Panel, state: PanelState) -> ScheduleEntry? {
@@ -140,18 +158,13 @@ extension LocalHost {
       paused ? nil : every.next(last: state.refreshed[panel.name], now: environment.now(), in: environment.timeZone)
     return ScheduleEntry(
       ref: .panel(panel.name), name: panel.name, title: panel.title, every: every, destination: .panel(panel.name),
-      paused: paused, next: next, lastSummary: runs.lazy.compactMap(\.summary).first)
+      paused: paused, next: next, lastSummary: runs.lazy.compactMap(\.summary).first,
+      lastRun: runs.first { $0.summary != nil }?.startedAt)
   }
 }
 
 extension Schedule {
   func with(paused: Bool) -> Schedule {
-    Schedule(
-      id: id, name: name, title: title, follow: follow, every: every, destination: destination, paused: paused,
-      createdAt: createdAt)
-  }
-
-  func with(every: Every) -> Schedule {
     Schedule(
       id: id, name: name, title: title, follow: follow, every: every, destination: destination, paused: paused,
       createdAt: createdAt)

@@ -2,9 +2,9 @@ import Foundation
 import LociModel
 import WebKit
 
-/// Loads a page in a web view that is never shown and asks defuddle for its text. The web view keeps its
-/// cookies in the default store, the one the built-in browser uses, so a site signed into there is signed
-/// into here.
+/// Loads a page in a web view that is never shown and asks defuddle for its text, as no one or signed in as the
+/// person is in the built-in browser. A signed-in read always sends only GET (`ReadOnlyPage`): the store that
+/// holds the sign-ins is reached only through `Visitor.signedIn`, which brings the guards with it.
 @MainActor
 final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   /// What to load: an address, or markup that is already here.
@@ -18,10 +18,26 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   private var status: Int?
   private var pdf: URL?
   private let purpose: Purpose
+  let visitor: Visitor
 
   private enum Purpose {
     case article
     case source
+  }
+
+  /// Who the page is read as.
+  enum Visitor {
+    /// No one: a store of its own that keeps nothing.
+    case anonymous
+    /// The person, with the built-in browser's sign-ins; the page may send only GET.
+    case signedIn
+
+    fileprivate var store: WKWebsiteDataStore {
+      switch self {
+      case .anonymous: .nonPersistent()
+      case .signedIn: WKWebsiteDataStore.default()
+      }
+    }
   }
 
   enum Document {
@@ -34,13 +50,18 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
 
   /// defuddle is added to every page as soon as its document is parsed, in a world of its own that the
   /// page's scripts cannot see, and says when it is there.
-  private init(source: Source, store: WKWebsiteDataStore, purpose: Purpose) throws(FetchError) {
+  private init(source: Source, visitor: Visitor, purpose: Purpose) throws(FetchError) {
     self.source = source
     self.purpose = purpose
+    self.visitor = visitor
     let configuration = WKWebViewConfiguration()
-    configuration.websiteDataStore = store
+    configuration.websiteDataStore = visitor.store
     configuration.mediaTypesRequiringUserActionForPlayback = .all
     let scripts = configuration.userContentController
+    if visitor == .signedIn {
+      scripts.addUserScript(
+        WKUserScript(source: ReadOnlyPage.script, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page))
+    }
     scripts.addUserScript(
       WKUserScript(
         source: try Self.defuddle() + "\nwebkit.messageHandlers.\(Self.ready).postMessage(null);",
@@ -59,31 +80,34 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     }
   }
 
+  /// An article: signed in unless told otherwise, so a page the person can read there can be saved.
   static func read(
-    _ source: Source, timeout: Duration, store: WKWebsiteDataStore = .default()
+    _ source: Source, timeout: Duration, as visitor: Visitor = .signedIn
   ) async throws(FetchError) -> Extraction {
-    try await open(source, timeout: timeout, store: store).extract()
+    try await open(source, timeout: timeout, as: visitor).extract()
   }
 
   static func open(
-    _ source: Source, timeout: Duration, store: WKWebsiteDataStore = .default()
+    _ source: Source, timeout: Duration, as visitor: Visitor = .signedIn
   ) async throws(FetchError) -> PageReader {
-    try await open(source, timeout: timeout, store: store, purpose: .article)
+    try await open(source, timeout: timeout, visitor: visitor, purpose: .article)
   }
 
-  static func source(at url: URL, timeout: Duration) async throws(FetchError) -> Document {
-    let reader = try await open(.url(url), timeout: timeout, store: .nonPersistent(), purpose: .source)
+  /// A source for the companion to read, as no one unless `signedIn`.
+  static func source(at url: URL, timeout: Duration, signedIn: Bool = false) async throws(FetchError) -> Document {
+    let reader = try await open(
+      .url(url), timeout: timeout, visitor: signedIn ? .signedIn : .anonymous, purpose: .source)
     if let pdf = reader.pdf {
-      reader.webView.stopLoading()
+      reader.close()
       return .pdf(pdf)
     }
     return .page(try await reader.extract())
   }
 
   private static func open(
-    _ source: Source, timeout: Duration, store: WKWebsiteDataStore, purpose: Purpose
+    _ source: Source, timeout: Duration, visitor: Visitor, purpose: Purpose
   ) async throws(FetchError) -> PageReader {
-    let reader = try PageReader(source: source, store: store, purpose: purpose)
+    let reader = try PageReader(source: source, visitor: visitor, purpose: purpose)
     defer { reader.webView.configuration.userContentController.removeAllScriptMessageHandlers() }
     let timer = Task { @MainActor [weak reader] in
       try await Task.sleep(for: timeout)
@@ -149,8 +173,9 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     }
   }
 
+  /// The page's text; the page is closed once it is read, so nothing on it runs any more.
   func extract() async throws(FetchError) -> Extraction {
-    defer { webView.stopLoading() }
+    defer { close() }
     if case .url = source { await waitForTextToSettle() }
     try checkSignIn()
     var arguments: [String: Any] =
@@ -158,7 +183,7 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
       case .url: ["html": NSNull(), "base": NSNull()]
       case .html(let html, let base): ["html": html, "base": base.absoluteString]
       }
-    arguments["preferCompleteText"] = purpose == .source
+    arguments["preferCompleteText"] = purpose != .article
     let reply: Any?
     do {
       reply = try await webView.callAsyncJavaScript(Self.extraction, arguments: arguments, contentWorld: Self.world)
@@ -169,6 +194,13 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
       let extraction = try? JSONDecoder().decode(Extraction.self, from: Data(json.utf8))
     else { throw FetchError(reason: "The page's text could not be read.") }
     return extraction
+  }
+
+  /// Stops the page and leaves it blank: its scripts stop with it.
+  func close() {
+    webView.stopLoading()
+    webView.navigationDelegate = nil
+    webView.loadHTMLString("", baseURL: nil)
   }
 
   private func checkSignIn() throws(FetchError) {
@@ -246,11 +278,18 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   }
 
   func webView(
+    _ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction
+  ) async -> WKNavigationActionPolicy {
+    guard visitor == .signedIn else { return .allow }
+    return ReadOnlyPage.allows(method: navigationAction.request.httpMethod) ? .allow : .cancel
+  }
+
+  func webView(
     _ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse
   ) async -> WKNavigationResponsePolicy {
     if navigationResponse.isForMainFrame, let response = navigationResponse.response as? HTTPURLResponse {
       status = response.statusCode
-      if purpose == .source, response.mimeType == "application/pdf", let url = response.url,
+      if purpose != .article, response.mimeType == "application/pdf", let url = response.url,
         Self.failure(status: response.statusCode) == nil
       {
         pdf = url
@@ -264,7 +303,7 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge)
     async -> (URLSession.AuthChallengeDisposition, URLCredential?)
   {
-    if purpose == .source, challenge.protectionSpace.authenticationMethod != NSURLAuthenticationMethodServerTrust {
+    if purpose != .article, challenge.protectionSpace.authenticationMethod != NSURLAuthenticationMethodServerTrust {
       return (.cancelAuthenticationChallenge, nil)
     }
     return (.performDefaultHandling, nil)
