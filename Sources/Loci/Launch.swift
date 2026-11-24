@@ -23,6 +23,8 @@ final class Launch {
   let host = DeferredHost()
   /// This Mac's companion in the menu bar, which stays while every window is closed.
   let companion: MenuBarCompanion
+  /// The connector the browser came back from, for the window to turn to.
+  let signInReturns = SignInReturns()
   private var local: LocalHost?
   /// The Macs the window can show: this one and the ones paired through the relay, or only this one in a build
   /// without a relay or when the device key cannot be kept.
@@ -110,8 +112,10 @@ final class Launch {
     let database = DataFolder.database(in: root)
     let cache = DataFolder.sourceCache(
       in: .cachesDirectory, appName: Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)
+    let returns = signInReturns
     let environment = HostEnvironment.system(
-      defaultRuntime: Runtime(provider: .pi), tool: Self.tool(root: root), sourceCache: cache)
+      defaultRuntime: Runtime(provider: .pi), tool: Self.tool(root: root), sourceCache: cache,
+      browserReturned: { await returns.returned(from: $0) })
     do throws(HostStartError) {
       let started =
         replacingDatabase

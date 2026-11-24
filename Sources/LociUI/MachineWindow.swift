@@ -8,6 +8,7 @@ struct MachineWindow: View {
   @Environment(\.machineChoice) private var machineChoice
   @Environment(\.changesAllowed) private var changesAllowed
   @Environment(\.openedFiles) private var openedFiles
+  @Environment(\.signInReturns) private var signInReturns
   @State private var window = WindowState()
   @State private var restored = false
   @State private var items: Feed<[Item]>?
@@ -66,6 +67,7 @@ struct MachineWindow: View {
       .onAppear(perform: restore)
       .task { await openModelSetup() }
       .onChange(of: openedFiles?.waiting, initial: true) { openBooks() }
+      .onChange(of: signInReturns?.waiting, initial: true) { showReturnedSignIn() }
       .onChange(of: window) { memory.remember(window) }
       .onChange(of: itemIDs) { _, items in
         if let items { window = window.keeping(items: items) }
@@ -322,6 +324,13 @@ struct MachineWindow: View {
         }
       }
     }
+  }
+
+  /// Turns to the Connectors page of the connector the browser came back from, when the window shows this Mac,
+  /// where the sign-in was.
+  private func showReturnedSignIn() {
+    guard machineChoice?.link == nil, let connector = signInReturns?.take() else { return }
+    window = WindowState(place: .connector(connector))
   }
 
   /// The items there are, once the list has arrived.

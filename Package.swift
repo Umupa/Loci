@@ -38,7 +38,7 @@ let package = Package(
       resources: [.copy("Resources")],
       swiftSettings: strict),
     .target(name: "LociRemote", dependencies: ["LociModel"], swiftSettings: strict),
-    .target(name: "LociConnect", dependencies: ["LociModel"], swiftSettings: strict),
+    .target(name: "LociConnect", dependencies: ["LociModel"], resources: [.copy("Resources")], swiftSettings: strict),
     .target(
       name: "LociHost",
       dependencies: ["LociModel", "LociStore", "LociAgents", "LociMedia", "LociRemote", "LociConnect"],

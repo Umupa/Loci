@@ -47,16 +47,13 @@ struct PaperCover: View {
 
   /// The site's first letter, or the item's kind where there is no site, in a ring with a fainter ring around it.
   private func seal(side: CGFloat) -> some View {
-    Group {
+    SiteSeal(side: side) {
       if let initial = item.sourceName?.first {
         Text(serif: String(initial).uppercased(), Serif.Face(size: side * 0.5, weight: .semibold))
       } else {
         Image(systemName: Symbols.kind(ItemKind(item.kind))).font(.system(size: side * 0.4, weight: .medium))
       }
     }
-    .foregroundStyle(Palette.paperInk)
-    .frame(width: side, height: side)
-    .overlay(Circle().strokeBorder(Palette.paperInk.opacity(0.7), lineWidth: max(side * 0.025, 1)))
     .padding(side * 0.1)
     .overlay(Circle().strokeBorder(Palette.paperInk.opacity(0.18), lineWidth: max(side * 0.015, 0.75)))
   }

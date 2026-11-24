@@ -205,7 +205,8 @@ extension TalkLayout {
   }
 
   /// Fits the lanes into `width`: the conversation gives way first, down to its narrowest, then the panel lanes
-  /// down to theirs; then the lanes farthest from the conversation fold to rails, one at a time.
+  /// down to theirs; then the lanes farthest from the conversation fold to rails, one at a time, and the room a
+  /// fold leaves goes back to the lanes still open, so a rail sits at the edge of the page.
   func fit(in width: CGFloat) -> Fit {
     let lanes = lanes
     var widths = Dictionary(uniqueKeysWithValues: lanes.map { ($0.id, Self.preferred($0, in: self)) })
@@ -229,6 +230,10 @@ extension TalkLayout {
     let byDistance = lanes.indices.filter { $0 != place }.sorted { abs($0 - place) > abs($1 - place) }
     for index in byDistance where total() > width {
       rails.insert(lanes[index].id)
+    }
+    for lane in [.conversation] + panelLanes.map(Lane.panels) where !rails.contains(lane.id) && total() < width {
+      let current = widths[lane.id] ?? 0
+      widths[lane.id] = min(Self.preferred(lane, in: self), current + width - total())
     }
     if total() > width {
       let least = max(Self.conversationLeast, (widths[Lane.conversation.id] ?? 0) - (total() - width))

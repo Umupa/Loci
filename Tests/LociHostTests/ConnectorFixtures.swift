@@ -129,17 +129,32 @@ final class FakeServices: HTTPClient, Sendable {
   }
 }
 
-/// The browser, played by the test: it listens at a new port each time, and the test sends it back.
+/// The browser, played by the test: it listens at a new port each time, and the test sends it back. It keeps
+/// what each sign-in told it and which services it was for, and which connectors the app was told it came back
+/// from.
 final class FakeBrowser: CallbackReceiver, Sendable {
   private let waits = Mutex<[Wait]>([])
   private let ports = Mutex(53_000)
+  private let returns = Mutex<[ConnectorID]>([])
 
-  func open() async throws(ConnectError) -> any CallbackWait {
+  /// The connectors the app was told the browser came back from, in order.
+  var returned: [ConnectorID] { returns.withLock { $0 } }
+
+  /// The services each sign-in was for, and what the browser was told of it, in order.
+  func answers() async -> [(service: String, outcome: SignInOutcome?)] {
+    var answers: [(String, SignInOutcome?)] = []
+    for wait in waits.withLock({ $0 }) { answers.append((wait.service, await wait.answered)) }
+    return answers
+  }
+
+  func cameBack(from connector: ConnectorID) { returns.withLock { $0.append(connector) } }
+
+  func open(for service: String) async throws(ConnectError) -> any CallbackWait {
     let port = ports.withLock { port in
       port += 1
       return port
     }
-    let wait = Wait(redirect: URL(string: "http://127.0.0.1:\(port)/callback")!)
+    let wait = Wait(redirect: URL(string: "http://127.0.0.1:\(port)/callback")!, service: service)
     waits.withLock { $0.append(wait) }
     return wait
   }
@@ -158,10 +173,17 @@ final class FakeBrowser: CallbackReceiver, Sendable {
 
   actor Wait: CallbackWait {
     nonisolated let redirect: URL
+    nonisolated let service: String
+    private(set) var answered: SignInOutcome?
     private let (callbacks, continuation) = AsyncStream.makeStream(of: URL.self)
 
-    init(redirect: URL) {
+    init(redirect: URL, service: String) {
       self.redirect = redirect
+      self.service = service
+    }
+
+    func answer(_ outcome: SignInOutcome) {
+      if answered == nil { answered = outcome }
     }
 
     func deliver(_ url: URL) { continuation.yield(url) }
@@ -206,7 +228,8 @@ struct ConnectWorld {
       http: services, receiver: browser, vault: vault,
       githubLogin: { signedIn ? GitHubLogin(token: "gh-token", account: "umupa") : nil },
       githubRead: { await gh.read($0) }, sites: sites, personal: personal,
-      randomBytes: { Data(repeating: 9, count: $0) }, patience: patience)
+      randomBytes: { Data(repeating: 9, count: $0) }, patience: patience,
+      browserReturned: { [browser] in browser.cameBack(from: $0) })
   }
 
   /// Connects Notion through the browser, and waits until it is connected.

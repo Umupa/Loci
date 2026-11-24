@@ -88,8 +88,11 @@ public struct HostEnvironment: Sendable {
   }
 
   /// The real clock and time zone, fresh identifiers, the Trash, and the agent programs installed on this Mac.
-  public static func system(defaultRuntime: Runtime, tool: AgentTool? = nil, sourceCache: URL? = nil) -> HostEnvironment
-  {
+  /// The app comes to the front on a connector's page through `browserReturned`.
+  public static func system(
+    defaultRuntime: Runtime, tool: AgentTool? = nil, sourceCache: URL? = nil,
+    browserReturned: @escaping @Sendable (ConnectorID) async -> Void = { _ in }
+  ) -> HostEnvironment {
     let installed = InstalledAgents(tool: tool)
     return HostEnvironment(
       newID: { EntityID() }, now: { Timestamp(.now) }, timeZone: .current, defaultRuntime: defaultRuntime,
@@ -100,7 +103,8 @@ public struct HostEnvironment: Sendable {
       modelKeys: ModelKeychain(serviceName: "com.loci.native.dev.model-service"), bundledPi: BundledPiEnvironment(),
       sourceCache: sourceCache, activity: ProcessActivity.begin,
       connect: .system(
-        githubLogin: { await installed.githubLogin() }, githubRead: { await installed.githubRead($0) }))
+        githubLogin: { await installed.githubLogin() }, githubRead: { await installed.githubRead($0) },
+        browserReturned: browserReturned))
   }
 
   private static func everyMinute() -> AsyncStream<Void> {

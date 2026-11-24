@@ -17,6 +17,13 @@ struct WebsiteConnectorScenarioTests {
     await value(host.subscribe(WatchConnectors()), where: match)
   }
 
+  @Test func everyWebsiteIsSignedIntoOnTheDomainsItsIconIsKnownBy() throws {
+    for entry in ConnectorCatalog.sites {
+      let domains = try #require(entry.site?.domains)
+      #expect(!domains.isEmpty && domains.allSatisfy { ConnectorSites.connector(for: $0) == entry.offer.id })
+    }
+  }
+
   @Test func aSiteSignedIntoInTheBuiltInBrowserIsConnectedOnItsOwn() async throws {
     let world = ConnectWorld()
     world.sites.signIn("x.com", cookie: "auth_token")

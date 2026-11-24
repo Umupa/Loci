@@ -122,7 +122,7 @@ actor ConnectorKeeper {
           return .connected
         case .signIn(let discovery):
           guard connect.vault != nil else { throw .unsupported("this Loci has no keychain to keep a sign-in in") }
-          let wait = try await connect.receiver.open()
+          let wait = try await connect.receiver.open(for: offer.name)
           let pending: PendingAuthorization
           do throws(ConnectError) {
             pending = oauth.authorize(try await oauth.register(discovery, redirect: wait.redirect))
@@ -146,25 +146,39 @@ actor ConnectorKeeper {
     }
   }
 
-  /// Waits for the browser, then signs in and keeps the credentials. Given up after `patience`.
+  /// Waits for the browser, then signs in and keeps the credentials, tells the browser what came of it, and lets
+  /// the app know the browser came back. Given up after `patience`.
   private func finish(_ offer: ConnectorOffer, _ pending: PendingAuthorization, _ wait: any CallbackWait) async {
     let outcome: ConnectAttempt?
+    var answer = SignInOutcome.failed
+    var returned = false
     do throws(ConnectError) {
       let callback = try await firstOf(wait, within: connect.patience)
+      returned = true
+      if Self.refused(callback) { answer = .declined }
       let credential = try await oauth.exchange(try pending.code(from: callback), now: environment.now())
       let server = pending.registration.discovery.resource.mcp
       clients[offer.id] = nil
       let tools = try await client(offer.id, server).tools(token: credential.accessToken)
       try keep(credential, for: offer.id)
       try save(offer, server: server, account: credential.account, tools: tools, signedIn: true)
+      answer = .connected
       outcome = nil
     } catch {
       outcome = .failed(error.reason)
     }
+    await wait.answer(answer)
     await wait.close()
     guard !Task.isCancelled, attempts[offer.id] != nil else { return }
     attempts[offer.id] = outcome.map { Attempt(state: $0) }
     await follower.follow([.connectors])
+    if returned { await connect.browserReturned(offer.id) }
+  }
+
+  /// Whether the person refused on the service's page.
+  private static func refused(_ callback: URL) -> Bool {
+    URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems?
+      .contains { $0.name == "error" && $0.value == "access_denied" } == true
   }
 
   /// The callback, or a failure once `limit` has passed.
@@ -184,7 +198,6 @@ actor ConnectorKeeper {
       }
       let first = await group.next() ?? nil
       group.cancelAll()
-      await wait.close()
       return first
     }
     guard let result else {

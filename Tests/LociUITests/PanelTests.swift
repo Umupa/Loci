@@ -17,13 +17,22 @@ struct PanelTests {
   }
 
   @Test func aSiteIsKnownByItsDomainWhateverTheSubdomain() {
-    #expect(SiteMark("github.com") == .github)
-    #expect(SiteMark("gist.github.com") == .github)
-    #expect(SiteMark("https://github.com/tencentcloud/CubeSandbox") == .github)
+    #expect(SiteMark("github.com") == .connector(ConnectorID("github")))
+    #expect(SiteMark("gist.github.com") == .connector(ConnectorID("github")))
+    #expect(SiteMark("https://github.com/tencentcloud/CubeSandbox") == .connector(ConnectorID("github")))
     #expect(SiteMark("news.ycombinator.com") == .hackerNews)
-    #expect(SiteMark("x.com") == .x)
-    #expect(SiteMark("twitter.com") == .x)
-    #expect(SiteMark("www.notion.so") == .notion)
+    #expect(SiteMark("twitter.com") == .connector(ConnectorID("x")))
+    #expect(SiteMark("www.notion.so") == .connector(ConnectorID("notion")))
+  }
+
+  /// P-S2: a panel reading a site a connector is on carries the connector's icon from the Connectors page.
+  @Test func aSiteAConnectorIsOnIsMarkedWithTheConnectorsIcon() {
+    #expect(SiteMark("linear.app") == .connector(ConnectorID("linear")))
+    #expect(SiteMark("acme.atlassian.net") == .connector(ConnectorID("atlassian")))
+    #expect(SiteMark("sentry.io") == .connector(ConnectorID("sentry")))
+    #expect(SiteMark("www.v2ex.com") == .connector(ConnectorID("v2ex")))
+    #expect(SiteMark("bilibili.com") == .connector(ConnectorID("bilibili")))
+    #expect(SiteMark("calendar") == .connector(ConnectorID("calendar")))
   }
 
   @Test func anyOtherSiteIsTheFirstLetterOfItsName() {

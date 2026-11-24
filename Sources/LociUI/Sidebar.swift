@@ -15,7 +15,16 @@ struct Sidebar: View {
   let work: LociWork?
   let chooseLoci: () -> Void
 
+  /// The settings at the foot when the rows fit; when the window is too short for them, the rows scroll under the
+  /// sidebar's button instead of pushing it out of the window.
   var body: some View {
+    ViewThatFits(in: .vertical) {
+      rows(spread: true)
+      ScrollView { rows(spread: false) }.scrollIndicators(.never)
+    }
+  }
+
+  private func rows(spread: Bool) -> some View {
     VStack(alignment: .leading, spacing: 2) {
       SidebarLoci(chosen: lociChosen, work: work, choose: chooseLoci)
         .padding(.top, 14)
@@ -27,7 +36,7 @@ struct Sidebar: View {
       }
       row(.courses(nil), Text(.loci("sidebar.courses")), symbol: Symbols.course)
       row(.browser, Text(.loci("sidebar.browser")), symbol: Symbols.browser)
-      Spacer(minLength: 0)
+      if spread { Spacer(minLength: 0) }
       SidebarLabel(text: Text(.loci("sidebar.settings")))
       row(.settings(.general), Text(.loci("settings.general")), symbol: Symbols.settings)
       row(.settings(.agents), Text(.loci("settings.agents")), symbol: Symbols.agents)

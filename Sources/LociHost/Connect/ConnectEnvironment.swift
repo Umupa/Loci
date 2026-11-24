@@ -22,6 +22,9 @@ public struct ConnectEnvironment: Sendable {
   public let randomBytes: @Sendable (Int) -> Data
   /// How long the browser has to come back.
   public let patience: Duration
+  /// Told when the browser came back from a connector's sign-in and the connection is done or has failed, so
+  /// the app can come to the front on its Connectors page.
+  public let browserReturned: @Sendable (ConnectorID) async -> Void
 
   public init(
     http: any HTTPClient, receiver: any CallbackReceiver, vault: (any ConnectorVault)?,
@@ -30,7 +33,7 @@ public struct ConnectEnvironment: Sendable {
     },
     sites: any SiteSignIns = NoSites(), personal: any PersonalData = NoPersonalData(),
     randomBytes: @escaping @Sendable (Int) -> Data = ConnectEnvironment.systemRandom,
-    patience: Duration = .seconds(600)
+    patience: Duration = .seconds(600), browserReturned: @escaping @Sendable (ConnectorID) async -> Void = { _ in }
   ) {
     self.http = http
     self.receiver = receiver
@@ -41,6 +44,7 @@ public struct ConnectEnvironment: Sendable {
     self.personal = personal
     self.randomBytes = randomBytes
     self.patience = patience
+    self.browserReturned = browserReturned
   }
 
   /// No network, no keychain: a host that connects nothing, as in previews and most tests.
@@ -49,13 +53,14 @@ public struct ConnectEnvironment: Sendable {
 
   public static func system(
     githubLogin: @escaping @Sendable () async -> GitHubLogin?,
-    githubRead: @escaping @Sendable ([String]) async -> GitHubReply
+    githubRead: @escaping @Sendable ([String]) async -> GitHubReply,
+    browserReturned: @escaping @Sendable (ConnectorID) async -> Void
   ) -> ConnectEnvironment {
     ConnectEnvironment(
       http: URLSessionClient(), receiver: LoopbackReceiver(),
       vault: ConnectorKeychain(serviceName: "com.loci.native.dev.connector"), githubLogin: githubLogin,
       githubRead: githubRead, sites: BuiltInBrowserSignIns(network: SystemNetwork.anonymous()),
-      personal: EventKitData())
+      personal: EventKitData(), browserReturned: browserReturned)
   }
 
   public static let systemRandom: @Sendable (Int) -> Data = { count in
@@ -80,7 +85,7 @@ private struct Unreachable: HTTPClient, CallbackReceiver {
     throw .offline("this Loci does not reach the network")
   }
 
-  func open() async throws(ConnectError) -> any CallbackWait {
+  func open(for service: String) async throws(ConnectError) -> any CallbackWait {
     throw .offline("this Loci cannot listen for the browser")
   }
 }

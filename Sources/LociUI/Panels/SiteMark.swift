@@ -1,25 +1,28 @@
+import LociModel
 import SwiftUI
 
-/// How a site a panel reads is marked before its title: the app's own drawing of the sites people follow most,
-/// and the first letter of the name for any other. Nothing is fetched to draw it.
+/// How a site a panel reads is marked before its title: a connector's icon for a site a connector is on, the
+/// same as the Connectors page draws it, Hacker News's own mark, and a seal with the first letter of the name for
+/// any other. Nothing is fetched to draw it.
 enum SiteMark: Equatable {
-  case github, x, hackerNews, notion
+  case connector(ConnectorID)
+  case hackerNews
   case letter(Character)
 
-  /// From a domain such as `news.ycombinator.com`, or a whole address.
+  /// From a domain such as `news.ycombinator.com`, a whole address, or a connector's id.
   init(_ site: String) {
+    if let connector = ConnectorSites.connector(for: site) {
+      self = .connector(connector)
+      return
+    }
     let host = URL(string: site)?.host() ?? site
     let labels = host.lowercased().split(separator: ".").map(String.init)
-    let domain = labels.suffix(2).joined(separator: ".")
-    switch domain {
-    case "github.com": self = .github
-    case "x.com", "twitter.com": self = .x
-    case "ycombinator.com": self = .hackerNews
-    case "notion.so", "notion.site": self = .notion
-    default:
-      let name = labels.count > 1 ? labels[labels.count - 2] : labels.first
-      self = .letter(name?.first.map { Character($0.uppercased()) } ?? "·")
+    if labels.suffix(2).joined(separator: ".") == "ycombinator.com" {
+      self = .hackerNews
+      return
     }
+    let name = labels.count > 1 ? labels[labels.count - 2] : labels.first
+    self = .letter(name?.first.map { Character($0.uppercased()) } ?? "·")
   }
 }
 
@@ -32,6 +35,7 @@ struct SiteBadge: View {
   var body: some View {
     face
       .frame(width: size, height: size)
+      .background(Circle().fill(Palette.paper))
       .clipShape(Circle())
       .background(Circle().fill(ring).padding(-2))
       .accessibilityHidden(true)
@@ -39,34 +43,36 @@ struct SiteBadge: View {
 
   @ViewBuilder private var face: some View {
     switch SiteMark(site) {
-    case .github: drawn("github", on: Palette.Site.github)
-    case .x: drawn("x", on: Palette.Site.x)
-    case .hackerNews: letter("Y", ink: Palette.Site.mark, on: Palette.Site.hackerNews)
-    case .notion:
-      letter("N", ink: Palette.Site.notionInk, on: Palette.Site.notion, design: .serif)
-        .overlay(Circle().strokeBorder(Palette.Site.notionInk, lineWidth: 1.2))
-    case .letter(let first): letter(first, ink: Palette.ink, on: Palette.fillStrong)
-    }
-  }
-
-  private func drawn(_ name: String, on background: Color) -> some View {
-    background.overlay {
-      if let mark = MarkArt.site(name) {
-        Image(nsImage: mark).renderingMode(.template).resizable().scaledToFit()
-          .foregroundStyle(Palette.Site.mark)
-          .frame(width: size * 0.62, height: size * 0.62)
+    case .connector(let id):
+      ConnectorArt(art: ConnectorMark.art(for: id), size: size * 0.56)
+        .frame(width: size, height: size)
+        .overlay(Circle().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+    case .hackerNews:
+      Palette.Site.hackerNews.overlay {
+        Text(verbatim: "Y").font(.system(size: size / 2, weight: .bold)).foregroundStyle(Palette.Site.mark)
       }
+    case .letter(let first): SiteSeal(letter: String(first), side: size)
     }
   }
+}
 
-  private func letter(
-    _ letter: Character, ink: Color, on background: Color, design: Font.Design = .default
-  ) -> some View {
-    background.overlay {
-      Text(verbatim: String(letter))
-        .font(.system(size: size / 2, weight: .bold, design: design))
-        .foregroundStyle(ink)
-    }
+/// A site's first letter in serif ink inside a thin ring, on paper: how the cover of an item without a picture
+/// and a site the app has no mark for are marked.
+struct SiteSeal<Face: View>: View {
+  let side: CGFloat
+  @ViewBuilder let face: Face
+
+  var body: some View {
+    face
+      .foregroundStyle(Palette.paperInk)
+      .frame(width: side, height: side)
+      .overlay(Circle().strokeBorder(Palette.paperInk.opacity(0.7), lineWidth: max(side * 0.025, 1)))
+  }
+}
+
+extension SiteSeal where Face == Text {
+  init(letter: String, side: CGFloat) {
+    self.init(side: side) { Text(serif: letter.uppercased(), Serif.Face(size: side * 0.46, weight: .medium)) }
   }
 }
 

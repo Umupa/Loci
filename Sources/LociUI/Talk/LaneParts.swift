@@ -75,7 +75,7 @@ struct ConversationGrip: View {
 }
 
 /// A lane folded where the window has no room for it: its panels' marks in a short paper capsule at the top of
-/// where the lane was, with nothing drawn below. A mark lifts under the pointer and opens the lane's panels over
+/// where the lane was, with nothing drawn below; nothing at all for a lane with no panels yet. A mark lifts under the pointer and opens the lane's panels over
 /// the page.
 struct RailLane: View {
   let lane: PanelLane
@@ -101,10 +101,12 @@ struct RailLane: View {
     .padding(.vertical, Spacing.xs)
     .padding(.horizontal, 7)
     .background {
-      let shape = RoundedRectangle(cornerRadius: Size.railMark / 2 + 7, style: .circular)
-      shape.fill(Palette.surface)
-        .shadow(color: Palette.liftShadow.opacity(0.3), radius: 10, y: 4)
-        .overlay(shape.strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+      if !slots.isEmpty {
+        let shape = RoundedRectangle(cornerRadius: Size.railMark / 2 + 7, style: .circular)
+        shape.fill(Palette.surface)
+          .shadow(color: Palette.liftShadow.opacity(0.3), radius: 10, y: 4)
+          .overlay(shape.strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+      }
     }
     .padding(.top, Spacing.s)
     .frame(width: TalkLayout.rail)

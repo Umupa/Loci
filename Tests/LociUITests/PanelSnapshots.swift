@@ -70,6 +70,37 @@ struct PanelSnapshots {
       "talk-rails", layout: layout, size: CGSize(width: 1100, height: 860), reads: true, appearance: appearance)
   }
 
+  /// P-S2, P-S16: a folded lane marks a panel on a connector's site with the connector's icon, a site the app
+  /// has no mark for with a seal, and 「接着读」 with the companion's face.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func foldedMarks(appearance: Snapshot.Appearance) async throws {
+    let panels = [
+      ("linear", ["linear.app"]), ("v2ex", ["v2ex.com"]), ("openai", ["openai.com"]), ("cncf", ["cncf.io"]),
+    ].map { name, sources in
+      PanelSlot.panel(
+        Panel(name: name, title: name, sources: sources, follow: name, body: .rows([.sentence("**\(name)**")])))
+    }
+    let column = PanelColumn(slots: [.reading(try SamplePanels.readingNow())] + panels)
+    let layout = TalkLayout.standard.holding(column.slots.map(\.key))
+    try await LibrarySnapshots.shoot(
+      "talk-rail-marks", try SampleLibrary(), at: WindowState(), appearance: appearance,
+      size: CGSize(width: 900, height: 640), panels: column,
+      defaults: Self.defaults(columnShown: true, sidebarShown: true, layout: layout))
+  }
+
+  /// P-S16: with no panels yet, the lane kept for the first one draws nothing when it folds.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func anEmptyLaneFoldsToNothing(appearance: Snapshot.Appearance) async throws {
+    let view = MachineWindow(memory: WindowMemory(recall: { WindowState() }, remember: { _ in }))
+      .lociHost(FakeHost(try Sample(problems: false)))
+      .defaultAppStorage(LibrarySnapshots.defaults(panel: true))
+    let file = try await Snapshot.render(
+      view, named: "talk-empty-rail", size: Size.windowMinimum, appearance: appearance, settle: .seconds(1))
+    let bitmap = try #require(NSBitmapImageRep(data: try Data(contentsOf: file)))
+    let rail = CGRect(x: 664, y: 56, width: 28, height: 32)
+    #expect(SidebarFitTests.inked(in: rail, of: bitmap, appearance: appearance, threshold: 0.01) == 0)
+  }
+
   /// The column alone, read through the host.
   static func alone(_ view: some View) throws -> some View {
     view

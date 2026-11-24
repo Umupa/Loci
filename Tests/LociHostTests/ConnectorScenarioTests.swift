@@ -35,6 +35,9 @@ struct ConnectorScenarioTests {
       #expect(notion.tools.map(\.name) == ["search"])
       #expect(!connected.available.contains { $0.id == Self.notion })
       #expect(world.vault.all[Self.notion] != nil)
+      let answers = await world.browser.answers()
+      #expect(answers.map(\.service) == ["Notion"] && answers.map(\.outcome) == [.connected])
+      #expect(world.browser.returned == [Self.notion])
     }
   }
 
@@ -61,6 +64,7 @@ struct ConnectorScenarioTests {
 
       #expect(given?.connected.isEmpty == true)
       #expect(world.vault.all.isEmpty)
+      #expect(world.browser.returned.isEmpty)
     }
   }
 
@@ -75,6 +79,8 @@ struct ConnectorScenarioTests {
         if case .failed = connectors.attempts[Self.notion] { true } else { false }
       }
       #expect(refused?.attempts[Self.notion] == .failed("access_denied"))
+      #expect(await world.browser.answers().map(\.outcome) == [.declined])
+      #expect(world.browser.returned == [Self.notion])
     }
   }
 

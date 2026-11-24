@@ -109,6 +109,15 @@ struct TalkLayoutTests {
     #expect(narrow.widths["conversation"]! >= TalkLayout.conversationLeast)
   }
 
+  /// P-S16: the room a folded lane leaves goes back to the conversation, so the rail sits at the page's edge,
+  /// under the buttons in the window's corner.
+  @Test func aFoldedLaneSitsAtTheEdgeOfThePage() {
+    let fit = TalkLayout.standard.holding(["a", "b"]).fit(in: 640)
+    #expect(fit.rails.count == 1)
+    #expect(fit.inset == 0)
+    #expect(fit.widths["conversation"] == 640 - TalkLayout.rail - TalkLayout.gutter)
+  }
+
   @Test func aPanelHeldOverALaneLandsBeforeTheFirstPanelBelowThePointer() {
     var frames = BoardFrames()
     frames.lanes = [

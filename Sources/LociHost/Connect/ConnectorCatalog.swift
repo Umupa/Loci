@@ -33,11 +33,10 @@ enum ConnectorCatalog {
     Entry(offer: ConnectorOffer(id: ConnectorID("github"), name: "GitHub", kind: .github)),
     mcp("sentry", "Sentry", "https://mcp.sentry.dev/mcp"),
     mcp("atlassian", "Atlassian", "https://mcp.atlassian.com/v1/mcp"),
-    site("x", "X", ["x.com", "twitter.com"], cookie: "auth_token", signIn: "https://x.com/i/flow/login"),
-    site("v2ex", "V2EX", ["v2ex.com"], cookie: "A2", signIn: "https://www.v2ex.com/signin"),
-    site(
-      "xiaohongshu", "小红书", ["xiaohongshu.com"], cookie: "web_session", signIn: "https://www.xiaohongshu.com/explore"),
-    site("bilibili", "哔哩哔哩", ["bilibili.com"], cookie: "SESSDATA", signIn: "https://passport.bilibili.com/login"),
+    site("x", "X", cookie: "auth_token", signIn: "https://x.com/i/flow/login"),
+    site("v2ex", "V2EX", cookie: "A2", signIn: "https://www.v2ex.com/signin"),
+    site("xiaohongshu", "小红书", cookie: "web_session", signIn: "https://www.xiaohongshu.com/explore"),
+    site("bilibili", "哔哩哔哩", cookie: "SESSDATA", signIn: "https://passport.bilibili.com/login"),
     Entry(offer: ConnectorOffer(id: ConnectorID("calendar"), name: "日历", kind: .calendar)),
     Entry(offer: ConnectorOffer(id: ConnectorID("reminders"), name: "提醒事项", kind: .reminders)),
   ]
@@ -97,10 +96,11 @@ enum ConnectorCatalog {
       scope: scope)
   }
 
-  private static func site(_ id: String, _ name: String, _ domains: [String], cookie: String, signIn: String) -> Entry {
-    Entry(
-      offer: ConnectorOffer(
-        id: ConnectorID(id), name: name, kind: .site(signIn: URL(string: signIn) ?? URL(filePath: "/"))),
-      site: Site(domains: domains, signedInCookie: cookie))
+  /// A website, on the domains `ConnectorSites` lists for it.
+  private static func site(_ id: String, _ name: String, cookie: String, signIn: String) -> Entry {
+    let id = ConnectorID(id)
+    return Entry(
+      offer: ConnectorOffer(id: id, name: name, kind: .site(signIn: URL(string: signIn) ?? URL(filePath: "/"))),
+      site: Site(domains: ConnectorSites.domains(of: id), signedInCookie: cookie))
   }
 }

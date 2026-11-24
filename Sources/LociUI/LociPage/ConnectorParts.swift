@@ -15,30 +15,11 @@ struct ConnectorMark: View {
     shape.fill(Palette.surface)
       .overlay(shape.strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
       .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
-      .overlay { mark.frame(width: size * 0.58, height: size * 0.58) }
+      .overlay { ConnectorArt(art: Self.art(for: id), size: size * 0.58) }
       .frame(width: size, height: size)
       .saturation(faded ? 0 : 1)
       .opacity(faded ? 0.55 : 1)
       .accessibilityHidden(true)
-  }
-
-  @ViewBuilder private var mark: some View {
-    switch Self.art(for: id) {
-    case .ink(let name):
-      if let art = MarkArt.site(name) {
-        Image(nsImage: art).renderingMode(.template).resizable().scaledToFit().foregroundStyle(Palette.ink)
-      }
-    case .colored(let art):
-      Image(nsImage: art).resizable().scaledToFit()
-    case .symbol(let name):
-      Image(systemName: name).resizable().scaledToFit().fontWeight(.medium).foregroundStyle(Palette.ink).padding(1)
-    case .letter(let letter):
-      Text(verbatim: letter).font(.system(size: size * 0.42, weight: .bold)).foregroundStyle(Palette.ink)
-        .minimumScaleFactor(0.5)
-    case .link:
-      Image(systemName: Symbols.link).resizable().scaledToFit().fontWeight(.medium)
-        .foregroundStyle(Palette.inkMuted).padding(1)
-    }
   }
 
   /// How a connector is drawn on its tile: a site's own mark in ink, a service's mark in its colors, a symbol
@@ -62,6 +43,35 @@ struct ConnectorMark: View {
     case "bilibili": .letter("B")
     default: MarkArt.connector(id).map(Art.colored) ?? .link
     }
+  }
+}
+
+/// A connector's mark itself, `size` across, without the tile or circle it sits on: the Connectors page and a
+/// panel's sites draw a connector the same way.
+struct ConnectorArt: View {
+  let art: ConnectorMark.Art
+  let size: CGFloat
+
+  var body: some View {
+    Group {
+      switch art {
+      case .ink(let name):
+        if let art = MarkArt.site(name) {
+          Image(nsImage: art).renderingMode(.template).resizable().scaledToFit().foregroundStyle(Palette.ink)
+        }
+      case .colored(let art):
+        Image(nsImage: art).resizable().scaledToFit()
+      case .symbol(let name):
+        Image(systemName: name).resizable().scaledToFit().fontWeight(.medium).foregroundStyle(Palette.ink).padding(1)
+      case .letter(let letter):
+        Text(serif: letter, Serif.Face(size: size * 0.8, weight: .semibold)).foregroundStyle(Palette.ink)
+          .minimumScaleFactor(0.5)
+      case .link:
+        Image(systemName: Symbols.link).resizable().scaledToFit().fontWeight(.medium)
+          .foregroundStyle(Palette.inkMuted).padding(1)
+      }
+    }
+    .frame(width: size, height: size)
   }
 }
 
