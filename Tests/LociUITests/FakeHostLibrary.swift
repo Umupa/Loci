@@ -41,11 +41,14 @@ extension FakeHost {
   func pickKeyPoints(_ command: PickKeyPoints) async throws(HostError) -> Done { Done() }
 
   func keyPointsPage(_ item: EntityID) async throws(HostError) -> KeyPointsPage {
-    let choice = KeyPointChoice(runtime: Runtime(provider: .codex, model: "gpt-5.2"), count: .some)
+    let choice = KeyPointChoice(model: nil, count: .some)
+    let model = modelOptions.model(preferring: choice.model, for: .transcripts)
     switch keyPoints {
-    case .none: return KeyPointsPage(keyPoints: nil, picking: nil, choice: choice)
-    case .picking: return KeyPointsPage(keyPoints: nil, picking: .running, choice: choice)
-    case .picked: return KeyPointsPage(keyPoints: try? library?.keyPoints(of: item), picking: nil, choice: choice)
+    case .none: return KeyPointsPage(keyPoints: nil, picking: nil, choice: choice, model: model)
+    case .picking: return KeyPointsPage(keyPoints: nil, picking: .running, choice: choice, model: model)
+    case .picked:
+      return KeyPointsPage(
+        keyPoints: try? library?.keyPoints(of: item), picking: nil, choice: choice, model: model)
     }
   }
   func jobs() async throws(HostError) -> [Job] { (library?.jobs ?? []) + (recognizing ? [recognition] : []) }

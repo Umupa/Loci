@@ -52,6 +52,6 @@ struct LibraryRuntime: Sendable {
       models: ModelServices(store: store, environment: environment),
       notify: { await follower.follow($0) })
     queue = JobQueue(context: context)
-    picker = KeyPointPicker(context: context, gate: queue.gates.agents)
+    picker = KeyPointPicker(context: context)
   }
 }

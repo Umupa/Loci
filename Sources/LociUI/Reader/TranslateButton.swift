@@ -13,18 +13,24 @@ struct ArticleLanguage: Equatable {
 }
 
 /// The translate button in the top corner of an article in another language. Before there is a translation it
-/// asks for one; once there is, it chooses between the original, both, and the translation. A ring fills while
-/// the passages arrive.
+/// asks for one, or opens the model services when none is configured to translate; once there is, it chooses
+/// between the original, both, and the translation. A ring fills while the passages arrive.
 struct TranslateButton: View {
   let language: ArticleLanguage
   @Binding var mode: SubtitleMode
   let translate: () -> Void
+  @Environment(\.openPlace) private var openPlace
   @State private var hovering = false
+  @State private var options: Feed<ModelOptions>?
 
   var body: some View {
     Group {
       if language.translation == nil {
         Button {
+          guard configured else {
+            openPlace(.settings(.models))
+            return
+          }
           mode = .both
           translate()
         } label: {
@@ -56,6 +62,13 @@ struct TranslateButton: View {
     .onHover { hovering = $0 }
     .help(Text(help))
     .accessibilityLabel(Text(help))
+    .subscribing(AvailableModels(), into: $options)
+  }
+
+  /// Whether a model is there to translate with; taken as so until the options have come.
+  private var configured: Bool {
+    guard let options = options?.value else { return true }
+    return options.model(preferring: nil, for: .translation) != nil
   }
 
   private var face: some View {
@@ -91,7 +104,14 @@ struct TranslateButton: View {
     switch language.progress {
     case .running: .loci("article.translating")
     case .failed(let reason): .loci("article.translationFailed \(reason)")
-    case nil: language.translation == nil ? .loci("article.translate") : .loci("article.languages")
+    case nil:
+      if language.translation != nil {
+        .loci("article.languages")
+      } else if configured {
+        .loci("article.translate")
+      } else {
+        .loci("keypoints.configureModels")
+      }
     }
   }
 }

@@ -18,7 +18,7 @@ enum JobLine: Equatable {
     case downloadComponent(Component)
     case downloadModel(SpeechModel)
     case signIn(site: String)
-    case chooseAgent
+    case configureModels
     case update(Component)
     case chooseBrowserLogin
     /// Shows the original page, where the site says why it will not give the item.
@@ -45,7 +45,7 @@ enum JobLine: Equatable {
       case .component(let component): self = .action(.downloadComponent(component), nil)
       case .speechModel(let model): self = .action(.downloadModel(model), nil)
       case .login(let site): self = .action(.signIn(site: site), nil)
-      case .agent: self = .action(.chooseAgent, nil)
+      case .modelService: self = .action(.configureModels, nil)
       }
     case .failed(let failure):
       let fix: Fix =

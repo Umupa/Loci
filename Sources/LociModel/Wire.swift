@@ -41,6 +41,7 @@ public enum Wire {
     AllItems.self, OneItem.self, ItemCover.self, NotesOn.self, AllJobs.self, ItemJob.self, SavingNow.self,
     ItemMedia.self, WatchCourses.self, WatchCourse.self, WatchLesson.self,
     MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self, WatchPanelColumn.self,
+    AvailableModels.self,
   ]
 
   /// The route of a command type, or `nil` when it is not registered.

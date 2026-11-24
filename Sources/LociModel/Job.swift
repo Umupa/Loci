@@ -78,8 +78,13 @@ public struct Job: Hashable, Codable, Sendable {
     case speechModel(SpeechModel)
     /// The site wants a signed-in visitor; sign in from the built-in browser.
     case login(site: String)
-    /// No agent CLI is available to translate or find chapters.
-    case agent
+    /// No model is configured to translate or find chapters with.
+    case modelService
+
+    private enum CodingKeys: String, CodingKey {
+      case component, speechModel, login
+      case modelService = "agent"
+    }
   }
 
   public struct Failure: Hashable, Codable, Sendable {

@@ -99,7 +99,7 @@ actor JobQueue {
     let saved = context.choice(of: item)
     if saved?.translation == nil {
       var choice = saved ?? context.lastChoice
-      choice.translation = .init(language: context.targetLanguage, runtime: nil)
+      choice.translation = .init(language: context.targetLanguage, model: nil)
       try context.store.saveImportChoice(choice, of: item)
     }
     if let pending = jobs[item], pending.state != .done {

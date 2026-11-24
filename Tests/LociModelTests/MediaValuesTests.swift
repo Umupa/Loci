@@ -88,7 +88,7 @@ struct MediaValuesTests {
   @Test func everyJobStateSurvivesJSON() throws {
     let states: [Job.State] = [
       .queued, .running(progress: nil), .running(progress: Fraction(0.42)), .waiting(.component(.ytDlp)),
-      .waiting(.speechModel(.base)), .waiting(.login(site: "bilibili.com")), .waiting(.agent),
+      .waiting(.speechModel(.base)), .waiting(.login(site: "bilibili.com")), .waiting(.modelService),
       .failed(Job.Failure(reason: "HTTP 403", remedy: .updateComponent(.ytDlp))), .failed(Job.Failure(reason: "x")),
       .paused(progress: nil), .paused(progress: Fraction(0.41)), .done,
     ]

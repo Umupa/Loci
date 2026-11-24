@@ -28,13 +28,14 @@ extension LocalHost {
     guard environment.bundledPi != nil, await agents.chosen().provider == .bundledPi else {
       return false
     }
-    let credential = try? await library.context.models.piCredential()
+    let credential = try? await library.context.models.piCredential(for: agents.provisionalRuntime)
     return credential?.key == nil || library.context.equipment.support.activePi() == nil
   }
 
   func provisionPiIfSelected(retry: Bool) async {
     guard !Task.isCancelled, environment.bundledPi != nil,
-      let credential = try? await library.context.models.piCredential(), credential.key != nil
+      let credential = try? await library.context.models.piCredential(for: agents.provisionalRuntime),
+      credential.key != nil
     else { return }
     await hub.hold(
       Task {

@@ -32,7 +32,7 @@ struct Sidebar: View {
       row(.settings(.general), Text(.loci("settings.general")), symbol: Symbols.settings)
       row(.settings(.agents), Text(.loci("settings.agents")), symbol: Symbols.agents)
       if machineChoice?.link == nil {
-        row(.settings(.models), Text(.loci("settings.models")), symbol: ModelSettingsPage.symbol)
+        row(.settings(.models), Text(.loci("settings.models")), symbol: Symbols.models)
       }
       row(.settings(.media), Text(.loci("settings.media")), symbol: Symbols.media)
       row(.settings(.remote), Text(.loci("settings.remote")), symbol: Symbols.remote)

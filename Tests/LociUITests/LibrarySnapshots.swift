@@ -20,14 +20,14 @@ struct LibrarySnapshots {
     recognizing: Bool = false, working: Bool = false, avatar: Avatar? = nil, standIns: StandIns? = nil,
     browser: BrowserSession = BrowserSession(), english: Bool = false, size: CGSize = window, panel: Bool = true,
     machine: MachineChoice? = nil, keyPoints: SampleKeyPoints = .picked, panels: PanelColumn = PanelColumn(slots: []),
-    defaults: UserDefaults? = nil, activity: Activity = Activity(),
+    defaults: UserDefaults? = nil, activity: Activity = Activity(), modelOptions: ModelOptions = .sample,
     until ready: (@MainActor (NSWindow) -> Bool)? = nil
   ) async throws {
     let view = MachineWindow(memory: WindowMemory(recall: { place }, remember: { _ in }), browser: browser)
       .lociHost(
         FakeHost(
           try Sample(problems: false), library: library, recognizing: recognizing, working: working, avatar: avatar,
-          panels: panels, activity: activity, keyPoints: keyPoints)
+          panels: panels, activity: activity, keyPoints: keyPoints, modelOptions: modelOptions)
       )
       .environment(\.standIns, standIns)
       .defaultAppStorage(defaults ?? Self.defaults(panel: panel))

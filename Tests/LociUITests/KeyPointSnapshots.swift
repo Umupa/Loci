@@ -32,6 +32,16 @@ struct KeyPointSnapshots {
       standIns: StandIns(moment: MediaMoment(panel: .keyPoints)), keyPoints: .none, defaults: Self.defaults())
   }
 
+  /// M-S12: nothing can pick them; the page offers to configure the model services.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func notConfigured(appearance: Snapshot.Appearance) async throws {
+    let library = try SampleLibrary()
+    try await LibrarySnapshots.shoot(
+      "keypoints-unconfigured", library, at: Self.reading(library.video.id), appearance: appearance,
+      standIns: StandIns(moment: MediaMoment(panel: .keyPoints)), keyPoints: .none, defaults: Self.defaults(),
+      modelOptions: .none)
+  }
+
   /// K-S2: picking, with the rows shimmering where they will be.
   @Test(arguments: Snapshot.Appearance.allCases)
   func picking(appearance: Snapshot.Appearance) async throws {

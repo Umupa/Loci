@@ -20,19 +20,12 @@ extension JobRun {
     let missing = passages.filter { seen.insert($0).inserted }
     guard !missing.isEmpty else { return }
 
-    let work = try await writer(choice.runtime)
+    let work = try await writer(choice.model, for: .translation)
     let prompt = work.prompt(.article, language: language, source: [found.title, text])
-    let gate = queue.gates.agents
     let translate = { @Sendable (_: Int, batch: [String]) async throws(StageStop) -> [(String, String)] in
       let lines: [String]
       do throws(HostError) {
-        if work.usesRuntime {
-          lines = try await gate.through { () async throws(HostError) in
-            try await work.translate(batch, using: prompt)
-          }
-        } else {
-          lines = try await work.translate(batch, using: prompt)
-        }
+        lines = try await work.translate(batch, using: prompt)
       } catch {
         throw .failed(Self.describe(error))
       }

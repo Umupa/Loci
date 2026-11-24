@@ -9,10 +9,10 @@ import Testing
 
 struct BundledPiInstallationTests {
   @Test func savingAKeyInstallsOnceAndStartsLociWithThatKeyAndItsTools() async throws {
-    try await withPiHost { host, support, platform, service in
-      let settings = ModelSettings(service: service)
-      let saved = try await host.saveModelSettings(settings, key: .replace("fixture-value"))
-      #expect(saved.hasKey)
+    try await withPiHost { host, support, platform, provider in
+      _ = try await host.saveModelSettings(ModelSettings(providers: [provider]))
+      let saved = try await host.setModelKey("fixture-value", for: provider.id)
+      #expect(saved.keys == [provider.id])
       _ = try await host.run(InstallComponent(.bundledPi))
       let ready = await value(host.subscribe(MediaSettings())) { setup in
         setup.components.contains(ComponentStatus(component: .bundledPi, installation: .managed(version: "1.6.0")))
@@ -29,8 +29,9 @@ struct BundledPiInstallationTests {
       #expect(
         try Store(root: support.root.deletingLastPathComponent(), discard: .permanently).settings().runtime?.provider
           == .bundledPi)
-      #expect(try await host.runtime().model == "loci-compatible/test-model")
-      #expect(await host.agentModels(of: .bundledPi) == ["loci-compatible/test-model"])
+      let model = ModelChoice(provider: provider.id, model: "test-model").runtimeModel
+      #expect(try await host.runtime().model == model)
+      #expect(await host.agentModels(of: .bundledPi) == [model, provider.id.rawValue + "/other-model"])
 
       _ = try await host.run(SendMessage(to: .main, text: "Reply."))
       _ = try #require(
@@ -45,7 +46,7 @@ struct BundledPiInstallationTests {
         platform.invocations.last { $0.arguments.contains("--mode") && !$0.arguments.contains("--no-session") })
       let environment = try #require(launch.environment)
       #expect(launch.executable == active.executable)
-      #expect(launch.arguments.contains("loci-compatible/test-model"))
+      #expect(launch.arguments.contains("loci-model/test-model"))
       #expect(environment["LOCI_MODEL_API_KEY"] == "fixture-value")
       #expect(environment["OPENAI_API_KEY"] == nil)
       #expect(environment["LOCI"]?.hasSuffix("/loci") == true)
@@ -55,14 +56,43 @@ struct BundledPiInstallationTests {
     }
   }
 
+  /// M-S13
+  @Test func theCompanionRunsOnTheModelChosenForItWhateverTranslationUses() async throws {
+    try await withPiHost { host, _, platform, provider in
+      var settings = ModelSettings(providers: [provider])
+      settings.uses = ModelUses(
+        translation: ModelChoice(provider: provider.id, model: "test-model"),
+        transcripts: ModelChoice(provider: provider.id, model: "test-model"))
+      _ = try await host.saveModelSettings(settings)
+      _ = try await host.setModelKey("fixture-value", for: provider.id)
+      _ = try await host.run(InstallComponent(.bundledPi))
+      _ = try #require(
+        await value(host.subscribe(MediaSettings())) { setup in
+          !setup.componentWork.contains { $0.component == .bundledPi }
+            && setup.components.contains { $0.component == .bundledPi && $0.installation != .missing }
+        })
+      let companion = ModelChoice(provider: provider.id, model: "other-model").runtimeModel
+      _ = try await host.setRuntime(SetRuntime(Runtime(provider: .bundledPi, model: companion)))
+      #expect(try await host.runtime().model == companion)
+      #expect(try await host.readModelSettings().settings.uses == settings.uses)
+
+      _ = try await host.run(SendMessage(to: .main, text: "Reply."))
+      _ = try #require(await value(host.subscribe(OneConversation(.main))) { $0.turn == nil && $0.entries.count > 1 })
+      let launch = try #require(
+        platform.invocations.last { $0.arguments.contains("--mode") && !$0.arguments.contains("--no-session") })
+      #expect(launch.arguments.contains("loci-model/other-model"))
+    }
+  }
+
   @Test(arguments: [true, false])
   func aBadDigestOrRejectedRpcLeavesTheOldBundleActive(badDigest: Bool) async throws {
-    try await withPiHost(badDigest: badDigest, rejectsRPC: !badDigest) { host, support, platform, service in
+    try await withPiHost(badDigest: badDigest, rejectsRPC: !badDigest) { host, support, platform, provider in
       let old = try support.scratchFolder()
       try Data("older build".utf8).write(to: old.appending(path: "pi"))
       try support.activatePi(old, version: "1.5.0", generation: EntityID())
       let before = Support(root: support.root).activePi()?.executable
-      _ = try await host.saveModelSettings(ModelSettings(service: service), key: .replace("fixture-value"))
+      _ = try await host.saveModelSettings(ModelSettings(providers: [provider]))
+      _ = try await host.setModelKey("fixture-value", for: provider.id)
       let failed = await value(host.subscribe(MediaSettings())) { setup in
         setup.componentWork.contains {
           if case .failed = $0.state { return $0.component == .bundledPi }
@@ -79,7 +109,7 @@ struct BundledPiInstallationTests {
 
   private func withPiHost(
     badDigest: Bool = false, rejectsRPC: Bool = false,
-    _ body: (LocalHost, Support, PiInstallationPlatform, ModelService) async throws -> Void
+    _ body: (LocalHost, Support, PiInstallationPlatform, ModelProvider) async throws -> Void
   ) async throws {
     let root = URL(filePath: "/tmp/loci-fixture-" + UUID().uuidString.prefix(8))
     defer { try? FileManager.default.removeItem(at: root) }
@@ -91,9 +121,9 @@ struct BundledPiInstallationTests {
     let digest = badDigest ? "wrong" : try support.sha256(of: bytes)
     let url = try #require(URL(string: "https://downloads.example.test/pi.tar.gz"))
     let package = PiPackage(version: "1.6.0", url: url, sha256: digest, architecture: .x64)
-    let service = try #require(
-      ModelService(
-        provider: .compatible, model: "test-model", baseURL: URL(string: "https://models.example.test/v1")))
+    var provider = ModelProvider(custom: EntityID(), api: .openAI)
+    provider.address = ModelAddress("https://models.example.test/v1")
+    provider.models = [ProviderModel(id: "test-model", checked: true), ProviderModel(id: "other-model", checked: true)]
     let media = MediaEnvironment(
       support: support.root, runner: platform, network: platform, transcriber: FakeTranscriber([]),
       searchPaths: [], readerLanguage: "en")
@@ -107,7 +137,7 @@ struct BundledPiInstallationTests {
     let host = try await LocalHost.start(
       root: root, database: root.appending(path: "loci.sqlite"), environment: environment)
     do {
-      try await body(host, support, platform, service)
+      try await body(host, support, platform, provider)
     } catch {
       await host.close()
       throw error
@@ -180,9 +210,6 @@ private final class PiInstallationPlatform: Network, ProgramLauncher, ProgramRun
     let diagnostics = AsyncStream<Data> { $0.finish() }
     if invocation.arguments.contains("--version") {
       send.yield(Data("1.6.0\n".utf8))
-      send.finish()
-    } else if invocation.arguments.contains("--list-models") {
-      send.yield(Data("provider id\nloci-compatible test-model\nopenai other\n".utf8))
       send.finish()
     }
     let rejectsRPC = rejectsRPC

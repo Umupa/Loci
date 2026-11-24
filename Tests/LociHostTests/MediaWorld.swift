@@ -2,6 +2,7 @@ import Foundation
 import LociHost
 import LociMedia
 import LociModel
+import LociStore
 import Synchronization
 import Testing
 
@@ -12,8 +13,10 @@ struct MediaWorld {
   let programs = FakePrograms()
   let network: FakeNetwork
   let agent = FakeTranscriptAgent()
-  /// What each agent was made to run on, in order.
-  let runtimes = RuntimeLog()
+  /// What each writer was made for, in order.
+  let models = ModelLog()
+  /// The keys of the model services; `agent` worlds have one for `MediaWorld.service`.
+  let keys = MemoryModelKeys()
 
   init() {
     network = FakeNetwork(folder: place.root.appending(path: ".downloads"))
@@ -45,21 +48,37 @@ struct MediaWorld {
     fetcher: (any TextFetching)? = nil, diarizer: (any Diarizing)? = nil, provider: Provider = .codex
   ) -> HostEnvironment {
     let writer = self.agent
-    var make: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)?
-    if agent {
-      make = { [runtimes] runtime in
-        runtimes.add(runtime)
-        return writer
-      }
+    let models = self.models
+    if agent { configureModels() }
+    let write: @Sendable (ModelService) -> any TranscriptAgent = { service in
+      models.add(service.choice)
+      return writer
     }
+    var speakers: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)?
+    if agent { speakers = { _ in writer } }
     let media = MediaEnvironment(
       support: support, runner: programs, network: network, transcriber: transcriber, searchPaths: [bin],
       readerLanguage: readerLanguage, textFetching: fetcher ?? (text ? FakeTextFetcher() : nil),
-      transcriptAgent: make, diarizer: diarizer)
+      transcriptAgent: speakers, diarizer: diarizer)
     return HostEnvironment(
       newID: { [world] in world.nextID() }, now: { TestWorld.instant }, defaultRuntime: Runtime(provider: provider),
       discard: .permanently,
-      agents: { _ in nil }, media: media)
+      agents: { _ in nil }, media: media, modelKeys: keys, modelParallelism: 1, modelWriter: write)
+  }
+
+  /// The model the world's model services translate, write chapters and pick key points with.
+  static let model = ModelChoice(provider: ModelProviderID(.deepSeek), model: "deepseek-chat")
+
+  /// DeepSeek, with `MediaWorld.model` and a second checked model, used for everything and its key saved.
+  func configureModels() {
+    var provider = ModelProvider(.deepSeek)
+    provider.models = [
+      ProviderModel(id: "deepseek-chat", checked: true), ProviderModel(id: "deepseek-reasoner", checked: true),
+    ]
+    let settings = ModelSettings(
+      providers: [provider], uses: ModelUses(translation: Self.model, transcripts: Self.model))
+    try? place.store.saveModelSettings(settings)
+    keys.setKey("test-key", account: provider.keyAccount)
   }
 
   func start(
@@ -149,13 +168,13 @@ let spoken: [Heard] = [
   .progress(Fraction(1)),
 ]
 
-/// The runtimes agents were made for.
-final class RuntimeLog: Sendable {
-  private let made = Mutex<[Runtime]>([])
+/// The models writers were made for.
+final class ModelLog: Sendable {
+  private let made = Mutex<[ModelChoice]>([])
 
-  var all: [Runtime] { made.withLock { $0 } }
+  var all: [ModelChoice] { made.withLock { $0 } }
 
-  func add(_ runtime: Runtime) {
-    made.withLock { $0.append(runtime) }
+  func add(_ model: ModelChoice) {
+    made.withLock { $0.append(model) }
   }
 }

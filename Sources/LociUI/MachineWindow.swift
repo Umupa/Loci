@@ -238,7 +238,7 @@ struct MachineWindow: View {
     case .settings(.agents):
       AgentSettingsPage()
     case .settings(.models):
-      ModelSettingsPage()
+      ModelServicesPage()
     case .settings(.media):
       MediaSettingsPage()
     case .settings(.remote):

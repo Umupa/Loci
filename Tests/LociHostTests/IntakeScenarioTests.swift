@@ -10,7 +10,7 @@ struct IntakeScenarioTests {
   static func choice(
     _ keeping: ImportChoice.Keeping = .local, quality: ImportChoice.Quality = .hd720, subtitles: Bool = true,
     subtitleLanguage: String? = nil, recognition: ImportChoice.Recognizing? = .init(language: nil, model: .recommended),
-    translation: ImportChoice.Translating? = .init(language: "zh-Hans", runtime: nil)
+    translation: ImportChoice.Translating? = .init(language: "zh-Hans", model: nil)
   ) -> ImportChoice {
     ImportChoice(
       keeping: keeping, quality: quality, siteSubtitles: subtitles, subtitleLanguage: subtitleLanguage,
@@ -169,18 +169,18 @@ struct IntakeScenarioTests {
     }
   }
 
-  /// I-S2: translation goes into the language chosen, on the runtime chosen for it.
-  @Test func translationRunsOnTheRuntimeChosenForIt() async throws {
+  /// I-S2: translation goes into the language chosen, with the model chosen for it.
+  @Test func translationRunsOnTheModelChosenForIt() async throws {
     try await withMediaHost { host, world in
       world.programs.site(Links.youtube, FakeSite(title: "Me at the zoo", subtitles: zooSubtitles))
-      let codex = Runtime(provider: .codex, model: "gpt-5.2", effort: .low)
-      let choice = Self.choice(.online, translation: .init(language: "ja", runtime: codex))
+      let chosen = ModelChoice(provider: ModelProviderID(.deepSeek), model: "deepseek-reasoner")
+      let choice = Self.choice(.online, translation: .init(language: "ja", model: chosen))
 
       let item = try await host.run(AddLink(url: Links.url(Links.youtube), choice: choice))
 
       #expect(await job(host, item.id, where: isDone) != nil)
       #expect(world.agent.requests.contains { $0.hasPrefix("translate ja ") })
-      #expect(world.runtimes.all.first == codex)
+      #expect(world.models.all.first == chosen)
       #expect(try await host.run(ReadMediaPage(item: item.id)).translations.map(\.language) == ["ja"])
     }
   }

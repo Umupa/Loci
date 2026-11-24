@@ -85,15 +85,15 @@ struct LibraryWorkTests {
     }
   }
 
-  /// Without an agent the transcript is still there, and the job waits for one.
-  @Test func withoutAnAgentTranslationWaits() async throws {
+  /// M-S12: without a model service the transcript is still there, and the job waits for one.
+  @Test func withoutAModelServiceTranslationWaits() async throws {
     try await withMediaHost(transcriber: FakeTranscriber(spoken), agent: false) { host, world in
       try world.installModel()
       world.programs.site(Links.bilibili, FakeSite(title: "Scheduling"))
 
       let item = try await host.run(AddLink(url: Links.url(Links.bilibili)))
 
-      let waiting = await job(host, item.id, where: state(.waiting(.agent)))
+      let waiting = await job(host, item.id, where: state(.waiting(.modelService)))
       #expect(waiting??.stage == .translate)
       #expect(try await host.run(ReadMediaPage(item: item.id)).transcript?.segments.count == 3)
     }

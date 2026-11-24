@@ -31,7 +31,7 @@ struct ImportDraft: Equatable {
     recognizes = offered.isEmpty || (!subtitles && choice.recognition != nil)
     recognizing = choice.recognition ?? ImportChoice.Recognizing(language: nil, model: speechModel)
     translates = choice.translation != nil
-    translating = choice.translation ?? ImportChoice.Translating(language: readerLanguage, runtime: nil)
+    translating = choice.translation ?? ImportChoice.Translating(language: readerLanguage, model: nil)
   }
 
   mutating func useSubtitles(_ on: Bool) {

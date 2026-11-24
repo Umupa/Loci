@@ -4,14 +4,13 @@ import SwiftUI
 /// The import panel's steps on one line down their left: the video or audio, the site's subtitles,
 /// recognition on this Mac, and translation. A step turned off folds away.
 struct ImportSteps: View {
-  @Environment(\.host) private var host
+  @Environment(\.openPlace) private var openPlace
   @Binding var draft: ImportDraft
   /// `nil` for files on this Mac, which have no video step.
   let media: Media?
   let setup: MediaSetup?
   let offersSubtitles: Bool
-  @State private var installations: [AgentInstallation] = []
-  @State private var models: [String] = []
+  @State private var options: Feed<ModelOptions>?
 
   struct Media: Equatable {
     let isAudio: Bool
@@ -33,7 +32,7 @@ struct ImportSteps: View {
         .padding(.bottom, 26)
     }
     .animation(Motion.standard, value: draft)
-    .task(id: draft.translating.runtime?.provider) { await readAgents() }
+    .subscribing(AvailableModels(), into: $options)
   }
 
   private func keeping(_ media: Media) -> some View {
@@ -122,48 +121,22 @@ struct ImportSteps: View {
               ($0, Text(verbatim: Languages.name(of: $0)))
             })
         }
-        SettingRow(label: .loci("import.runtime")) {
-          PopupPicker(
-            selection: provider,
-            options: [(Provider?.none, Text(.loci("import.followLoci")))]
-              + Agents.choosable(installations, keeping: draft.translating.runtime?.provider ?? .codex).map {
-                (Provider?.some($0), Text(Agents.label(of: $0)))
-              })
-        }
-        if let runtime = draft.translating.runtime {
-          SettingRow(label: .loci("import.model")) {
-            PopupPicker(
-              selection: Binding(
-                get: { runtime.model },
-                set: {
-                  draft.translating.runtime = Runtime(provider: runtime.provider, model: $0, effort: runtime.effort)
-                }),
-              options: [(String?.none, Text(.loci("agents.anyModel")))]
-                + Agents.offered(models, keeping: runtime.model).map {
-                  (String?.some($0), Text(verbatim: Agents.modelName($0)))
-                })
-            if !runtime.provider.efforts.isEmpty {
-              PopupPicker(
-                selection: Binding(
-                  get: { runtime.effort },
-                  set: {
-                    draft.translating.runtime = Runtime(provider: runtime.provider, model: runtime.model, effort: $0)
-                  }),
-                options: [(ThinkingEffort?.none, Text(.loci("agents.anyModel")))]
-                  + runtime.provider.efforts.map { (ThinkingEffort?.some($0), Text(Agents.effortName($0))) })
+        SettingRow(label: .loci("import.model")) {
+          if let options = options?.value, !options.groups.isEmpty {
+            ModelChoiceMenu(
+              groups: options.groups, selection: $draft.translating.model,
+              shown: options.model(preferring: draft.translating.model, for: .translation),
+              following: .loci("import.followSettings"))
+          } else if options != nil {
+            Button {
+              openPlace(.settings(.models))
+            } label: {
+              Text(.loci("keypoints.configureModels"))
             }
+            .buttonStyle(AmberButtonStyle())
           }
-          .transition(.opacity)
         }
       }
-    }
-  }
-
-  private var provider: Binding<Provider?> {
-    Binding {
-      draft.translating.runtime?.provider
-    } set: { provider in
-      draft.translating.runtime = provider.map { Runtime(provider: $0) }
     }
   }
 
@@ -171,12 +144,6 @@ struct ImportSteps: View {
   private func modelTitle(_ model: SpeechModel) -> Text {
     let ready = setup?.speechModels.first { $0.model == model }?.state == .ready
     return ready ? model.title : Text(joining: model.title, Text(verbatim: "  " + model.sizeText))
-  }
-
-  private func readAgents() async {
-    installations = (try? await host.run(DetectAgents())) ?? []
-    guard let provider = draft.translating.runtime?.provider else { return }
-    models = (try? await host.run(AgentModels(provider: provider))) ?? []
   }
 
   static func name(of quality: ImportChoice.Quality) -> Text {

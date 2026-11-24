@@ -26,13 +26,17 @@ final class FakeHost: LociModel.Host, CommandHandler {
   let keyPoints: SampleKeyPoints
   /// The courses this host serves; none unless a test gives them.
   let courses: SampleCourses?
+  /// What the model menus offer; DeepSeek and OpenRouter unless a test gives none.
+  let modelOptions: ModelOptions
 
   init(
     _ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false, working: Bool = false,
     avatar: Avatar? = nil, panels: PanelColumn = PanelColumn(slots: []), activity: Activity = Activity(),
     lastChoice: ImportChoice? = nil, keyPoints: SampleKeyPoints = .picked,
-    modelSettings: (any ModelSettingsAccess)? = nil, piWork: Transfer? = nil, courses: SampleCourses? = nil
+    modelSettings: (any ModelSettingsAccess)? = nil, piWork: Transfer? = nil, courses: SampleCourses? = nil,
+    modelOptions: ModelOptions = .sample
   ) {
+    self.modelOptions = modelOptions
     self.courses = courses
     self.lastChoice = lastChoice
     self.modelSettings = modelSettings
@@ -70,6 +74,7 @@ final class FakeHost: LociModel.Host, CommandHandler {
   func upload(_ file: LocalFile) async throws(HostError) -> Upload { Upload(id: sample.items[0].id) }
   func localFile(_ place: LocalPlace) async -> LocalFile? { nil }
   func modelSettingsAccess() async -> (any ModelSettingsAccess)? { modelSettings }
+  func modelOptions() async throws(HostError) -> ModelOptions { modelOptions }
 
   func addTextItem(_ command: AddTextItem) async throws(HostError) -> Item { sample.items[0] }
   func deleteItems(_ command: DeleteItems) async throws(HostError) -> Done { Done() }
@@ -110,4 +115,21 @@ final class FakeHost: LociModel.Host, CommandHandler {
 /// The key points of the sample library: not asked for, being picked, or picked.
 enum SampleKeyPoints {
   case none, picking, picked
+}
+
+extension ModelOptions {
+  /// DeepSeek with one model and OpenRouter with two, the first used for everything.
+  static let sample: ModelOptions = {
+    let deepSeek = ModelGroup(
+      provider: ModelProviderID(.deepSeek), preset: .deepSeek, name: "", models: ["deepseek-chat"])
+    let openRouter = ModelGroup(
+      provider: ModelProviderID(.openRouter), preset: .openRouter, name: "",
+      models: ["gemini-3-flash", "kimi-k3"])
+    let chosen = ModelChoice(provider: ModelProviderID(.openRouter), model: "gemini-3-flash")
+    return ModelOptions(
+      groups: [deepSeek, openRouter],
+      uses: ModelUses(
+        translation: ModelChoice(provider: ModelProviderID(.deepSeek), model: "deepseek-chat"),
+        transcripts: chosen))
+  }()
 }

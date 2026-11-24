@@ -3,17 +3,15 @@ import LociMedia
 import LociModel
 import LociStore
 
-/// Picks an item's key points when the reader asks, one item at a time per request, through the agents' gate.
+/// Picks an item's key points when the reader asks, one item at a time per request, with a model service.
 /// The key points picked before stay until the new ones are saved; a failure is kept to show until asked again.
 actor KeyPointPicker {
   private let context: LibraryContext
-  private let gate: Gate
   private var picking: [EntityID: KeyPointPicking] = [:]
   private var work: [EntityID: Task<Void, Never>] = [:]
 
-  init(context: LibraryContext, gate: Gate) {
+  init(context: LibraryContext) {
     self.context = context
-    self.gate = gate
   }
 
   func picking(_ item: EntityID) -> KeyPointPicking? {
@@ -49,15 +47,12 @@ actor KeyPointPicker {
     let store = context.store
     let found = try attempt { try store.item(item) }
     let source = try attempt { try Self.source(of: found, in: store) }
-    guard let work = try await context.transcriptWork(choice.runtime) else {
-      throw .invalidRequest("No agent is available to pick key points on this Mac.")
+    guard let work = try await context.modelWork(preferring: choice.model, for: .transcripts) else {
+      throw .invalidRequest("No model service is configured to pick key points.")
     }
     let reader = KeyPointReader(
       language: context.media.readerLanguage, profile: (try? store.agentText(.profile)) ?? "", why: found.why)
-    let pick = { () async throws(HostError) in
-      try await work.agent.keyPoints(of: source, count: choice.count, for: reader)
-    }
-    let points = if work.usesRuntime { try await gate.through(pick) } else { try await pick() }
+    let points = try await work.agent.keyPoints(of: source, count: choice.count, for: reader)
     if Task.isCancelled { return }
     try attempt { try store.save(try KeyPoints(points: points, choice: choice), of: item) }
   }

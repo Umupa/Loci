@@ -2,9 +2,13 @@ import Foundation
 import LociModel
 import Security
 
+/// Where providers' keys are kept, each under its provider's account.
 public protocol ModelKeyStore: Sendable {
-  func key(for service: ModelService) throws(KeyVaultError) -> String?
-  func setKey(_ key: String?, for service: ModelService) throws(KeyVaultError)
+  /// Whether a key is saved, told without reading it: reading it may ask the person to allow Loci in.
+  func hasKey(account: String) throws(KeyVaultError) -> Bool
+  func key(account: String) throws(KeyVaultError) -> String?
+  /// Saves `key`, or removes it when `nil`.
+  func setKey(_ key: String?, account: String) throws(KeyVaultError)
 }
 
 public struct ModelKeychain: ModelKeyStore {
@@ -14,9 +18,19 @@ public struct ModelKeychain: ModelKeyStore {
     self.serviceName = serviceName
   }
 
-  public func key(for service: ModelService) throws(KeyVaultError) -> String? {
+  public func hasKey(account: String) throws(KeyVaultError) -> Bool {
+    var request = query(account)
+    request[kSecReturnAttributes as String] = true
     var found: CFTypeRef?
-    var request = query(for: service)
+    let status = SecItemCopyMatching(request as CFDictionary, &found)
+    if status == errSecItemNotFound { return false }
+    guard status == errSecSuccess else { throw KeyVaultError(status: status) }
+    return true
+  }
+
+  public func key(account: String) throws(KeyVaultError) -> String? {
+    var found: CFTypeRef?
+    var request = query(account)
     request[kSecReturnData as String] = true
     let status = SecItemCopyMatching(request as CFDictionary, &found)
     if status == errSecItemNotFound { return nil }
@@ -26,8 +40,8 @@ public struct ModelKeychain: ModelKeyStore {
     return key
   }
 
-  public func setKey(_ key: String?, for service: ModelService) throws(KeyVaultError) {
-    let query = query(for: service)
+  public func setKey(_ key: String?, account: String) throws(KeyVaultError) {
+    let query = query(account)
     guard let key else {
       let status = SecItemDelete(query as CFDictionary)
       guard status == errSecSuccess || status == errSecItemNotFound else { throw KeyVaultError(status: status) }
@@ -39,16 +53,16 @@ public struct ModelKeychain: ModelKeyStore {
     guard updated == errSecItemNotFound else { throw KeyVaultError(status: updated) }
     var item = query.merging(value) { _, new in new }
     item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-    item[kSecAttrLabel as String] = "Loci " + service.provider.rawValue + " API key"
+    item[kSecAttrLabel as String] = "Loci model service API key"
     let added = SecItemAdd(item as CFDictionary, nil)
     guard added == errSecSuccess else { throw KeyVaultError(status: added) }
   }
 
-  private func query(for service: ModelService) -> [String: Any] {
+  private func query(_ account: String) -> [String: Any] {
     [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: serviceName,
-      kSecAttrAccount as String: service.provider.rawValue + ":" + service.endpoint.absoluteString,
+      kSecAttrAccount as String: account,
     ]
   }
 }

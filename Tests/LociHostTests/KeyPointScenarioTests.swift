@@ -57,20 +57,37 @@ struct KeyPointScenarioTests {
     }
   }
 
-  @Test func pickingUsesTheChosenRuntimeOrFollowsLoci() async throws {
+  @Test func pickingUsesTheChosenModelOrTheOneChaptersAndKeyPointsAreDoneWith() async throws {
     try await withMediaHost { host, world in
       let item = try await Self.video(host, world)
-      let loci = Runtime(provider: .codex, model: "gpt-5", effort: .high)
-      _ = try await host.run(SetRuntime(loci))
-      let chosen = Runtime(provider: .codex, model: "gpt-5-mini")
+      let chosen = ModelChoice(provider: ModelProviderID(.deepSeek), model: "deepseek-reasoner")
 
-      _ = try await host.run(PickKeyPoints(item: item.id, choice: KeyPointChoice(runtime: chosen, count: .few)))
+      _ = try await host.run(PickKeyPoints(item: item.id, choice: KeyPointChoice(model: chosen, count: .few)))
       _ = await Self.picked(host, item.id)
-      #expect(world.runtimes.all.last == chosen)
+      #expect(world.models.all.last == chosen)
+      #expect(try await host.keyPointsPage(item.id).model == chosen)
 
-      _ = try await host.run(PickKeyPoints(item: item.id, choice: KeyPointChoice(runtime: nil, count: .few)))
-      #expect(await value(host.subscribe(ItemKeyPoints(item: item.id))) { $0.keyPoints?.choice.runtime == nil } != nil)
-      #expect(world.runtimes.all.last == loci)
+      _ = try await host.run(PickKeyPoints(item: item.id, choice: KeyPointChoice(model: nil, count: .few)))
+      #expect(await value(host.subscribe(ItemKeyPoints(item: item.id))) { $0.keyPoints?.choice.model == nil } != nil)
+      #expect(world.models.all.last == MediaWorld.model)
+    }
+  }
+
+  @Test func aChosenModelNoLongerConfiguredFallsBackAndWithoutAnyThereIsNothingToPickWith() async throws {
+    try await withMediaHost { host, world in
+      let item = try await Self.video(host, world)
+      let gone = ModelChoice(provider: ModelProviderID(.kimi), model: "kimi-k3")
+      _ = try await host.run(PickKeyPoints(item: item.id, choice: KeyPointChoice(model: gone, count: .few)))
+      _ = await Self.picked(host, item.id)
+      #expect(world.models.all.last == MediaWorld.model)
+
+      var settings = try await host.readModelSettings().settings
+      settings.providers[0].enabled = false
+      _ = try await host.saveModelSettings(settings)
+      #expect(try await host.keyPointsPage(item.id).model == nil)
+      await #expect(throws: HostError.invalidRequest("No model service is configured to pick key points.")) {
+        try await host.run(PickKeyPoints(item: item.id, choice: .standard))
+      }
     }
   }
 
@@ -78,7 +95,7 @@ struct KeyPointScenarioTests {
     try await withMediaHost { host, world in
       let item = try await Self.video(host, world)
       #expect(try await host.keyPointsPage(item.id).choice == .standard)
-      let choice = KeyPointChoice(runtime: Runtime(provider: .codex), count: .many)
+      let choice = KeyPointChoice(model: MediaWorld.model, count: .many)
 
       _ = try await host.run(PickKeyPoints(item: item.id, choice: choice))
       _ = await Self.picked(host, item.id)

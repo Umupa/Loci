@@ -2075,23 +2075,6 @@
         }
       }
     },
-    "import.followLoci": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Same as Companion"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "跟随伙伴"
-          }
-        }
-      }
-    },
     "import.keepLocal": {
       "extractionState": "manual",
       "localizations": {
@@ -2173,23 +2156,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "本机识别"
-          }
-        }
-      }
-    },
-    "import.runtime": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Runtime"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "运行时"
           }
         }
       }
@@ -2309,6 +2275,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "为什么收它？"
+          }
+        }
+      }
+    },
+    "import.followSettings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As in Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随设置"
           }
         }
       }
@@ -2474,23 +2457,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消"
-          }
-        }
-      }
-    },
-    "job.chooseAgent": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose an Agent"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "选择 Agent"
           }
         }
       }
@@ -3175,23 +3141,6 @@
         }
       }
     },
-    "keypoints.followLoci": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Same as Companion"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "跟随伙伴"
-          }
-        }
-      }
-    },
     "keypoints.only": {
       "extractionState": "manual",
       "localizations": {
@@ -3273,6 +3222,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在挑…"
+          }
+        }
+      }
+    },
+    "keypoints.followSettings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As in Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随设置"
+          }
+        }
+      }
+    },
+    "keypoints.configureModels": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set Up Model Services"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置模型服务"
           }
         }
       }
@@ -4655,13 +4638,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "API Address"
+            "value": "Address"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "API 地址"
+            "value": "地址"
           }
         }
       }
@@ -4672,13 +4655,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Article Prompt"
+            "value": "Articles"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "文章提示词"
+            "value": "文章"
           }
         }
       }
@@ -4689,13 +4672,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Translation Cache"
+            "value": "Cached Translations"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "翻译缓存"
+            "value": "已缓存的译文"
           }
         }
       }
@@ -4706,13 +4689,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clear Cache"
+            "value": "Clear"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "清除缓存"
+            "value": "清掉"
           }
         }
       }
@@ -4734,70 +4717,19 @@
         }
       }
     },
-    "models.connected": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connected"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已连接"
-          }
-        }
-      }
-    },
-    "models.connectionFailed": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connection failed"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "连接失败"
-          }
-        }
-      }
-    },
-    "models.connectionReason %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@"
-          }
-        }
-      }
-    },
     "models.key": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "API Key"
+            "value": "Key"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "API 密钥"
+            "value": "Key"
           }
         }
       }
@@ -4808,13 +4740,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Saved in Keychain"
+            "value": "Key saved in Keychain"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已存入钥匙串"
+            "value": "Key 已存入钥匙串"
           }
         }
       }
@@ -4853,23 +4785,6 @@
         }
       }
     },
-    "models.removeKey": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remove Key"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "移除密钥"
-          }
-        }
-      }
-    },
     "models.restorePrompt": {
       "extractionState": "manual",
       "localizations": {
@@ -4883,23 +4798,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "恢复默认"
-          }
-        }
-      }
-    },
-    "models.save": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Save"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存"
           }
         }
       }
@@ -4961,13 +4859,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Transcript Prompt"
+            "value": "Transcripts"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "文稿提示词"
+            "value": "文稿"
           }
         }
       }
@@ -4985,6 +4883,346 @@
           "stringUnit": {
             "state": "translated",
             "value": "翻译"
+          }
+        }
+      }
+    },
+    "models.zhipu": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zhipu"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智谱"
+          }
+        }
+      }
+    },
+    "models.qwen": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qwen"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通义千问"
+          }
+        }
+      }
+    },
+    "models.siliconFlow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SiliconFlow"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "硅基流动"
+          }
+        }
+      }
+    },
+    "models.volcengine": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volcano Ark"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "火山方舟"
+          }
+        }
+      }
+    },
+    "models.custom": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义"
+          }
+        }
+      }
+    },
+    "models.removeProvider": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Provider"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除服务商"
+          }
+        }
+      }
+    },
+    "models.off": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已关闭"
+          }
+        }
+      }
+    },
+    "models.addProvider": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Provider"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加服务商"
+          }
+        }
+      }
+    },
+    "models.name": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名字"
+          }
+        }
+      }
+    },
+    "models.protocol": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protocol"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "协议"
+          }
+        }
+      }
+    },
+    "models.showKey": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示"
+          }
+        }
+      }
+    },
+    "models.hideKey": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏"
+          }
+        }
+      }
+    },
+    "models.modelID": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model ID"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型 ID"
+          }
+        }
+      }
+    },
+    "models.addModel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a Model"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加模型"
+          }
+        }
+      }
+    },
+    "models.removeModel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除"
+          }
+        }
+      }
+    },
+    "models.fetch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get Models"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "获取模型"
+          }
+        }
+      }
+    },
+    "models.uses": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used For"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用在"
+          }
+        }
+      }
+    },
+    "models.useTranslation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Translation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "翻译"
+          }
+        }
+      }
+    },
+    "models.useTranscripts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chapters & Key Points"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "章节与重点"
+          }
+        }
+      }
+    },
+    "models.none": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选"
           }
         }
       }

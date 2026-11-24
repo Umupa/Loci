@@ -31,22 +31,17 @@ struct LibraryContext: Sendable {
 
   var speechModel: SpeechModel { settings.speechModel ?? .recommended }
 
-  func transcriptWork(_ chosen: Runtime?) async throws(HostError) -> TranscriptWork? {
-    let (translation, direct) = try await models.selection()
-    if let direct {
-      let service = direct.service
-      return TranscriptWork(
-        agent: direct, parallelism: models.parallelism, usesRuntime: false,
-        identity: ["model", service.provider.rawValue, service.endpoint.absoluteString, service.model],
-        settings: translation, cache: models.cache)
-    }
-    guard let (agent, runtime) = await runtimeWriter(chosen) else { return nil }
+  /// What `use` is done with, preferring `choice`; only ever a model service, `nil` when none is configured.
+  func modelWork(preferring choice: ModelChoice?, for use: ModelUse) async throws(HostError) -> TranscriptWork? {
+    guard let work = try await models.work(preferring: choice, for: use) else { return nil }
+    let service = work.service
     return TranscriptWork(
-      agent: agent, parallelism: 1, usesRuntime: true,
-      identity: ["runtime", runtime.provider.rawValue, runtime.model ?? "", runtime.effort?.rawValue ?? ""],
-      settings: translation, cache: models.cache)
+      agent: work.agent, parallelism: models.parallelism,
+      identity: ["model", service.api.rawValue, service.endpoint.absoluteString, service.model],
+      settings: work.settings, cache: models.cache)
   }
 
+  /// The agent that names speakers: whatever Loci runs on.
   func runtimeWriter(_ preferred: Runtime?) async -> (any RuntimeTranscriptAgent, Runtime)? {
     let agents = HostAgents(store: store, environment: environment, library: self)
     let selection = await agents.selection(preferred)

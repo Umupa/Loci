@@ -2,10 +2,12 @@ import LociModel
 import SwiftUI
 
 /// The key points page of the panel beside a video, a podcast or an article: a button to pick them until
-/// they are, a shimmering list while they are being picked, then the list with what they were picked with.
+/// they are, or to configure the model services when nothing can pick them, a shimmering list while they are
+/// being picked, then the list with what they were picked with.
 struct KeyPointsPanel: View {
   @Environment(\.host) private var host
   @Environment(\.locale) private var locale
+  @Environment(\.openPlace) private var openPlace
   let item: EntityID
   /// The video or audio item whose pictures the rows show; `nil` for an article.
   let media: Item?
@@ -19,8 +21,10 @@ struct KeyPointsPanel: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       if let page, page.keyPoints != nil || page.picking != nil {
-        KeyPointChoiceBar(choice: chosen, picking: page.picking == .running) { pick(choice ?? page.choice) }
-          .changesData()
+        KeyPointChoiceBar(choice: chosen, model: model(page), picking: page.picking == .running) {
+          pick(choice ?? page.choice)
+        }
+        .changesData()
         summary(page)
         list(page)
       } else if let page {
@@ -29,6 +33,11 @@ struct KeyPointsPanel: View {
     }
     .padding(.horizontal, Spacing.m)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+  }
+
+  /// What the face of the model menu shows: the model chosen here, else what picking would use.
+  private func model(_ page: KeyPointsPage) -> ModelChoice? {
+    choice?.model ?? page.model
   }
 
   private var chosen: Binding<KeyPointChoice> {
@@ -90,21 +99,34 @@ struct KeyPointsPanel: View {
 
   private func empty(_ page: KeyPointsPage) -> some View {
     VStack(spacing: 18) {
-      Image(systemName: Symbols.keyPoints)
-        .font(.system(size: 28, weight: .regular))
-        .foregroundStyle(Palette.accent)
-        .frame(width: 64, height: 64)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Palette.tint))
-        .overlay(
-          RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(
-            Palette.accent.opacity(0.35), lineWidth: Size.hairline))
-      Button {
-        pick(page.choice)
-      } label: {
-        Text(.loci("keypoints.pick"))
+      if page.model == nil {
+        Button {
+          openPlace(.settings(.models))
+        } label: {
+          Label {
+            Text(.loci("keypoints.configureModels"))
+          } icon: {
+            Image(systemName: Symbols.models)
+          }
+        }
+        .buttonStyle(AmberButtonStyle())
+      } else {
+        Image(systemName: Symbols.keyPoints)
+          .font(.system(size: 28, weight: .regular))
+          .foregroundStyle(Palette.accent)
+          .frame(width: 64, height: 64)
+          .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Palette.tint))
+          .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(
+              Palette.accent.opacity(0.35), lineWidth: Size.hairline))
+        Button {
+          pick(page.choice)
+        } label: {
+          Text(.loci("keypoints.pick"))
+        }
+        .buttonStyle(AmberButtonStyle())
+        .changesData()
       }
-      .buttonStyle(AmberButtonStyle())
-      .changesData()
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }

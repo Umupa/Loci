@@ -80,7 +80,7 @@ struct ArticleFetchTests {
     let host = try await world.start(fetcher: HeldArticle(body: body))
     let choice = ImportChoice(
       keeping: .online, quality: .audio, siteSubtitles: false, recognition: nil,
-      translation: .init(language: "zh-Hans", runtime: Runtime(provider: .codex)))
+      translation: .init(language: "zh-Hans", model: nil))
     let item = try await host.run(AddLink(url: Links.url(Links.article), choice: choice))
     let extract = await job(host, item.id, where: isRunning(.extract))
     #expect(extract??.stages == [.fetchPage, .extract, .findCover, .translate])

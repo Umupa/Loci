@@ -210,7 +210,7 @@ actor AgentRun {
     try TurnFailure.from { () throws(HostError) in try attempt { try store.writeInstructions(instructions) } }
     var tool = context.tool(for: owner, else: toolSession)
     var configuration = SessionConfiguration(
-      workingDirectory: store.agentFolder, model: runtime.model, effort: runtime.effort,
+      workingDirectory: store.agentFolder, model: selection.sessionModel, effort: runtime.effort,
       environment: tool.map { [LocalCall.sessionVariable: $0.tag] } ?? [:])
     if reason == nil, let handle = session?.handle {
       configuration.resume = SessionHandle(provider: runtime.provider, value: handle)

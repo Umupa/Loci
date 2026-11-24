@@ -5,30 +5,24 @@ import Testing
 
 @MainActor
 struct BundledPiNavigationTests {
-  @Test func choosingBundledPiBeforeItIsReadyOpensModelSettings() async throws {
-    let host = FakeHost(try Sample(), modelSettings: SetupAccess())
+  @Test func choosingBundledPiBeforeAnyModelIsOfferedOpensModelServices() async throws {
+    let host = FakeHost(try Sample(), modelSettings: SampleModelAccess(SampleModelAccess.empty))
     var opened: Place?
     await chooseRuntime(Runtime(provider: .bundledPi), on: host, openPlace: OpenPlace { opened = $0 })
     #expect(opened == .settings(.models))
   }
 
+  @Test func choosingBundledPiWithAModelButNoPiYetOpensTheCompanionsSettings() async throws {
+    let host = FakeHost(try Sample(), modelSettings: SampleModelAccess())
+    var opened: Place?
+    await chooseRuntime(Runtime(provider: .bundledPi), on: host, openPlace: OpenPlace { opened = $0 })
+    #expect(opened == .settings(.agents))
+  }
+
   @Test func choosingCodexKeepsTheReaderInTheConversation() async throws {
-    let host = FakeHost(try Sample(), modelSettings: SetupAccess())
+    let host = FakeHost(try Sample(), modelSettings: SampleModelAccess())
     var opened: Place?
     await chooseRuntime(Runtime(provider: .codex), on: host, openPlace: OpenPlace { opened = $0 })
     #expect(opened == nil)
   }
-}
-
-private struct SetupAccess: ModelSettingsAccess {
-  func readModelSettings() async throws(HostError) -> ModelSettingsState {
-    ModelSettingsState(settings: ModelSettings(), hasKey: false, cacheBytes: 0)
-  }
-
-  func saveModelSettings(_ settings: ModelSettings, key: ModelKeyChange) async throws(HostError) -> ModelSettingsState {
-    try await readModelSettings()
-  }
-
-  func testModelService(_ service: ModelService, key: String?) async throws(HostError) {}
-  func clearTranslationCache() async throws(HostError) {}
 }

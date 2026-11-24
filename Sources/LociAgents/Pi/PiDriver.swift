@@ -34,15 +34,6 @@ public struct PiDriver: AgentDriver {
       environment: environment, launcher: launcher, clock: clock)
   }
 
-  public func models(in workingDirectory: URL, matching provider: String) async -> [String] {
-    let output = await OneShot(launcher: launcher, clock: clock).output(
-      Invocation(
-        executable: executable, arguments: ["--list-models", provider] + variant.scopeArguments,
-        workingDirectory: workingDirectory, environment: environment),
-      within: .seconds(15))
-    return ModelList.piModels(in: output ?? "").filter { $0.hasPrefix(provider + "/") }
-  }
-
   public func version(in workingDirectory: URL) async -> String? {
     await OneShot(launcher: launcher, clock: clock).output(
       Invocation(

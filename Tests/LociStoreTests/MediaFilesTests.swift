@@ -62,7 +62,8 @@ struct MediaFilesTests {
       let outline = try Outline(chapters: [try .init(start: .zero, title: "Intro")])
       let keyPoints = try KeyPoints(
         points: [try KeyPoint(place: .time(try TimeSpan(start: .zero, end: .seconds(2))), title: "开场", reason: "第一句")],
-        choice: KeyPointChoice(runtime: Runtime(provider: .codex), count: .few))
+        choice: KeyPointChoice(
+          model: ModelChoice(provider: ModelProviderID(.deepSeek), model: "deepseek-chat"), count: .few))
 
       try store.save(transcript, of: item.id)
       try store.save(translation, of: item.id)
