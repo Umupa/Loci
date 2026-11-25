@@ -1,3 +1,4 @@
+import AppKit
 import LociModel
 import SwiftUI
 
@@ -106,12 +107,12 @@ struct PanelLine<Cover: View, Aside: View>: View {
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: Radius.panelBlock, style: .continuous)
-    HStack(alignment: .top, spacing: 10) {
+    HStack(alignment: .firstTextBaseline, spacing: 10) {
       if let number {
         Text(verbatim: "\(number)").font(.system(size: 14, weight: .medium)).foregroundStyle(Palette.ink.opacity(0.35))
           .frame(width: 18, alignment: .leading)
       }
-      cover
+      cover.alignmentGuide(.firstTextBaseline) { $0[.top] + LineTitle.ascent }
       VStack(alignment: .leading, spacing: 3) {
         Text(verbatim: title).font(.system(size: 14)).lineSpacing(2).foregroundStyle(Palette.ink)
           .fixedSize(horizontal: false, vertical: true)
@@ -123,9 +124,9 @@ struct PanelLine<Cover: View, Aside: View>: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       if pinned {
-        PinMark().padding(.top, 3)
+        PinMark().alignmentGuide(.firstTextBaseline) { $0[.top] + LineTitle.ascent - 3 }
       } else if let at {
-        Text(verbatim: at).font(.system(size: 12)).foregroundStyle(Palette.ink.opacity(0.45)).padding(.top, 1)
+        Text(verbatim: at).font(.system(size: 12)).foregroundStyle(Palette.ink.opacity(0.45))
       }
       if let ask { AskButton(action: ask) }
     }
@@ -137,6 +138,11 @@ struct PanelLine<Cover: View, Aside: View>: View {
     .onTapGesture { open?() }
     .pointerStyle(open == nil ? nil : .link)
   }
+}
+
+private enum LineTitle {
+  /// How far the title's first baseline sits under its top, so what has no words of its own lines up with it.
+  nonisolated static let ascent = NSFont.systemFont(ofSize: 14).ascender
 }
 
 extension PanelLine where Aside == EmptyView {

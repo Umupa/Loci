@@ -42,6 +42,8 @@ struct PanelItemRow: View {
   @FocusState private var typing: Bool
   /// How far the row's words sit inside it, from its top.
   static let inset: CGFloat = 7
+  /// How wide the circle before an item is.
+  static let tick: CGFloat = 18
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
@@ -204,7 +206,7 @@ private struct TickCircle: View {
             phase == .spread ? .easeOut(duration: 0.55) : nil
           }
       }
-      .frame(width: 18, height: 18)
+      .frame(width: PanelItemRow.tick, height: PanelItemRow.tick)
       .scaleEffect(pointed ? 1.08 : 1)
       .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: item.done)
       .animation(reduceMotion ? nil : Motion.quick, value: pointed)

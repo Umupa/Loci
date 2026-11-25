@@ -40,6 +40,9 @@ struct PanelItemsView: View {
   /// A section without a name starts higher by its first row's inset, so its first item's words sit where a
   /// name would: the same distance under the panel's title either way.
   static let unnamedTop = Spacing.xxs - PanelItemRow.inset
+  /// How far the rows reach past the panel's edges, so each item's circle sits under the title's mark and its
+  /// words line up with the title.
+  static let bleed = Spacing.xs - (Size.siteMark - PanelItemRow.tick) / 2
 
   var body: some View {
     let shape = SectionShape(section, lingering: lingering)
@@ -86,6 +89,7 @@ struct PanelItemsView: View {
         }
       }
     }
+    .padding(.horizontal, -Self.bleed)
     .padding(.top, section.name == nil ? Self.unnamedTop : Spacing.xxs)
     .padding(.bottom, Spacing.s)
     .onGeometryChange(for: CGRect.self) {
@@ -237,7 +241,7 @@ private struct AddRing: View {
         .rotationEffect(.degrees(pointed && !typing ? 0 : typing ? 90 : -90))
         .scaleEffect(pointed && !typing ? 1 : 0.3)
     }
-    .frame(width: 18, height: 18)
+    .frame(width: PanelItemRow.tick, height: PanelItemRow.tick)
     .scaleEffect(typing ? 0.92 : 1)
     .animation(reduceMotion ? nil : .spring(duration: 0.4, bounce: 0.35), value: pointed)
     .animation(reduceMotion ? nil : .spring(duration: 0.4, bounce: 0.35), value: typing)
