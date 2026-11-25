@@ -29,12 +29,12 @@ enum TokenFigure {
 extension UsageKind {
   var name: LocalizedStringResource {
     switch self {
-    case .main: .loci("usage.kind.main")
-    case .course: .loci("usage.kind.course")
-    case .item: .loci("usage.kind.item")
-    case .panel: .loci("usage.kind.panel")
-    case .timer: .loci("usage.kind.timer")
-    case .review: .loci("usage.kind.review")
+    case .main: .loci("usage.kindMain")
+    case .course: .loci("usage.kindCourse")
+    case .item: .loci("usage.kindItem")
+    case .panel: .loci("usage.kindPanel")
+    case .timer: .loci("usage.kindTimer")
+    case .review: .loci("usage.kindReview")
     }
   }
 
@@ -66,7 +66,7 @@ extension UsageActivity {
   /// What a row is called when Loci keeps no title for it.
   var name: LocalizedStringResource {
     switch self {
-    case .main: .loci("usage.kind.main")
+    case .main: .loci("usage.kindMain")
     case .review: .loci("usage.review")
     case .followUp: .loci("usage.followUp")
     case .item, .course, .panel, .schedule: UsageKind(self).name
@@ -77,12 +77,12 @@ extension UsageActivity {
 extension ContextSource {
   var name: Text {
     switch self {
-    case .runtime: Text(.loci("usage.part.runtime"))
+    case .runtime: Text(.loci("usage.partRuntime"))
     case .instructions: Text(verbatim: "AGENTS.md")
-    case .prefix: Text(.loci("usage.part.prefix"))
+    case .prefix: Text(.loci("usage.partPrefix"))
     case .tool(let name): Text(verbatim: name).monospaced()
-    case .talk: Text(.loci("usage.part.talk"))
-    case .output: Text(.loci("usage.part.output"))
+    case .talk: Text(.loci("usage.partTalk"))
+    case .output: Text(.loci("usage.partOutput"))
     }
   }
 
@@ -112,11 +112,17 @@ enum UsageInks {
 extension UsageFlag {
   var reason: Text {
     switch self {
-    case .heavyStart(let share): Text(.loci("usage.flag.start \(TokenFigure.percent(share))"))
-    case .largeContext(let peak): Text(.loci("usage.flag.peak \(TokenFigure.text(peak))"))
-    case .lowCache(let hit): Text(.loci("usage.flag.cache \(TokenFigure.percent(hit))"))
-    case .idleStreak(let count): Text(.loci("usage.flag.streak \(count)"))
-    case .idleShare(let idle, let shown): Text(.loci("usage.flag.idle \(idle) \(shown)"))
+    case .heavyStart(let share):
+      let start = TokenFigure.percent(share)
+      return Text(.loci("usage.flagStart \(start)"))
+    case .largeContext(let peak):
+      let tokens = TokenFigure.text(peak)
+      return Text(.loci("usage.flagPeak \(tokens)"))
+    case .lowCache(let hit):
+      let cached = TokenFigure.percent(hit)
+      return Text(.loci("usage.flagCache \(cached)"))
+    case .idleStreak(let count): return Text(.loci("usage.flagStreak \(count)"))
+    case .idleShare(let idle, let shown): return Text(.loci("usage.flagIdle \(idle) \(shown)"))
     }
   }
 }

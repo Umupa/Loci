@@ -8355,7 +8355,7 @@
         }
       }
     },
-    "usage.calls.each": {
+    "usage.callsEach": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8406,7 +8406,7 @@
         }
       }
     },
-    "usage.flag.cache %@": {
+    "usage.flagCache %@": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8423,7 +8423,7 @@
         }
       }
     },
-    "usage.flag.idle %lld %lld": {
+    "usage.flagIdle %lld %lld": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8440,7 +8440,7 @@
         }
       }
     },
-    "usage.flag.peak %@": {
+    "usage.flagPeak %@": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8457,7 +8457,7 @@
         }
       }
     },
-    "usage.flag.start %@": {
+    "usage.flagStart %@": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8474,7 +8474,7 @@
         }
       }
     },
-    "usage.flag.streak %lld": {
+    "usage.flagStreak %lld": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8559,7 +8559,7 @@
         }
       }
     },
-    "usage.kind.course": {
+    "usage.kindCourse": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8576,7 +8576,7 @@
         }
       }
     },
-    "usage.kind.item": {
+    "usage.kindItem": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8593,7 +8593,7 @@
         }
       }
     },
-    "usage.kind.main": {
+    "usage.kindMain": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8610,7 +8610,7 @@
         }
       }
     },
-    "usage.kind.panel": {
+    "usage.kindPanel": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8627,7 +8627,7 @@
         }
       }
     },
-    "usage.kind.review": {
+    "usage.kindReview": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8644,7 +8644,7 @@
         }
       }
     },
-    "usage.kind.timer": {
+    "usage.kindTimer": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8729,7 +8729,7 @@
         }
       }
     },
-    "usage.part.output": {
+    "usage.partOutput": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8746,7 +8746,7 @@
         }
       }
     },
-    "usage.part.prefix": {
+    "usage.partPrefix": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8763,7 +8763,7 @@
         }
       }
     },
-    "usage.part.runtime": {
+    "usage.partRuntime": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8780,7 +8780,7 @@
         }
       }
     },
-    "usage.part.talk": {
+    "usage.partTalk": {
       "extractionState": "manual",
       "localizations": {
         "en": {

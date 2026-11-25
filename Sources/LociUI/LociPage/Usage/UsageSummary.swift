@@ -13,7 +13,7 @@ struct UsageSummary: View {
         Big(count: report.tokens.fresh)
         HStack(spacing: 10) {
           Sub(text: "↧ " + TokenFigure.text(report.tokens.cacheWrite)).help(Text(.loci("usage.cacheWrite")))
-          Sub(text: "↑ " + TokenFigure.text(report.tokens.output)).help(Text(.loci("usage.part.output")))
+          Sub(text: "↑ " + TokenFigure.text(report.tokens.output)).help(Text(.loci("usage.partOutput")))
         }
       }
       cell(.loci("usage.cacheRead")) {

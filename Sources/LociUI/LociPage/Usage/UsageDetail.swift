@@ -22,7 +22,7 @@ struct UsageDetail: View {
           GridRow {
             figure(.loci("usage.growth"), "+" + TokenFigure.text(activity.growth))
             figure(.loci("usage.hit"), TokenFigure.percent(activity.hit), flags[.fresh])
-            figure(.loci("usage.calls.each"), Self.calls(activity.calls))
+            figure(.loci("usage.callsEach"), Self.calls(activity.calls))
           }
         }
         .frame(width: 300, alignment: .leading)
@@ -54,7 +54,7 @@ struct UsageDetail: View {
     return Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 7) {
       GridRow {
         Color.clear.frame(width: 1, height: 1)
-        Text(.loci("usage.calls.each"))
+        Text(.loci("usage.callsEach"))
         Color.clear.frame(height: 1).gridColumnAlignment(.leading)
         Text(.loci("usage.start"))
         Text(.loci("usage.peak"))
