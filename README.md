@@ -58,4 +58,4 @@ Versions 0.2 to 0.11 were a Tauri app. Its code is kept at the `tauri` tag.
 
 ## License
 
-[MIT](LICENSE)
+Proprietary. All rights reserved; see [LICENSE](LICENSE) and [NOTICE](NOTICE).

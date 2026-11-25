@@ -24,7 +24,7 @@ while IFS= read -r path; do
   case "$path" in
   Sources/*/* | Tests/*/*) modules="$modules $(printf '%s' "$path" | cut -d/ -f2)" ;;
   '') ;;
-  docs/* | *.md | LICENSE | .gitignore | .github/ISSUE_TEMPLATE/*) ;;
+  docs/* | *.md | LICENSE | .gitignore) ;;
   *) everything=true ;;
   esac
 done <<EOF

@@ -28,7 +28,7 @@
 
 显示出来是 `1.1.0 (412)`：前面是版本号，括号里是构建号。
 
-- **版本号**是三段数字。默认只加最后一段，新功能也一样；加中间一段或第一段只由用户决定，`script/cut-release` 不带 `--user-chose` 时拒绝。tag 是 `v` 加版本号，CHANGELOG 的段落标题是 `## <版本号> — <日期>`，`script/check` 会检查标题的写法。每个版本都是正式的 GitHub release。
+- **版本号**是三段数字。默认只加最后一段，新功能也一样；加中间一段或第一段只由用户决定，`script/cut-release` 不带 `--user-chose` 时拒绝。tag 是 `v` 加版本号，CHANGELOG 的段落标题是 `## <版本号> — <日期>`，`script/check` 会检查标题的写法。每个版本都是正式的 GitHub release；仓库是私有的，release 只作存档，用户从 R2 下载。
 - **构建号**是 main 上到这个提交为止的提交数，只增不减，同一个构建号对应同一份代码。
 - 应用包里的 `CFBundleShortVersionString` 和 `CFBundleVersion` 就是这两个。发布时版本号取自 tag；本机构建取 HEAD 之前最近的版本 tag，构建号同样是提交数。设置 › 通用最下面显示它们。
 
@@ -84,14 +84,7 @@
 
 ## 下载与更新源
 
-应用按顺序读两份 `latest.json`（`Sources/LociMedia/Updates/ReleaseFeed.swift`），先读到的为准：
-
-| 顺序 | 地址 | 放在哪 |
-|---|---|---|
-| 1 | `https://dl.umupa.fun/loci/latest.json` | Cloudflare R2 的 `loci-releases` 桶，自定义域名 `dl.umupa.fun` |
-| 2 | `https://github.com/Umupa/Loci/releases/latest/download/latest.json` | 最新 GitHub release 的附件 |
-
-两处都不走 `api.github.com`，不受它的匿名限流。`latest.json` 写版本、dmg 的 SHA-256 和下载地址（R2 在前，GitHub 在后）；应用按顺序下载，校验和对不上就换下一个地址，之后照旧核对签名。R2 上 dmg 永久缓存，`latest.json` 缓存五分钟，并且最后上传。
+仓库是私有的，GitHub release 的附件匿名下载不到，所以下载和更新只走 Cloudflare R2：`loci-releases` 桶，自定义域名 `dl.umupa.fun`。应用读 `https://dl.umupa.fun/loci/latest.json`（`Sources/LociMedia/Updates/ReleaseFeed.swift`），它写版本、dmg 的 SHA-256 和下载地址；应用下载后核对校验和，再核对签名。R2 上 dmg 永久缓存，`latest.json` 缓存五分钟，并且最后上传。
 
 ## 在本机
 

@@ -127,17 +127,10 @@ struct AppUpdaterTests {
     #expect(await world.state() == .ready(world.release))
   }
 
-  @Test func theBackupFeedIsReadWhenTheFirstCannotBe() async throws {
-    let world = try UpdateWorld(latest: "v1.2.0", unreachable: [ReleaseFeed.loci[0]])
-    try await world.updater.check()
-    #expect(await world.state() == .available(world.release))
-    #expect(world.network.asked == ReleaseFeed.loci)
-  }
-
-  @Test func aCheckFailsOnlyWhenNoFeedCanBeRead() async throws {
-    let world = try UpdateWorld(latest: "v1.2.0", unreachable: Set(ReleaseFeed.loci))
+  @Test func aCheckFailsWhenTheFeedCannotBeRead() async throws {
+    let world = try UpdateWorld(latest: "v1.2.0", unreachable: [ReleaseFeed.loci])
     await #expect(throws: UpdateCheckError.unavailable) { try await world.updater.check() }
-    #expect(world.network.asked == ReleaseFeed.loci)
+    #expect(world.network.asked == [ReleaseFeed.loci])
   }
 
   @Test func theImageComesFromTheMirrorWhenTheFirstPlaceFails() async throws {
@@ -170,7 +163,7 @@ private struct UpdateWorld {
   let programs: UpdatePrograms
   let updater: AppUpdater
   let release: AppRelease
-  let feed = ReleaseFeed.loci[0]
+  let feed = ReleaseFeed.loci
   /// The SHA-256 of the disk image the network serves.
   static let imageChecksum = "00cbbd0ddbda2762798f7009838ed34ca1f12b93965813c7df22943bc62166d1"
 

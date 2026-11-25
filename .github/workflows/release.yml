@@ -5,7 +5,8 @@ name: Release
 # secret (notarized when that is a Developer ID), and makes the dmg; Publish
 # attaches the dmg to that tag's release, with the version's CHANGELOG.md
 # section as its notes, and puts it with latest.json on dl.umupa.fun (R2),
-# where Loci looks for updates first. It runs no check: script/check is run only when asked
+# where Loci downloads and updates from; the repository and its releases are
+# private. It runs no check: script/check is run only when asked
 # for. `gh workflow run release` does the same without releasing anything, to
 # try the secrets; the dmg is kept as a workflow artifact. How the pieces fit:
 # docs/releasing.md.
@@ -171,7 +172,7 @@ jobs:
       R2_BUCKET: loci-releases
       R2_ORIGIN: https://dl.umupa.fun/loci
     steps:
-      # Loci looks for updates on R2 first, so a release is not published
+      # Loci updates only from R2, so a release is not published
       # anywhere until it can be published there too.
       - name: Check the secrets to upload to R2
         env:
@@ -209,8 +210,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           jq -n --arg version "$version" --arg sha256 "$(cut -d' ' -f1 "$dmg.sha256")" \
             --arg r2 "$R2_ORIGIN/$dmg" \
-            --arg github "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$dmg" \
-            '{version: $version, sha256: $sha256, downloads: [$r2, $github]}' > latest.json
+            '{version: $version, sha256: $sha256, downloads: [$r2]}' > latest.json
           notes="$RUNNER_TEMP/notes.md"
           cat changes.md > "$notes"
           {

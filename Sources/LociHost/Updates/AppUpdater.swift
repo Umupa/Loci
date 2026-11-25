@@ -55,7 +55,7 @@ public actor AppUpdater: Updates {
       else { return .failure(.unsupported) }
       requirement = found
     }
-    guard let latest = try? await ReleaseFeed(network: environment.network, addresses: environment.feeds).latest()
+    guard let latest = try? await ReleaseFeed(network: environment.network, address: environment.feed).latest()
     else { return .failure(.unavailable) }
     if isIdle { state = latest.version > running ? .available(latest) : .current }
     return .success(())

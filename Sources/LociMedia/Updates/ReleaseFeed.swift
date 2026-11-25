@@ -1,36 +1,21 @@
 import Foundation
 import LociModel
 
-/// The newest published release of Loci, read from `latest.json` at the first place that answers.
+/// The newest published release of Loci, read from `latest.json`.
 public struct ReleaseFeed: Sendable {
-  /// Cloudflare R2 first, then the latest GitHub release.
-  public static let loci = [
-    URL(string: "https://dl.umupa.fun/loci/latest.json")!,
-    URL(string: "https://github.com/Umupa/Loci/releases/latest/download/latest.json")!,
-  ]
+  /// The feed on Cloudflare R2.
+  public static let loci = URL(string: "https://dl.umupa.fun/loci/latest.json")!
 
   private let network: any Network
-  private let addresses: [URL]
+  private let address: URL
 
-  public init(network: any Network, addresses: [URL] = Self.loci) {
+  public init(network: any Network, address: URL = Self.loci) {
     self.network = network
-    self.addresses = addresses
+    self.address = address
   }
 
-  /// The release the first readable feed describes. Throws why the last place failed when none can be read.
+  /// The release the feed describes. Throws why it cannot be read.
   public func latest() async throws(FetchError) -> AppRelease {
-    var failure = FetchError(reason: "there is nowhere to look for releases")
-    for address in addresses {
-      do {
-        return try await release(at: address)
-      } catch {
-        failure = error
-      }
-    }
-    throw failure
-  }
-
-  private func release(at address: URL) async throws(FetchError) -> AppRelease {
     let request = URLRequest(url: address, cachePolicy: .reloadIgnoringLocalCacheData)
     let (data, _) = try await network.data(for: request)
     let feed: Latest
