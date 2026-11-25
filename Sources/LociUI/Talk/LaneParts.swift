@@ -75,8 +75,8 @@ struct ConversationGrip: View {
 }
 
 /// A lane folded where the window has no room for it: its panels' marks in a short paper capsule at the top of
-/// where the lane was, with nothing drawn below; nothing at all for a lane with no panels yet. A mark lifts under the pointer and opens the lane's panels over
-/// the page.
+/// where the lane was, with nothing drawn below; nothing at all for a lane with no panels yet. A mark lifts under the
+/// pointer and opens the lane's panels over the page, pointing at it.
 struct RailLane: View {
   let lane: PanelLane
   let slots: [PanelSlot]
@@ -84,11 +84,13 @@ struct RailLane: View {
   let actions: PanelActions
   let side: TalkLayout.Side
   @Binding var open: Bool
+  @State private var chosen: String?
 
   var body: some View {
     VStack(spacing: Spacing.xs) {
       ForEach(slots, id: \.key) { slot in
         Button {
+          chosen = slot.key
           open = true
         } label: {
           RailMark(slot: slot, refreshing: refreshing.contains(slot.key))
@@ -96,6 +98,7 @@ struct RailLane: View {
         .buttonStyle(PressStyle(scale: 0.9))
         .help(Text(verbatim: slot.title))
         .accessibilityLabel(Text(verbatim: slot.title))
+        .popover(isPresented: shows(slot), arrowEdge: side == .leading ? .trailing : .leading) { sheet }
       }
     }
     .padding(.vertical, Spacing.xs)
@@ -112,11 +115,15 @@ struct RailLane: View {
     .frame(width: TalkLayout.rail)
     .frame(maxHeight: .infinity, alignment: .top)
     .boardFrame(lane: lane.id)
-    .popover(isPresented: $open, arrowEdge: side == .leading ? .trailing : .leading) {
+  }
+
+  /// The lane's panels over the page, pointing at the mark clicked and starting at its panel.
+  private var sheet: some View {
+    ScrollViewReader { reader in
       ScrollView {
         VStack(spacing: Spacing.s) {
           ForEach(slots, id: \.key) { slot in
-            PanelSlotView(slot: slot, refreshing: refreshing, actions: closing)
+            PanelSlotView(slot: slot, refreshing: refreshing, actions: closing).id(slot.key)
           }
         }
         .padding(Spacing.s)
@@ -124,7 +131,12 @@ struct RailLane: View {
       .scrollIndicators(.never)
       .frame(width: Size.railSheet)
       .frame(maxHeight: Size.railSheetTallest)
+      .onAppear { reader.scrollTo(chosen, anchor: .top) }
     }
+  }
+
+  private func shows(_ slot: PanelSlot) -> Binding<Bool> {
+    Binding(get: { open && chosen == slot.key }, set: { if !$0 { open = false } })
   }
 }
 

@@ -32,7 +32,7 @@ struct PanelFrame<Marks: View, Content: View>: View {
     let overflow = PanelPreview(height: height, rows: rows)
     let preview = open ? nil : overflow
     VStack(alignment: .leading, spacing: 0) {
-      header(canOpen: overflow != nil).padding(.bottom, 14)
+      header.padding(.bottom, 14)
       content
         .environment(\.panelPreview, preview)
         .fixedSize(horizontal: false, vertical: true)
@@ -45,16 +45,22 @@ struct PanelFrame<Marks: View, Content: View>: View {
         }
         .frame(height: preview?.height, alignment: .top)
         .clipShape(Rectangle().inset(by: preview == nil ? -Spacing.s : 0))
+        .mask(alignment: .bottom) { PanelFade(height: preview?.fadeHeight) }
         .overlay(alignment: .bottom) {
           if let preview {
-            LinearGradient(
-              stops: [.init(color: .clear, location: 0.5), .init(color: Palette.surface, location: 1)],
-              startPoint: .top, endPoint: .bottom
-            )
-            .frame(height: preview.fadeHeight)
-            .allowsHitTesting(false)
+            Color.clear
+              .frame(height: preview.fadeHeight)
+              .contentShape(Rectangle())
+              .onTapGesture(perform: toggle)
           }
         }
+      if overflow != nil {
+        OpenOutButton(open: open, action: toggle)
+          .frame(maxWidth: .infinity)
+          .padding(.top, open ? Spacing.xs : Spacing.xxs)
+          .padding(.bottom, Spacing.s - Spacing.xxs)
+          .transition(.opacity)
+      }
     }
     .padding(.horizontal, 20)
     .padding(.top, 20)
@@ -75,19 +81,37 @@ struct PanelFrame<Marks: View, Content: View>: View {
     }
   }
 
-  private func header(canOpen: Bool) -> some View {
+  private var header: some View {
     HStack(spacing: Spacing.xs) {
       marks
       title.font(.system(size: 14, weight: .medium)).foregroundStyle(Palette.ink).lineLimit(1)
       Spacer(minLength: 0)
-      if canOpen {
-        OpenOutButton(open: open) {
-          withAnimation(reduceMotion ? nil : Motion.standard) { open.toggle() }
-        }
-        .transition(.opacity)
-      }
     }
     .frame(height: Size.siteMark)
+  }
+
+  private func toggle() {
+    withAnimation(reduceMotion ? nil : Motion.standard) { open.toggle() }
+  }
+}
+
+/// Lets the content show in full, or, over the preview strip of a cut panel, fade out into the panel.
+private struct PanelFade: View {
+  let height: CGFloat?
+
+  var body: some View {
+    if let height {
+      VStack(spacing: 0) {
+        Rectangle()
+        LinearGradient(
+          stops: [.init(color: .black.opacity(0.7), location: 0), .init(color: .clear, location: 0.9)],
+          startPoint: .top, endPoint: .bottom
+        )
+        .frame(height: height)
+      }
+    } else {
+      Rectangle().padding(-Spacing.s)
+    }
   }
 }
 
@@ -143,12 +167,9 @@ private struct PanelRowPresentation: ViewModifier {
 
   func body(content: Content) -> some View {
     let shown = preview?.showsRow(endingAt: bounds?.upperBound ?? .infinity) ?? true
-    let blurred = !shown && (bounds?.lowerBound ?? .infinity) < (preview?.height ?? 0)
+    let peeking = !shown && (bounds?.lowerBound ?? .infinity) < (preview?.height ?? 0)
     content
-      .opacity(shown ? 1 : 0)
-      .overlay {
-        if blurred { content.blur(radius: 3).drawingGroup() }
-      }
+      .opacity(shown || peeking ? 1 : 0)
       .disabled(!shown)
       .allowsHitTesting(shown)
       .accessibilityHidden(!shown)
@@ -162,8 +183,7 @@ private struct PanelRowPresentation: ViewModifier {
   }
 }
 
-/// The corner marks beside a cut panel's title: two corners that point out while it is cut and fold in once it
-/// is open.
+/// The chevron under a cut panel, sitting over its fading preview; it turns over once the panel is open.
 private struct OpenOutButton: View {
   let open: Bool
   let action: () -> Void
@@ -171,40 +191,20 @@ private struct OpenOutButton: View {
 
   var body: some View {
     Button(action: action) {
-      OpenOutCorners(folded: open ? 1 : 0)
-        .stroke(style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+      Image(systemName: Symbols.unfold)
+        .font(.system(size: 10, weight: .semibold))
+        .rotationEffect(.degrees(open ? 180 : 0))
         .foregroundStyle(pointed ? Palette.ink : Palette.inkFaint)
-        .frame(width: 14, height: 14)
-        .frame(width: Size.iconButton, height: Size.iconButton)
-        .background(Palette.ink.opacity(pointed ? 0.06 : 0), in: .circle)
-        .contentShape(.circle)
+        .frame(width: 40, height: 20)
+        .background {
+          Capsule().fill(Palette.surface).overlay(Capsule().fill(Palette.ink.opacity(pointed ? 0.09 : 0.05)))
+        }
+        .overlay(Capsule().strokeBorder(Palette.bubbleEdge, lineWidth: Size.hairline))
+        .contentShape(.capsule)
     }
-    .buttonStyle(PressStyle(scale: 0.9))
+    .buttonStyle(PressStyle(scale: 0.92))
     .onHover { pointed = $0 }
     .accessibilityLabel(Text(.loci(open ? "panels.close" : "panels.open")))
-  }
-}
-
-/// A top-left and a bottom-right corner. Each corner's ends stay put while its point moves across, from the
-/// outside of the square (`folded` 0) to the inside (1).
-private struct OpenOutCorners: Shape {
-  var folded: CGFloat
-  var animatableData: CGFloat {
-    get { folded }
-    set { folded = newValue }
-  }
-
-  func path(in rect: CGRect) -> Path {
-    let arm = rect.width * 0.34
-    let reach = arm * folded
-    var path = Path()
-    path.move(to: CGPoint(x: rect.minX, y: rect.minY + arm))
-    path.addLine(to: CGPoint(x: rect.minX + reach, y: rect.minY + reach))
-    path.addLine(to: CGPoint(x: rect.minX + arm, y: rect.minY))
-    path.move(to: CGPoint(x: rect.maxX, y: rect.maxY - arm))
-    path.addLine(to: CGPoint(x: rect.maxX - reach, y: rect.maxY - reach))
-    path.addLine(to: CGPoint(x: rect.maxX - arm, y: rect.maxY))
-    return path
   }
 }
 

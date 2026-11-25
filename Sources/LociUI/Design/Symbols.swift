@@ -69,6 +69,7 @@ enum Symbols {
   static let more = "ellipsis"
   static let collapse = "arrow.down.right.and.arrow.up.left"
   static let openOut = "arrow.up.left.and.arrow.down.right"
+  static let unfold = "chevron.down"
   static let undo = "arrow.counterclockwise"
   static let cancel = "xmark"
   static let pin = "pin.fill"
