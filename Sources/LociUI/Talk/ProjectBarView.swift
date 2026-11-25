@@ -20,6 +20,8 @@ struct ProjectBarView: View {
   let home: Home
   /// A project being started shows as a dashed seal until it has its name.
   var starting = false
+  /// How many next-up cards each seal caught; a new one stamps it.
+  var stamps: [Home: Int] = [:]
   let actions: ProjectBarActions
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.changesAllowed) private var changesAllowed
@@ -107,6 +109,13 @@ struct ProjectBarView: View {
     } label: {
       HStack(spacing: 0) {
         mark()
+          .sealAnchor(target)
+          .keyframeAnimator(initialValue: 1.0, trigger: target.flatMap { stamps[$0] } ?? 0) { seal, scale in
+            seal.scaleEffect(scale)
+          } keyframes: { _ in
+            SpringKeyframe(1.3, duration: 0.16)
+            SpringKeyframe(1.0, duration: 0.45, spring: .bouncy)
+          }
         if open {
           label
             .font(.system(size: 13.5, weight: .semibold))

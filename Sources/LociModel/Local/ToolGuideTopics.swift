@@ -162,7 +162,8 @@ extension ToolGuide {
       out and what it finds goes only into your notes.
     - Each run starts fresh in the background, with "follow", what the last run found and the panel as it
       is now. Its last sentence is kept as its summary; you see it when the person next talks to you.
-    - In a run, loci only reads, sets follow-ups and saves the run's panel.
+    - In a run, loci only reads, sets follow-ups, saves the run's panel and puts cards on the deck (not in the
+      daily review).
     """
 
   /// `loci help connectors`: reading the person's services.

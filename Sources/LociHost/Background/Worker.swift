@@ -296,9 +296,9 @@ actor Worker {
 
 /// What a run's session may do with `loci`.
 enum RunPolicy: Equatable {
-  /// Only panels' refreshes: read, and save those panels.
+  /// Only panels' refreshes: read, save those panels, and put cards on the deck.
   case panel
-  /// Schedules and follow-ups: read, set follow-ups, and save the panels they keep.
+  /// Schedules and follow-ups: read, set follow-ups, save the panels they keep, and put cards on the deck.
   case timers
   /// The daily review: read, set follow-ups, and say how it feels.
   case review
@@ -307,9 +307,11 @@ enum RunPolicy: Equatable {
 
   func refusal(_ name: String) -> String {
     switch self {
-    case .panel: "A panel's refresh only reads and saves its own panel; loci cannot run \(name) in it."
+    case .panel:
+      "A panel's refresh only reads, saves its own panel and puts cards on the deck; loci cannot run \(name) in it."
     case .timers:
-      "A run in the background only reads, sets follow-ups and saves its own panel; loci cannot run \(name) in it."
+      "A run in the background only reads, sets follow-ups, saves its own panel and puts cards on the deck; loci "
+        + "cannot run \(name) in it."
     case .review: "The daily review only reads, sets follow-ups and sets your mood; loci cannot run \(name) in it."
     case .repair: "Mending a source only shows, tests and saves that source; loci cannot run \(name) in it."
     }

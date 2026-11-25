@@ -5,6 +5,8 @@ public enum Wire {
     ReadSource.self, FetchSourceRepository.self, AddSchedule.self, AddFollowUp.self, ListConnectors.self,
     CallConnector.self, Recall.self, NameProject.self, DescribeProject.self,
     SaveDataSource.self, TestDataSource.self, ListDataSources.self, PickPanelEntries.self,
+    AddNextUp.self, ProposeApproval.self, AddNextUpCondition.self, ListNextUpConditions.self,
+    RemoveNextUpCondition.self,
   ]
 
   /// Commands only the Mac the companion lives on runs; another Mac is refused them.
@@ -51,6 +53,7 @@ public enum Wire {
     .reads(ListTimers.self), .writes(PauseSchedule.self), .writes(ChangeSchedule.self),
     .writes(RemoveSchedule.self), .writes(CancelFollowUp.self), .writes(Disconnect.self),
     .reads(ReadUsage.self),
+    .writes(StartNextUp.self), .writes(SetNextUp.self), .writes(ApproveNextUp.self), .writes(UndoApproval.self),
   ]
 
   public static let subscriptions: [any Subscription.Type] = [
@@ -60,7 +63,7 @@ public enum Wire {
     ItemMedia.self, WatchCourses.self, WatchCourse.self, WatchLesson.self,
     MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self, WatchPanelColumn.self,
     WatchTimers.self, WatchScheduleRuns.self, WatchWikiPage.self, WatchConnectors.self, WatchConnectorCalls.self,
-    AvailableModels.self, WatchProjects.self, WatchSourceHistory.self,
+    AvailableModels.self, WatchProjects.self, WatchSourceHistory.self, WatchNextUps.self,
   ]
 
   /// The route of a command type, or `nil` when it is not registered.

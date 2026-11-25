@@ -162,6 +162,7 @@ extension LocalHost {
         try database.deleteConversation(.project(id))
         try database.forgetTranscripts(of: .project(id))
         try database.forgetSources(of: id)
+        try database.forgetNextUps(of: id)
         for schedule in try database.schedules() where schedule.project == id {
           try database.removeSchedule(schedule.id)
         }

@@ -89,7 +89,7 @@ extension ContentChange {
     case .courseActivity: nil
     case .notes(let content): .notes(content)
     case .everything, .reading, .job, .media, .conversation, .turnEnded, .review, .loci, .runtime, .timers, .connectors,
-      .projects, .source:
+      .projects, .source, .nextUps:
       nil
     }
   }

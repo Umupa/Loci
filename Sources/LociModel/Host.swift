@@ -184,6 +184,16 @@ public protocol CommandHandler: Sendable {
   func pickPanelEntries(_ command: PickPanelEntries) async throws(HostError) -> Done
   func dataSources(of home: Home) async throws(HostError) -> [DataSourceEntry]
   func sourceHistory(_ subscription: WatchSourceHistory) async throws(HostError) -> SourceHistory?
+  func nextUps(of home: Home) async throws(HostError) -> [NextUp]
+  func addNextUp(_ command: AddNextUp) async throws(HostError) -> NextUp
+  func proposeApproval(_ command: ProposeApproval) async throws(HostError) -> NextUp
+  func addNextUpCondition(_ command: AddNextUpCondition) async throws(HostError) -> NextUpCondition
+  func nextUpConditions(of home: Home) async throws(HostError) -> [NextUpCondition]
+  func removeNextUpCondition(_ command: RemoveNextUpCondition) async throws(HostError) -> Done
+  func startNextUp(_ command: StartNextUp) async throws(HostError) -> Done
+  func setNextUp(_ command: SetNextUp) async throws(HostError) -> Done
+  func approveNextUp(_ command: ApproveNextUp) async throws(HostError) -> Done
+  func undoApproval(_ command: UndoApproval) async throws(HostError) -> Done
   func listCourses() async throws(HostError) -> [CourseEntry]
   func coursePage(_ course: EntityID) async throws(HostError) -> CoursePage
   func readLesson(_ course: EntityID, lesson: Lesson.ID) async throws(HostError) -> String?

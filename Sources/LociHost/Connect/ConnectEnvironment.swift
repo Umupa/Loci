@@ -7,7 +7,7 @@ import LociStore
 
 /// What connectors take from the outside world: the network, the loopback the browser comes back to, the
 /// keychain, the `gh` signed in on this Mac, the built-in browser's sign-ins, the calendars and reminders of
-/// this Mac, and randomness for PKCE.
+/// this Mac (written to only for an approval card the person approved), and randomness for PKCE.
 public struct ConnectEnvironment: Sendable {
   public let http: any HTTPClient
   public let receiver: any CallbackReceiver
@@ -19,6 +19,7 @@ public struct ConnectEnvironment: Sendable {
   /// Which websites the built-in browser is signed into, and reading their pages with that sign-in.
   public let sites: any SiteSignIns
   public let personal: any PersonalData
+  public let writes: any PersonalWrites
   public let randomBytes: @Sendable (Int) -> Data
   /// How long the browser has to come back.
   public let patience: Duration
@@ -32,6 +33,7 @@ public struct ConnectEnvironment: Sendable {
     githubRead: @escaping @Sendable ([String]) async -> GitHubReply = { _ in .failed("gh is not installed on this Mac")
     },
     sites: any SiteSignIns = NoSites(), personal: any PersonalData = NoPersonalData(),
+    writes: any PersonalWrites = NoPersonalWrites(),
     randomBytes: @escaping @Sendable (Int) -> Data = ConnectEnvironment.systemRandom,
     patience: Duration = .seconds(600), browserReturned: @escaping @Sendable (ConnectorID) async -> Void = { _ in }
   ) {
@@ -42,6 +44,7 @@ public struct ConnectEnvironment: Sendable {
     self.githubRead = githubRead
     self.sites = sites
     self.personal = personal
+    self.writes = writes
     self.randomBytes = randomBytes
     self.patience = patience
     self.browserReturned = browserReturned
@@ -60,7 +63,7 @@ public struct ConnectEnvironment: Sendable {
       http: URLSessionClient(), receiver: LoopbackReceiver(),
       vault: ConnectorKeychain(serviceName: "com.loci.native.dev.connector"), githubLogin: githubLogin,
       githubRead: githubRead, sites: BuiltInBrowserSignIns(network: SystemNetwork.anonymous()),
-      personal: EventKitData(), browserReturned: browserReturned)
+      personal: EventKitData(), writes: EventKitWrites(), browserReturned: browserReturned)
   }
 
   public static let systemRandom: @Sendable (Int) -> Data = { count in

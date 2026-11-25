@@ -113,6 +113,16 @@ enum Architecture {
       fix: "A capsule with the default continuous corners draws a stray straight line at each end when it is "
         + "stroked. Stroke `Capsule(style: .circular)`, and give the fill or glass under it the same shape."),
     Restriction(
+      pattern: #"\b(EKEvent|EKReminder)\(eventStore:|\bcommit:\s*(true|false)"#,
+      allowedFiles: ["Sources/LociConnect/PersonalWrites.swift"],
+      fix: "Loci writes to the person's calendar and reminders only for an approval card they approved: "
+        + "`PersonalWrites` in Sources/LociConnect/PersonalWrites.swift, reached through `ApproveNextUp`. "
+        + "Propose an approval card instead."),
+    Restriction(
+      pattern: #"\bUNUserNotificationCenter\b|\bNSSound\b|\bbadgeLabel\b|requestUserAttention"#,
+      fix: "Loci does not notify, sound or badge the Dock: what needs the person waits as a card on the deck "
+        + "(`NextUp`) until they look."),
+    Restriction(
       pattern: #"swift-format-ignore"#,
       fix:
         "Change the code so the formatter accepts it. If the rule is wrong for the whole project, change `.swift-format`."

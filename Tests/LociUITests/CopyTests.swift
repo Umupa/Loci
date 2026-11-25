@@ -32,6 +32,10 @@ struct CopyTests {
       for match in text.matches(of: /(?:\.loci|String\(loci:)\(?\s*"([^"]+)"/) {
         let key = String(match.1)
         #expect(catalog[key] == ["en", "zh-Hans"], "\(path) uses \(key)")
+        #expect(
+          key.wholeMatch(of: /[a-z]+\.[A-Za-z]+(?: %(?:lld|@|arg))*/) != nil,
+          "\(path) uses \(key): write keys as <lowercase area>.<camelCaseName>, two parts, so the unused-key check reads them"
+        )
       }
     }
   }

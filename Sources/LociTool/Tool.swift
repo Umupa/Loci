@@ -71,6 +71,7 @@ struct Tool: Sendable {
     case .course(let request): return await course(request, json: json)
     case .schedule(let request): return try await schedule(request, json: json)
     case .followUp(let request): return try await followUp(request, json: json)
+    case .next(let request): return try await next(request, json: json)
     case .connector(let request): return try await connector(request, json: json)
     case .feeling(let request):
       let reply = try await line.send(.feeling(request))

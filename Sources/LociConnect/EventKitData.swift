@@ -1,7 +1,7 @@
 import EventKit
 import Foundation
 
-/// The calendars and reminders of this Mac through EventKit. It only fetches: it never saves or removes.
+/// Reads the calendars and reminders of this Mac through EventKit; writing is `EventKitWrites`'.
 public actor EventKitData: PersonalData {
   private let store = EKEventStore()
 

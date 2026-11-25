@@ -51,7 +51,8 @@ public struct Reminder: Hashable, Sendable {
   }
 }
 
-/// The calendars and reminders on this Mac, read only: there is no way here to add, change or remove one.
+/// Reading the calendars and reminders on this Mac, as the companion's connector tools do: there is no way
+/// here to add, change or remove one. Writing is `PersonalWrites`, for approval cards only.
 public protocol PersonalData: Sendable {
   func access(to kind: PersonalKind) async -> PersonalAccess
   /// Asks macOS, which asks the person the first time; whether reading is allowed now.

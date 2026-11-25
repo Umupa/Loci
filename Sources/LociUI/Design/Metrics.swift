@@ -24,6 +24,8 @@ enum Radius {
   static let lane: CGFloat = 24
   /// A message bubble and the composer.
   static let bubble: CGFloat = 20
+  /// A next-up card.
+  static let nextUpCard: CGFloat = 24
   /// A cover in a list, and a menu's rows.
   static let thumbnail: CGFloat = 6
   /// A cover on its own, and the video player.
@@ -158,6 +160,8 @@ enum Size {
   /// A project's seal in the project bar, and the large one over a new project's field.
   static let seal: CGFloat = 22
   static let sealLarge: CGFloat = 64
+  /// A next-up card until it has laid out at its own height.
+  static let nextUpCard: CGFloat = 76
   /// The room over the lanes when the project bar is there: the bar, then the conversation's grip.
   static let projectBarRoom: CGFloat = 72
   static let railSheetTallest: CGFloat = 640

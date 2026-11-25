@@ -113,12 +113,11 @@ struct PanelGuardScenarioTests {
       #expect(
         added
           == .failed(
-            .invalidRequest(
-              "A panel's refresh only reads and saves its own panel; loci cannot run \(AddLink.name) in it.")))
+            .invalidRequest(RunPolicy.panel.refusal(AddLink.name))))
       #expect(
         uploaded
           == .failed(
-            .invalidRequest("A panel's refresh only reads and saves its own panel; loci cannot run upload in it.")))
+            .invalidRequest(RunPolicy.panel.refusal("upload"))))
       #expect(other == .failed(.invalidRequest("This refresh is of radar; it can save only that panel.")))
       #expect(own == .value(try JSONEncoder().encode(Done())))
       #expect(try await host.run(ListItems()).isEmpty)

@@ -4,7 +4,8 @@ import LociStore
 
 /// Once a minute, and when the app opens, finds the timers that came due and puts an event for each into the
 /// inbox: schedules, panels' refreshes, follow-ups, and the daily review. It starts nothing itself. A timer
-/// missed while the app was closed is raised once, however many times it was missed.
+/// missed while the app was closed is raised once, however many times it was missed. Next-up cards put off
+/// until now come back to the top of their deck, with no run.
 struct Scheduler {
   let context: AgentContext
 
@@ -42,6 +43,12 @@ struct Scheduler {
       raise(.followUp(followUp.id, project: followUp.home.project), due: followUp.due)
       _ = try? database.endFollowUp(followUp.id, at: now)
     }
+    var cameBack = false
+    for card in (try? database.nextUpsDue(at: now)) ?? [] {
+      guard case .later(let until) = card.state else { continue }
+      if (try? database.saveNextUp(card.with(state: .new, shownAt: until))) != nil { cameBack = true }
+    }
+    if cameBack { await context.follower.follow([.nextUps]) }
     if let day = DailyReview.due(reviewSituation(now: now)) { raise(.review(day, project: nil), due: now) }
     for project in context.rememberedProjects() {
       if let day = DailyReview.due(reviewSituation(of: project.id, now: now)) {

@@ -65,8 +65,14 @@ public enum ToolGuide {
                                        and the words around it
       loci project name <name>         name the project this session is in
       loci project describe <line>     say in one line what the project is doing; all the main conversation knows
+      loci next add <what> --ask <question>
+                                       put a card on the person's deck (help next)
+      loci next when <field> <op> <number> --say <line> --ask <question>
+                                       a reminder condition on a source's number
+      loci next propose event|reminder <title> --at <when>
+                                       an approval card: written only once the person approves
       loci help [<topic>]              this text, or one topic: memory, notes, feelings, panels, sources,
-                                       schedules, connectors, courses, locators
+                                       schedules, next, connectors, courses, locators
 
     Add --json to print the app's reply as it is.
 
@@ -81,13 +87,13 @@ public enum ToolGuide {
       command was written wrong.
 
     Run "$LOCI" help <topic> for how to write each thing: memory, notes, feelings, panels, sources,
-    schedules, connectors, courses, locators.
+    schedules, next, connectors, courses, locators.
     """
 
   /// Each topic of `loci help <topic>`, in the order the overview names them.
   public static let topics: [(name: String, text: String)] = [
     ("memory", memory), ("notes", notes), ("feelings", feelings), ("panels", panels), ("sources", sources),
-    ("schedules", schedules),
+    ("schedules", schedules), ("next", next),
     ("connectors", connectors), ("courses", courses), ("locators", locators),
   ]
 

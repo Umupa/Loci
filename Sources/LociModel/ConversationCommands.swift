@@ -78,7 +78,7 @@ public struct OneConversation: Subscription {
       case .course(let id): conversation == .course(id)
       case .projects: conversation.home != .chat
       case .courseActivity, .notes, .reading, .job, .media, .review, .loci, .runtime, .timers, .connectors,
-        .source:
+        .source, .nextUps:
         false
       }
     }

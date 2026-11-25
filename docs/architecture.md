@@ -22,7 +22,7 @@
 | `LociMedia` | 取回链接（yt-dlp、网页正文、PDF）、组件、Loci 自己的新版本（GitHub release、挂载 dmg、核对签名）、转录、断句、区分说话人；系统框架可用 AVFoundation、CoreMedia、CoreGraphics（PDF 元数据）、PDFKit（PDF 正文）、NaturalLanguage、WebKit（在不显示的网页里取正文；内置浏览器里哪些网站已登录，带着登录只发 GET 地读；在隔离的网页里跑数据源的解析）、Synchronization | `LociModel`；第三方：swift-markdown、FluidAudio |
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |
 | `LociRemote` | 配对、加密通道（Noise）、中继（alma-relay 协议）、局域网发现（Bonjour）、`loci` 命令连进来的本机 unix socket；系统框架可用 CryptoKit、Network | `LociModel` |
-| `LociConnect` | 连接器：MCP 客户端（Streamable HTTP）、OAuth 2.1（发现、动态注册、PKCE、换 token 与刷新）、在 `127.0.0.1` 上接浏览器回调；本机的日历和提醒事项（只读）；系统框架可用 CryptoKit（PKCE）、Network（回环监听）、EventKit（日历和提醒事项，经系统授权） | `LociModel` |
+| `LociConnect` | 连接器：MCP 客户端（Streamable HTTP）、OAuth 2.1（发现、动态注册、PKCE、换 token 与刷新）、在 `127.0.0.1` 上接浏览器回调；本机的日历和提醒事项：伙伴只读，你批准一张批准卡后建一个事件或提醒、撤回时删掉（只在 `PersonalWrites`）；系统框架可用 CryptoKit（PKCE）、Network（回环监听）、EventKit（日历和提醒事项，经系统授权） | `LociModel` |
 | `LociHost` | 命令层的实现：本机和远程；伙伴的会话、上下文拼装与每日回顾；连接器的 credential proxy；系统框架可用 IOKit（有已配对的 Mac 时阻止空闲睡眠，读机型） | 以上全部 |
 | `LociUI` | 界面与设计系统、菜单栏；系统框架可用 AVKit、AVFoundation（播放）、PDFKit（论文）、WebKit（内置浏览器）、ServiceManagement（登录时打开）、Charts（面板的图表行） | `LociModel`；第三方：swift-markdown、Textual、HighlightSwift、SwiftMath |
 | `Loci` | 应用入口，把界面接到 Host 上 | `LociModel` `LociUI` `LociHost` |

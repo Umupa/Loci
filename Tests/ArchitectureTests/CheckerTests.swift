@@ -69,6 +69,33 @@ struct CheckerTests {
     #expect(BoundaryTests.violations(of: Architecture.forbidden, in: file).map(\.line) == [1])
   }
 
+  @Test func flagsAWriteToTheCalendarOutsideApprovals() {
+    let text = """
+      let event = EKEvent(eventStore: store)
+      try store.save(event, span: .thisEvent, commit: true)
+      let events = store.events(matching: predicate)
+      """
+    let data = SourceFile(path: "Sources/LociConnect/EventKitData.swift", module: "LociConnect", text: text)
+    let writes = SourceFile(path: "Sources/LociConnect/PersonalWrites.swift", module: "LociConnect", text: text)
+
+    #expect(BoundaryTests.violations(of: Architecture.forbidden, in: data).map(\.line) == [1, 2])
+    #expect(BoundaryTests.violations(of: Architecture.forbidden, in: writes).isEmpty)
+  }
+
+  @Test func flagsANotificationASoundOrADockBadge() {
+    let file = SourceFile(
+      path: "Sources/LociUI/Example.swift", module: "LociUI",
+      text: """
+        UNUserNotificationCenter.current().add(request)
+        NSSound(named: "Glass")?.play()
+        NSApp.dockTile.badgeLabel = "3"
+        NSApp.requestUserAttention(.informationalRequest)
+        let deck = NextUpDeck(cards: cards)
+        """)
+
+    #expect(BoundaryTests.violations(of: Architecture.forbidden, in: file).map(\.line) == [1, 2, 3, 4])
+  }
+
   @Test func flagsASparklesSymbolInAnyCase() {
     let file = SourceFile(
       path: "Sources/LociUI/Example.swift", module: "LociUI",

@@ -207,6 +207,25 @@ enum Schema {
           CREATE INDEX source_entry_seen ON source_entry(source, seen);
           """)
     }
+    migrator.registerMigration("13 next up") { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE next_up (
+            id TEXT PRIMARY KEY NOT NULL,
+            home TEXT NOT NULL,
+            key TEXT NOT NULL,
+            body TEXT NOT NULL,
+            UNIQUE (home, key)
+          );
+          CREATE TABLE next_up_condition (
+            id TEXT PRIMARY KEY NOT NULL,
+            home TEXT NOT NULL,
+            source TEXT NOT NULL,
+            body TEXT NOT NULL
+          );
+          CREATE INDEX next_up_condition_source ON next_up_condition(source);
+          """)
+    }
     return migrator
   }
 

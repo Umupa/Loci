@@ -2,7 +2,8 @@ import LociModel
 import SwiftUI
 
 /// The companion's page: the project bar over the chat or the project it has open, or over the field a new
-/// project starts from. The open one is remembered for the Mac.
+/// project starts from. The open one is remembered for the Mac. A next-up card started from the deck flies into
+/// its seal, and its project opens.
 struct CompanionPage: View {
   @Environment(\.host) private var host
   @Environment(\.reducesMotion) private var reduceMotion
@@ -17,6 +18,10 @@ struct CompanionPage: View {
   @State private var bar: Feed<ProjectBar>?
   @State private var starting: Starting?
   @State private var notice: Notice?
+  @State private var nextUps: Feed<[NextUp]>?
+  @State private var flight: NextUp?
+  /// How many cards each seal caught, to stamp it once more.
+  @State private var stamps: [Home: Int] = [:]
 
   /// A project being started: the words, once sent, and the project they started.
   struct Starting: Equatable {
@@ -24,10 +29,11 @@ struct CompanionPage: View {
     var project: Project.ID?
   }
 
-  /// What the last archiving or deletion took away, to undo.
+  /// What the last archiving, deletion, or card put off or declined took away, to undo.
   enum Notice: Equatable {
     case archived(Project.ID, serial: UUID = UUID())
     case deleted(serial: UUID = UUID())
+    case card(EntityID, later: Bool, serial: UUID = UUID())
   }
 
   private var home: Home { project.map(Home.project) ?? .chat }
@@ -48,10 +54,24 @@ struct CompanionPage: View {
           .id(home)
           .transition(.opacity)
           .environment(\.projectName, openProject?.name)
+          .environment(\.nextUpDeck, deck)
         }
       }
-      ProjectBarView(bar: shownBar, home: home, starting: starting != nil, actions: actions)
+      ProjectBarView(bar: shownBar, home: home, starting: starting != nil, stamps: stamps, actions: actions)
         .padding(.top, 11)
+    }
+    .overlayPreferenceValue(NextUpAnchors.self) { anchors in
+      GeometryReader { proxy in
+        if let flight {
+          if let from = anchors.cards[flight.id], let to = anchors.seals[flight.home] {
+            CardFlight(card: flight, project: project(of: flight), from: proxy[from], to: proxy[to]) {
+              land(flight)
+            }
+          } else {
+            Color.clear.onAppear { land(flight) }
+          }
+        }
+      }
     }
     .overlay(alignment: .bottom) {
       if let notice {
@@ -64,6 +84,8 @@ struct CompanionPage: View {
     .animation(reduceMotion ? nil : Motion.standard, value: notice)
     .animation(reduceMotion ? nil : Motion.standard, value: starting == nil)
     .subscribing(WatchProjects(), into: $bar)
+    .subscribing(WatchNextUps(of: home), into: $nextUps)
+    .onChange(of: home) { nextUps = nil }
     .onAppear {
       guard !recalled else { return }
       recalled = true
@@ -138,6 +160,7 @@ struct CompanionPage: View {
     switch notice {
     case .archived: .loci("projects.archived")
     case .deleted: .loci("projects.deleted")
+    case .card(_, let later, _): later ? .loci("deck.putOff") : .loci("deck.declined")
     }
   }
 
@@ -146,7 +169,42 @@ struct CompanionPage: View {
     switch notice {
     case .archived(let id, _): send(ArchiveProject(id, archived: false))
     case .deleted: send(RestoreDeletedProject())
+    case .card(let id, _, _): send(SetNextUp(id, .restore))
     }
+  }
+
+  private var deck: NextUpDeckState {
+    let projects = Dictionary((shownBar.projects + shownBar.archived).map { ($0.id, $0) }) { first, _ in first }
+    return NextUpDeckState(
+      cards: nextUps?.value ?? [], projects: projects, flying: flight?.id,
+      actions: NextUpActions(
+        start: { card in
+          if reduceMotion { land(card) } else { flight = card }
+        },
+        set: { card, choice in
+          send(SetNextUp(card.id, choice))
+          switch choice {
+          case .decline: notice = .card(card.id, later: false)
+          case .later: notice = .card(card.id, later: true)
+          case .keep, .restore: break
+          }
+        },
+        approve: { card in send(ApproveNextUp(card.id)) },
+        undo: { card in send(UndoApproval(card.id)) }))
+  }
+
+  private func project(of card: NextUp) -> Project? {
+    card.home.project.flatMap { id in (shownBar.projects + shownBar.archived).first { $0.id == id } }
+  }
+
+  /// The card is in its seal: the seal takes it, its home opens, and its question is said there.
+  private func land(_ card: NextUp) {
+    flight = nil
+    if !reduceMotion { stamps[card.home, default: 0] += 1 }
+    starting = nil
+    withAnimation(reduceMotion ? nil : Motion.standard) { project = card.home.project }
+    if let id = card.home.project { send(SeeProject(id)) }
+    send(StartNextUp(card.id))
   }
 
   private func send<C: Command>(_ command: C) {

@@ -3,15 +3,10 @@ import LociMedia
 import LociModel
 import LociStore
 
-/// What happens after a source's fetch has written its snapshot. The host is given one; by default it does
-/// nothing.
+/// What happens after a source's fetch has written its snapshot: by default the reminder conditions on it are
+/// checked (`NextUpConditions`).
 protocol SourceRefreshed: Sendable {
   func refreshed(_ source: SourceKey, _ snapshot: SourceSnapshot) async
-}
-
-/// Does nothing after a fetch.
-struct NothingOnRefresh: SourceRefreshed {
-  func refreshed(_ source: SourceKey, _ snapshot: SourceSnapshot) async {}
 }
 
 /// Fetches sources and keeps what each fetch got, for `loci source save` and the fetching line alike. A fetch

@@ -45,7 +45,7 @@ public struct WatchProjects: Subscription {
       switch change {
       case .projects, .turnEnded, .everything, .loci(.panels): true
       case .item, .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .review, .loci, .runtime,
-        .timers, .connectors, .source:
+        .timers, .connectors, .source, .nextUps:
         false
       }
     }

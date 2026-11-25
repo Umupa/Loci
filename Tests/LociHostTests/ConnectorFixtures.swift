@@ -217,6 +217,7 @@ struct ConnectWorld {
   let vault = MemoryVault()
   let sites = FakeSites()
   let personal = FakePersonalData()
+  let writes = FakeWrites()
   let gh = FakeGh()
   var signedInGh = true
   var patience: Duration = .seconds(30)
@@ -227,7 +228,7 @@ struct ConnectWorld {
     return ConnectEnvironment(
       http: services, receiver: browser, vault: vault,
       githubLogin: { signedIn ? GitHubLogin(token: "gh-token", account: "umupa") : nil },
-      githubRead: { await gh.read($0) }, sites: sites, personal: personal,
+      githubRead: { await gh.read($0) }, sites: sites, personal: personal, writes: writes,
       randomBytes: { Data(repeating: 9, count: $0) }, patience: patience,
       browserReturned: { [browser] in browser.cameBack(from: $0) })
   }

@@ -78,6 +78,7 @@ enum ToolGateway {
       let saving = (try? WireCodec.decode(SaveDataSource.self, from: body))?.source.name
       return saving == mending.name ? nil : "This repair mends only the source \(mending.name); save that one."
     case .command(let name, _):
+      if name == AddNextUp.name, policy == .review { return policy.refusal("next add") }
       return runCommands.contains(name) ? nil : policy.refusal(name)
     case .feeling: return policy == .review ? nil : policy.refusal("mood")
     case .upload: return policy.refusal("upload")
@@ -85,14 +86,15 @@ enum ToolGateway {
     }
   }
 
-  /// What a run's session may run: what reads, setting follow-ups, and saving the panels it is for.
+  /// What a run's session may run: what reads, setting follow-ups, saving the panels it is for, and putting a
+  /// card on the deck (not in the daily review).
   static let runCommands: Set<String> = Set(
     ([Search.self, ListItems.self, ListPanels.self, ListTimers.self, CancelFollowUp.self] as [any Command.Type]).map {
       $0.name
     } + [
       ReadSource.name, FetchSourceRepository.name, AddFollowUp.name, SavePanel.name, EditPanel.name,
       PickPanelEntries.name,
-      ListConnectors.name, CallConnector.name, Recall.name, DescribeProject.name,
+      ListConnectors.name, CallConnector.name, Recall.name, DescribeProject.name, AddNextUp.name,
     ])
 
   /// What a repair's session may run: show, test and save sources.
@@ -170,6 +172,7 @@ enum ToolGateway {
       let command = try WireCodec.decode(DescribeProject.self, from: body)
       return try WireCodec.encode(try await host.describeProject(DescribeProject(command.summary, of: project)))
     }
+    if let reply = try await runNextUp(name, body, in: home, on: host) { return reply }
     if let command = Wire.toolCommands.first(where: { $0.name == name }) {
       return try await WireCodec.run(command, body: body, on: host)
     }

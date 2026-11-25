@@ -41,6 +41,8 @@ final class FakeHost: LociModel.Host, CommandHandler {
   /// The project bar, and each project's panel column; no projects unless a test gives them.
   let projects: ProjectBar
   let projectPanels: [Project.ID: PanelColumn]
+  /// The next-up cards, as the chat's deck shows them; none unless a test gives them.
+  let nextUps: [NextUp]
 
   init(
     _ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false, working: Bool = false,
@@ -50,8 +52,9 @@ final class FakeHost: LociModel.Host, CommandHandler {
     modelOptions: ModelOptions = .sample,
     timers: SampleTimers = .none, connectors: Connectors = SampleConnectors.empty, remembers: Bool = true,
     books: SampleBooks? = nil, usage: [SessionUsage] = [], projects: ProjectBar = ProjectBar(projects: []),
-    projectPanels: [Project.ID: PanelColumn] = [:]
+    projectPanels: [Project.ID: PanelColumn] = [:], nextUps: [NextUp] = []
   ) {
+    self.nextUps = nextUps
     self.projects = projects
     self.projectPanels = projectPanels
     self.sessionUsage = usage

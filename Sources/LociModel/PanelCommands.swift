@@ -55,7 +55,7 @@ public struct WatchPanelColumn: Subscription {
       case .loci(let file): file == .panels
       case .reading, .item, .everything, .projects, .source: true
       case .course, .courseActivity, .notes, .job, .media, .conversation, .turnEnded, .review, .runtime, .timers,
-        .connectors:
+        .connectors, .nextUps:
         false
       }
     }

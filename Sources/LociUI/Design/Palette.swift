@@ -117,6 +117,11 @@ enum Palette {
     static let gold = Color(nsColor: NSColor(rgb: 0xFFD27A))
   }
 
+  /// The band of a calendar page on an approval card, red as the system's calendar draws it.
+  enum Mark {
+    static let calendar = Color(nsColor: NSColor(rgb: 0xE5484D))
+  }
+
   /// The colors sites mark themselves with, the same in light and dark as their marks are.
   enum Site {
     static let github = Color(nsColor: NSColor(rgb: 0x1F2328))

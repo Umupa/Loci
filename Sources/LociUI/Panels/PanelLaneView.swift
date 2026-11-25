@@ -2,8 +2,9 @@ import LociModel
 import SwiftUI
 
 /// One lane of panels beside the main conversation, top to bottom on the page itself. The lane nearest
-/// the conversation also holds the skeleton of a panel being made and the button that asks for a new one. A
-/// panel being dragged leaves a hollow where it would land.
+/// the conversation also holds the deck of next-up cards over its panels, and the skeleton of a panel being
+/// made and the button that asks for a new one under them. A panel being dragged leaves a hollow where it
+/// would land.
 struct PanelLaneView: View {
   let slots: [PanelSlot]
   var refreshing: Set<String> = []
@@ -20,13 +21,17 @@ struct PanelLaneView: View {
   var opened: Set<String> = []
   var pages: [String: Int] = [:]
   @Environment(\.reducesMotion) private var reduceMotion
+  @Environment(\.nextUpDeck) private var deck
   @State private var position = ScrollPosition(edge: .top)
 
   var body: some View {
     if slots.isEmpty, building == nil {
-      NewPanelButton(action: actions.create).opacity(making ? 0.35 : 1).disabled(making).changesData()
-        .padding(Spacing.s)
-        .frame(maxHeight: .infinity, alignment: .top)
+      VStack(spacing: Spacing.s) {
+        if foot, let deck { NextUpDeck(state: deck) }
+        NewPanelButton(action: actions.create).opacity(making ? 0.35 : 1).disabled(making).changesData()
+      }
+      .padding(Spacing.s)
+      .frame(maxHeight: .infinity, alignment: .top)
     } else {
       lane
     }
@@ -35,6 +40,7 @@ struct PanelLaneView: View {
   private var lane: some View {
     ScrollView {
       VStack(spacing: Spacing.s) {
+        if foot, let deck { NextUpDeck(state: deck) }
         ForEach(slots, id: \.key) { slot in
           if let hollow, hollow.key == slot.key {
             Hollow(height: hollow.height).boardFrame(panel: slot.key)

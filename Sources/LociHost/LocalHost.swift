@@ -33,7 +33,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
 
   private init(
     store: Store, database: StoreDatabase, environment: HostEnvironment, prompts: Prompts, readingStateLost: Bool,
-    refreshed: any SourceRefreshed
+    refreshed: (any SourceRefreshed)?
   ) {
     self.store = store
     self.database = database
@@ -61,7 +61,9 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     self.connectorKeeper = connectorKeeper
     let sources = SourceService(context: library.context)
     self.sources = sources
-    let keeper = SourceKeeper(context: context, connectors: connectorKeeper, pages: sources, refreshed: refreshed)
+    let keeper = SourceKeeper(
+      context: context, connectors: connectorKeeper, pages: sources,
+      refreshed: refreshed ?? NextUpConditions(context: context))
     sourceKeeper = keeper
     sourceLine = SourceLine(keeper: keeper)
     links = LinkPreviewReader(network: environment.media.network)
@@ -73,11 +75,12 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   public static func start(root: URL, database url: URL, environment: HostEnvironment)
     async throws(HostStartError) -> LocalHost
   {
-    try await start(root: root, database: url, environment: environment, refreshed: NothingOnRefresh())
+    try await start(root: root, database: url, environment: environment, refreshed: nil)
   }
 
-  /// As `start`, with `refreshed` told of each fetch of a source that worked.
-  static func start(root: URL, database url: URL, environment: HostEnvironment, refreshed: any SourceRefreshed)
+  /// As `start`, with `refreshed` told of each fetch of a source that worked in place of the reminder
+  /// conditions.
+  static func start(root: URL, database url: URL, environment: HostEnvironment, refreshed: (any SourceRefreshed)?)
     async throws(HostStartError) -> LocalHost
   {
     let database: StoreDatabase
@@ -115,7 +118,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   /// applied after the rebuild has written, never overwritten by it.
   static func begin(
     store: Store, database: StoreDatabase, environment: HostEnvironment, readingStateLost: Bool,
-    refreshed: any SourceRefreshed = NothingOnRefresh(),
+    refreshed: (any SourceRefreshed)? = nil,
     rebuild: @escaping @Sendable (Store, StoreDatabase) async throws -> [FileProblem] = { store, database in
       try database.rebuild(from: store)
     }

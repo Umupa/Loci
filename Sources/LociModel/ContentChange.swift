@@ -32,6 +32,8 @@ public enum ContentChange: Hashable, Codable, Sendable {
   case connectors
   /// A source got records or failed to; its snapshot and history live in the database.
   case source(SourceKey)
+  /// A next-up card or a reminder condition changed. They live in the database only.
+  case nextUps
   /// Events were lost or a change could not be placed; read everything again.
   case everything
 }
