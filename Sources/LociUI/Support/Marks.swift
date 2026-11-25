@@ -22,6 +22,18 @@ enum MarkArt {
     return image("agent-" + provider.rawValue + suffix, extension: fileType)
   }
 
+  static func model(_ preset: ModelPreset, in scheme: ColorScheme) -> NSImage? {
+    let name = "model-" + preset.rawValue
+    let suffix = scheme == .dark ? "-dark" : ""
+    return switch preset {
+    case .openAI: agent(.codex, in: scheme)
+    case .anthropic, .openRouter, .kimi, .siliconFlow: image(name + suffix, extension: "svg")
+    case .deepSeek, .volcengine: image(name, extension: "svg")
+    case .zhipu, .qwen, .miniMax: image(name, extension: "png")
+    case .custom: nil
+    }
+  }
+
   static func component(_ component: Component, in scheme: ColorScheme) -> NSImage? {
     switch component {
     case .ytDlp: image("component-yt-dlp", extension: "png")

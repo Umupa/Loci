@@ -1,0 +1,14 @@
+模型服务品牌图标
+
+- OpenAI 复用 AgentIcons 中的亮色和暗色 Blossom，来源见该目录的 NOTICE。
+- Anthropic 使用媒体包里的 Slate 和 Ivory 品牌符号。https://www.anthropic.com/press-kit
+- OpenRouter 使用品牌资源里的 Grape 和 Volt 图标。https://openrouter.ai/brand/
+- DeepSeek 使用 API 文档的蓝色鲸鱼图标。https://api-docs.deepseek.com/img/favicon.svg
+- Kimi 使用品牌手册里的 Light 和 Dark 图形标志。https://www.kimi.com/en/resources/kimi-brand
+- 智谱使用开放平台的图标。https://open.bigmodel.cn/static/images/favicon.png
+- 通义千问使用 Qwen 官网的图标。https://qwen.ai/
+- 硅基流动使用品牌资源包里的原色和反白图形标志。https://www.siliconflow.cn/brand
+- 火山方舟使用方舟控制台的图标。https://res.gcloudcache.com/volc-fe/console-ark/ark-new-main/arkIcon.svg
+- MiniMax 使用官网的图标，转存为 PNG。https://www.minimax.io/favicon.ico
+
+这些图标用于识别相应的模型服务，商标归各自权利人所有。
