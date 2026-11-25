@@ -28,11 +28,16 @@ final class TestWorld: Sendable {
   static let timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .gmt
   let agent: FakeAgent
   let connect: ConnectEnvironment
+  let sessionFiles: SessionFolders
 
-  init(agent: FakeAgent = FakeAgent(), idOffset: UInt64 = 0, connect: ConnectEnvironment = .disconnected) {
+  init(
+    agent: FakeAgent = FakeAgent(), idOffset: UInt64 = 0, connect: ConnectEnvironment = .disconnected,
+    sessionFiles: SessionFolders = .none
+  ) {
     created = Mutex(idOffset)
     self.agent = agent
     self.connect = connect
+    self.sessionFiles = sessionFiles
   }
 
   var environment: HostEnvironment {
@@ -55,7 +60,7 @@ final class TestWorld: Sendable {
       activity: { [self] _ in
         self.activities.withLock { $0.append("begin") }
         return Activity { self.activities.withLock { $0.append("end") } }
-      }, connect: connect)
+      }, connect: connect, sessionFiles: sessionFiles)
   }
 
   /// Each time the host declared background work, and each time it ended it.
@@ -118,11 +123,11 @@ struct Place {
 /// Runs `body` against a host started in a new temporary place, then closes it and deletes the place.
 func withHost(
   agent: FakeAgent = FakeAgent(), connect: ConnectEnvironment = .disconnected,
-  _ body: (LocalHost, Place, TestWorld) async throws -> Void
+  sessionFiles: SessionFolders = .none, _ body: (LocalHost, Place, TestWorld) async throws -> Void
 ) async throws {
   let place = Place()
   defer { place.remove() }
-  let world = TestWorld(agent: agent, connect: connect)
+  let world = TestWorld(agent: agent, connect: connect, sessionFiles: sessionFiles)
   let host = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
   do {
     try await body(host, place, world)

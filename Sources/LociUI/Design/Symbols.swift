@@ -11,6 +11,8 @@ enum Symbols {
   static let window = "macwindow"
   static let quit = "power"
   static let schedule = "clock"
+  static let panels = "square.grid.2x2"
+  static let review = "moon"
   static let followUp = "arrow.uturn.backward"
   static let notes = "doc.text"
   static let agents = "terminal"

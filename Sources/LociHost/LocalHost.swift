@@ -25,6 +25,8 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   let sources: SourceService
   /// Previews of the links Loci's replies show as cards.
   let links: LinkPreviewReader
+  /// The CLIs' session files, read for the usage page.
+  let sessionFiles: SessionFileReader
 
   private init(
     store: Store, database: StoreDatabase, environment: HostEnvironment, prompts: Prompts, readingStateLost: Bool
@@ -54,6 +56,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     connectorKeeper = ConnectorKeeper(database: database, environment: environment, follower: follower)
     sources = SourceService(context: library.context)
     links = LinkPreviewReader(network: environment.media.network)
+    sessionFiles = SessionFileReader(folders: environment.sessionFiles, timeZone: environment.timeZone)
   }
 
   /// Opens the database and starts serving from it at once, while the mirrors are rebuilt from the files

@@ -101,6 +101,17 @@ extension StoreDatabase {
     }
   }
 
+  /// Sessions that started at `since` or later and have a handle, newest first.
+  public func sessions(since: Timestamp) throws -> [SessionRecord] {
+    try queue.read { db in
+      try Row.fetchAll(
+        db,
+        sql: "SELECT * FROM session WHERE handle IS NOT NULL AND started_at >= ? ORDER BY started_at DESC, seq DESC",
+        arguments: [since.description]
+      ).compactMap(Self.session)
+    }
+  }
+
   public func bind(handle: String, to session: EntityID) throws {
     try queue.write { db in
       try db.execute(sql: "UPDATE session SET handle = ? WHERE id = ?", arguments: [handle, session.description])

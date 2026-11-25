@@ -46,6 +46,8 @@ public struct HostEnvironment: Sendable {
   /// activity ends when the run does.
   public let activity: @Sendable (_ reason: String) -> Activity
   public let connect: ConnectEnvironment
+  /// Where the CLIs keep their session files, which the usage page reads.
+  public let sessionFiles: SessionFolders
 
   public init(
     newID: @escaping @Sendable () -> EntityID, now: @escaping @Sendable () -> Timestamp, timeZone: TimeZone = .gmt,
@@ -61,7 +63,7 @@ public struct HostEnvironment: Sendable {
     modelWriter: (@Sendable (ModelService) -> any TranscriptAgent)? = nil,
     bundledPi: BundledPiEnvironment? = nil, sourceCache: URL? = nil, gitExecutable: URL = URL(filePath: "/usr/bin/git"),
     activity: @escaping @Sendable (_ reason: String) -> Activity = { _ in Activity {} },
-    connect: ConnectEnvironment = .disconnected
+    connect: ConnectEnvironment = .disconnected, sessionFiles: SessionFolders = .none
   ) {
     self.newID = newID
     self.now = now
@@ -85,6 +87,7 @@ public struct HostEnvironment: Sendable {
     self.gitExecutable = gitExecutable
     self.activity = activity
     self.connect = connect
+    self.sessionFiles = sessionFiles
   }
 
   /// The real clock and time zone, fresh identifiers, the Trash, and the agent programs installed on this Mac.
@@ -104,7 +107,8 @@ public struct HostEnvironment: Sendable {
       sourceCache: sourceCache, activity: ProcessActivity.begin,
       connect: .system(
         githubLogin: { await installed.githubLogin() }, githubRead: { await installed.githubRead($0) },
-        browserReturned: browserReturned))
+        browserReturned: browserReturned),
+      sessionFiles: .home(URL.homeDirectory, environment: ProcessInfo.processInfo.environment))
   }
 
   private static func everyMinute() -> AsyncStream<Void> {

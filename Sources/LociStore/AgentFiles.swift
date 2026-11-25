@@ -97,6 +97,11 @@ extension Store {
       .compactMap { Day($0.deletingPathExtension().lastPathComponent) }.sorted(by: >)
   }
 
+  /// `AGENTS.md` as it is now; empty before it is written.
+  public func instructions() -> String {
+    (try? readText(agentFolder.appending(path: Self.instructionsFile))) ?? ""
+  }
+
   /// Writes `AGENTS.md`, and links `CLAUDE.md` to it unless the person put a file of their own there.
   public func writeInstructions(_ text: String) throws {
     try write(Data(text.utf8), to: agentFolder.appending(path: Self.instructionsFile))

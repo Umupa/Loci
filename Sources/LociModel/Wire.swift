@@ -46,6 +46,7 @@ public enum Wire {
     .writes(WriteLessonNow.self), .writes(DeleteCourse.self), .writes(RestoreDeletedCourse.self),
     .reads(ListTimers.self), .writes(PauseSchedule.self), .writes(ChangeSchedule.self),
     .writes(RemoveSchedule.self), .writes(CancelFollowUp.self), .writes(Disconnect.self),
+    .reads(ReadUsage.self),
   ]
 
   public static let subscriptions: [any Subscription.Type] = [

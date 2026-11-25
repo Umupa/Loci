@@ -195,6 +195,7 @@ public protocol CommandHandler: Sendable {
   func forgetWikiLine(_ command: ForgetWikiLine) async throws(HostError) -> Done
   func connectors() async throws(HostError) -> Connectors
   func connectorCalls(limit: Int) async throws(HostError) -> [ConnectorCall]
+  func usage(since: Timestamp) async throws(HostError) -> [SessionUsage]
   func connect(_ command: Connect) async throws(HostError) -> Authorization
   func addMCPServer(_ command: AddMCPServer) async throws(HostError) -> Authorization
   func cancelConnecting(_ command: CancelConnecting) async throws(HostError) -> Done

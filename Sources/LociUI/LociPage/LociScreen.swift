@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The pages of Loci's own page.
 enum LociTab: Hashable {
-  case soul, memory, diary, timers, connectors
+  case soul, memory, diary, timers, connectors, usage
 }
 
 /// Loci's own page: its face, which the person can change, its name, what they have done together, and its
@@ -38,6 +38,7 @@ struct LociScreen: View {
           options: [
             (.soul, .loci("loci.soul")), (.memory, .loci("loci.memory")), (.diary, .loci("loci.diary")),
             (.timers, .loci("loci.timers")), (.connectors, .loci("connectors.tab")),
+            (.usage, .loci("usage.tab")),
           ]
         )
         .padding(.top, 34)
@@ -50,6 +51,7 @@ struct LociScreen: View {
             case .diary: DiaryTab(diaries: page.diaries)
             case .timers: TimersTab(opened: opened)
             case .connectors: ConnectorsTab(focused: connector)
+            case .usage: UsageTab()
             }
           }
           .id(tab)
