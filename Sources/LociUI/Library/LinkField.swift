@@ -31,7 +31,7 @@ struct LinkField: View {
         .padding(.horizontal, 12)
         .frame(height: Size.linkField - 12)
         .background(Capsule().fill(Palette.fill))
-        .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+        .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
         .contentShape(Capsule())
       }
       .buttonStyle(PressStyle())
@@ -40,7 +40,7 @@ struct LinkField: View {
     .padding(.trailing, 6)
     .frame(height: Size.linkField)
     .background(Capsule().fill(Palette.surface))
-    .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+    .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
     .disabled(!changesAllowed)
   }
 

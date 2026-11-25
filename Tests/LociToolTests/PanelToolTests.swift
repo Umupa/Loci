@@ -68,7 +68,8 @@ struct PanelToolTests {
     let item = PanelItem(id: Self.added.description, text: "看简历", by: .loci, proposed: true)
     #expect(
       line.requests.last
-        == .command(name: EditPanel.name, body: Self.json(EditPanel("week", .put(item, section: "week", at: nil)))))
+        == .command(
+          name: EditPanel.name, body: Self.json(EditPanel(PanelRef("week"), .put(item, section: "week", at: nil)))))
   }
 
   @Test func anItemForAPanelOrSectionThatIsNotThereSaysWhatThereIs() async {

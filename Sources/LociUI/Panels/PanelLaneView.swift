@@ -90,8 +90,16 @@ struct PanelSlotView: View {
       ReadingPanel(readings: readings, actions: actions)
     case .panel(let panel):
       PanelCard(
-        panel: panel, refreshing: refreshing.contains(panel.name), actions: actions, marks: marks[panel.name] ?? [:],
-        open: opened.contains(panel.name), page: pages[panel.name] ?? 0)
+        panel: panel, refreshing: refreshing.contains(slot.key), actions: actions, marks: marks[slot.key] ?? [:],
+        open: opened.contains(slot.key), page: pages[slot.key] ?? 0)
+    case .pinned(let project, let panel):
+      PanelCard(
+        panel: panel, refreshing: refreshing.contains(slot.key), actions: actions, marks: marks[slot.key] ?? [:],
+        open: opened.contains(slot.key), page: pages[slot.key] ?? 0
+      )
+      .environment(\.panelHome, .project(project))
+      .environment(\.pinnedHere, true)
+      .transformEnvironment(\.panelData) { $0.home = .project(project) }
     }
   }
 }
@@ -109,11 +117,13 @@ private struct Hollow: View {
 }
 
 extension PanelSlot {
-  /// Keeps a slot's place as the page changes: 「接着读」 has one, and each panel its name.
+  /// Keeps a slot's place as the page changes: 「接着读」 has one, each panel its name, and a pinned panel its
+  /// `PanelRef.key`, as the column keys its marks and refreshes.
   var key: String {
     switch self {
     case .reading: "/reading"
     case .panel(let panel): panel.name
+    case .pinned(let project, let panel): PanelRef(panel.name, in: .project(project)).key
     }
   }
 }
@@ -169,7 +179,7 @@ private struct NewPanelButton: View {
       .foregroundStyle(Palette.ink.opacity(0.85))
       .frame(maxWidth: .infinity, minHeight: Size.composerHeight)
       .background(Palette.surface, in: .capsule)
-      .overlay(Capsule().strokeBorder(Palette.bubbleEdge, lineWidth: Size.hairline))
+      .overlay(Capsule(style: .circular).strokeBorder(Palette.bubbleEdge, lineWidth: Size.hairline))
       .contentShape(.capsule)
     }
     .buttonStyle(PressStyle(scale: 0.98))

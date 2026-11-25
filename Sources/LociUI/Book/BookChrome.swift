@@ -160,7 +160,7 @@ struct BookProgressBar: View {
             .padding(.horizontal, Spacing.s)
             .padding(.vertical, 5)
             .background(Capsule().fill(Palette.floating))
-            .overlay(Capsule().strokeBorder(Palette.line))
+            .overlay(Capsule(style: .circular).strokeBorder(Palette.line))
             .fixedSize()
             .position(x: min(max(x, 80), frame.size.width - 80), y: frame.size.height / 2 - 24)
         }

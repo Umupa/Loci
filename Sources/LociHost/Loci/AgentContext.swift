@@ -14,11 +14,17 @@ struct AgentContext: Sendable {
   /// What Loci runs on now.
   var runtime: Runtime { agents.provisionalRuntime }
 
-  /// `AGENTS.md` as it should be now.
-  func instructions() throws(HostError) -> String {
-    try attempt {
+  /// `AGENTS.md` of the home as it should be now. Refused for a project that is gone.
+  func instructions(for home: Home) throws(HostError) -> String {
+    let project: Project? =
+      switch home {
+      case .chat: nil
+      case .project(let id): try attempt { try store.project(id) }
+      }
+    return try attempt {
       try prompts.instructions(
-        soul: store.agentText(.soul), profile: store.agentText(.profile), name: store.companionName())
+        soul: store.agentText(.soul), profile: store.agentText(.profile), name: store.companionName(),
+        project: project)
     }
   }
 }

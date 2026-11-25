@@ -138,7 +138,8 @@ struct PanelCheckTests {
     #expect(Self.problems("not json") == ["is not JSON"])
     #expect(
       Self.problems(Self.panel(rows: "\(Self.sentence), { \"row\": \"chart\" }")) == [
-        "rows[1].row: is not one of the values it can be: sentence, cells, label, list, prominent, bars, picture, items"
+        "rows[1].row: is not one of the values it can be: sentence, cells, label, list, prominent, bars, picture, "
+          + "items, quotes, line, ruler, allocation, heat, candles, zones"
       ])
     #expect(
       Self.problems(Self.panel(rows: "\(Self.sentence), { \"row\": \"bars\", \"bars\": [{ \"name\": \"a\" }] }")) == [
@@ -161,10 +162,10 @@ struct PanelCheckTests {
     let panel = Panel(name: "radar", title: "雷达", follow: "x", body: .rows([.sentence("a")]))
 
     #expect(try HostCodingTests.roundTrips(SavePanel(panel)))
-    #expect(try HostCodingTests.roundTrips(RefreshPanel("radar")))
-    #expect(try HostCodingTests.roundTrips(MovePanelToTop(.reading)))
-    #expect(try HostCodingTests.roundTrips(MovePanelToTop(.panel("radar"))))
-    #expect(try HostCodingTests.roundTrips(RemovePanel("radar")))
+    #expect(try HostCodingTests.roundTrips(RefreshPanel(PanelRef("radar"))))
+    #expect(try HostCodingTests.roundTrips(MovePanelToTop(.reading, in: .chat)))
+    #expect(try HostCodingTests.roundTrips(MovePanelToTop(.panel("radar"), in: .chat)))
+    #expect(try HostCodingTests.roundTrips(RemovePanel(PanelRef("radar"))))
     #expect(try HostCodingTests.roundTrips(ListPanels()))
     #expect(try HostCodingTests.roundTrips(WatchPanelColumn()))
     #expect(
@@ -181,8 +182,8 @@ struct PanelCheckTests {
   @Test func movingASlotNamesItsPlace() throws {
     let panel = Panel(name: "radar", title: "雷达", follow: "x", body: .rows([.sentence("a")]))
 
-    #expect(MovePanelToTop(.panel(panel)).place == .panel("radar"))
-    #expect(MovePanelToTop(.reading([])).place == .reading)
+    #expect(MovePanelToTop(.panel(panel), in: .chat).place == .panel("radar"))
+    #expect(MovePanelToTop(.reading([]), in: .chat).place == .reading)
   }
 
   @Test func theColumnFollowsPanelsReadingAndTitlesButNotTheLociPage() {

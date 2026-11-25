@@ -251,7 +251,7 @@ struct GalleryCard: View {
         .padding(.horizontal, 14)
         .frame(height: 28)
         .background(Capsule().fill(.white.opacity(0.16)))
-        .overlay(Capsule().strokeBorder(.white.opacity(0.35), lineWidth: Size.hairline))
+        .overlay(Capsule(style: .circular).strokeBorder(.white.opacity(0.35), lineWidth: Size.hairline))
         .glassEffect(.clear, in: .capsule)
     }
     .buttonStyle(PressStyle())

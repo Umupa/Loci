@@ -14,24 +14,30 @@ struct PanelActions {
   let create: () -> Void
   /// Fills the composer to ask Loci to change a panel.
   let revise: (Panel) -> Void
-  let refresh: (Panel) -> Void
+  let refresh: (PanelRef) -> Void
   let moveToTop: (PanelSlot) -> Void
   /// Removes the panel and its file.
-  let remove: (Panel) -> Void
+  let remove: (PanelRef) -> Void
   /// Makes the person's edit to a panel's items; `false` when the host refused it.
   let edit: @MainActor (EditPanel) async -> Bool
   /// Keeps the person's take on a list line; `false` when the host refused it.
   let mark: @MainActor (MarkPanelLine) async -> Bool
+  /// Shows a project's panel in the chat's column too, or stops.
+  let pin: (PanelRef, Bool) -> Void
 }
 
-/// What right-clicking a panel offers. 「接着读」 belongs to the app, so it can only be moved.
+/// What right-clicking a panel offers. 「接着读」 belongs to the app, so it can only be moved. A project's
+/// panel can be pinned to the chat; pinned there, it is refreshed, moved and unpinned, and changed in its
+/// project.
 enum PanelMenu: Equatable {
-  case refresh, revise, moveToTop, remove
+  case refresh, revise, pin, unpin, moveToTop, remove
 
-  static func entries(for slot: PanelSlot) -> [PanelMenu] {
+  static func entries(for slot: PanelSlot, in home: Home = .chat, pinned: Bool = false) -> [PanelMenu] {
     switch slot {
     case .reading: [.moveToTop]
-    case .panel: [.refresh, .revise, .moveToTop, .remove]
+    case .pinned: [.refresh, .moveToTop, .unpin]
+    case .panel where home == .chat: [.refresh, .revise, .moveToTop, .remove]
+    case .panel: [.refresh, .revise, pinned ? .unpin : .pin, .moveToTop, .remove]
     }
   }
 
@@ -39,10 +45,21 @@ enum PanelMenu: Equatable {
     switch self {
     case .refresh: .loci("panels.refresh")
     case .revise: .loci("panels.revise")
+    case .pin: .loci("panels.pinToChat")
+    case .unpin: .loci("panels.unpinFromChat")
     case .moveToTop: .loci("panels.moveToTop")
     case .remove: .loci("panels.remove")
     }
   }
+}
+
+extension EnvironmentValues {
+  /// The home of the panels drawn here; a pinned panel's is its project.
+  @Entry var panelHome: Home = .chat
+  /// The panels of the project shown here that are pinned to the chat, by name.
+  @Entry var pinnedPanels: Set<String> = []
+  /// Whether the panel drawn here is a project's, pinned to the chat's column.
+  @Entry var pinnedHere = false
 }
 
 /// A sentence with `**bold**` spans, split where the bold starts and ends. An unclosed `**` is kept as written.

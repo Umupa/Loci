@@ -2,8 +2,9 @@ import Foundation
 import LociModel
 import LociStore
 
-/// What the main conversation is told of the runs in the background: runs since the person last talked,
-/// and every follow-up that came due and was not yet told, done or not.
+/// What a home's conversation is told of its runs in the background: runs since the person last talked, and
+/// every follow-up that came due and was not yet told, done or not. A project's runs are told only in the
+/// project, the chat's only in the main conversation.
 struct RunNews {
   /// The most runs listed.
   static let limit = 10
@@ -15,7 +16,7 @@ struct RunNews {
 }
 
 extension AgentContext {
-  func runNews(since moment: Timestamp) -> RunNews {
+  func runNews(since moment: Timestamp, in home: Home) -> RunNews {
     var news = RunNews()
     let timeZone = environment.timeZone
     let today = Day(containing: environment.now(), in: timeZone)
@@ -24,24 +25,25 @@ extension AgentContext {
       let time = TimeOfDay(of: run.startedAt, in: timeZone)
       return day == today ? "\(time)" : "\(day) \(time)"
     }
+    let files = store.home(home)
     let ended = ((try? database.runs(startedAfter: moment)) ?? []).filter { run in
       if case .running = run.outcome { return false }
-      return run.kind.sources.contains { $0.schedule != nil }
+      return run.kind.home == home && run.kind.sources.contains { $0.schedule != nil }
     }
     news.runs = ended.suffix(RunNews.limit).map { run in
       let names = run.kind.sources.compactMap { source -> String? in
         switch source {
-        case .schedule(let id): ((try? database.schedule(id)) ?? nil)?.name
-        case .panel(let name, _): "panel \(name)"
+        case .schedule(let id, _): ((try? database.schedule(id)) ?? nil)?.name
+        case .panel(let name, _, _): "panel \(name)"
         case .followUp, .review: nil
         }
       }
-      return "- \(when(run)) \(names.joined(separator: ", ")): \(outcome(of: run)) (\(run.record))"
+      return "- \(when(run)) \(names.joined(separator: ", ")): \(outcome(of: run)) (\(files.local(run.record)))"
     }
-    for run in (try? database.untoldFollowUpRuns()) ?? [] {
-      for case .followUp(let id) in run.kind.sources {
+    for run in (try? database.untoldFollowUpRuns()) ?? [] where run.kind.home == home {
+      for case .followUp(let id, _) in run.kind.sources {
         let what = ((try? database.followUp(id)) ?? nil)?.what ?? id.description
-        news.followUps.append("- \(when(run)) \"\(what)\": \(outcome(of: run)) (\(run.record))")
+        news.followUps.append("- \(when(run)) \"\(what)\": \(outcome(of: run)) (\(files.local(run.record)))")
       }
       news.told.append(run.id)
     }

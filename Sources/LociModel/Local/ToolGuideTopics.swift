@@ -114,7 +114,8 @@ extension ToolGuide {
         ]
       }
 
-    - The first row is always a sentence that sums the panel up, what matters in **bold**.
+    - The first row is always a sentence that sums the panel up, what matters in **bold**; a panel of numbers
+      may start with a chart row instead (quotes, line, ruler, allocation, heat, candles, zones: help sources).
     - cells: one to three, side by side. list items may also have "number" (a rank), "cover" (a picture
       link) and "progress" (0 to 1). bars: "fraction" is the bar's length, 0 to 1.
     - link, url and cover are http(s) links, or loci:// places in the library.

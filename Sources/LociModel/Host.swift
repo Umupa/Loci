@@ -161,14 +161,28 @@ public protocol CommandHandler: Sendable {
   func saveMediaLocally(_ item: EntityID) async throws(HostError) -> Job
   func setBrowserLogin(_ login: BrowserLogin) async throws(HostError) -> MediaSetup
   func handOverBrowserCookies(_ cookies: [BrowserCookie]) async throws(HostError) -> Done
-  func panelColumn() async throws(HostError) -> PanelColumn
-  func panels() async throws(HostError) -> [PanelEntry]
+  func panelColumn(of home: Home) async throws(HostError) -> PanelColumn
+  func panels(of home: Home) async throws(HostError) -> [PanelEntry]
   func savePanel(_ command: SavePanel) async throws(HostError) -> Done
   func refreshPanel(_ command: RefreshPanel) async throws(HostError) -> Done
   func movePanelToTop(_ command: MovePanelToTop) async throws(HostError) -> Done
   func removePanel(_ command: RemovePanel) async throws(HostError) -> Done
   func editPanel(_ command: EditPanel) async throws(HostError) -> Done
   func markPanelLine(_ command: MarkPanelLine) async throws(HostError) -> Done
+  func projectBar() async throws(HostError) -> ProjectBar
+  func startProject(_ command: StartProject) async throws(HostError) -> Project
+  func renameProject(_ command: RenameProject) async throws(HostError) -> Project
+  func describeProject(_ command: DescribeProject) async throws(HostError) -> Project
+  func setProjectRemembered(_ command: SetProjectRemembered) async throws(HostError) -> Done
+  func archiveProject(_ command: ArchiveProject) async throws(HostError) -> Done
+  func deleteProject(_ command: DeleteProject) async throws(HostError) -> Done
+  func restoreDeletedProject() async throws(HostError) -> Project?
+  func seeProject(_ command: SeeProject) async throws(HostError) -> Done
+  func pinPanel(_ command: PinPanel) async throws(HostError) -> Done
+  func saveDataSource(_ command: SaveDataSource) async throws(HostError) -> SourceOutcome
+  func testDataSource(_ command: TestDataSource) async throws(HostError) -> [SourceReplay]
+  func dataSources(of home: Home) async throws(HostError) -> [DataSourceEntry]
+  func sourceHistory(_ subscription: WatchSourceHistory) async throws(HostError) -> SourceHistory?
   func listCourses() async throws(HostError) -> [CourseEntry]
   func coursePage(_ course: EntityID) async throws(HostError) -> CoursePage
   func readLesson(_ course: EntityID, lesson: Lesson.ID) async throws(HostError) -> String?

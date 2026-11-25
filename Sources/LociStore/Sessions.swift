@@ -17,6 +17,7 @@ public enum SessionOwner: Hashable, Sendable {
     case .conversation(.main): "main"
     case .conversation(.item(let item)): "library-\(item)"
     case .conversation(.course(let course)): "courses-\(course)"
+    case .conversation(.project(let project)): "projects-\(project)"
     case .review(let day): "review-\(day)"
     case .panel(let name): "panel-\(name)"
     case .run(let run): "run-\(run)"
@@ -30,6 +31,8 @@ public enum SessionOwner: Hashable, Sendable {
       self = .conversation(.item(item))
     } else if key.hasPrefix("courses-"), let course = EntityID(canonical: String(key.dropFirst(8))) {
       self = .conversation(.course(course))
+    } else if key.hasPrefix("projects-"), let project = EntityID(canonical: String(key.dropFirst(9))) {
+      self = .conversation(.project(project))
     } else if key.hasPrefix("review-"), let day = Day(String(key.dropFirst(7))) {
       self = .review(day)
     } else if key.hasPrefix("run-"), let run = EntityID(canonical: String(key.dropFirst(4))) {
@@ -163,6 +166,17 @@ extension StoreDatabase {
       try db.execute(
         sql: "DELETE FROM message WHERE session_id IN (SELECT id FROM session WHERE owner = ?)", arguments: [owner])
       try db.execute(sql: "DELETE FROM session WHERE owner = ?", arguments: [owner])
+    }
+  }
+
+  /// When the companion last said something in the conversation; `nil` before it ever did.
+  public func latestReply(in conversation: ConversationRef) throws -> Timestamp? {
+    try queue.read { db in
+      try String.fetchOne(
+        db,
+        sql: "SELECT max(m.at) FROM message m JOIN session s ON s.id = m.session_id WHERE s.owner = ? AND NOT m.typed",
+        arguments: [SessionOwner.conversation(conversation).key]
+      ).flatMap(Timestamp.init)
     }
   }
 

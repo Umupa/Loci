@@ -6,7 +6,7 @@ import LociStore
 /// day's transcripts, links to pages that are not there, memory changed outside a review, whether it is the
 /// week's review, and whether the index is split into a wiki for the first time.
 struct ReviewBrief: Sendable, Equatable {
-  /// The day's conversations and run records, under `agent/`.
+  /// The day's conversations and run records of the home, under its folder.
   let transcripts: [String]
   /// `MEMORY.md → memory/x.md`, for each link to a page that does not exist.
   let deadLinks: [String]
@@ -21,25 +21,27 @@ struct ReviewBrief: Sendable, Equatable {
 
   static let unsortedPage = "unsorted"
 
-  static func make(for day: Day, store: Store, timeZone: TimeZone) -> ReviewBrief {
-    let pages = store.wikiPages()
-    let index = (try? store.agentText(.memory)) ?? ""
+  /// A project's review is given only its own transcripts and memory, and never splits an older index.
+  static func make(for day: Day, in home: Home, store: Store, timeZone: TimeZone) -> ReviewBrief {
+    let files = store.home(home)
+    let pages = files.wikiPages()
+    let index = files.index()
     let entries = MemoryEntry.lines(of: index) { _ in nil }.compactMap { line -> MemoryEntry? in
       if case .entry(let entry) = line { entry } else { nil }
     }
     var dead: [String] = []
-    let files = [("MEMORY.md", index)] + pages.map { ("memory/\($0).md", (try? store.wikiPage($0)) ?? "") }
-    for (path, text) in files {
+    let texts = [("MEMORY.md", index)] + pages.map { ("memory/\($0).md", (try? files.wikiPage($0)) ?? "") }
+    for (path, text) in texts {
       for link in WikiLink.all(in: text) where !pages.contains(link.name) {
         dead.append("\(path) → \(link.path)")
       }
     }
     return ReviewBrief(
-      transcripts: store.transcriptPaths().filter { $0.contains("/\(day)/") }.sorted(),
+      transcripts: files.transcriptPaths().filter { $0.contains("/\(day)/") }.map(files.local).sorted(),
       deadLinks: Array(NSOrderedSet(array: dead)).compactMap { $0 as? String },
-      changedElsewhere: store.memoryChangedSinceKept(),
+      changedElsewhere: files.memoryChangedSinceKept(),
       weekly: Weekday(of: day, in: timeZone) == .sunday,
-      migrating: pages.isEmpty && !entries.isEmpty ? entries : nil,
+      migrating: home == .chat && pages.isEmpty && !entries.isEmpty ? entries : nil,
       unsorted: pages.contains(unsortedPage))
   }
 
@@ -47,14 +49,16 @@ struct ReviewBrief: Sendable, Equatable {
   /// goes into `memory/unsorted.md`, so none is lost. Gives how many were kept that way.
   @discardableResult
   static func keepLost(_ entries: [MemoryEntry], store: Store) throws -> Int {
-    let pages = store.wikiPages()
-    let everything = ([(try? store.agentText(.memory)) ?? ""] + pages.map { (try? store.wikiPage($0)) ?? "" })
+    let pages = store.home(.chat).wikiPages()
+    let everything =
+      ([(try? store.agentText(.memory)) ?? ""] + pages.map { (try? store.home(.chat).wikiPage($0)) ?? "" })
       .joined(separator: "\n")
     let lost = entries.filter { !$0.text.isEmpty && !everything.contains($0.text) }
     guard !lost.isEmpty else { return 0 }
-    let current = (try? store.wikiPage(unsortedPage)) ?? "# Unsorted\n\n"
+    let current = (try? store.home(.chat).wikiPage(unsortedPage)) ?? "# Unsorted\n\n"
     let added = lost.map(\.line).joined(separator: "\n")
-    try store.saveWikiPage(current.trimmingCharacters(in: .newlines) + "\n" + added + "\n", as: unsortedPage)
+    try store.home(.chat).saveWikiPage(
+      current.trimmingCharacters(in: .newlines) + "\n" + added + "\n", as: unsortedPage)
     return lost.count
   }
 

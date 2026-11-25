@@ -41,11 +41,13 @@ struct BuilderFoot: View {
 
   @ViewBuilder private var invitationRing: some View {
     if let invitation {
-      Capsule().stroke(Palette.accent.opacity(0.22), lineWidth: 6 * sin(invitation * .pi)).padding(-3)
+      Capsule(style: .circular).stroke(Palette.accent.opacity(0.22), lineWidth: 6 * sin(invitation * .pi)).padding(-3)
     } else {
       Capsule().fill(.clear)
         .keyframeAnimator(initialValue: 0.0, trigger: invited) { capsule, swell in
-          capsule.overlay { Capsule().stroke(Palette.accent.opacity(0.22), lineWidth: 6 * swell).padding(-3 * swell) }
+          capsule.overlay {
+            Capsule(style: .circular).stroke(Palette.accent.opacity(0.22), lineWidth: 6 * swell).padding(-3 * swell)
+          }
         } keyframes: { _ in
           CubicKeyframe(1, duration: 0.56)
           CubicKeyframe(0, duration: 0.84)

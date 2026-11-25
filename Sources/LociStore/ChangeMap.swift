@@ -24,6 +24,9 @@ struct ChangeMap {
     let rest = Array(parts.dropFirst(2))
     switch parts[0] {
     case Store.agentFolderName:
+      if parts[1] == Store.projectsFolder {
+        return rest.count >= 2 && rest[1] == Store.panelsFolder ? .loci(.panels) : nil
+      }
       if parts[1] == "workspace", rest.count >= 4, rest[0] == Store.coursesFolder,
         rest.last?.hasSuffix(".md") == true, let id = EntityID(canonical: rest[1])
       {
@@ -46,6 +49,8 @@ struct ChangeMap {
         return .course(id)
       }
       return nil
+    case Store.projectsFolder:
+      return rest == [Store.projectFile] ? .projects : nil
     case "notes":
       return Self.notes(Array(parts.dropFirst())).map(ContentChange.notes)
     default:

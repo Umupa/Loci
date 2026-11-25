@@ -63,24 +63,26 @@ public struct PanelState: Hashable, Codable, Sendable {
   }
 }
 
-/// `agent/panels/`: the panels Loci keeps beside the main conversation. Loci writes them with
-/// `loci panel save`, and the person may edit them by hand. Beside `settings.json`, out of Loci's reach,
-/// `panels.json` keeps the rest and `panels-shown/` the last copy of each panel that could be shown.
 extension Store {
   static let panelsFolder = "panels"
   static let panelStateFile = "panels.json"
   static let shownPanelsFolder = "panels-shown"
+}
 
-  var panelsFolderURL: URL { agentFolder.appending(path: Self.panelsFolder, directoryHint: .isDirectory) }
-  private var shownPanelsURL: URL { root.appending(path: Self.shownPanelsFolder, directoryHint: .isDirectory) }
+/// `panels/`: the panels Loci keeps beside the home's conversation. Loci writes them with `loci panel save`,
+/// and the person may edit them by hand. In the home's state folder, out of Loci's reach, `panels.json`
+/// keeps the rest and `panels-shown/` the last copy of each panel that could be shown.
+extension HomeFiles {
+  var panelsFolderURL: URL { folder.appending(path: Store.panelsFolder, directoryHint: .isDirectory) }
+  private var shownPanelsURL: URL { stateFolder.appending(path: Store.shownPanelsFolder, directoryHint: .isDirectory) }
 
   /// Every panel file, by name. A file that can be shown is copied aside; one that cannot is shown as its
   /// last copy, so a file broken by hand leaves the panel as it was, even after the app restarts. A copy
   /// whose file is gone is forgotten.
   public func panels() -> [PanelEntry] {
-    let urls = files(in: panelsFolderURL, withExtension: "json")
+    let urls = store.files(in: panelsFolderURL, withExtension: "json")
     let names = Set(urls.map { $0.deletingPathExtension().lastPathComponent })
-    for copy in files(in: shownPanelsURL, withExtension: "json")
+    for copy in store.files(in: shownPanelsURL, withExtension: "json")
     where !names.contains(copy.deletingPathExtension().lastPathComponent) {
       try? FileManager.default.removeItem(at: copy)
     }
@@ -109,34 +111,34 @@ extension Store {
 
   /// Writes the panel as `<name>.json`, in place of the one there.
   public func savePanel(_ panel: Panel) throws {
-    try write(Formats.document(panel), to: panelFile(named: panel.name))
+    try store.write(Formats.document(panel), to: panelFile(named: panel.name))
   }
 
   /// Removes the file and its copy; `notFound` when there is no such panel.
   public func removePanel(named name: String) throws {
     let url = panelFile(named: name)
     guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
-      throw StoreError.notFound(relativePath(of: url))
+      throw StoreError.notFound(store.relativePath(of: url))
     }
-    try discard(url)
+    try store.discard(url)
     try? FileManager.default.removeItem(at: shownPanelsURL.appending(path: "\(name).json"))
   }
 
   public func panelState() -> PanelState {
-    (try? decodeJSON(PanelState.self, at: root.appending(path: Self.panelStateFile))) ?? PanelState()
+    (try? store.decodeJSON(PanelState.self, at: stateFolder.appending(path: Store.panelStateFile))) ?? PanelState()
   }
 
   @discardableResult
   public func changePanelState(_ change: (inout PanelState) -> Void) throws -> PanelState {
     var state = panelState()
     change(&state)
-    try write(Formats.document(state), to: root.appending(path: Self.panelStateFile))
+    try store.write(Formats.document(state), to: stateFolder.appending(path: Store.panelStateFile))
     return state
   }
 
   private func readPanelFile(_ url: URL) throws(PanelProblems) -> Data {
     do {
-      return try read(url)
+      return try store.read(url)
     } catch {
       throw PanelProblems(all: [PanelProblem("", "cannot be read: \(error)")])
     }
@@ -145,12 +147,12 @@ extension Store {
   /// Writes the copy only when it differs, so reading the panels again and again writes nothing.
   private func keepShown(_ panel: Panel) {
     let url = shownPanelsURL.appending(path: "\(panel.name).json")
-    guard let data = try? Formats.document(panel), (try? read(url)) != data else { return }
-    try? write(data, to: url)
+    guard let data = try? Formats.document(panel), (try? store.read(url)) != data else { return }
+    try? store.write(data, to: url)
   }
 
   private func shownPanel(named name: String) -> Panel? {
-    guard let data = try? read(shownPanelsURL.appending(path: "\(name).json")) else { return nil }
+    guard let data = try? store.read(shownPanelsURL.appending(path: "\(name).json")) else { return nil }
     return try? PanelCheck.read(data, name: name)
   }
 

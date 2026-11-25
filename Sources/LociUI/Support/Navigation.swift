@@ -134,6 +134,10 @@ extension FocusedValues {
 struct WindowMemory {
   let recall: @MainActor () -> WindowState
   let remember: @MainActor (WindowState) -> Void
+  /// The project the companion's page had open last; `nil` for the chat. It stays while the window goes
+  /// elsewhere, so the page opens on it again.
+  var recallProject: @MainActor () -> Project.ID? = { nil }
+  var rememberProject: @MainActor (Project.ID?) -> Void = { _ in }
 
   /// Kept in the app's preferences, one place per data folder: a convenience of the interface, not part of
   /// the user's data. A folder never opened before has nothing remembered and opens at the main conversation.
@@ -151,7 +155,9 @@ struct WindowMemory {
   @MainActor private static func stored(_ defaults: UserDefaults, key: String) -> WindowMemory {
     WindowMemory(
       recall: { WindowState(restoring: defaults.string(forKey: key) ?? "") },
-      remember: { defaults.set($0.text, forKey: key) })
+      remember: { defaults.set($0.text, forKey: key) },
+      recallProject: { defaults.string(forKey: key + " project").flatMap(EntityID.init(canonical:)) },
+      rememberProject: { defaults.set($0?.description, forKey: key + " project") })
   }
 
   static func key(for folder: URL) -> String {

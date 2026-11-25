@@ -66,7 +66,7 @@ extension UsageActivity {
   /// What a row is called when Loci keeps no title for it.
   var name: LocalizedStringResource {
     switch self {
-    case .main: .loci("usage.kindMain")
+    case .main, .project: .loci("usage.kindMain")
     case .review: .loci("usage.review")
     case .followUp: .loci("usage.followUp")
     case .item, .course, .panel, .schedule: UsageKind(self).name

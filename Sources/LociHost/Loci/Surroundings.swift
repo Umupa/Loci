@@ -19,30 +19,52 @@ extension AgentContext {
     let yesterday = today.adding(days: -1)
     let after = since ?? Timestamp(millisecondsSince1970: now.millisecondsSince1970 - 24 * 3_600_000)
     let events = (try? database.events(after: after)) ?? []
-    let panels = store.panels().compactMap(\.panel)
-    let marks = store.panelState().marks
+    let home = conversation.home
+    let files = store.home(home)
+    let panels = files.panels().compactMap(\.panel)
+    let marks = files.panelState().marks
     let summary =
       PanelSummary.applies(to: panels, marks: marks)
       ? [TurnContext.ShownFile(path: PanelSummary.heading, text: PanelSummary.of(panels, marks: marks), keep: nil)]
       : []
+    let indexes: [TurnContext.ShownFile] =
+      home == .chat
+      ? [.init(path: "MEMORY.md", text: Self.index((try? store.agentText(.memory)) ?? ""), keep: nil)]
+      : [
+        .init(path: "../../MEMORY.md", text: Self.index((try? store.agentText(.memory)) ?? ""), keep: nil),
+        .init(path: "MEMORY.md", text: Self.index(files.index()), keep: nil),
+      ]
     var context = TurnContext(
       now: now, timeZone: timeZone, conversation: conversation,
       happenings: events.compactMap { happening($0, today: today) }, open: open(in: conversation, at: now),
       feeling: feeling,
-      files: [
-        .init(path: "MEMORY.md", text: Self.index((try? store.agentText(.memory)) ?? ""), keep: nil),
-        .init(path: "notes/\(today).md", text: (try? store.dayNotes(of: today)) ?? "", keep: Self.todaysNotes),
+      files: indexes + [
+        .init(path: "notes/\(today).md", text: (try? files.dayNotes(of: today)) ?? "", keep: Self.todaysNotes),
         .init(
-          path: "notes/\(yesterday).md", text: (try? store.dayNotes(of: yesterday)) ?? "", keep: Self.yesterdaysNotes),
+          path: "notes/\(yesterday).md", text: (try? files.dayNotes(of: yesterday)) ?? "", keep: Self.yesterdaysNotes),
       ] + summary)
     if conversation == .main {
       if let reconnect = connectorsToReconnect() { context.files.append(reconnect) }
-      let news = runNews(since: after)
+      if let projects = projectLines() { context.files.append(projects) }
+    }
+    if conversation == home.conversation {
+      let news = runNews(since: after, in: home)
       context.runs = news.runs
       context.followUps = news.followUps
       context.told = news.told
     }
     return context
+  }
+
+  /// One line for each project the chat may know of: its name and what it is doing.
+  private func projectLines() -> TurnContext.ShownFile? {
+    let lines = rememberedProjects().compactMap { project in
+      project.name.map { "- \($0) (projects/\(project.id))" + (project.summary.isEmpty ? "" : ": \(project.summary)") }
+    }
+    guard !lines.isEmpty else { return nil }
+    return TurnContext.ShownFile(
+      path: "Projects (each has its own conversation and memory; you know only this line of each here)",
+      text: lines.joined(separator: "\n"), keep: nil)
   }
 
   /// The connectors whose sign-in ran out, shown once and again when that changes.
@@ -104,6 +126,8 @@ extension AgentContext {
     case .course(let course):
       guard let document = try? store.course(course) else { return nil }
       return "\"\(document.title)\" (courses/\(course))"
+    case .project:
+      return nil
     case .main:
       guard let (content, at) = try? database.latestReading(), case .item(let id) = content,
         now.millisecondsSince1970 - at.millisecondsSince1970 <= Self.recentReading,

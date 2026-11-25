@@ -52,16 +52,19 @@ Loci/
 │  ├─ diary/<日期>.md     日记，每日回顾写
 │  ├─ avatar.*           用户换的头像，可选；没有就用应用自带的
 │  ├─ panels/<名字>.json  面板，只用 `loci panel save` 和 `loci panel add` 写；格式见 `loci help`
+│  ├─ sources/<名字>/     聊天的数据源：`source.json`（设置和脚本）与 `samples/`（最近 5 份样例），只由应用写；伙伴用 `loci source save` 存，格式见 `loci help sources`
 │  ├─ feelings.json      情绪与疲劳，只由应用写；伙伴用 `loci mood`、`loci sleep`、`loci wake` 改
 │  ├─ conversations/     对话原文的只读镜像，按天按会话，供它查原话
 │  ├─ runs/<日期>/<id>.md  后台每个 run 的记录：做了哪些 event、看了哪些来源、找到了什么、小结；只由应用写
 │  ├─ .claude/skills/loci/、.agents/skills/loci/   应用生成的 `loci` skill，正文就是 `loci help`
-│  └─ workspace/         它的工作目录：下载、clone、实验
+│  ├─ workspace/         它的工作目录：下载、clone、实验
+│  └─ projects/<id>/     一个项目：自己的 AGENTS.md、skill、MEMORY.md、memory/、notes/、panels/、
+│                        conversations/、runs/、workspace/；数据源放在 sources/
 ├─ run/loci.sock         应用听 `loci` 命令的 socket；`run/` 只有本用户能进
 └─ library/
 ```
 
-会话的工作目录是 `agent/`，资料库从这里用相对路径读。
+会话的工作目录是 `agent/`，资料库从这里用相对路径读。项目的会话和它的 run 在 `agent/projects/<id>/` 里工作，`AGENTS.md` 由同一份规则生成，末尾多一节「This project」：主索引是 `../../MEMORY.md`（只读），`USER.md` 是 `../../USER.md`，资料库是 `../../../library/`。
 
 ## 2.1 对话与会话
 
@@ -71,6 +74,7 @@ Loci/
 |---|---|---|
 | 主对话 | 1 条，一直聊下去 | 上下文满、换 runtime、`AGENTS.md` 变了时自动换新会话；用户只看到一条连续的聊天 |
 | 资料上的对话 | 每份资料 1 条 | 每份资料一个会话，带着这份资料、收它时写的「为什么收它」和划线 |
+| 项目的对话 | 每个项目 1 条 | 和主对话一样换会话；工作目录、笔记、记忆、面板、定时都是这个项目的 |
 | 后台任务（翻译、章节、重点） | 不显示为对话 | 一次性调用，跑在伙伴的 runtime 上（翻译和重点可另选），不带 Soul 和记忆；重点的理由读 `USER.md` 和收它时写的那句话，用伙伴对你说的口吻 |
 | 后台 run（面板刷新、schedule、follow-up、每日回顾） | 不显示为对话 | 到期的 timer 由 scheduler 变成 event 放进 inbox，worker 一次取一个 run 跑：每个 run 一个新会话，带规则和 Soul，不带任何对话；同一分钟到期的合成一个 run。面板刷新只给面板的 `follow` 和现在的 JSON；schedule 给它要看的事、同一 schedule 上一个 run 的记录和目标面板现在的样子；你写的条目和你对条目、各行的态度原样保留，不想再看的几行列给它别再放回来。你在说话时不开始新的（你点的刷新除外）；错过的醒来补一次；中途失败的隔 1、5、15 分钟重试，三次为止；应用退出时做到一半的，下次打开用同一个 run 重做。会话里 `loci` 只能读、定 follow-up、存它那个 run 的面板，回顾另外能改心情；`save`、`import` 一律被拒 |
 
@@ -108,6 +112,15 @@ Loci/
 
 语义向量库还没做。
 
+### 项目的记忆
+
+一个项目是伙伴的第二个工作台，记忆的边界照文件夹划：
+
+- 项目里的会话每轮带主索引（`../../MEMORY.md`，只读）和项目自己的索引、今天和昨天的项目笔记、项目面板里你的条目；写的笔记进项目的 `notes/`，回顾整理进项目的 `memory/`。
+- 主对话只知道每个项目一行：名字和 `project.json` 里的一句话（伙伴用 `loci project describe` 写）。项目的对话、笔记、run 都不进主对话的前缀和主回顾。
+- 后台 run 带着它的项目：schedule、follow-up、面板刷新的 event 记着属于哪个项目，run 在项目目录里跑，做了什么写进项目对话的前缀；同一分钟到期但属于不同项目的 event 不合成一个 run。
+- 「不进记忆」的项目不做回顾，主对话的项目列表里没有它，`loci recall` 只在它自己的会话里搜得到它。
+
 ## 5. 每日回顾（dreaming）
 
 每天一次，23:00 后、10 分钟没说话时由 scheduler 放进 inbox，worker 在没有回合在跑时开始；错过了，第二天补前一天的；什么都没发生的日子不回顾。它是一次普通的 agent 会话，记忆只在这时整理：
@@ -120,6 +133,8 @@ Loci/
 
 应用替它算好的事（当天的 transcripts、死链、回顾之外改过的文件、是不是周日）写进回顾的提示词。升级后第一次回顾，`memory/` 还是空的而索引里有条目，提示词要求把 `MEMORY.md` 拆成索引和 wiki、每条原样保留；回顾结束后应用逐条核对，哪条在索引和 wiki 里都找不到，就补进 `memory/unsorted.md`，下次回顾归位。
 
+每个记得、没归档、当天有动静的项目另有一次回顾（`project-review.md`）：只看项目自己的笔记和 transcripts，只写项目的 `MEMORY.md` 和 `memory/`，不写日记、不加特质、不改心情；同样只在回顾时可写，结束后存一份在 `projects/<id>/memory-kept/`。
+
 日记写在 `diary/<日期>.md`，不写在当天笔记后面：笔记只追加，回顾之后的笔记会落在日记后面。日记是给伙伴自己的，但用户可以读到。
 
 ## 6. 它怎么改自己的状态
@@ -128,7 +143,7 @@ Loci/
 
 应用的东西读文件，查和写用 `loci` 命令。资料库的正文、`item.json`、划线照旧从 `../library/`、`../notes/library/` 读；全文搜索、存链接、导入它写的 Markdown 或下好的音视频、等任务跑完，走 `loci`。为什么不让它直接往 `library/` 里写文件：一份资料要有 id、要排任务、要进索引、要告诉界面，这些是应用的不变量，文件格式守不住。
 
-`loci` 很薄。它是随应用打包的小程序（`Contents/Helpers/loci`），经 `LOCI_SOCKET` 指的本机 socket 发现成的 Host 命令，应用只放行 `search`、`show`、`save`、`import`、`wait` 用到的那几个，以及改情绪与睡眠的 `mood`、`sleep`、`wake`，定时的 `schedule`、`followup`，读连接器的 `connector list`、`connector call`，以及搜原话的 `recall`。应用启动 agent 程序时把它的目录放在 PATH 最前，`LOCI` 给出它的完整路径（agent CLI 用登录 shell 跑命令时，用户的 profile 可能把别的 `loci` 排到前面），并用 `LOCI_SESSION` 告诉它在哪条对话（`main` 或 `library/<id>`，后台 run 是 `run/<id>`，和笔记的标签一样）。伙伴用 `save` 或 `import` 存进的资料作为这一轮的交付出现在对话里，显示成卡片。伙伴已经知道自己存了什么，下一轮省去这条活动。
+`loci` 很薄。它是随应用打包的小程序（`Contents/Helpers/loci`），经 `LOCI_SOCKET` 指的本机 socket 发现成的 Host 命令，应用只放行 `search`、`show`、`save`、`import`、`wait` 用到的那几个，以及改情绪与睡眠的 `mood`、`sleep`、`wake`，定时的 `schedule`、`followup`，读连接器的 `connector list`、`connector call`，搜原话的 `recall`，以及在项目里起名和写一句话的 `project name`、`project describe`。应用启动 agent 程序时把它的目录放在 PATH 最前，`LOCI` 给出它的完整路径（agent CLI 用登录 shell 跑命令时，用户的 profile 可能把别的 `loci` 排到前面），并用 `LOCI_SESSION` 告诉它在哪条对话（`main`、`library/<id>` 或 `projects/<id>`，后台 run 是 `run/<id>`，和笔记的标签一样；`loci` 从它知道该把面板、定时和 `loci project` 落在哪个项目）。伙伴用 `save` 或 `import` 存进的资料作为这一轮的交付出现在对话里，显示成卡片。伙伴已经知道自己存了什么，下一轮省去这条活动。
 
 连接器（Notion、Linear、GitHub 等）也走 `loci`，应用是 credential proxy：凭据在钥匙串里，调用时由应用加上，agent CLI 从头到尾拿不到。只放行服务器标为只读（`readOnlyHint: true`）的工具，写的和没标注的一律拒绝；GitHub 用 `gh` 已登录的 token 和只读地址，同一个连接器里还有一个 `gh` 工具（`loci connector call gh …` 是简写）：应用不经 shell 启动 `gh`，只放行读的子命令，`gh api` 只放行 GET。网站（X、V2EX、小红书、哔哩哔哩）用内置浏览器的登录：应用只看 cookie 的名字和过期时间来判断登录没有，值留在 WebKit 里；`loci read` 读这些站点时在不显示的网页里带着登录渲染，导航只放行 GET，页面脚本的非 GET 请求被拦下，读完就关，不进缓存。日历和提醒事项经系统授权用 EventKit 只读，没有写的接口。读回来的内容包在 `<external-content>` 里，规则要求只当资料不当指令。每次调用记进数据库（哪条对话或哪个 run、哪个连接器的什么工具、结果）；run 记录列出它调过的连接器。授权过期、刷新不了时连接器标成「需要重新连接」，主对话下一轮前缀提一次。
 

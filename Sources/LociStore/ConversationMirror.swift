@@ -1,18 +1,20 @@
 import Foundation
 import LociModel
 
-/// `agent/conversations/<day>/<owner>-<session>.md`: what was said, as plain text Loci can search to find
-/// what someone really said. Only the app writes these, a turn at a time.
 extension Store {
   static let conversationsFolder = "conversations"
+}
 
+/// `conversations/<day>/<owner>-<session>.md` in the home's folder: what was said, as plain text Loci can
+/// search to find what someone really said. Only the app writes these, a turn at a time.
+extension HomeFiles {
   /// Adds a turn to its session's copies, each message under the day it was said on in `timeZone`. Gives the
   /// copies it wrote to, relative to `agent/`.
   @discardableResult
   public func mirror(_ messages: [Message], of session: SessionRecord, in timeZone: TimeZone) throws -> [String] {
     var written: [String] = []
     for (day, text) in ConversationMirror.render(messages, in: timeZone) {
-      let url = agentFolder.appending(path: Self.conversationsFolder).appending(path: day.description)
+      let url = folder.appending(path: Store.conversationsFolder).appending(path: day.description)
         .appending(path: "\(session.owner.key)-\(session.id).md")
       try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
       let exists = FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
@@ -22,7 +24,7 @@ extension Store {
       let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
       try handle.write(contentsOf: Data(added.utf8))
       try handle.close()
-      written.append("\(Self.conversationsFolder)/\(day)/\(url.lastPathComponent)")
+      written.append(home.folder + "\(Store.conversationsFolder)/\(day)/\(url.lastPathComponent)")
     }
     return written
   }

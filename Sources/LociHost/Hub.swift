@@ -88,7 +88,8 @@ extension ContentChange {
     case .course(let id): .course(id)
     case .courseActivity: nil
     case .notes(let content): .notes(content)
-    case .everything, .reading, .job, .media, .conversation, .turnEnded, .review, .loci, .runtime, .timers, .connectors:
+    case .everything, .reading, .job, .media, .conversation, .turnEnded, .review, .loci, .runtime, .timers, .connectors,
+      .projects, .source:
       nil
     }
   }

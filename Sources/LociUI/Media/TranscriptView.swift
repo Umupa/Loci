@@ -285,7 +285,7 @@ struct BackToPlaying: View {
       .padding(.trailing, 14)
       .frame(height: 30)
       .background(Capsule().fill(Palette.floating).shadow(color: .black.opacity(0.14), radius: 12, y: 8))
-      .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+      .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
     }
     .buttonStyle(PressStyle())
   }

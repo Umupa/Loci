@@ -28,9 +28,14 @@ actor LociAgent {
       _ = try attempt { try context.store.course(course) }
       if let run = runs[conversation] { return run }
       tool = .conversation(conversation)
+    case .project(let project):
+      guard !leaving.contains(conversation) else { throw .notFound(project.description) }
+      _ = try attempt { try context.store.project(project) }
+      tool = .conversation(conversation)
     }
     if let run = runs[conversation] { return run }
-    let run = try AgentRun(owner: .conversation(conversation), session: tool, context: context)
+    let run = try AgentRun(
+      owner: .conversation(conversation), home: conversation.home, session: tool, context: context)
     runs[conversation] = run
     return run
   }
@@ -67,7 +72,7 @@ actor LociAgent {
     await runs[conversation]?.saved(item)
   }
 
-  /// Stops Loci answering on an item that is being deleted. Until `forgotten(item:)`, the item's
+  /// Stops Loci answering on an item, course or project that is being deleted. Until `forgotten(_:)`, its
   /// conversation gets no run. The conversation itself stays until the deletion can no longer be undone.
   func forget(_ conversation: ConversationRef) async {
     leaving.insert(conversation)

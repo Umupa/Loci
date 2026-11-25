@@ -83,24 +83,27 @@ struct EventTests {
   @Test func anEventsKeyNamesItsTimerAndWhenItCameDue() {
     let due = Timestamp(millisecondsSince1970: 1_763_337_600_000)
     let later = Timestamp(millisecondsSince1970: 1_763_337_660_000)
-    let schedule = Event(id: Fixture.id(1), source: .schedule(Fixture.item), due: due)
+    let schedule = Event(id: Fixture.id(1), source: .schedule(Fixture.item, project: nil), due: due)
 
-    #expect(schedule.key == Event(id: Fixture.id(2), source: .schedule(Fixture.item), due: due).key)
-    #expect(schedule.key != Event(id: Fixture.id(3), source: .schedule(Fixture.item), due: later).key)
+    #expect(schedule.key == Event(id: Fixture.id(2), source: .schedule(Fixture.item, project: nil), due: due).key)
+    #expect(schedule.key != Event(id: Fixture.id(3), source: .schedule(Fixture.item, project: nil), due: later).key)
     #expect(
-      Event(id: Fixture.id(4), source: .panel("radar", asked: true), due: due).key
-        != Event(id: Fixture.id(5), source: .panel("radar", asked: false), due: due).key)
+      Event(id: Fixture.id(4), source: .panel(PanelRef("radar"), asked: true), due: due).key
+        != Event(id: Fixture.id(5), source: .panel(PanelRef("radar"), asked: false), due: due).key)
     #expect(
-      Event(id: Fixture.id(6), source: .followUp(Fixture.item), due: due).key
-        == Event(id: Fixture.id(7), source: .followUp(Fixture.item), due: later).key)
+      Event(id: Fixture.id(6), source: .followUp(Fixture.item, project: nil), due: due).key
+        == Event(id: Fixture.id(7), source: .followUp(Fixture.item, project: nil), due: later).key)
   }
 
   @Test func anEventAndARunSurviveJSON() throws {
     let retry = Event.Retry(run: Fixture.id(9), tries: 2, notBefore: Timestamp(millisecondsSince1970: 5))
-    let event = Event(id: Fixture.id(1), source: .panel("radar", asked: true), due: .init(millisecondsSince1970: 0))
-      .with(.waiting(retry))
+    let event = Event(
+      id: Fixture.id(1), source: .panel(PanelRef("radar"), asked: true), due: .init(millisecondsSince1970: 0)
+    )
+    .with(.waiting(retry))
     let run = Run(
-      id: Fixture.id(9), kind: .timers(Run.Timed(.schedule(Fixture.item), [.followUp(Fixture.id(3))])),
+      id: Fixture.id(9),
+      kind: .timers(Run.Timed(.schedule(Fixture.item, project: nil), [.followUp(Fixture.id(3), project: nil)])),
       startedAt: .init(millisecondsSince1970: 0), outcome: .finished(summary: "发了 v0.9。", sources: ["https://a"]),
       record: "runs/2025-11-17/x.md")
 

@@ -159,7 +159,7 @@ struct AwayPill: View {
     .foregroundStyle(Palette.inkFaint)
     .padding(.horizontal, 14)
     .frame(height: 28)
-    .background(Capsule().strokeBorder(Palette.lineStrong, lineWidth: 1))
+    .background(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: 1))
     .fixedSize()
     .accessibilityLabel(Text(.loci("connectors.away \(mac)")))
   }

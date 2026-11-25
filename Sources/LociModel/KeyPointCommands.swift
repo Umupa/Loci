@@ -34,7 +34,7 @@ public struct ItemKeyPoints: Subscription {
       case .item(let id): id == item
       case .everything: true
       case .course, .courseActivity, .job, .notes, .reading, .media, .conversation, .turnEnded, .review, .loci,
-        .runtime, .timers, .connectors:
+        .runtime, .timers, .connectors, .projects, .source:
         false
       }
     }

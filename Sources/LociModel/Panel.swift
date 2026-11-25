@@ -111,6 +111,13 @@ public enum PanelRow: Hashable, Sendable {
   case picture(URL, link: URL?)
   /// Items the person and Loci both write in, such as a day's to-dos.
   case items(PanelItems)
+  case quotes([PanelQuote])
+  case line(PanelLineChart)
+  case ruler(PanelRuler)
+  case allocation(PanelAllocation)
+  case heat([PanelHeatTile])
+  case candles(PanelCandles)
+  case zones(PanelZones)
 }
 
 public struct PanelCell: Hashable, Codable, Sendable {
@@ -174,11 +181,12 @@ public struct PanelBar: Hashable, Codable, Sendable {
 
 extension PanelRow: Codable {
   private enum CodingKeys: String, CodingKey {
-    case row, text, cells, items, title, subtitle, bars, url, link
+    case row, text, cells, items, title, subtitle, bars, url, link, quotes, tiles
   }
 
   private enum Kind: String, Codable {
-    case sentence, cells, label, list, prominent, bars, picture, items
+    case sentence, cells, label, list, prominent, bars, picture, items, quotes, line, ruler, allocation, heat,
+      candles, zones
   }
 
   public init(from decoder: any Decoder) throws {
@@ -197,6 +205,13 @@ extension PanelRow: Codable {
       self = .picture(
         try container.decode(URL.self, forKey: .url), link: try container.decodeIfPresent(URL.self, forKey: .link))
     case .items: self = .items(try PanelItems(from: decoder))
+    case .quotes: self = .quotes(try container.decode([PanelQuote].self, forKey: .quotes))
+    case .line: self = .line(try PanelLineChart(from: decoder))
+    case .ruler: self = .ruler(try PanelRuler(from: decoder))
+    case .allocation: self = .allocation(try PanelAllocation(from: decoder))
+    case .heat: self = .heat(try container.decode([PanelHeatTile].self, forKey: .tiles))
+    case .candles: self = .candles(try PanelCandles(from: decoder))
+    case .zones: self = .zones(try PanelZones(from: decoder))
     }
   }
 
@@ -229,6 +244,27 @@ extension PanelRow: Codable {
     case .items(let items):
       try container.encode(Kind.items, forKey: .row)
       try items.encode(to: encoder)
+    case .quotes(let quotes):
+      try container.encode(Kind.quotes, forKey: .row)
+      try container.encode(quotes, forKey: .quotes)
+    case .line(let chart):
+      try container.encode(Kind.line, forKey: .row)
+      try chart.encode(to: encoder)
+    case .ruler(let ruler):
+      try container.encode(Kind.ruler, forKey: .row)
+      try ruler.encode(to: encoder)
+    case .allocation(let allocation):
+      try container.encode(Kind.allocation, forKey: .row)
+      try allocation.encode(to: encoder)
+    case .heat(let tiles):
+      try container.encode(Kind.heat, forKey: .row)
+      try container.encode(tiles, forKey: .tiles)
+    case .candles(let candles):
+      try container.encode(Kind.candles, forKey: .row)
+      try candles.encode(to: encoder)
+    case .zones(let zones):
+      try container.encode(Kind.zones, forKey: .row)
+      try zones.encode(to: encoder)
     }
   }
 }
@@ -236,17 +272,22 @@ extension PanelRow: Codable {
 /// The panels beside the main conversation, top to bottom, in the order the person left them.
 public struct PanelColumn: Hashable, Codable, Sendable {
   public let slots: [PanelSlot]
-  /// Panels being refreshed in the background right now, by name.
+  /// Panels being refreshed in the background right now: the column's own by name, a pinned one by
+  /// `PanelRef.key`.
   public let refreshing: Set<String>
-  /// The person's take on lines of the panels' lists, by panel name.
+  /// The person's take on lines of the panels' lists, keyed as `refreshing` is.
   public let marks: [String: [PanelLineKey: PanelLineMark]]
+  /// The snapshots of the sources the panels' rows point at.
+  public let readings: PanelReadings
 
   public init(
-    slots: [PanelSlot], refreshing: Set<String> = [], marks: [String: [PanelLineKey: PanelLineMark]] = [:]
+    slots: [PanelSlot], refreshing: Set<String> = [], marks: [String: [PanelLineKey: PanelLineMark]] = [:],
+    readings: PanelReadings = PanelReadings()
   ) {
     self.slots = slots
     self.refreshing = refreshing
     self.marks = marks
+    self.readings = readings
   }
 }
 
@@ -255,6 +296,8 @@ public enum PanelSlot: Hashable, Codable, Sendable {
   /// Items read partway, most recently read first; the column leaves this slot out when there are none.
   case reading([ReadingNow])
   case panel(Panel)
+  /// A project's panel pinned to the chat's column: the same panel, refreshed and edited in the project.
+  case pinned(Project.ID, Panel)
 }
 
 /// An item read partway, as 「接着读」 lists it.

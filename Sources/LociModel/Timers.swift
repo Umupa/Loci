@@ -19,10 +19,12 @@ public struct Schedule: Hashable, Codable, Sendable, Identifiable {
   public let destination: Destination
   public let paused: Bool
   public let createdAt: Timestamp
+  /// The project it was set in; `nil` for the chat's. Its panel is that project's.
+  public let project: Project.ID?
 
   public init(
     id: EntityID, name: String, title: String, follow: String, every: Every, destination: Destination,
-    paused: Bool = false, createdAt: Timestamp
+    paused: Bool = false, createdAt: Timestamp, in home: Home
   ) {
     self.id = id
     self.name = name
@@ -32,9 +34,11 @@ public struct Schedule: Hashable, Codable, Sendable, Identifiable {
     self.destination = destination
     self.paused = paused
     self.createdAt = createdAt
+    project = home.project
   }
 
   public var ref: ScheduleRef { .schedule(id) }
+  public var home: Home { Home(project) }
 }
 
 /// What `loci schedule add <name>` reads: a schedule but its name and what the app gives it.
@@ -128,13 +132,18 @@ extension ScheduleChange: Codable {
 /// Which schedule: one set with `loci schedule`, or a panel's own refresh, which its file keeps.
 public enum ScheduleRef: Hashable, Codable, Sendable {
   case schedule(EntityID)
-  case panel(String)
+  /// A panel's refresh; the project is `nil` for a panel of the chat.
+  case panel(String, project: Project.ID?)
 
-  /// How runs are filed under it: `schedule/<id>` or `panel/<name>`.
+  public static func panel(_ panel: PanelRef) -> ScheduleRef {
+    .panel(panel.name, project: panel.home.project)
+  }
+
+  /// How runs are filed under it: `schedule/<id>`, `panel/<name>`, or `projects/<id>/panel/<name>`.
   public var key: String {
     switch self {
     case .schedule(let id): "schedule/\(id)"
-    case .panel(let name): "panel/\(name)"
+    case .panel(let name, let project): Home(project).folder + "panel/\(name)"
     }
   }
 }
@@ -146,9 +155,12 @@ public struct FollowUp: Hashable, Codable, Sendable, Identifiable {
   public let due: Timestamp
   /// The promise, as the companion wrote it.
   public let what: String
-  /// Where it was set; what came of it is told in the main conversation either way.
+  /// Where it was set; what came of it is told in the main conversation, or in the project's when it was set in one.
   public let conversation: ConversationRef?
   public let createdAt: Timestamp
+
+  /// The project it was set in, where its run works and what came of it is told.
+  public var home: Home { conversation?.home ?? .chat }
 
   public init(id: EntityID, due: Timestamp, what: String, conversation: ConversationRef?, createdAt: Timestamp) {
     self.id = id

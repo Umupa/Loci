@@ -25,13 +25,15 @@ public struct MediaEnvironment: Sendable {
   /// Writes translations and outlines on what Loci runs on; `nil` leaves those stages
   /// waiting for an agent.
   public let transcriptAgent: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)?
+  /// Fetches sources and runs their scripts; over `sourceNetwork` unless given.
+  public let dataSources: any DataSourceRunning
 
   public init(
     support: URL, runner: any ProgramRunner, network: any Network, transcriber: any Transcribing,
     searchPaths: [URL], proxy: @escaping @Sendable () -> String? = { nil }, readerLanguage: String,
     arm: Bool = true, textFetching: (any TextFetching)? = nil,
     transcriptAgent: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)? = nil, diarizer: (any Diarizing)? = nil,
-    sourceNetwork: (any Network)? = nil
+    sourceNetwork: (any Network)? = nil, dataSources: (any DataSourceRunning)? = nil
   ) {
     self.support = support
     self.runner = runner
@@ -45,6 +47,7 @@ public struct MediaEnvironment: Sendable {
     self.arm = arm
     self.textFetching = textFetching
     self.transcriptAgent = transcriptAgent
+    self.dataSources = dataSources ?? DataSourceRunner(network: sourceNetwork ?? network)
   }
 
   /// The programs on this Mac, the internet, whisper.cpp, and `~/Library/Application Support/Loci`, with
@@ -69,9 +72,14 @@ public struct MediaEnvironment: Sendable {
 
   /// Nothing outside: no program starts, nothing downloads, nothing is recognized. For hosts that never
   /// touch video, such as previews and tests of other features.
-  public static let disconnected = MediaEnvironment(
-    support: URL(filePath: "/nonexistent/loci-support"), runner: Disconnected(), network: Disconnected(),
-    transcriber: Disconnected(), searchPaths: [], readerLanguage: "en")
+  public static let disconnected = disconnected(sources: nil)
+
+  /// Nothing outside, with sources run by `sources`.
+  public static func disconnected(sources: (any DataSourceRunning)?) -> MediaEnvironment {
+    MediaEnvironment(
+      support: URL(filePath: "/nonexistent/loci-support"), runner: Disconnected(), network: Disconnected(),
+      transcriber: Disconnected(), searchPaths: [], readerLanguage: "en", dataSources: sources)
+  }
 }
 
 private struct Disconnected: ProgramRunner, Network, Transcribing {

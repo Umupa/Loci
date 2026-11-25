@@ -19,19 +19,22 @@ actor PanelKeeper {
     self.scheduler = scheduler
   }
 
-  func entries() -> [PanelEntry] {
-    context.store.panels()
+  func entries(of home: Home) -> [PanelEntry] {
+    context.store.home(home).panels()
   }
 
-  var refreshingNames: Set<String> {
+  /// The panels being refreshed now.
+  var refreshing: Set<PanelRef> {
     get async { await worker.refreshingPanels }
   }
 
   /// Writes the panel; a new one goes to the bottom of the column. From a refresh's session, only that
   /// refresh's panel, and only while it is still wanted. What Loci saves keeps what is the person's.
-  func save(_ panel: Panel, by author: PanelItem.Author, from session: LocalSession?) async throws(HostError) {
-    try await allow(panel.name, from: session)
-    let store = context.store
+  func save(_ panel: Panel, in home: Home, by author: PanelItem.Author, from session: LocalSession?)
+    async throws(HostError)
+  {
+    try await allow(PanelRef(panel.name, in: home), from: session)
+    let store = context.store.home(home)
     let saved: Panel
     switch author {
     case .you: saved = panel
@@ -49,7 +52,8 @@ actor PanelKeeper {
       _ = try store.changePanelState { state in
         if !state.order.contains(.panel(saved.name)) {
           let others = store.panels().map(\.name).filter { $0 != saved.name }
-          state.order = PanelOrder.places(state.order, panels: others) + [.panel(saved.name)]
+          let pinned = state.order.filter { if case .pinned = $0 { true } else { false } }
+          state.order = PanelOrder.places(state.order, panels: others, pinned: pinned) + [.panel(saved.name)]
         }
         state.refreshed[saved.name] = now
       }
@@ -58,11 +62,12 @@ actor PanelKeeper {
   }
 
   /// Makes one edit on the panel as its file is now. Loci's edits keep what is the person's.
-  func edit(_ edit: PanelEdit, of name: String, by author: PanelItem.Author, from session: LocalSession?)
+  func edit(_ edit: PanelEdit, of ref: PanelRef, by author: PanelItem.Author, from session: LocalSession?)
     async throws(HostError)
   {
-    try await allow(name, from: session)
-    let store = context.store
+    try await allow(ref, from: session)
+    let name = ref.name
+    let store = context.store.home(ref.home)
     guard let current = store.panel(named: name)?.panel else { throw .notFound(name) }
     let edited = try checked { () throws(PanelProblems) in
       let made = author == .loci ? try PanelMerge.loci(edit, on: current) : edit
@@ -83,7 +88,7 @@ actor PanelKeeper {
 
   /// Keeps the person's take on a line of a panel's list.
   func mark(_ command: MarkPanelLine) async throws(HostError) {
-    let store = context.store
+    let store = context.store.home(command.ref.home)
     guard store.panel(named: command.panel) != nil else { throw .notFound(command.panel) }
     try attempt {
       _ = try store.changePanelState { state in
@@ -96,9 +101,9 @@ actor PanelKeeper {
   }
 
   /// A run's session may touch only the panels it is for, and only while it runs.
-  private func allow(_ name: String, from session: LocalSession?) async throws(HostError) {
+  private func allow(_ panel: PanelRef, from session: LocalSession?) async throws(HostError) {
     guard case .run(let run) = session else { return }
-    switch await worker.permission(toSave: name, from: run) {
+    switch await worker.permission(toSave: panel, from: run) {
     case .allowed: return
     case .stopped: throw .invalidRequest(Self.stopped)
     case .only(let panels) where panels.count == 1:
@@ -118,8 +123,9 @@ actor PanelKeeper {
   }
 
   /// Deletes the panel's file and stops its refresh, if one is under way.
-  func remove(_ name: String) async throws(HostError) {
-    let store = context.store
+  func remove(_ ref: PanelRef) async throws(HostError) {
+    let name = ref.name
+    let store = context.store.home(ref.home)
     try attempt {
       try store.removePanel(named: name)
       _ = try store.changePanelState { state in
@@ -130,14 +136,20 @@ actor PanelKeeper {
         state.paused.remove(name)
       }
     }
-    await worker.panelRemoved(name)
-    await context.follower.follow([.loci(.panels), .timers])
+    if case .project(let id) = ref.home, let project = try? context.store.project(id), project.pinned.contains(name) {
+      _ = try? context.store.changeProject(id) { $0.with(pinned: $0.pinned.filter { $0 != name }) }
+      _ = try? context.store.home(.chat).changePanelState { $0.order.removeAll { $0 == .pinned(id, name) } }
+    }
+    await worker.panelRemoved(ref)
+    await context.follower.follow([.loci(.panels), .timers, .projects])
   }
 
   /// Puts the panel ahead of everything else in the background, whether it is due or not.
-  func refreshSoon(_ name: String) async throws(HostError) {
-    guard entries().contains(where: { $0.name == name && $0.panel != nil }) else { throw .notFound(name) }
-    await scheduler.ask(toRefresh: name)
+  func refreshSoon(_ ref: PanelRef) async throws(HostError) {
+    guard entries(of: ref.home).contains(where: { $0.name == ref.name && $0.panel != nil }) else {
+      throw .notFound(ref.name)
+    }
+    await scheduler.ask(toRefresh: ref)
     await worker.consider()
   }
 }

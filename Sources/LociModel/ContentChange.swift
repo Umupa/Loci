@@ -21,6 +21,8 @@ public enum ContentChange: Hashable, Codable, Sendable {
   case review
   /// A file under `agent/` changed.
   case loci(LociFile)
+  /// A project was started, changed, archived, deleted or brought back, or something new happened in one.
+  case projects
   /// What Loci runs on changed.
   case runtime
   /// A schedule or follow-up, the inbox, or a run changed. They live in the database only.
@@ -28,6 +30,8 @@ public enum ContentChange: Hashable, Codable, Sendable {
   /// A connector, a connection under way, or the record of calls changed. They live in the database and
   /// the keychain.
   case connectors
+  /// A source got records or failed to; its snapshot and history live in the database.
+  case source(SourceKey)
   /// Events were lost or a change could not be placed; read everything again.
   case everything
 }

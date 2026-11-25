@@ -108,14 +108,23 @@ struct TitleField: View {
   }
 }
 
-/// At the foot of the library after a deletion: how many went, and the button that brings them back.
+/// At the foot of a page after a deletion or an archiving: what went, and the button that brings it back.
 struct DeletedNotice: View {
-  let count: Int
+  let words: LocalizedStringResource
   let undo: () -> Void
+
+  init(count: Int, undo: @escaping () -> Void) {
+    self.init(words: .loci("library.deleted \(count)"), undo: undo)
+  }
+
+  init(words: LocalizedStringResource, undo: @escaping () -> Void) {
+    self.words = words
+    self.undo = undo
+  }
 
   var body: some View {
     HStack(spacing: Spacing.s) {
-      Text(.loci("library.deleted \(count)"))
+      Text(words)
         .font(Typography.control)
         .foregroundStyle(Palette.ink)
       Button(action: undo) {
@@ -128,8 +137,8 @@ struct DeletedNotice: View {
     }
     .padding(.horizontal, Spacing.m)
     .frame(height: 36)
-    .glassEffect(.regular, in: .capsule)
-    .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+    .glassEffect(.regular, in: Capsule(style: .circular))
+    .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
     .shadow(color: .black.opacity(0.10), radius: 12, y: 8)
   }
 }

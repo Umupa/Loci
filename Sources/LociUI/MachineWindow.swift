@@ -223,9 +223,9 @@ struct MachineWindow: View {
   @ViewBuilder private var placeView: some View {
     switch window.place {
     case .talk:
-      TalkScreen(
+      CompanionPage(
         focusRequest: focusRequest, attach: { dialogs.importing = true }, opened: { window = $0 },
-        failed: { dialogs.failure = $0 }, columnPreferred: $panelColumnPreferred
+        failed: { dialogs.failure = $0 }, columnPreferred: $panelColumnPreferred, memory: memory
       )
       .onAppear(perform: talkShown)
     case .loci:

@@ -16,8 +16,15 @@
 | 用在 | 翻译、章节与重点各用哪个服务商的哪个模型 | `ModelUses` |
 | 翻译设置 | 目标语言、智能翻译与文稿和文章的提示词 | `TranslationSettings` |
 | 翻译缓存 | 按原文、模型、语言和提示词复用译文，可在设置里清除 | `TranslationCache` |
-| 对话 | 用户看到的一条聊天：一条主对话，每份资料和每门课程各一条 | `Conversation` |
+| 对话 | 用户看到的一条聊天：一条主对话，每份资料、每门课程和每个项目各一条 | `Conversation` |
 | 主对话 | 侧边栏第一项伙伴打开的那条对话，一直聊下去 | `ConversationRef.main` |
+| 项目 | 一件长期的事：自己的对话、面板、定时和记忆，在 `agent/projects/<id>/`；伙伴还是同一个 | `Project` |
+| 归属 | 对话、面板、定时、笔记和记忆属于哪里：聊天，或者某个项目 | `Home` |
+| 项目栏 | 伙伴页顶部居中的玻璃胶囊：聊天、各个项目的印章、「+」和「⌄」 | `ProjectBarView`、`ProjectBar` |
+| 印章 | 项目名的第一个字，墨底衬线；不进记忆的多一把小锁 | `ProjectSeal` |
+| 新项目 | 点「+」后页面中间的大输入框；发出后伙伴给项目起名、搭面板 | `NewProjectStage`、`StartProject` |
+| 不进记忆 | 项目的开关：每日回顾不读它，主伙伴不知道它，别处的 `loci recall` 搜不到它 | `Project.remembered` |
+| 钉到聊天 | 把项目的一个面板也放进主页的面板栏，是同一个面板 | `PinPanel` |
 | 会话 | 对话底下的一次 agent CLI session；换 runtime、Soul 或 USER 变了、上下文满了就换新的，用户看不出 | `SessionRecord` |
 | `/new` | 让对话下一条消息开新会话、不带之前的话；对话里留一条分隔线 | `StartOver` |
 | 资料库事件 | 应用记下的资料库活动，用于伙伴的对话上下文：收藏、读完、划线 | `LibraryEvent` |
@@ -119,6 +126,11 @@
 | wiki | `memory/` 下一个实体一页：人、项目、跟进的话题、在学的东西；只有每日回顾写 | `WikiLink` |
 | transcripts | 对话镜像和 run 记录，原话全在，用 `loci recall` 搜 | `RecallHit` |
 | dreaming | 每日回顾整理记忆的那部分：核对、搬运、修链接，周日多看一遍 wiki | `ReviewBrief` |
+| 数据源 | 应用自己按时去取的东西（行情、净值、版本号、汇率），不经过模型：伙伴写 `requests` 和 `parse` 两个函数，`loci source save` 当场取一次，成功才存 | `DataSource` |
+| 数据源快照 | 一个数据源现在有的：最近一次取到的记录、什么时候取到的、之后连着失败了几次；失败时旧值留着、标成过期 | `SourceSnapshot` |
+| 样例 | 一次成功取数的请求和响应，留最近 5 份；`loci source test` 拿它回放新的 `parse`，不联网 | `SourceSample` |
+| 字段引用 | 面板的行指向数据源里的一个值：`<数据源>.<记录>.<字段>`，数字由应用填 | `SourceField` |
+| 图表行 | 画数字的面板行，数字可以写死也可以引用字段；红涨绿跌：行情行、折线图、分位尺、配置环形图、热力格、K 线、区间条 | `PanelQuote`、`PanelLineChart`、`PanelRuler`、`PanelAllocation`、`PanelHeatTile`、`PanelCandles`、`PanelZones` |
 | 你对一行的态度 | 盯着外面的面板里，你对列表一行的置顶、不想再看和备注；存在应用里，伙伴改不到 | `PanelLineMark` |
 | 右栏 | 阅读器右侧的栏：视频是文稿、重点、对话、划线，播客和文章是重点、对话、划线，论文是对话、划线 | `SideTab`、`MediaTab` |
 | 字幕样式 | 字幕在画面上的样子：预设、译文和原文各自的字体字号颜色加粗、双语顺序、离底距离；存在这台 Mac 上 | `SubtitleStyle` |

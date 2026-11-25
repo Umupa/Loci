@@ -60,10 +60,11 @@ struct PanelEditTests {
   }
 
   @Test func editsSurviveTheWire() throws {
-    #expect(try HostCodingTests.roundTrips(EditPanel("week", .put(Self.read, section: "today", at: 0))))
-    #expect(try HostCodingTests.roundTrips(EditPanel("week", .remove("read"))))
+    #expect(try HostCodingTests.roundTrips(EditPanel(PanelRef("week"), .put(Self.read, section: "today", at: 0))))
+    #expect(try HostCodingTests.roundTrips(EditPanel(PanelRef("week"), .remove("read"))))
     let key = PanelLineKey(PanelListItem(title: "HN 热议", link: URL(string: "https://news.ycombinator.com/item?id=1")))
-    #expect(try HostCodingTests.roundTrips(MarkPanelLine("radar", key, PanelLineMark(pinned: true, note: "看评论"))))
+    #expect(
+      try HostCodingTests.roundTrips(MarkPanelLine(PanelRef("radar"), key, PanelLineMark(pinned: true, note: "看评论"))))
     #expect(
       try HostCodingTests.roundTrips(PanelColumn(slots: [], marks: ["radar": [key: PanelLineMark(hidden: true)]])))
   }

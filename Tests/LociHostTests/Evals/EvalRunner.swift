@@ -88,12 +88,12 @@ struct EvalRunner {
   /// Marks the panel's list line about `event` 「不想再看」 the way the panel does; its key, or `nil` when no
   /// list line is about it.
   private func hide(_ event: EvalEvent) async throws -> String? {
-    guard case .rows(let rows)? = place.store.panel(named: Self.panel)?.panel?.body else { return nil }
+    guard case .rows(let rows)? = place.store.home(.chat).panel(named: Self.panel)?.panel?.body else { return nil }
     for case .list(let lines) in rows {
       guard let line = lines.first(where: { event.isMentioned(in: $0.title + " " + ($0.subtitle ?? "")) }) else {
         continue
       }
-      _ = try await host.run(MarkPanelLine(Self.panel, PanelLineKey(line), PanelLineMark(hidden: true)))
+      _ = try await host.run(MarkPanelLine(PanelRef(Self.panel), PanelLineKey(line), PanelLineMark(hidden: true)))
       return PanelLineKey(line).rawValue
     }
     return nil
@@ -102,8 +102,8 @@ struct EvalRunner {
   private func snapshot(of run: Run.ID) async throws -> EvalSnapshot {
     let today = Day(containing: world.now, in: TestWorld.timeZone)
     return EvalSnapshot(
-      entries: EvalSnapshot.entries(of: place.store.panel(named: Self.panel)?.panel),
-      notes: EvalSnapshot.notes(try place.store.dayNotes(of: today), of: run),
+      entries: EvalSnapshot.entries(of: place.store.home(.chat).panel(named: Self.panel)?.panel),
+      notes: EvalSnapshot.notes(try place.store.home(.chat).dayNotes(of: today), of: run),
       mainMessages: try await host.conversation(.main).messages.count)
   }
 
@@ -131,8 +131,8 @@ struct EvalRunner {
     let today = Day(containing: world.now, in: TestWorld.timeZone)
     let files: [(String, String?)] = [
       ("record.md", try store.runRecord(at: run.record)),
-      ("notes.md", try store.dayNotes(of: today)),
-      ("panel.json", try place.store.panel(named: Self.panel)?.panel.map(Prompts.json)),
+      ("notes.md", try store.home(.chat).dayNotes(of: today)),
+      ("panel.json", try place.store.home(.chat).panel(named: Self.panel)?.panel.map(Prompts.json)),
       ("prompt.md", driver.cost(of: LocalSession.run(run.id).tag)?.prompt),
     ]
     for case (let name, let text?) in files { try Data(text.utf8).write(to: folder.appending(path: name)) }

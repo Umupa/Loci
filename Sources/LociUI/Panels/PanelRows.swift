@@ -35,6 +35,20 @@ struct PanelRows: View {
       PanelPicture(url: url, link: link, open: actions.open).padding(.bottom, Spacing.m).panelRow()
     case .items(let section):
       PanelItemsView(section: section)
+    case .quotes(let quotes):
+      PanelQuotes(quotes: quotes).padding(.bottom, Spacing.s).panelRow()
+    case .line(let chart):
+      if let line = PanelLineView(chart: chart) { line.padding(.bottom, Spacing.s).panelRow() }
+    case .ruler(let ruler):
+      PanelRulerView(ruler: ruler).padding(.bottom, Spacing.m).panelRow()
+    case .allocation(let allocation):
+      PanelAllocationView(allocation: allocation).padding(.bottom, Spacing.s).panelRow()
+    case .heat(let tiles):
+      PanelHeat(tiles: tiles).padding(.bottom, Spacing.s).panelRow()
+    case .candles(let candles):
+      PanelCandlesView(candles: candles).padding(.bottom, Spacing.s).panelRow()
+    case .zones(let zones):
+      PanelZonesView(zones: zones).padding(.bottom, Spacing.s).panelRow()
     }
   }
 }

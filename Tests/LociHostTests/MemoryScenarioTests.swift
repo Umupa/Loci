@@ -38,10 +38,10 @@ struct MemoryScenarioTests {
 
   private func writeMemory(_ place: Place, index: String, pages: [String: String] = [:]) throws {
     let store = place.store
-    try store.setMemoryWritable(true)
+    try store.home(.chat).setMemoryWritable(true)
     try store.saveAgentText(index, as: .memory)
-    for (name, text) in pages { try store.saveWikiPage(text, as: name) }
-    try store.setMemoryWritable(false)
+    for (name, text) in pages { try store.home(.chat).saveWikiPage(text, as: name) }
+    try store.home(.chat).setMemoryWritable(false)
   }
 
   @Test func onlyTheFirst200LinesOfTheIndexAreShownAndALongerOneIsSaidToBe() async throws {
@@ -65,9 +65,9 @@ struct MemoryScenarioTests {
       try await talkThenReview(host, world)
 
       let store = place.store
-      #expect(store.wikiPages() == ["raft"])
-      #expect(!store.memoryIsWritable)
-      #expect(store.memoryChangedSinceKept().isEmpty)
+      #expect(store.home(.chat).wikiPages() == ["raft"])
+      #expect(!store.home(.chat).memoryIsWritable)
+      #expect(store.home(.chat).memoryChangedSinceKept().isEmpty)
     }
   }
 
@@ -77,10 +77,10 @@ struct MemoryScenarioTests {
         place,
         index: "# Memory\n- 2025-11-10 在学沙箱 [沙箱](memory/sandboxes.md)\n- 2025-11-12 Raft [Raft](memory/raft.md)\n",
         pages: ["raft": "# Raft\n- 2025-11-12 混过 term 和 index\n"])
-      try place.store.keepMemory()
-      try place.store.setMemoryWritable(true)
+      try place.store.home(.chat).keepMemory()
+      try place.store.home(.chat).setMemoryWritable(true)
       try Data("# Raft\n- changed by hand\n".utf8).write(to: place.root.appending(path: "agent/memory/raft.md"))
-      try place.store.setMemoryWritable(false)
+      try place.store.home(.chat).setMemoryWritable(false)
 
       try await talkThenReview(host, world)
 
@@ -113,10 +113,10 @@ struct MemoryScenarioTests {
       try await talkThenReview(host, world)
 
       #expect(try reviewPrompt(world).contains("First, split MEMORY.md"))
-      let unsorted = try #require(try place.store.wikiPage("unsorted"))
+      let unsorted = try #require(try place.store.home(.chat).wikiPage("unsorted"))
       #expect(unsorted.contains("- 2025-11-15 不要出题考"))
       #expect(!unsorted.contains("先给结论") && !unsorted.contains("term 和 index"))
-      #expect(place.store.memoryChangedSinceKept().isEmpty)
+      #expect(place.store.home(.chat).memoryChangedSinceKept().isEmpty)
     }
   }
 

@@ -6,7 +6,7 @@ import LociStore
 extension LocalHost {
   public func usage(since: Timestamp) async throws(HostError) -> [SessionUsage] {
     let sessions = try attempt { try database.sessions(since: since) }
-    let instructions = TokenEstimate.of(store.instructions())
+    let instructions = TokenEstimate.of(store.home(.chat).instructions())
     let names = UsageNames(store: store, database: database)
     var usages: [SessionUsage] = []
     for session in sessions {
@@ -30,6 +30,7 @@ extension LocalHost {
     case .conversation(.main): return (.main, false)
     case .conversation(.item(let item)): return (.item(item), false)
     case .conversation(.course(let course)): return (.course(course), false)
+    case .conversation(.project(let project)): return (.project(project), false)
     case .panel(let name): return (.panel(name), false)
     case .review(let day):
       if case .failed = try? database.review(of: day) { return (.review, true) }
@@ -39,9 +40,9 @@ extension LocalHost {
       let failed = if case .failed = run.outcome { true } else { false }
       let activity: UsageActivity =
         switch run.kind.sources.first {
-        case .panel(let name, _): .panel(name)
-        case .schedule(let schedule): .schedule(schedule)
-        case .followUp(let followUp): .followUp(followUp)
+        case .panel(let name, _, _): .panel(name)
+        case .schedule(let schedule, _): .schedule(schedule)
+        case .followUp(let followUp, _): .followUp(followUp)
         case .review, nil: .review
         }
       return (activity, failed)
@@ -68,7 +69,8 @@ private struct UsageNames {
     case .main, .review: nil
     case .item(let item): try? store.item(item).title
     case .course(let course): try? store.course(course).title
-    case .panel(let name): store.panel(named: name)?.panel?.title ?? name
+    case .project(let project): (try? store.project(project))?.name
+    case .panel(let name): store.home(.chat).panel(named: name)?.panel?.title ?? name
     case .schedule(let schedule): schedules[schedule]
     case .followUp(let followUp): followUps[followUp]
     }

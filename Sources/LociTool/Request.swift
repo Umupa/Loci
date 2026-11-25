@@ -11,12 +11,15 @@ enum Request: Hashable, Sendable {
   case importFile(path: String, title: String?)
   case wait(EntityID)
   case panel(PanelRequest)
+  case source(SourceRequest)
   case course(CourseRequest)
   case feeling(FeelingRequest)
   case schedule(ScheduleRequest)
   case followUp(FollowUpRequest)
   case connector(ConnectorRequest)
   case recall(String)
+  case nameProject(String)
+  case describeProject(String)
   /// The overview, or one topic of it.
   case help(String?)
 
@@ -47,6 +50,7 @@ enum Request: Hashable, Sendable {
     case "repo": return (try repository(words), json)
     case "import": return (try importing(words), json)
     case "panel": return (.panel(try PanelRequest.parse(words)), json)
+    case "source": return (.source(try SourceRequest.parse(words)), json)
     case "course": return (.course(try CourseRequest.parse(words)), json)
     case "schedule": return (.schedule(try ScheduleRequest.parse(words)), json)
     case "followup": return (.followUp(try FollowUpRequest.parse(words)), json)
@@ -60,11 +64,21 @@ enum Request: Hashable, Sendable {
       let text = words.joined(separator: " ").trimmingCharacters(in: .whitespaces)
       guard !text.isEmpty else { throw UsageError("loci recall needs words to look for: loci recall <words>") }
       return (.recall(text), json)
+    case "project": return (try project(words), json)
     case "help", "--help", "-h":
       guard words.count <= 1 else { throw UsageError("loci help takes at most one topic: loci help [<topic>]") }
       return (.help(words.first), json)
     default:
       throw UsageError("loci has no command \"\(verb)\". Run `loci help` to see the commands.")
+    }
+  }
+
+  private static func project(_ words: [String]) throws(UsageError) -> Request {
+    let text = words.dropFirst().joined(separator: " ").trimmingCharacters(in: .whitespaces)
+    switch words.first {
+    case "name" where !text.isEmpty: return .nameProject(text)
+    case "describe" where !text.isEmpty: return .describeProject(text)
+    default: throw UsageError("loci project needs: loci project name <name> | loci project describe <line>")
     }
   }
 

@@ -40,7 +40,7 @@ struct WishField: View {
     .background(Capsule().fill(Palette.composerGlass))
     .anchorPreference(key: GrowthOrigins.self, value: .bounds) { [.wish: $0] }
     .glassEffect(.regular, in: .capsule)
-    .overlay { Capsule().strokeBorder(Palette.composerEdge, lineWidth: Size.hairline) }
+    .overlay { Capsule(style: .circular).strokeBorder(Palette.composerEdge, lineWidth: Size.hairline) }
     .shadow(color: Palette.warmShadow.opacity(0.1), radius: 12, y: 6)
     .contentShape(Capsule())
     .onTapGesture { focused = true }

@@ -16,7 +16,8 @@ struct TimersTests {
 
   @Test func aPausedScheduleIsNeverNext() throws {
     let paused = ScheduleEntry(
-      ref: .panel("p"), name: "p", title: "暂停的", every: .hour, destination: .panel("p"), paused: true, next: nil,
+      ref: .panel(PanelRef("p")), name: "p", title: "暂停的", every: .hour, destination: .panel("p"), paused: true,
+      next: nil,
       lastSummary: nil)
     #expect(NextTimer(Timers(schedules: [paused], followUps: [], next: nil)) == nil)
   }

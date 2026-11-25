@@ -21,6 +21,7 @@ struct PanelScenarioTests {
       switch slot {
       case .reading: "接着读"
       case .panel(let panel): panel.name
+      case .pinned(_, let panel): "📌" + panel.name
       }
     }
   }
@@ -31,7 +32,7 @@ struct PanelScenarioTests {
       _ = try await host.run(SavePanel(Self.radar))
       _ = try await host.run(SavePanel(Self.panel("a", title: "changed")))
 
-      let column = try await host.panelColumn()
+      let column = try await host.panelColumn(of: .chat)
 
       #expect(Self.names(column) == ["a", "radar"])
       #expect(column.slots.last == .panel(Self.radar))
@@ -60,7 +61,7 @@ struct PanelScenarioTests {
 
       try Data(#"{ "title": "沙箱雷达", "follow": "x", "rows": [{ "row": "bars", "bars": [] }] }"#.utf8).write(to: file)
 
-      #expect(try await host.panelColumn().slots == [.panel(Self.radar)])
+      #expect(try await host.panelColumn(of: .chat).slots == [.panel(Self.radar)])
       let entries = try await host.run(ListPanels())
       #expect(entries.map(\.panel) == [Self.radar])
       #expect(
@@ -72,10 +73,10 @@ struct PanelScenarioTests {
 
   @Test func aFileThatNeverCouldBeShownIsNotInTheColumn() async throws {
     try await withHost { host, place, _ in
-      try place.store.savePanel(Self.radar)
+      try place.store.home(.chat).savePanel(Self.radar)
       try Data("{".utf8).write(to: place.root.appending(path: "agent/panels/half.json"))
 
-      #expect(Self.names(try await host.panelColumn()) == ["radar"])
+      #expect(Self.names(try await host.panelColumn(of: .chat)) == ["radar"])
       #expect(try await host.run(ListPanels()).map(\.name) == ["half", "radar"])
     }
   }
@@ -101,19 +102,21 @@ struct PanelScenarioTests {
     try await withHost { host, place, _ in
       for name in ["a", "b", "c"] { _ = try await host.run(SavePanel(Self.panel(name))) }
 
-      _ = try await host.run(MovePanelToTop(.panel("c")))
-      _ = try await host.run(RemovePanel("a"))
+      _ = try await host.run(MovePanelToTop(.panel("c"), in: .chat))
+      _ = try await host.run(RemovePanel(PanelRef("a")))
 
-      #expect(Self.names(try await host.panelColumn()) == ["c", "b"])
+      #expect(Self.names(try await host.panelColumn(of: .chat)) == ["c", "b"])
       #expect(!FileManager.default.fileExists(atPath: place.root.appending(path: "agent/panels/a.json").path()))
-      await #expect(throws: HostError.self) { _ = try await host.run(RemovePanel("a")) }
-      await #expect(throws: HostError.notFound("zzz")) { _ = try await host.run(MovePanelToTop(.panel("zzz"))) }
+      await #expect(throws: HostError.self) { _ = try await host.run(RemovePanel(PanelRef("a"))) }
+      await #expect(throws: HostError.notFound("zzz")) {
+        _ = try await host.run(MovePanelToTop(.panel("zzz"), in: .chat))
+      }
     }
   }
 
   @Test func readingNowListsWhatIsReadPartwayMostRecentFirstAndCanMoveToTheTop() async throws {
     try await withHost { host, _, world in
-      #expect(Self.names(try await host.panelColumn()) == [])
+      #expect(Self.names(try await host.panelColumn(of: .chat)) == [])
       _ = try await host.run(SavePanel(Self.radar))
       let first = try await host.run(AddTextItem(fileName: "a.md", text: "# Borg\n\nOne. Two. Three. Four.\n"))
       let second = try await host.run(
@@ -125,15 +128,15 @@ struct PanelScenarioTests {
       try await read(host, finished, at: "All of it.")
       _ = try await host.run(MarkRead(content: .item(finished.id)))
 
-      let column = try await host.panelColumn()
+      let column = try await host.panelColumn(of: .chat)
 
       #expect(Self.names(column) == ["接着读", "radar"])
       guard case .reading(let reading) = column.slots.first else { return }
       #expect(reading.map(\.item.id) == [second.id, first.id])
       #expect(reading[1].progress > 0.5 && reading[1].progress < 1)
       #expect(reading[0].minutesLeft == 2)
-      _ = try await host.run(MovePanelToTop(.panel("radar")))
-      #expect(Self.names(try await host.panelColumn()) == ["radar", "接着读"])
+      _ = try await host.run(MovePanelToTop(.panel("radar"), in: .chat))
+      #expect(Self.names(try await host.panelColumn(of: .chat)) == ["radar", "接着读"])
     }
   }
 
@@ -142,7 +145,7 @@ struct PanelScenarioTests {
       let item = try await host.run(AddTextItem(fileName: "a.md", text: "# Borg\n\nOne. Two. Three. Four.\n"))
       try await Task.sleep(for: .milliseconds(300))
       let column = host.subscribe(WatchPanelColumn())
-      #expect(try await host.panelColumn().slots.isEmpty)
+      #expect(try await host.panelColumn(of: .chat).slots.isEmpty)
 
       try await read(host, item, at: "Three.")
 

@@ -60,10 +60,10 @@ struct LociStatusTests {
     try await withHost(agent: PanelRefreshScenarioTests.agent(refreshing: .hang)) { host, _, _ in
       _ = try await host.run(SavePanel(PanelScenarioTests.radar))
 
-      _ = try await host.run(RefreshPanel("radar"))
+      _ = try await host.run(RefreshPanel(PanelRef("radar")))
 
       #expect(await working(host, on: .refreshing(title: "沙箱雷达")))
-      _ = try await host.run(RemovePanel("radar"))
+      _ = try await host.run(RemovePanel(PanelRef("radar")))
       #expect(await value(host.subscribe(LociWorking())) { !$0.working } != nil)
     }
   }

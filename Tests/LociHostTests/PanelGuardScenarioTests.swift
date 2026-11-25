@@ -52,10 +52,10 @@ struct PanelGuardScenarioTests {
 
     let second = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
 
-    #expect(try await second.panelColumn().slots == [.panel(PanelScenarioTests.radar)])
-    _ = try await second.run(RemovePanel("radar"))
+    #expect(try await second.panelColumn(of: .chat).slots == [.panel(PanelScenarioTests.radar)])
+    _ = try await second.run(RemovePanel(PanelRef("radar")))
     try Data("{ broken".utf8).write(to: place.root.appending(path: "agent/panels/radar.json"))
-    #expect(try await second.panelColumn().slots.isEmpty)
+    #expect(try await second.panelColumn(of: .chat).slots.isEmpty)
     await second.close()
   }
 
@@ -63,30 +63,30 @@ struct PanelGuardScenarioTests {
     let agent = PanelRefreshScenarioTests.agent(refreshing: .hang)
     try await withHost(agent: agent) { host, place, world in
       _ = try await host.run(SavePanel(PanelScenarioTests.radar))
-      _ = try await host.run(RefreshPanel("radar"))
+      _ = try await host.run(RefreshPanel(PanelRef("radar")))
       let session = try await refreshSession(world)
 
-      _ = try await host.run(RemovePanel("radar"))
+      _ = try await host.run(RemovePanel(PanelRef("radar")))
       let saved = await answer(try command(SavePanel(PanelScenarioTests.radar)), from: session, on: host)
 
       #expect(saved == .failed(.invalidRequest(PanelKeeper.stopped)))
       #expect(!FileManager.default.fileExists(atPath: place.root.appending(path: "agent/panels/radar.json").path()))
       #expect(await refreshEnded(host))
-      #expect(try await host.panelColumn().slots.isEmpty)
+      #expect(try await host.panelColumn(of: .chat).slots.isEmpty)
     }
   }
 
   @Test func aRefreshThatIsOverCannotSave() async throws {
     try await withHost(agent: PanelRefreshScenarioTests.agent()) { host, _, world in
       _ = try await host.run(SavePanel(PanelScenarioTests.radar))
-      _ = try await host.run(RefreshPanel("radar"))
+      _ = try await host.run(RefreshPanel(PanelRef("radar")))
       let session = try await refreshSession(world)
       #expect(await refreshEnded(host))
 
       let saved = await answer(try command(SavePanel(PanelScenarioTests.radar)), from: session, on: host)
 
       #expect(saved == .failed(.invalidRequest(PanelKeeper.stopped)))
-      #expect(try await host.panelColumn().slots.map(\.place) == [.panel("radar")])
+      #expect(try await host.panelColumn(of: .chat).slots.map(\.place) == [.panel("radar")])
     }
   }
 
@@ -94,7 +94,7 @@ struct PanelGuardScenarioTests {
     try await withHost(agent: PanelRefreshScenarioTests.agent(refreshing: .hang)) { host, _, world in
       _ = try await host.run(SavePanel(PanelScenarioTests.radar))
       _ = try await host.run(SavePanel(PanelScenarioTests.panel("other")))
-      _ = try await host.run(RefreshPanel("radar"))
+      _ = try await host.run(RefreshPanel(PanelRef("radar")))
       let session = try await refreshSession(world)
       let link = try #require(URL(string: "https://example.com/a"))
       let renamed = Panel(
@@ -122,7 +122,7 @@ struct PanelGuardScenarioTests {
       #expect(other == .failed(.invalidRequest("This refresh is of radar; it can save only that panel.")))
       #expect(own == .value(try JSONEncoder().encode(Done())))
       #expect(try await host.run(ListItems()).isEmpty)
-      let titles = try await host.panelColumn().slots.compactMap { slot -> String? in
+      let titles = try await host.panelColumn(of: .chat).slots.compactMap { slot -> String? in
         if case .panel(let panel) = slot { panel.title } else { nil }
       }
       #expect(titles == ["沙箱快讯", "other"])

@@ -65,7 +65,7 @@ struct LociPageTests {
     try await withHost { host, place, _ in
       let item = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n\nterm\n"))
       let agent = place.root.appending(path: "agent")
-      try place.store.setMemoryWritable(true)
+      try place.store.home(.chat).setMemoryWritable(true)
       try place.edit(agent.appending(path: "MEMORY.md")) {
         $0 + "- 2025-11-12 混淆过 term 和 index loci://library/\(item.id)#quote=term\nloose words\n"
       }
@@ -94,7 +94,7 @@ struct LociPageTests {
       let feed = host.subscribe(LociHome())
       _ = await value(feed) { _ in true }
 
-      try place.store.setMemoryWritable(true)
+      try place.store.home(.chat).setMemoryWritable(true)
       try place.edit(place.root.appending(path: "agent/MEMORY.md")) { $0 + "- 不要出题考\n" }
 
       #expect(await value(feed) { $0.memory.count == 1 } != nil)
@@ -104,7 +104,7 @@ struct LociPageTests {
   @Test func forgettingTakesOutOneEntryAndLeavesTheRest() async throws {
     try await withHost { host, place, _ in
       let memory = place.root.appending(path: "agent/MEMORY.md")
-      try place.store.setMemoryWritable(true)
+      try place.store.home(.chat).setMemoryWritable(true)
       try place.edit(memory) { $0 + "- a\n  more of a\n- b\n" }
 
       _ = try await host.run(Forget("- a", in: .memory))

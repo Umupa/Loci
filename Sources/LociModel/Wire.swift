@@ -3,7 +3,8 @@
 public enum Wire {
   public static let toolCommands: [any LocalToolCommand.Type] = [
     ReadSource.self, FetchSourceRepository.self, AddSchedule.self, AddFollowUp.self, ListConnectors.self,
-    CallConnector.self, Recall.self,
+    CallConnector.self, Recall.self, NameProject.self, DescribeProject.self,
+    SaveDataSource.self, TestDataSource.self, ListDataSources.self,
   ]
 
   /// Commands only the Mac the companion lives on runs; another Mac is refused them.
@@ -40,6 +41,9 @@ public enum Wire {
     .writes(PickKeyPoints.self),
     .reads(ListPanels.self), .writes(SavePanel.self), .writes(RefreshPanel.self), .writes(MovePanelToTop.self),
     .writes(RemovePanel.self), .writes(EditPanel.self), .writes(MarkPanelLine.self),
+    .writes(StartProject.self), .writes(RenameProject.self), .writes(SetProjectRemembered.self),
+    .writes(ArchiveProject.self), .writes(DeleteProject.self), .writes(RestoreDeletedProject.self),
+    .writes(SeeProject.self), .writes(PinPanel.self),
     .reads(ListCourses.self), .writes(StartCourse.self), .writes(AnswerCourseQuestion.self),
     .writes(BeginCourseSources.self), .writes(AddCourseSource.self), .writes(RemoveCourseSource.self),
     .writes(BeginCourseWriting.self), .reads(ReadLesson.self), .writes(OpenLesson.self),
@@ -56,7 +60,7 @@ public enum Wire {
     ItemMedia.self, WatchCourses.self, WatchCourse.self, WatchLesson.self,
     MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self, WatchPanelColumn.self,
     WatchTimers.self, WatchScheduleRuns.self, WatchWikiPage.self, WatchConnectors.self, WatchConnectorCalls.self,
-    AvailableModels.self,
+    AvailableModels.self, WatchProjects.self, WatchSourceHistory.self,
   ]
 
   /// The route of a command type, or `nil` when it is not registered.

@@ -4,7 +4,7 @@ public enum ToolGuide {
   public static let text = """
     loci: read sources, search and add to the person's library, keep panels, and write courses, from inside Loci.
 
-    Read items as files (../library/<folder>/). Search and add with loci.
+    Read items as files, in the folder `loci show <id>` prints. Search and add with loci.
     Run it as "$LOCI"; a plain `loci` on PATH may be another program.
 
       loci read <url>                  print all the text from a page, PDF, video with site subtitles or GitHub file
@@ -22,6 +22,12 @@ public enum ToolGuide {
       loci panel add <name> <section> <text> [--propose]
                                        add your item at the end of an items section; --propose leaves it
                                        for the person to take or not
+      loci source save <name> --title <title> --every <1m|15m|1h> [--between HH:mm-HH:mm] [--weekdays]
+                                       fetch the script on standard input once, and keep it only if it works
+      loci source test <name> [--script]
+                                       run the kept samples again, with the script on standard input
+      loci source list                 every source, and when each last got something
+      loci source show <name>          a source's settings, script and records
       loci schedule add <name>         look into something on a schedule, from JSON on standard input;
                                        prints when it first runs
       loci schedule change <name>      change a schedule or a panel's refresh: JSON on standard input with only
@@ -55,8 +61,10 @@ public enum ToolGuide {
       loci wake                        wake up
       loci recall <words>              search every conversation and every run for what was said; prints the file
                                        and the words around it
-      loci help [<topic>]              this text, or one topic: memory, notes, feelings, panels, schedules,
-                                       connectors, courses, locators
+      loci project name <name>         name the project this session is in
+      loci project describe <line>     say in one line what the project is doing; all the main conversation knows
+      loci help [<topic>]              this text, or one topic: memory, notes, feelings, panels, sources,
+                                       schedules, connectors, courses, locators
 
     Add --json to print the app's reply as it is.
 
@@ -70,13 +78,14 @@ public enum ToolGuide {
     - Exit status 0 means it worked; 1 means it did not, and the message says why; 2 means the
       command was written wrong.
 
-    Run "$LOCI" help <topic> for how to write each thing: memory, notes, feelings, panels, schedules,
-    connectors, courses, locators.
+    Run "$LOCI" help <topic> for how to write each thing: memory, notes, feelings, panels, sources,
+    schedules, connectors, courses, locators.
     """
 
   /// Each topic of `loci help <topic>`, in the order the overview names them.
   public static let topics: [(name: String, text: String)] = [
-    ("memory", memory), ("notes", notes), ("feelings", feelings), ("panels", panels), ("schedules", schedules),
+    ("memory", memory), ("notes", notes), ("feelings", feelings), ("panels", panels), ("sources", sources),
+    ("schedules", schedules),
     ("connectors", connectors), ("courses", courses), ("locators", locators),
   ]
 

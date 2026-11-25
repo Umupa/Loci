@@ -16,7 +16,7 @@ struct ResetScenarioTests {
     _ = try await first.run(AddTextItem(fileName: "borg.md", text: "# Borg"))
     _ = try await first.run(SendMessage(to: .main, text: "在吗"))
     _ = try #require(await settled(first))
-    try place.store.setMemoryWritable(true)
+    try place.store.home(.chat).setMemoryWritable(true)
     try place.edit(place.root.appending(path: "agent/MEMORY.md")) { $0 + "- 喜欢读论文\n" }
 
     try await first.reset()

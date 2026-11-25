@@ -57,6 +57,18 @@ struct CheckerTests {
     #expect(BoundaryTests.violations(of: Architecture.restricted, in: file).map(\.line) == [3])
   }
 
+  @Test func flagsACapsuleStrokedWithItsDefaultCorners() {
+    let file = SourceFile(
+      path: "Sources/LociUI/Example.swift", module: "LociUI",
+      text: """
+        .overlay(Capsule().strokeBorder(Palette.line, lineWidth: 1))
+        .overlay(Capsule(style: .circular).strokeBorder(Palette.line, lineWidth: 1))
+        .background(Capsule().fill(Palette.surface))
+        """)
+
+    #expect(BoundaryTests.violations(of: Architecture.forbidden, in: file).map(\.line) == [1])
+  }
+
   @Test func flagsASparklesSymbolInAnyCase() {
     let file = SourceFile(
       path: "Sources/LociUI/Example.swift", module: "LociUI",

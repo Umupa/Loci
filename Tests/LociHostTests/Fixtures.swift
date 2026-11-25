@@ -1,6 +1,7 @@
 import Foundation
 import LociAgents
 import LociConnect
+import LociMedia
 import LociModel
 import LociStore
 import Synchronization
@@ -29,15 +30,17 @@ final class TestWorld: Sendable {
   let agent: FakeAgent
   let connect: ConnectEnvironment
   let sessionFiles: SessionFolders
+  let sources: (any DataSourceRunning)?
 
   init(
     agent: FakeAgent = FakeAgent(), idOffset: UInt64 = 0, connect: ConnectEnvironment = .disconnected,
-    sessionFiles: SessionFolders = .none
+    sessionFiles: SessionFolders = .none, sources: (any DataSourceRunning)? = nil
   ) {
     created = Mutex(idOffset)
     self.agent = agent
     self.connect = connect
     self.sessionFiles = sessionFiles
+    self.sources = sources
   }
 
   var environment: HostEnvironment {
@@ -56,7 +59,7 @@ final class TestWorld: Sendable {
       detectAgents: { [self] again in
         self.looks.withLock { $0.append(again) }
         return Self.installed
-      }, ticks: { [ticking] in ticking.stream }, tool: tool,
+      }, ticks: { [ticking] in ticking.stream }, media: .disconnected(sources: sources), tool: tool,
       activity: { [self] _ in
         self.activities.withLock { $0.append("begin") }
         return Activity { self.activities.withLock { $0.append("end") } }
@@ -123,11 +126,12 @@ struct Place {
 /// Runs `body` against a host started in a new temporary place, then closes it and deletes the place.
 func withHost(
   agent: FakeAgent = FakeAgent(), connect: ConnectEnvironment = .disconnected,
-  sessionFiles: SessionFolders = .none, _ body: (LocalHost, Place, TestWorld) async throws -> Void
+  sessionFiles: SessionFolders = .none, sources: (any DataSourceRunning)? = nil,
+  _ body: (LocalHost, Place, TestWorld) async throws -> Void
 ) async throws {
   let place = Place()
   defer { place.remove() }
-  let world = TestWorld(agent: agent, connect: connect, sessionFiles: sessionFiles)
+  let world = TestWorld(agent: agent, connect: connect, sessionFiles: sessionFiles, sources: sources)
   let host = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
   do {
     try await body(host, place, world)

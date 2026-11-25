@@ -92,6 +92,7 @@ extension ConversationRef {
     case .main: NoteSource.main.tag
     case .item(let item): NoteSource.item(item, title: nil).tag
     case .course(let id): NoteSource.course(id).tag
+    case .project(let id): NoteSource.project(id).tag
     }
   }
 
@@ -101,6 +102,7 @@ extension ConversationRef {
     case .main: self = .main
     case .item(let item, _): self = .item(item)
     case .course(let id): self = .course(id)
+    case .project(let id): self = .project(id)
     case .review, .run, nil: return nil
     }
   }

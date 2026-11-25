@@ -60,6 +60,7 @@ public enum NoteSource: Hashable, Codable, Sendable {
   /// The item's conversation, with the item's title; `nil` when the item is gone.
   case item(EntityID, title: String?)
   case course(EntityID)
+  case project(Project.ID)
   /// The daily review.
   case review
   /// A run in the background.
@@ -71,6 +72,7 @@ public enum NoteSource: Hashable, Codable, Sendable {
     case .main: "main"
     case .item(let item, _): "library/\(item)"
     case .course(let course): "courses/\(course)"
+    case .project(let project): "projects/\(project)"
     case .review: "review"
     case .run(let run): "run/\(run)"
     }
@@ -89,6 +91,9 @@ public enum NoteSource: Hashable, Codable, Sendable {
     case _ where tag.hasPrefix("courses/"):
       guard let course = EntityID(canonical: String(tag.dropFirst(8))) else { return nil }
       self = .course(course)
+    case _ where tag.hasPrefix("projects/"):
+      guard let project = EntityID(canonical: String(tag.dropFirst(9))) else { return nil }
+      self = .project(project)
     default: return nil
     }
   }

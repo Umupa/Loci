@@ -25,6 +25,13 @@ extension StoreDatabase {
     }
   }
 
+  /// Whether an event with this key was ever raised, whatever came of it.
+  public func hasEvent(withKey key: String) throws -> Bool {
+    try queue.read { db in
+      try Bool.fetchOne(db, sql: "SELECT EXISTS (SELECT 1 FROM inbox WHERE key = ?)", arguments: [key]) ?? false
+    }
+  }
+
   public func event(_ id: EntityID) throws -> Event? {
     try queue.read { db in
       try String.fetchOne(db, sql: "SELECT body FROM inbox WHERE id = ?", arguments: [id.description])

@@ -113,13 +113,14 @@ public enum PanelCheck {
     var items: Set<String> = []
   }
 
-  /// A panel of items needs no sentence first: the items say what there is.
+  /// A panel of items needs no sentence first: the items say what there is. Nor does one that opens with a
+  /// chart: its numbers do.
   private static func problems(in rows: [PanelRow], at path: String, seen: inout Seen) -> [PanelProblem] {
     guard let first = rows.first else { return [PanelProblem(path, "has no rows")] }
     var found: [PanelProblem] = []
     let holdsItems = rows.contains { if case .items = $0 { true } else { false } }
     if case .sentence = first {
-    } else if !holdsItems {
+    } else if !holdsItems, !first.isChart {
       found.append(PanelProblem("\(path)[0]", "the first row must be a sentence that sums the panel up"))
     }
     for (index, row) in rows.enumerated() {
@@ -168,6 +169,8 @@ public enum PanelCheck {
     switch row {
     case .items:
       return []
+    case .quotes, .line, .ruler, .allocation, .heat, .candles, .zones:
+      return problems(inChart: row, at: path)
     case .sentence(let text), .label(let text):
       return text.isBlank ? [PanelProblem("\(path).text", "is empty")] : []
     case .cells(let cells):
@@ -226,11 +229,18 @@ public enum PanelCheck {
     case DecodingError.dataCorrupted(let context):
       let choices =
         switch context.codingPath.last?.stringValue {
-        case "row": ": sentence, cells, label, list, prominent, bars, picture, items"
+        case "row":
+          ": sentence, cells, label, list, prominent, bars, picture, items, quotes, line, ruler, allocation, heat, "
+            + "candles, zones"
+        case "format": ": number, percent"
+        case "kind": ": take, stop"
         case "by": ": you, loci"
         case "every": ": hour, day, week"
         default: ""
         }
+      if choices.isEmpty, context.debugDescription.hasPrefix("\"") {
+        return PanelProblem(path(context.codingPath), context.debugDescription)
+      }
       return PanelProblem(path(context.codingPath), "is not one of the values it can be\(choices)")
     default:
       return PanelProblem("", String(describing: error))

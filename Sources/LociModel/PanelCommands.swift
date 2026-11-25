@@ -3,6 +3,8 @@ public enum PanelPlace: Hashable, Codable, Sendable {
   /// 「接着读」.
   case reading
   case panel(String)
+  /// A project's panel pinned to the chat's column.
+  case pinned(Project.ID, String)
 }
 
 extension PanelSlot {
@@ -10,6 +12,7 @@ extension PanelSlot {
     switch self {
     case .reading: .reading
     case .panel(let panel): .panel(panel.name)
+    case .pinned(let project, let panel): .pinned(project, panel.name)
     }
   }
 }
@@ -29,14 +32,20 @@ public struct PanelEntry: Hashable, Codable, Sendable {
   }
 }
 
-/// The panel column beside the main conversation.
+/// The panel column beside a home's conversation. The chat's also shows the panels projects pinned to it.
+/// Every command on panels carries its project; one without, as an older Mac sends it, is the chat's.
 public struct WatchPanelColumn: Subscription {
   public static let name = "panels"
+  public let project: Project.ID?
 
-  public init() {}
+  public init(of home: Home = .chat) {
+    project = home.project
+  }
+
+  public var home: Home { Home(project) }
 
   public func value(from handler: any CommandHandler) async throws(HostError) -> PanelColumn {
-    try await handler.panelColumn()
+    try await handler.panelColumn(of: home)
   }
 
   /// 「接着读」 lists items read partway, by their titles.
@@ -44,7 +53,7 @@ public struct WatchPanelColumn: Subscription {
     changes.contains { change in
       switch change {
       case .loci(let file): file == .panels
-      case .reading, .item, .everything: true
+      case .reading, .item, .everything, .projects, .source: true
       case .course, .courseActivity, .notes, .job, .media, .conversation, .turnEnded, .review, .runtime, .timers,
         .connectors:
         false
@@ -57,28 +66,36 @@ public struct WatchPanelColumn: Subscription {
 public struct RefreshPanel: RemoteCommand {
   public static let name = "panels.refresh"
   public let panel: String
+  public let project: Project.ID?
 
-  public init(_ panel: String) {
-    self.panel = panel
+  public init(_ panel: PanelRef) {
+    self.panel = panel.name
+    project = panel.home.project
   }
+
+  public var ref: PanelRef { PanelRef(panel, in: Home(project)) }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
     try await handler.refreshPanel(self)
   }
 }
 
-/// Puts a slot at the top of the column; the rest keep their order.
+/// Puts a slot at the top of a home's column; the rest keep their order.
 public struct MovePanelToTop: RemoteCommand {
   public static let name = "panels.moveToTop"
   public let place: PanelPlace
+  public let project: Project.ID?
 
-  public init(_ place: PanelPlace) {
+  public init(_ place: PanelPlace, in home: Home) {
     self.place = place
+    project = home.project
   }
 
-  public init(_ slot: PanelSlot) {
-    place = slot.place
+  public init(_ slot: PanelSlot, in home: Home) {
+    self.init(slot.place, in: home)
   }
+
+  public var home: Home { Home(project) }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
     try await handler.movePanelToTop(self)
@@ -89,38 +106,51 @@ public struct MovePanelToTop: RemoteCommand {
 public struct RemovePanel: RemoteCommand {
   public static let name = "panels.remove"
   public let panel: String
+  public let project: Project.ID?
 
-  public init(_ panel: String) {
-    self.panel = panel
+  public init(_ panel: PanelRef) {
+    self.panel = panel.name
+    project = panel.home.project
   }
+
+  public var ref: PanelRef { PanelRef(panel, in: Home(project)) }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
     try await handler.removePanel(self)
   }
 }
 
-/// Writes `agent/panels/<name>.json`, refused with every `PanelProblem` when the panel cannot be shown. A
-/// new panel goes to the bottom of the column.
+/// Writes `panels/<name>.json` in the home's folder, refused with every `PanelProblem` when the panel cannot
+/// be shown. A new panel goes to the bottom of the column.
 public struct SavePanel: RemoteCommand {
   public static let name = "panels.save"
   public let panel: Panel
+  public let project: Project.ID?
 
-  public init(_ panel: Panel) {
+  public init(_ panel: Panel, in home: Home = .chat) {
     self.panel = panel
+    project = home.project
   }
+
+  public var home: Home { Home(project) }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
     try await handler.savePanel(self)
   }
 }
 
-/// Every panel file, by name, broken ones too.
+/// Every panel file of a home, by name, broken ones too.
 public struct ListPanels: RemoteCommand {
   public static let name = "panels.list"
+  public let project: Project.ID?
 
-  public init() {}
+  public init(of home: Home = .chat) {
+    project = home.project
+  }
+
+  public var home: Home { Home(project) }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> [PanelEntry] {
-    try await handler.panels()
+    try await handler.panels(of: home)
   }
 }

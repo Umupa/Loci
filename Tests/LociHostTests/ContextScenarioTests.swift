@@ -27,7 +27,7 @@ struct ContextScenarioTests {
   @Test func memoryAndNotesAreShownOnceAndAgainOnlyWhenTheyChange() async throws {
     try await withHost { host, place, world in
       let memory = place.root.appending(path: "agent/MEMORY.md")
-      try place.store.setMemoryWritable(true)
+      try place.store.home(.chat).setMemoryWritable(true)
       try place.edit(memory) { $0 + "- 2025-11-02 先给结论\n" }
 
       try await say("one", to: host, prompts: 1)
@@ -109,6 +109,6 @@ struct ContextScenarioTests {
 
 extension Store {
   func writeNotes(_ text: String, on day: String) throws {
-    try Data(text.utf8).write(to: dayNotesFile(of: Day(day) ?? Day(containing: Timestamp(.now), in: .gmt)))
+    try Data(text.utf8).write(to: home(.chat).dayNotesFile(of: Day(day) ?? Day(containing: Timestamp(.now), in: .gmt)))
   }
 }

@@ -100,11 +100,16 @@ public struct AddSchedule: LocalToolCommand {
   public static let name = "timers.addSchedule"
   public let scheduleName: String
   public let draft: ScheduleDraft
+  /// The project it is set in; the app fills it in from the session the command came from.
+  public let project: Project.ID?
 
-  public init(_ name: String, _ draft: ScheduleDraft) {
+  public init(_ name: String, _ draft: ScheduleDraft, in home: Home = .chat) {
     scheduleName = name
     self.draft = draft
+    project = home.project
   }
+
+  public var home: Home { Home(project) }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> ScheduleEntry {
     try await handler.addSchedule(self)

@@ -183,10 +183,31 @@ struct ToolScenarioTests {
       #expect(saved == [.value(try JSONEncoder().encode(Done()))])
       guard case .value(let data) = try #require(listed.first) else { return }
       #expect(try JSONDecoder().decode([PanelEntry].self, from: data).map(\.panel) == [PanelScenarioTests.radar])
-      #expect(try await host.panelColumn().slots == [.panel(PanelScenarioTests.radar)])
+      #expect(try await host.panelColumn(of: .chat).slots == [.panel(PanelScenarioTests.radar)])
     }
   }
 
+  @Test func lociPanelSaveInAProjectsSessionSavesInTheProject() async throws {
+    try await withHost(agent: FakeAgent(provider: .codex)) { host, place, _ in
+      let project = try await ProjectScenarioTests.start(host)
+      let session = LocalSession.conversation(.project(project))
+
+      _ = await answer(try command(SavePanel(PanelScenarioTests.radar), in: session), on: host)
+      let listed = await answer(try command(ListPanels(), in: session), on: host)
+
+      #expect(place.store.home(.project(project)).panels().map(\.panel) == [PanelScenarioTests.radar])
+      #expect(place.store.home(.chat).panels().isEmpty)
+      guard case .value(let data) = try #require(listed.first) else { return }
+      #expect(try JSONDecoder().decode([PanelEntry].self, from: data).map(\.panel) == [PanelScenarioTests.radar])
+      let folder = await answer(
+        LocalCall(
+          session: session, request: .itemFolder(try await host.run(AddTextItem(fileName: "a.md", text: "# Borg\n")).id)
+        ),
+        on: host)
+      guard case .value(let path) = try #require(folder.first) else { return }
+      #expect(try JSONDecoder().decode(String.self, from: path).hasPrefix("../../../library/"))
+    }
+  }
 }
 
 /// I-S10: what Loci saves with `loci save` while earlier saves still have work going on is one batch.

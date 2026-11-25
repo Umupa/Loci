@@ -238,6 +238,9 @@ private struct PasteSource: View {
     .foregroundStyle(Palette.inkFaint)
     .padding(.horizontal, 18)
     .frame(height: 44)
-    .overlay { Capsule().strokeBorder(Palette.inkFaint.opacity(0.7), style: StrokeStyle(lineWidth: 1, dash: [4, 4])) }
+    .overlay {
+      Capsule(style: .circular).strokeBorder(
+        Palette.inkFaint.opacity(0.7), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+    }
   }
 }

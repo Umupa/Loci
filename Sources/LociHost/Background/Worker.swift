@@ -22,7 +22,7 @@ actor Worker {
     /// Tries that failed before this one.
     let tries: Int
     let title: String
-    /// The panels the run may save.
+    /// The panels of the run's home it may save, by name.
     var panels: Set<String>
     var agent: AgentRun?
     var stopped = false
@@ -32,10 +32,11 @@ actor Worker {
     var policy: RunPolicy {
       switch run.kind {
       case .review: .review
-      case .timers(let timed):
-        timed.sources.allSatisfy { if case .panel = $0 { true } else { false } } ? .panel : .timers
+      case .timers(let timed): timed.sources.allSatisfy { $0.panel != nil } ? .panel : .timers
       }
     }
+
+    var home: Home { run.kind.home }
   }
 
   init(context: AgentContext, talking: @escaping @Sendable () async -> Bool) {
@@ -54,10 +55,14 @@ actor Worker {
     }
   }
 
-  var refreshingPanels: Set<String> {
+  var refreshingPanels: Set<PanelRef> {
     guard let current, case .timers(let timed) = current.run.kind else { return [] }
-    return Set(timed.sources.compactMap { if case .panel(let name, _) = $0 { name } else { nil } })
-      .intersection(current.panels)
+    return Set(timed.sources.compactMap(\.panel).filter { current.panels.contains($0.name) })
+  }
+
+  /// The home of the run, while it is under way.
+  func home(of run: Run.ID) -> Home? {
+    current.flatMap { $0.run.id == run ? $0.home : nil }
   }
 
   /// What the run's session may do with `loci`; `nil` once the run is over.
@@ -66,18 +71,18 @@ actor Worker {
   }
 
   /// Whether the run may save the panel now.
-  func permission(toSave panel: String, from run: Run.ID) -> PanelPermission {
+  func permission(toSave panel: PanelRef, from run: Run.ID) -> PanelPermission {
     guard let current, current.run.id == run, !current.stopped else { return .stopped }
-    guard current.panels.contains(panel) else {
+    guard panel.home == current.home, current.panels.contains(panel.name) else {
       return current.policy == .review ? .none : .only(current.panels.sorted())
     }
     return .allowed
   }
 
   /// A removed panel can no longer be saved by the run under way; a run that was only for it stops.
-  func panelRemoved(_ name: String) {
-    guard var current, current.panels.contains(name) else { return }
-    current.panels.remove(name)
+  func panelRemoved(_ panel: PanelRef) {
+    guard var current, current.home == panel.home, current.panels.contains(panel.name) else { return }
+    current.panels.remove(panel.name)
     if current.panels.isEmpty, current.policy == .panel {
       current.stopped = true
       if let agent = current.agent { Task { await agent.stop() } }
@@ -96,7 +101,7 @@ actor Worker {
       return retry?.notBefore.map { $0 <= now } ?? true
     }
     let wanted = ready.filter { event in
-      if isWanted(event) { return true }
+      if context.isWanted(event) { return true }
       try? context.database.update(event.with(.dropped))
       return false
     }
@@ -107,24 +112,14 @@ actor Worker {
     }
   }
 
-  /// The events that share a run with `first`: those raised for the first time, due in the same minute.
-  /// A review, and a run being tried again, run alone.
+  /// The events that share a run with `first`: those of its home raised for the first time, due in the same
+  /// minute. A review, and a run being tried again, run alone.
   static func together(_ events: [Event], first: Event) -> [Event] {
     guard case .waiting(nil) = first.state, !first.isReview else { return [first] }
     let minute = first.due.millisecondsSince1970 / 60_000
     return events.filter { event in
-      guard case .waiting(nil) = event.state else { return false }
+      guard case .waiting(nil) = event.state, event.source.home == first.source.home else { return false }
       return !event.isReview && !event.isAsked && event.due.millisecondsSince1970 / 60_000 == minute
-    }
-  }
-
-  private func isWanted(_ event: Event) -> Bool {
-    switch event.source {
-    case .schedule(let id):
-      guard let schedule = try? context.database.schedule(id) else { return false }
-      return !schedule.paused
-    case .panel(let name, _): return context.store.panel(named: name)?.panel != nil
-    case .followUp, .review: return true
     }
   }
 
@@ -134,31 +129,37 @@ actor Worker {
     let tries = retry?.tries ?? 0
     let id = retry?.run ?? context.environment.newID()
     let kind: Run.Kind =
-      if case .review(let day) = first.source { .review(day) } else {
+      if case .review(let day, let project) = first.source { .review(day, project: project) } else {
         .timers(Run.Timed(first.source, events.dropFirst().map(\.source)))
       }
     let begun = (try? context.database.run(id)) ?? nil
-    let record = Store.runRecordPath(of: id, on: Day(containing: now, in: context.environment.timeZone))
+    let record = HomeFiles.runRecordPath(
+      of: id, on: Day(containing: now, in: context.environment.timeZone), in: kind.home)
     let run = (begun ?? Run(id: id, kind: kind, startedAt: now, outcome: .running(tries: tries), record: record))
       .with(.running(tries: tries))
-    let titles = events.map { title(of: $0.source) }
+    let titles = events.map { context.title(of: $0.source) }
     current = Current(
-      run: run, events: events, tries: tries, title: titles.joined(separator: "、"), panels: panels(of: kind))
+      run: run, events: events, tries: tries, title: titles.joined(separator: "、"), panels: context.panels(of: kind))
     try? context.database.saveRun(run)
     for event in events { try? context.database.update(event.with(.running(id, tries: tries))) }
     if begun == nil {
       let header = RunRecord.header(
-        run, events: events.map { describe($0) }, tries: tries, in: context.environment.timeZone)
+        run, events: events.map { context.describe($0) }, tries: tries, in: context.environment.timeZone)
       try? context.store.saveRunRecord(header, at: run.record)
     }
     let panels = refreshingPanels
     if !panels.isEmpty {
-      _ = try? context.store.changePanelState { state in for name in panels { state.refreshed[name] = now } }
+      _ = try? context.store.home(kind.home).changePanelState { state in
+        for panel in panels { state.refreshed[panel.name] = now }
+      }
     }
-    if case .review(let day) = kind {
-      if (try? context.database.review(of: day)) == nil { try? context.database.beginReview(of: day, at: now) }
-      current?.brief = ReviewBrief.make(for: day, store: context.store, timeZone: context.environment.timeZone)
-      try? context.store.setMemoryWritable(true)
+    if case .review(let day, let project) = kind {
+      if project == nil, (try? context.database.review(of: day)) == nil {
+        try? context.database.beginReview(of: day, at: now)
+      }
+      current?.brief = ReviewBrief.make(
+        for: day, in: kind.home, store: context.store, timeZone: context.environment.timeZone)
+      try? context.store.home(kind.home).setMemoryWritable(true)
     }
     work = Task { await self.perform(run, redo: retry != nil) }
     await context.follower.follow(changes(of: kind))
@@ -169,15 +170,15 @@ actor Worker {
     let result: RunResult
     var usage: ContextUsage?
     do throws(HostError) {
-      let owner: SessionOwner = if case .review(let day) = run.kind { .review(day) } else { .run(run.id) }
-      let agent = try AgentRun(owner: owner, session: .run(run.id), context: context)
+      let owner: SessionOwner = if case .review(let day, nil) = run.kind { .review(day) } else { .run(run.id) }
+      let agent = try AgentRun(owner: owner, home: run.kind.home, session: .run(run.id), context: context)
       current?.agent = agent
       try await agent.startOver()
       let text = try RunPrompts(context: context).text(for: run, redo: redo, brief: current?.brief)
       if current?.stopped == true {
         result = .stopped
       } else {
-        let purpose: Prompt.Purpose = if case .review(let day) = run.kind { .review(day) } else { .run(run.id) }
+        let purpose: Prompt.Purpose = if case .review(let day, _) = run.kind { .review(day) } else { .run(run.id) }
         try await agent.send(Prompt(text: text, purpose: purpose), saying: text)
         result = current?.stopped == true ? .stopped : RunResult(of: await agent.settle())
         usage = await agent.snapshot.context
@@ -194,17 +195,16 @@ actor Worker {
     guard let current else { return }
     let database = context.database
     let now = context.environment.now()
-    let review: Day? = if case .review(let day) = run.kind { day } else { nil }
+    let isReview = current.run.kind.sources.contains { if case .review = $0 { true } else { false } }
+    let review: Day? = if case .review(let day, nil) = run.kind { day } else { nil }
     if closing {
-      if let review {
-        try? database.forgetReview(of: review)
-        try? context.store.setMemoryWritable(false)
-      }
+      if let review { try? database.forgetReview(of: review) }
+      if isReview { try? context.store.home(run.kind.home).setMemoryWritable(false) }
       return
     }
     let tries = current.tries + 1
     var record = (try? context.store.runRecord(at: run.record)).flatMap(\.self) ?? ""
-    if review != nil { tidyMemory(after: result, brief: current.brief) }
+    if isReview { tidyMemory(of: run.kind.home, after: result, brief: current.brief) }
     switch result {
     case .finished(let reply, let sources):
       let summary = RunResult.summary(of: reply)
@@ -242,13 +242,13 @@ actor Worker {
 
   /// After a daily review: on the first split, keeps any entry the review lost; keeps what the review left to
   /// compare against later; and makes the index and wiki read-only again.
-  private func tidyMemory(after result: RunResult, brief: ReviewBrief?) {
+  private func tidyMemory(of home: Home, after result: RunResult, brief: ReviewBrief?) {
     let store = context.store
     if case .finished = result {
       if let entries = brief?.migrating { _ = try? ReviewBrief.keepLost(entries, store: store) }
-      try? store.keepMemory()
+      try? store.home(home).keepMemory()
     }
-    try? store.setMemoryWritable(false)
+    try? store.home(home).setMemoryWritable(false)
   }
 
   /// Stops the run under way. Its events stay in the inbox and are done again when the app next opens.
@@ -259,45 +259,12 @@ actor Worker {
   }
 
   private func changes(of kind: Run.Kind) -> Set<ContentChange> {
-    switch kind {
-    case .review: [.timers, .review]
-    case .timers: [.timers, .loci(.panels)]
-    }
-  }
-
-  private func panels(of kind: Run.Kind) -> Set<String> {
-    guard case .timers(let timed) = kind else { return [] }
-    return Set(
-      timed.sources.compactMap { source in
-        switch source {
-        case .panel(let name, _): return name
-        case .schedule(let id):
-          guard case .panel(let name)? = (try? context.database.schedule(id))??.destination else { return nil }
-          return name
-        case .followUp, .review: return nil
-        }
-      })
-  }
-
-  private func title(of source: Event.Source) -> String {
-    switch source {
-    case .panel(let name, _): context.store.panel(named: name)?.panel?.title ?? name
-    case .schedule(let id): ((try? context.database.schedule(id)) ?? nil)?.title ?? id.description
-    case .followUp(let id): ((try? context.database.followUp(id)) ?? nil)?.what ?? id.description
-    case .review(let day): "\(day)"
-    }
-  }
-
-  private func describe(_ event: Event) -> String {
-    let due = TimeOfDay(of: event.due, in: context.environment.timeZone)
-    switch event.source {
-    case .panel(let name, let asked): return "panel \(name)" + (asked ? ", asked for" : ", due \(due)")
-    case .schedule(let id):
-      let name = ((try? context.database.schedule(id)) ?? nil)?.name ?? id.description
-      return "schedule \(name), due \(due): \(title(of: event.source))"
-    case .followUp: return "follow-up due \(due): \(title(of: event.source))"
-    case .review(let day): return "the review of \(day)"
-    }
+    let changes: Set<ContentChange> =
+      switch kind {
+      case .review: [.timers, .review]
+      case .timers: [.timers, .loci(.panels)]
+      }
+    return kind.home == .chat ? changes : changes.union([.projects, .turnEnded(kind.home.conversation)])
   }
 }
 
@@ -333,7 +300,7 @@ enum PanelPermission: Equatable {
 
 extension Event {
   var isAsked: Bool {
-    if case .panel(_, asked: true) = source { true } else { false }
+    if case .panel(_, asked: true, _) = source { true } else { false }
   }
 
   var isReview: Bool {

@@ -78,11 +78,15 @@ public struct EditPanel: RemoteCommand {
   public static let name = "panels.edit"
   public let panel: String
   public let edit: PanelEdit
+  public let project: Project.ID?
 
-  public init(_ panel: String, _ edit: PanelEdit) {
-    self.panel = panel
+  public init(_ panel: PanelRef, _ edit: PanelEdit) {
+    self.panel = panel.name
     self.edit = edit
+    project = panel.home.project
   }
+
+  public var ref: PanelRef { PanelRef(panel, in: Home(project)) }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
     try await handler.editPanel(self)
@@ -95,12 +99,16 @@ public struct MarkPanelLine: RemoteCommand {
   public let panel: String
   public let line: PanelLineKey
   public let mark: PanelLineMark
+  public let project: Project.ID?
 
-  public init(_ panel: String, _ line: PanelLineKey, _ mark: PanelLineMark) {
-    self.panel = panel
+  public init(_ panel: PanelRef, _ line: PanelLineKey, _ mark: PanelLineMark) {
+    self.panel = panel.name
     self.line = line
     self.mark = mark
+    project = panel.home.project
   }
+
+  public var ref: PanelRef { PanelRef(panel, in: Home(project)) }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
     try await handler.markPanelLine(self)

@@ -110,7 +110,8 @@ struct TimerToolTests {
   @Test func listingSaysHowOftenWhereAndWhenNextOrThatItIsPaused() async throws {
     let timers = Timers(
       schedules: [
-        try Self.entry(.schedule(Self.id), "sandbox-news"), try Self.entry(.panel("radar"), "radar", paused: true),
+        try Self.entry(.schedule(Self.id), "sandbox-news"),
+        try Self.entry(.panel(PanelRef("radar")), "radar", paused: true),
       ], followUps: [], next: Self.nine)
     let line = ScriptedLine { _ in [.success(Self.json(timers))] }
 

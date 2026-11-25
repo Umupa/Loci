@@ -12,6 +12,8 @@ import os
 /// starts; the person sees one conversation either way.
 actor AgentRun {
   let owner: SessionOwner
+  /// Where the sessions work, and whose notes and transcripts they keep.
+  let home: Home
   let toolSession: LocalSession?
   private var courseToolAccess: EntityID?
   let context: AgentContext
@@ -34,8 +36,9 @@ actor AgentRun {
   /// shown a few words at a time.
   static let showEvery = Duration.milliseconds(50)
 
-  init(owner: SessionOwner, session: LocalSession?, context: AgentContext) throws(HostError) {
+  init(owner: SessionOwner, home: Home, session: LocalSession?, context: AgentContext) throws(HostError) {
     self.owner = owner
+    self.home = home
     toolSession = session
     self.context = context
     var stored = try attempt { try context.database.messages(of: owner) }
@@ -44,7 +47,7 @@ actor AgentRun {
     if let cut = stored.last, case .prompt = cut.body, let session {
       let stopped = Message(id: context.environment.newID(), at: cut.at, body: .ended(.interrupted))
       try attempt { try context.database.append([stopped], to: session.id) }
-      Self.mirror([cut, stopped], of: session, context: context)
+      Self.mirror([cut, stopped], of: session, in: home, context: context)
       stored.append(stopped)
     }
     self.stored = stored
@@ -193,7 +196,7 @@ actor AgentRun {
   private func openSession() async throws(TurnFailure) -> (any AgentSession, SessionRotation.Reason?) {
     let selection = await context.agents.selection()
     let runtime = selection.runtime
-    let instructions = try TurnFailure.from { () throws(HostError) in try context.instructions() }
+    let instructions = try TurnFailure.from { () throws(HostError) in try context.instructions(for: home) }
     let fingerprint = Fingerprint.of(instructions + selection.instructionsScope)
     var reason = SessionRotation.reason(
       current: session, startedOver: stored.last?.body == .startedOver, wear: wear, runtime: runtime,
@@ -207,11 +210,16 @@ actor AgentRun {
     guard let driver = await context.agents.driver(for: selection) else {
       throw TurnFailure(.unstarted(runtime.provider, await context.agents.failure(for: runtime.provider)))
     }
-    let store = context.store
-    try TurnFailure.from { () throws(HostError) in try attempt { try store.writeInstructions(instructions) } }
+    let files = context.store.home(home)
+    try TurnFailure.from { () throws(HostError) in
+      try attempt {
+        try files.writeInstructions(instructions)
+        if home != .chat { try files.writeSkill(named: "loci", ToolGuide.skill) }
+      }
+    }
     var tool = context.tool(for: owner, else: toolSession)
     var configuration = SessionConfiguration(
-      workingDirectory: store.agentFolder, model: selection.sessionModel, effort: runtime.effort,
+      workingDirectory: files.folder, model: selection.sessionModel, effort: runtime.effort,
       environment: tool.map { [LocalCall.sessionVariable: $0.tag] } ?? [:])
     if reason == nil, let handle = session?.handle {
       configuration.resume = SessionHandle(provider: runtime.provider, value: handle)
@@ -288,13 +296,13 @@ actor AgentRun {
   }
 
   private func mirror(_ messages: [Message], of session: SessionRecord) {
-    Self.mirror(messages, of: session, context: context)
+    Self.mirror(messages, of: session, in: home, context: context)
   }
 
   /// A copy that cannot be written loses nothing the app needs; it is logged and the turn stands.
-  private static func mirror(_ messages: [Message], of session: SessionRecord, context: AgentContext) {
+  private static func mirror(_ messages: [Message], of session: SessionRecord, in home: Home, context: AgentContext) {
     do {
-      for path in try context.store.mirror(messages, of: session, in: context.environment.timeZone) {
+      for path in try context.store.home(home).mirror(messages, of: session, in: context.environment.timeZone) {
         try context.database.indexTranscript(path, from: context.store)
       }
     } catch {
@@ -343,39 +351,5 @@ extension SessionRecord {
     SessionRecord(
       id: id, owner: owner, runtime: runtime, handle: handle, instructions: instructions, sent: sent,
       startedAt: startedAt)
-  }
-}
-
-/// Why a turn could not run, as the conversation tells it.
-struct TurnFailure: Error {
-  let ending: TurnEnding
-
-  init(_ ending: TurnEnding) {
-    self.ending = ending
-  }
-
-  /// Opening the provider's agent failed: it would not start, or it started and then failed.
-  init(starting provider: Provider, _ error: AgentError) {
-    switch error {
-    case .wouldNotStart: ending = .unstarted(provider, .wouldNotStart)
-    case .cannotLaunch: ending = .unstarted(provider, .notInstalled)
-    default: ending = .failed(error.explanation)
-    }
-  }
-
-  static func from<Value>(_ body: () throws(HostError) -> Value) throws(TurnFailure) -> Value {
-    do {
-      return try body()
-    } catch {
-      throw TurnFailure(.failed(String(describing: error)))
-    }
-  }
-
-  static func awaiting<Value>(_ body: () async throws(AgentError) -> Value) async throws(TurnFailure) -> Value {
-    do {
-      return try await body()
-    } catch {
-      throw TurnFailure(.failed(error.explanation))
-    }
   }
 }

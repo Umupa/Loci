@@ -17,7 +17,7 @@ struct PanelSnapshots {
 
   static let actions = PanelActions(
     open: { _ in }, openItem: { _ in }, ask: { _ in }, create: {}, revise: { _ in }, refresh: { _ in },
-    moveToTop: { _ in }, remove: { _ in }, edit: { _ in true }, mark: { _ in true })
+    moveToTop: { _ in }, remove: { _ in }, edit: { _ in true }, mark: { _ in true }, pin: { _, _ in })
 
   /// Where the window remembers the column folded or not, apart from the app's own preferences.
   static func defaults(columnShown: Bool, sidebarShown: Bool, layout: TalkLayout?) -> UserDefaults {

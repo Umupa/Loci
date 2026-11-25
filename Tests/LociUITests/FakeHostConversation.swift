@@ -12,6 +12,9 @@ extension FakeHost {
     case .main:
       if let library { return library.mainConversation(working: working) }
       return (try? sample.chat()) ?? empty
+    case .project:
+      guard let chat = try? sample.chat() else { return empty }
+      return Conversation(ref: conversation, entries: Array(chat.entries.suffix(4)), turn: nil)
     case .course:
       if let supplied = courses?.conversation, supplied.ref == conversation { return supplied }
       return empty

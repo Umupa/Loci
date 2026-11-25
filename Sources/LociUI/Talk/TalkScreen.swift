@@ -1,8 +1,8 @@
 import LociModel
 import SwiftUI
 
-/// The main conversation with Loci, where the window opens, among lanes of panels laid out as the person left
-/// them on this Mac. A link or a file dropped anywhere on it goes into the library.
+/// A home's conversation, the main one where the window opens or a project's, among lanes of panels laid out
+/// as the person left them on this Mac. A link or a file dropped anywhere on it goes into the library.
 struct TalkScreen: View {
   @Environment(\.openPage) private var openPage
   @Environment(\.peekLink) private var peekLink
@@ -10,13 +10,16 @@ struct TalkScreen: View {
   @Environment(\.locale) private var locale
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.changesAllowed) private var changesAllowed
+  let home: Home
+  /// The project's panels pinned to the chat, by name.
+  var pinned: Set<String> = []
   let focusRequest: Int
   let attach: () -> Void
   let opened: (WindowState) -> Void
   let failed: (HostError) -> Void
   /// Whether the person left the panels showing.
   @Binding var columnPreferred: Bool
-  @AppStorage(TalkLayout.key) private var storedLayout = Data()
+  @AppStorage private var storedLayout: Data
   @State private var draft: PassageDraft?
   @State private var newPanel: NewPanel?
   @State private var fill: ComposerFill?
@@ -24,17 +27,33 @@ struct TalkScreen: View {
   /// The panel column, once the host has it; without it the conversation has the room to itself.
   @State private var panelColumn: Feed<PanelColumn>?
 
+  /// The chat keeps its layout as it always did; each project keeps its own.
+  init(
+    home: Home, pinned: Set<String> = [], focusRequest: Int, attach: @escaping () -> Void,
+    opened: @escaping (WindowState) -> Void, failed: @escaping (HostError) -> Void, columnPreferred: Binding<Bool>
+  ) {
+    self.home = home
+    self.pinned = pinned
+    self.focusRequest = focusRequest
+    self.attach = attach
+    self.opened = opened
+    self.failed = failed
+    _columnPreferred = columnPreferred
+    _storedLayout = AppStorage(wrappedValue: Data(), TalkLayout.key + (home.project.map { " \($0)" } ?? ""))
+  }
+
   var body: some View {
     TalkBoard(
       layout: layout, column: column, showsPanels: columnPreferred, building: building, making: newPanel == .asking,
       actions: actions
     ) {
       ConversationScreen(
-        ref: .main, draft: $draft, revealPassage: { if let page = Page($0.content) { openPage(page) } }, attach: attach,
+        ref: home.conversation, draft: $draft, revealPassage: { if let page = Page($0.content) { openPage(page) } },
+        attach: attach,
         focusRequest: focusRequest, panelRequest: panelRequest
       )
     }
-    .padding(.top, Size.boardTop)
+    .padding(.top, Size.projectBarRoom)
     .padding(.horizontal, Spacing.m)
     .padding(.bottom, Spacing.s)
     .overlay(alignment: .topTrailing) {
@@ -50,7 +69,9 @@ struct TalkScreen: View {
     .onChange(of: column?.panelNames) { settle() }
     .onChange(of: working) { settle() }
     .acceptingDrops()
-    .subscribing(WatchPanelColumn(), into: $panelColumn)
+    .environment(\.panelHome, home)
+    .environment(\.pinnedPanels, pinned)
+    .subscribing(WatchPanelColumn(of: home), into: $panelColumn)
   }
 
   /// The layout this Mac keeps, as JSON in its preferences; the standard one until the person changes it.
@@ -101,16 +122,20 @@ struct TalkScreen: View {
       ask: ask,
       create: { newPanel = .asking },
       revise: { panel in fill = .revising(panel, serial: (fill?.serial ?? 0) + 1, locale: locale) },
-      refresh: { panel in send(RefreshPanel(panel.name)) },
+      refresh: { panel in send(RefreshPanel(panel)) },
       moveToTop: { slot in
         withAnimation(reduceMotion ? nil : Motion.standard) {
           layout.wrappedValue = layout.wrappedValue.raising(slot.key)
         }
-        send(MovePanelToTop(slot))
+        send(MovePanelToTop(slot, in: home))
       },
-      remove: { panel in send(RemovePanel(panel.name)) },
+      remove: { panel in send(RemovePanel(panel)) },
       edit: { command in await sent(command) },
-      mark: { command in await sent(command) })
+      mark: { command in await sent(command) },
+      pin: { panel, pinned in
+        guard case .project(let id) = panel.home else { return }
+        send(PinPanel(panel.name, of: id, pinned: pinned))
+      })
   }
 
   /// Runs the command and says whether it worked, showing why when it did not.
@@ -134,12 +159,12 @@ struct TalkScreen: View {
     }
   }
 
-  /// Says `words` in the main conversation, as the person.
+  /// Says `words` in the home's conversation, as the person.
   private func ask(_ words: String) {
     guard changesAllowed else { return }
     Task {
       do throws(HostError) {
-        _ = try await host.run(SendMessage(to: .main, text: words, passage: nil))
+        _ = try await host.run(SendMessage(to: home.conversation, text: words, passage: nil))
       } catch {
         failed(error)
       }

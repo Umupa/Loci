@@ -12,12 +12,12 @@ struct PanelFilesTests {
 
   @Test func aSavedPanelReadsBackUnderItsFilesName() throws {
     try withStore { store in
-      try store.savePanel(Self.panel)
+      try store.home(.chat).savePanel(Self.panel)
       try FileManager.default.moveItem(
         at: store.root.appending(path: "agent/panels/sandbox-radar.json"),
         to: store.root.appending(path: "agent/panels/radar.json"))
 
-      let entries = store.panels()
+      let entries = store.home(.chat).panels()
 
       #expect(entries.map(\.name) == ["radar"])
       #expect(entries.first?.panel?.name == "radar" && entries.first?.panel?.title == "沙箱雷达")
@@ -31,7 +31,7 @@ struct PanelFilesTests {
       try store.writeFile("agent/panels/notes.txt", "not a panel")
 
       #expect(
-        store.panels() == [
+        store.home(.chat).panels() == [
           PanelEntry(
             name: "radar", panel: nil,
             problems: [PanelProblem("title", "is empty"), PanelProblem("rows", "has no rows")])
@@ -41,21 +41,21 @@ struct PanelFilesTests {
 
   @Test func aFileBrokenLaterStillShowsItsLastGoodPanelInAStoreOpenedAfresh() throws {
     try withStore { store in
-      try store.savePanel(Self.panel)
-      _ = store.panels()
+      try store.home(.chat).savePanel(Self.panel)
+      _ = store.home(.chat).panels()
       try store.writeFile("agent/panels/sandbox-radar.json", "{ broken")
 
       let reopened = Store(root: store.root, discard: .permanently)
 
-      #expect(reopened.panels().map(\.panel) == [Self.panel])
-      #expect(reopened.panels().first?.problems == [PanelProblem("", "is not JSON")])
+      #expect(reopened.home(.chat).panels().map(\.panel) == [Self.panel])
+      #expect(reopened.home(.chat).panels().first?.problems == [PanelProblem("", "is not JSON")])
     }
   }
 
   @Test func theLastGoodCopyIsKeptWhereLociDoesNotLook() throws {
     try withStore { store in
-      try store.savePanel(Self.panel)
-      _ = store.panels()
+      try store.home(.chat).savePanel(Self.panel)
+      _ = store.home(.chat).panels()
 
       let agentFiles = FileManager.default.subpaths(atPath: store.root.appending(path: "agent").path()) ?? []
 
@@ -65,43 +65,43 @@ struct PanelFilesTests {
 
   @Test func removingAPanelDeletesItsFileAndItsCopy() throws {
     try withStore { store in
-      try store.savePanel(Self.panel)
-      _ = store.panels()
+      try store.home(.chat).savePanel(Self.panel)
+      _ = store.home(.chat).panels()
 
-      try store.removePanel(named: "sandbox-radar")
+      try store.home(.chat).removePanel(named: "sandbox-radar")
       try store.writeFile("agent/panels/sandbox-radar.json", "{ broken")
 
-      #expect(store.panels().map(\.panel) == [nil])
-      #expect(throws: StoreError.self) { try store.removePanel(named: "other") }
+      #expect(store.home(.chat).panels().map(\.panel) == [nil])
+      #expect(throws: StoreError.self) { try store.home(.chat).removePanel(named: "other") }
     }
   }
 
   @Test func aCopyWhoseFileIsGoneIsForgotten() throws {
     try withStore { store in
-      try store.savePanel(Self.panel)
-      _ = store.panels()
+      try store.home(.chat).savePanel(Self.panel)
+      _ = store.home(.chat).panels()
       try FileManager.default.removeItem(at: store.root.appending(path: "agent/panels/sandbox-radar.json"))
 
-      #expect(store.panels().isEmpty)
+      #expect(store.home(.chat).panels().isEmpty)
       try store.writeFile("agent/panels/sandbox-radar.json", "{ broken")
-      #expect(store.panels().map(\.panel) == [nil])
+      #expect(store.home(.chat).panels().map(\.panel) == [nil])
     }
   }
 
   @Test func theOrderAndRefreshTimesAreKeptOutsideThePanelFiles() throws {
     try withStore { store in
-      #expect(store.panelState() == PanelState())
+      #expect(store.home(.chat).panelState() == PanelState())
 
-      try store.changePanelState { state in
+      try store.home(.chat).changePanelState { state in
         state.order = [.panel("sandbox-radar"), .reading]
         state.refreshed["sandbox-radar"] = Fixture.instant
       }
 
-      #expect(store.panelState().order == [.panel("sandbox-radar"), .reading])
-      #expect(store.panelState().refreshed == ["sandbox-radar": Fixture.instant])
-      #expect(store.panels().isEmpty)
+      #expect(store.home(.chat).panelState().order == [.panel("sandbox-radar"), .reading])
+      #expect(store.home(.chat).panelState().refreshed == ["sandbox-radar": Fixture.instant])
+      #expect(store.home(.chat).panels().isEmpty)
       try store.writeFile("panels.json", "{ broken")
-      #expect(store.panelState() == PanelState())
+      #expect(store.home(.chat).panelState() == PanelState())
     }
   }
 

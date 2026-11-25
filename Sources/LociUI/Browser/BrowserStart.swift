@@ -30,7 +30,7 @@ struct BrowserStart: View {
           .shadow(color: Color(nsColor: NSColor(rgb: 0x281905)).opacity(0.1), radius: 22, y: 14)
           .shadow(color: .black.opacity(0.05), radius: 1, y: 1)
       )
-      .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+      .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
       HStack(spacing: 30) {
         ForEach(StartSite.all, id: \.address) { site in
           Button {
@@ -96,7 +96,7 @@ private struct SignInOffer: View {
       .padding(.trailing, 4)
     }
     .background(Capsule().fill(Palette.surface))
-    .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+    .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
   }
 }
 

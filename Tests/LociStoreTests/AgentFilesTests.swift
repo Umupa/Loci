@@ -66,7 +66,7 @@ struct AgentFilesTests {
     try withStore { store in
       let day = try #require(Day("2026-11-18"))
       #expect(try store.agentText(.memory) == "")
-      #expect(try store.dayNotes(of: day) == "")
+      #expect(try store.home(.chat).dayNotes(of: day) == "")
       #expect(throws: StoreError.self) { try store.diary(of: day) }
     }
   }
@@ -84,8 +84,8 @@ struct AgentFilesTests {
 
   @Test func theInstructionsAreWrittenAndClaudeCodeIsPointedAtThem() throws {
     try withStore { store in
-      try store.writeInstructions("rules")
-      try store.writeInstructions("new rules")
+      try store.home(.chat).writeInstructions("rules")
+      try store.home(.chat).writeInstructions("new rules")
 
       #expect(try store.readFile("agent/AGENTS.md") == "new rules")
       #expect(try store.readFile("agent/CLAUDE.md") == "new rules")
@@ -96,7 +96,7 @@ struct AgentFilesTests {
     try withStore { store in
       try store.writeFile("agent/CLAUDE.md", "mine")
 
-      try store.writeInstructions("rules")
+      try store.home(.chat).writeInstructions("rules")
 
       #expect(try store.readFile("agent/CLAUDE.md") == "mine")
     }
@@ -124,14 +124,14 @@ struct AgentFilesTests {
       let lateNight = try #require(Timestamp("2026-11-17T15:58:00.000Z"))
       let pastMidnight = try #require(Timestamp("2026-11-17T16:02:00.000Z"))
       let tool = ToolActivity(id: "t", name: "bash", kind: .execute, subject: "ls", output: "", state: .succeeded)
-      try store.mirror(
+      try store.home(.chat).mirror(
         [
           Message(id: Fixture.id(20), at: lateNight, body: .prompt(Prompt(text: "为什么?", purpose: .chat))),
           Message(id: Fixture.id(21), at: lateNight, body: .thinking("hmm")),
           Message(id: Fixture.id(22), at: pastMidnight, body: .tool(tool)),
           Message(id: Fixture.id(23), at: pastMidnight, body: .reply("因为 fd 属于进程。")),
         ], of: session, in: shanghai)
-      try store.mirror(
+      try store.home(.chat).mirror(
         [Message(id: Fixture.id(24), at: pastMidnight, body: .prompt(Prompt(text: "懂了", purpose: .chat)))],
         of: session, in: shanghai)
 

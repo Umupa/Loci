@@ -163,7 +163,7 @@ extension RailLane {
         actions.revise(panel)
       },
       refresh: actions.refresh, moveToTop: actions.moveToTop, remove: actions.remove, edit: actions.edit,
-      mark: actions.mark)
+      mark: actions.mark, pin: actions.pin)
   }
 }
 
@@ -179,7 +179,8 @@ private struct RailMark: View {
     Group {
       switch slot {
       case .reading: LociAvatar(size: Size.railMark)
-      case .panel(let panel): SiteBadges(sites: Array(panel.sources.prefix(1)), size: Size.railMark, ring: .clear)
+      case .panel(let panel), .pinned(_, let panel):
+        SiteBadges(sites: Array(panel.sources.prefix(1)), size: Size.railMark, ring: .clear)
       }
     }
     .frame(width: Size.railMark, height: Size.railMark)
@@ -198,7 +199,7 @@ extension PanelSlot {
   var title: String {
     switch self {
     case .reading: String(localized: .loci("panels.reading"))
-    case .panel(let panel): panel.title
+    case .panel(let panel), .pinned(_, let panel): panel.title
     }
   }
 }

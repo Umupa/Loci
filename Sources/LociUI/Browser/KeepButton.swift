@@ -26,7 +26,7 @@ struct KeepButton: View {
               .padding(.horizontal, 3)
               .frame(minWidth: 13, minHeight: 13)
               .background(Capsule().fill(Palette.accent))
-              .overlay(Capsule().strokeBorder(Palette.menuFace, lineWidth: 1.5).padding(-1.5))
+              .overlay(Capsule(style: .circular).strokeBorder(Palette.menuFace, lineWidth: 1.5).padding(-1.5))
               .offset(x: 4, y: -1)
               .transition(reduceMotion ? .identity : .scale.combined(with: .opacity))
           }

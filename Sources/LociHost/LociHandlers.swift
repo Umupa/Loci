@@ -22,7 +22,7 @@ extension LocalHost {
         soul: Soul(parsing: try store.agentText(.soul)),
         memory: MemoryEntry.lines(of: try store.agentText(.memory), title: title),
         profile: MemoryEntry.lines(of: try store.agentText(.profile), title: title),
-        today: DayNotes(day: today, parsing: try store.dayNotes(of: today), title: title),
+        today: DayNotes(day: today, parsing: try store.home(.chat).dayNotes(of: today), title: title),
         diaries: store.diaryDays().map { day in
           Diary(day: day, parsing: (try? store.diary(of: day)) ?? "").heading
         },

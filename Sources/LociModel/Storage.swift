@@ -74,7 +74,7 @@ public struct StorageUse: Subscription {
       switch change {
       case .item, .media, .everything: true
       case .course, .courseActivity, .notes, .reading, .job, .conversation, .turnEnded, .review, .loci,
-        .runtime, .timers, .connectors:
+        .runtime, .timers, .connectors, .projects, .source:
         false
       }
     }

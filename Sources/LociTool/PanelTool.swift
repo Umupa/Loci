@@ -24,7 +24,7 @@ extension Tool {
       return .failed(PanelWords.noSection(id, in: panel))
     }
     let item = PanelItem(id: newID().description, text: text, by: .loci, proposed: proposed)
-    let reply = try await line.run(EditPanel(name, .put(item, section: id, at: nil)))
+    let reply = try await line.run(EditPanel(PanelRef(name), .put(item, section: id, at: nil)))
     if json { return .worked(Self.text(reply)) }
     return .worked(PanelWords.added(to: panel, section: section, proposed: proposed))
   }

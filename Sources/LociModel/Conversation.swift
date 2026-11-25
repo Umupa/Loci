@@ -1,8 +1,14 @@
-/// Which conversation: the one main conversation, or the one on an item or course.
+/// Which conversation: the one main conversation, or the one on an item, a course or a project.
 public enum ConversationRef: Hashable, Codable, Sendable {
   case main
   case item(EntityID)
   case course(EntityID)
+  case project(Project.ID)
+
+  /// Where what is said here is noted and remembered: a project's own, or the chat's for every other.
+  public var home: Home {
+    if case .project(let id) = self { .project(id) } else { .chat }
+  }
 }
 
 /// Everything said in one conversation, oldest first, and the turn running now.

@@ -20,7 +20,7 @@ enum UsageKind: Hashable, CaseIterable {
 
   init(_ activity: UsageActivity) {
     switch activity {
-    case .main: self = .main
+    case .main, .project: self = .main
     case .course: self = .course
     case .item: self = .item
     case .panel: self = .panel

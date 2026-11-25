@@ -27,7 +27,8 @@ struct ConversationScreen<Tail: View>: View {
       },
       stop: { _ = try? await host.run(StopTurn(in: ref)) },
       startOver: { () async throws(HostError) -> Done in try await host.run(StartOver(in: ref)) },
-      scale: ref == .main ? .main : .companion, attach: attach, focusRequest: focusRequest, panelRequest: panelRequest,
+      scale: ref == ref.home.conversation ? .main : .companion, attach: attach, focusRequest: focusRequest,
+      panelRequest: panelRequest,
       courseLessons: courseLessons, tail: tail
     )
     .id(ref)

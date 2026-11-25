@@ -64,9 +64,9 @@ struct PanelRefreshScenarioTests {
 
   @Test func aTimeMissedWhileTheAppWasClosedIsMadeUpWhenItOpens() async throws {
     try await withHost(agent: Self.agent()) { host, place, world in
-      try place.store.savePanel(PanelScenarioTests.radar)
+      try place.store.home(.chat).savePanel(PanelScenarioTests.radar)
       let threeDaysAgo = Timestamp(millisecondsSince1970: world.now.millisecondsSince1970 - 3 * 24 * 3_600_000)
-      try place.store.changePanelState { $0.refreshed["radar"] = threeDaysAgo }
+      try place.store.home(.chat).changePanelState { $0.refreshed["radar"] = threeDaysAgo }
 
       world.tick()
 
@@ -97,10 +97,10 @@ struct PanelRefreshScenarioTests {
     try await withHost(agent: Self.agent()) { host, _, world in
       _ = try await host.run(SavePanel(PanelScenarioTests.radar))
 
-      _ = try await host.run(RefreshPanel("radar"))
+      _ = try await host.run(RefreshPanel(PanelRef("radar")))
 
       #expect(await title(host, becomes: "沙箱快讯"))
-      await #expect(throws: HostError.notFound("nothing")) { _ = try await host.run(RefreshPanel("nothing")) }
+      await #expect(throws: HostError.notFound("nothing")) { _ = try await host.run(RefreshPanel(PanelRef("nothing"))) }
       #expect(Self.refreshPrompts(world) == 1)
     }
   }
@@ -117,7 +117,7 @@ struct PanelRefreshScenarioTests {
       try await quiet()
 
       #expect(Self.refreshPrompts(world) == 1)
-      #expect(try await host.panelColumn().slots == [.panel(PanelScenarioTests.radar)])
+      #expect(try await host.panelColumn(of: .chat).slots == [.panel(PanelScenarioTests.radar)])
     }
   }
 
@@ -126,8 +126,8 @@ struct PanelRefreshScenarioTests {
       _ = try await host.run(SavePanel(PanelScenarioTests.radar))
       _ = try await host.run(SavePanel(PanelScenarioTests.panel("other")))
 
-      _ = try await host.run(RefreshPanel("radar"))
-      _ = try await host.run(RefreshPanel("other"))
+      _ = try await host.run(RefreshPanel(PanelRef("radar")))
+      _ = try await host.run(RefreshPanel(PanelRef("other")))
 
       let column = await value(host.subscribe(WatchPanelColumn())) { !$0.refreshing.isEmpty }
       #expect(column?.refreshing == ["radar"])

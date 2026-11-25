@@ -144,7 +144,7 @@ struct AnswerCards: View {
           .foregroundStyle(Palette.ink)
           .padding(.horizontal, 15).padding(.vertical, 10)
           .overlay {
-            Capsule().strokeBorder(
+            Capsule(style: .circular).strokeBorder(
               index == 0 ? Palette.accent.opacity(0.7) : Palette.inkFaint.opacity(0.6),
               lineWidth: index == 0 ? 1 : Size.hairline)
           }
@@ -219,7 +219,7 @@ private struct TickChip: View {
     .padding(.horizontal, 14).padding(.vertical, 9)
     .background(Capsule().fill(ticked ? Palette.tint : Palette.bubble))
     .overlay {
-      Capsule().strokeBorder(
+      Capsule(style: .circular).strokeBorder(
         ticked ? Palette.accentLine : Palette.lineStrong, lineWidth: ticked ? 1 : Size.hairline)
     }
     .contentShape(Capsule())

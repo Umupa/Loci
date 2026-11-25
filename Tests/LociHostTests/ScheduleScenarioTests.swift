@@ -49,7 +49,8 @@ struct ScheduleScenarioTests {
       body: .rows([.sentence("**v0.8.0** 发布。"), .list([hidden])]))
     try await withHost(agent: Background.agent(run: Self.noting)) { host, _, world in
       _ = try await host.run(SavePanel(panel))
-      _ = try await host.run(MarkPanelLine("sandbox-radar", PanelLineKey(hidden), PanelLineMark(hidden: true)))
+      _ = try await host.run(
+        MarkPanelLine(PanelRef("sandbox-radar"), PanelLineKey(hidden), PanelLineMark(hidden: true)))
       let entry = try await Background.add(
         "sandbox-news", Background.draft(.hour, to: .panel("sandbox-radar")), on: host)
 
@@ -137,13 +138,13 @@ struct ScheduleScenarioTests {
       _ = try await host.run(SavePanel(PanelScenarioTests.radar))
       let hourly = ScheduleChange(title: "沙箱快讯", every: .hour)
 
-      let changed = try await host.run(ChangeSchedule(.panel("radar"), hourly))
+      let changed = try await host.run(ChangeSchedule(.panel(PanelRef("radar")), hourly))
 
       #expect(changed.every == .hour && changed.title == "沙箱快讯")
-      let panel = try #require(place.store.panel(named: "radar")?.panel)
+      let panel = try #require(place.store.home(.chat).panel(named: "radar")?.panel)
       #expect(panel.refresh == PanelRefresh(every: .hour) && panel.title == "沙箱快讯")
       await #expect(throws: HostError.self) {
-        _ = try await host.run(ChangeSchedule(.panel("radar"), ScheduleChange(destination: .notes)))
+        _ = try await host.run(ChangeSchedule(.panel(PanelRef("radar")), ScheduleChange(destination: .notes)))
       }
     }
   }
@@ -153,15 +154,15 @@ struct ScheduleScenarioTests {
       _ = try await host.run(SavePanel(PanelScenarioTests.radar))
 
       let listed = try await host.timers().schedules
-      #expect(listed.map(\.ref) == [.panel("radar")])
+      #expect(listed.map(\.ref) == [.panel(PanelRef("radar"))])
       #expect(listed.first?.destination == .panel("radar"))
-      _ = try await host.run(PauseSchedule(.panel("radar"), paused: true))
+      _ = try await host.run(PauseSchedule(.panel(PanelRef("radar")), paused: true))
       #expect(try await host.timers().schedules.first?.paused == true)
 
-      _ = try await host.run(RemoveSchedule(.panel("radar")))
+      _ = try await host.run(RemoveSchedule(.panel(PanelRef("radar"))))
 
       #expect(try await host.timers().schedules.isEmpty)
-      #expect(try await host.panelColumn().slots.map(\.place) == [.panel("radar")])
+      #expect(try await host.panelColumn(of: .chat).slots.map(\.place) == [.panel("radar")])
     }
   }
 

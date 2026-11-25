@@ -126,11 +126,14 @@ struct Composer: View {
   }
 
   @Environment(\.companionName) private var name
+  @Environment(\.projectName) private var projectName
 
   private var field: some View {
     TextField(text: $text, selection: $selection, axis: .vertical) {
       if !making.wrappedValue {
-        if name.isEmpty {
+        if style == .talk, let projectName {
+          Text(.loci("talk.projectPrompt \(projectName)"))
+        } else if name.isEmpty {
           Text(.loci(style == .talk ? "talk.prompt" : "companion.prompt"))
         } else {
           Text(style == .talk ? .loci("talk.prompt \(name)") : .loci("companion.prompt \(name)"))
@@ -279,4 +282,9 @@ private struct SendPressStyle: ButtonStyle {
       .scaleEffect(configuration.isPressed ? 0.94 : 1)
       .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
   }
+}
+
+extension EnvironmentValues {
+  /// The name of the project whose conversation is open; `nil` in the chat.
+  @Entry var projectName: String?
 }

@@ -121,7 +121,7 @@ struct AmberSwitch: ToggleStyle {
     let on = configuration.isOn
     Capsule()
       .fill(on ? Palette.accent : Palette.fillStrong)
-      .overlay(Capsule().strokeBorder(on ? .clear : Palette.lineStrong, lineWidth: Size.hairline))
+      .overlay(Capsule(style: .circular).strokeBorder(on ? .clear : Palette.lineStrong, lineWidth: Size.hairline))
       .overlay(alignment: on ? .trailing : .leading) {
         Circle()
           .fill(on ? Palette.onAccent : .white)

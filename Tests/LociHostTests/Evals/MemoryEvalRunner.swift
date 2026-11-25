@@ -78,7 +78,7 @@ struct MemoryEvalRunner {
   private func cost(turnTokens: [Int]) async throws -> MemoryOutcome.Cost {
     let store = place.store
     let index = try store.agentText(.memory)
-    let pages = store.wikiPages().map { (try? store.wikiPage($0)) ?? "" }
+    let pages = store.home(.chat).wikiPages().map { (try? store.home(.chat).wikiPage($0)) ?? "" }
     let agents = (try? String(contentsOf: store.agentFolder.appending(path: "AGENTS.md"), encoding: .utf8)) ?? ""
     let reviews = try host.database.runs(startedAfter: Timestamp(millisecondsSince1970: 0)).filter { run in
       if case .review = run.kind { true } else { false }

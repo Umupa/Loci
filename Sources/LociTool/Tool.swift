@@ -43,6 +43,15 @@ struct Tool: Sendable {
       let hits = try Failure.decoding([RecallHit].self, from: reply)
       guard !hits.isEmpty else { return .worked("Nothing said in a conversation or a run matches \"\(text)\".") }
       return .worked(hits.map { "\($0.path)\n    \($0.snippet)" }.joined(separator: "\n"))
+    case .nameProject(let name):
+      let reply = try await line.run(NameProject(name))
+      if json { return .worked(Self.text(reply)) }
+      let project = try Failure.decoding(Project.self, from: reply)
+      return .worked("The project is named \(project.name ?? name).")
+    case .describeProject(let line):
+      let reply = try await self.line.run(DescribeProject(line))
+      if json { return .worked(Self.text(reply)) }
+      return .worked("The project's line: \(try Failure.decoding(Project.self, from: reply).summary)")
     case .search(let text): return try await search(text, json: json)
     case .show(let id): return try await show(id, json: json)
     case .read(let url):
@@ -58,6 +67,7 @@ struct Tool: Sendable {
     case .importFile(let path, let title): return try await importing(path, title: title, json: json)
     case .wait(let id): return try await wait(id, json: json)
     case .panel(let request): return try await panel(request, json: json)
+    case .source(let request): return try await source(request, json: json)
     case .course(let request): return await course(request, json: json)
     case .schedule(let request): return try await schedule(request, json: json)
     case .followUp(let request): return try await followUp(request, json: json)

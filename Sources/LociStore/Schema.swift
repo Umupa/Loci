@@ -177,6 +177,23 @@ enum Schema {
     migrator.registerMigration("10 connector set aside") { db in
       try db.execute(sql: "CREATE TABLE connector_set_aside (id TEXT PRIMARY KEY NOT NULL)")
     }
+    migrator.registerMigration("11 sources") { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE source_snapshot (
+            source TEXT PRIMARY KEY NOT NULL,
+            body TEXT NOT NULL
+          );
+          CREATE TABLE source_series (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            record TEXT NOT NULL,
+            at TEXT NOT NULL,
+            body TEXT NOT NULL
+          );
+          CREATE INDEX source_series_key ON source_series(source, record, at);
+          """)
+    }
     return migrator
   }
 

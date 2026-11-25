@@ -155,6 +155,11 @@ enum Size {
   static let railSheet: CGFloat = 372
   /// A panel's mark on a folded lane.
   static let railMark: CGFloat = 30
+  /// A project's seal in the project bar, and the large one over a new project's field.
+  static let seal: CGFloat = 22
+  static let sealLarge: CGFloat = 64
+  /// The room over the lanes when the project bar is there: the bar, then the conversation's grip.
+  static let projectBarRoom: CGFloat = 72
   static let railSheetTallest: CGFloat = 640
   /// A site's small round mark before a panel's title.
   static let siteMark: CGFloat = 22

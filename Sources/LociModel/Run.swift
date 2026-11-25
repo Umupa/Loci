@@ -38,12 +38,21 @@ public struct Run: Hashable, Codable, Sendable, Identifiable {
   public enum Kind: Hashable, Codable, Sendable {
     /// Schedules, follow-ups and panels' refreshes that came due together.
     case timers(Timed)
-    case review(Day)
+    /// The chat's review, or a project's when it names one.
+    case review(Day, project: Project.ID?)
 
     public var sources: [Event.Source] {
       switch self {
       case .timers(let timed): timed.sources
-      case .review(let day): [.review(day)]
+      case .review(let day, let project): [.review(day, project: project)]
+      }
+    }
+
+    /// Where the run works; every event of a run is of one home.
+    public var home: Home {
+      switch self {
+      case .timers(let timed): timed.first.home
+      case .review(_, let project): Home(project)
       }
     }
   }

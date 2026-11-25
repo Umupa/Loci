@@ -55,7 +55,8 @@ public struct StartOver: RemoteCommand {
   }
 }
 
-/// One conversation, kept current as Loci answers. An item's conversation is unavailable once it is deleted.
+/// One conversation, kept current as Loci answers. An item's or a project's conversation is unavailable once
+/// it is deleted.
 public struct OneConversation: Subscription {
   public static let name = "conversation"
   public let conversation: ConversationRef
@@ -75,7 +76,10 @@ public struct OneConversation: Subscription {
       case .everything: true
       case .item(let item): conversation == .item(item)
       case .course(let id): conversation == .course(id)
-      case .courseActivity, .notes, .reading, .job, .media, .review, .loci, .runtime, .timers, .connectors: false
+      case .projects: conversation.home != .chat
+      case .courseActivity, .notes, .reading, .job, .media, .review, .loci, .runtime, .timers, .connectors,
+        .source:
+        false
       }
     }
   }

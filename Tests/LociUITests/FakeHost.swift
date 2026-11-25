@@ -38,6 +38,9 @@ final class FakeHost: LociModel.Host, CommandHandler {
   let books: SampleBooks?
   /// The companion's sessions this host reports the usage of; none unless a test gives them.
   let sessionUsage: [SessionUsage]
+  /// The project bar, and each project's panel column; no projects unless a test gives them.
+  let projects: ProjectBar
+  let projectPanels: [Project.ID: PanelColumn]
 
   init(
     _ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false, working: Bool = false,
@@ -46,8 +49,11 @@ final class FakeHost: LociModel.Host, CommandHandler {
     modelSettings: (any ModelSettingsAccess)? = nil, piWork: Transfer? = nil, courses: SampleCourses? = nil,
     modelOptions: ModelOptions = .sample,
     timers: SampleTimers = .none, connectors: Connectors = SampleConnectors.empty, remembers: Bool = true,
-    books: SampleBooks? = nil, usage: [SessionUsage] = []
+    books: SampleBooks? = nil, usage: [SessionUsage] = [], projects: ProjectBar = ProjectBar(projects: []),
+    projectPanels: [Project.ID: PanelColumn] = [:]
   ) {
+    self.projects = projects
+    self.projectPanels = projectPanels
     self.sessionUsage = usage
     self.modelOptions = modelOptions
     self.remembers = remembers

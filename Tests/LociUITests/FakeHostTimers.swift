@@ -49,7 +49,7 @@ struct SampleTimers {
     let cube = ScheduleRef.schedule(EntityID())
     let papers = ScheduleRef.schedule(EntityID())
     let v2ex = ScheduleRef.schedule(EntityID())
-    let tasks = ScheduleRef.panel("week-tasks")
+    let tasks = ScheduleRef.panel(PanelRef("week-tasks"))
     let schedules = [
       ScheduleEntry(
         ref: cube, name: "cubesandbox-news", title: "CubeSandbox 的动态", every: .day(at: time(21)),
@@ -75,7 +75,8 @@ struct SampleTimers {
     ]
     func run(_ days: Int, _ outcome: Run.Outcome) -> Run {
       Run(
-        id: EntityID(), kind: .timers(Run.Timed(.schedule(EntityID()))), startedAt: at(days, 21), outcome: outcome,
+        id: EntityID(), kind: .timers(Run.Timed(.schedule(EntityID(), project: nil))), startedAt: at(days, 21),
+        outcome: outcome,
         record: "")
     }
     let runs = [

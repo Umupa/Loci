@@ -37,6 +37,7 @@ struct TalkBoard<Conversation: View>: View {
   @State private var dragStart: CGPoint?
   @State private var calledOff: CGPoint?
   @Environment(\.controlActiveState) private var activeState
+  @Environment(\.panelHome) private var panelHome
 
   /// A panel being dragged: where it was grabbed, how large it is, where the pointer is, and the layout the
   /// drag started from.
@@ -77,6 +78,7 @@ struct TalkBoard<Conversation: View>: View {
     .coordinateSpace(.named(Board.space))
     .environment(\.boardFrames, $frames)
     .environment(\.panelLineMarks, column?.marks ?? [:])
+    .environment(\.panelData, PanelData(readings: column?.readings ?? PanelReadings(), home: panelHome))
     .callsOffOnEscape(while: dragging) { callOff() }
     .onChange(of: activeState) {
       if activeState == .inactive { callOff() }

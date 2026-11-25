@@ -36,7 +36,7 @@ struct EvalSnapshot: Sendable, Codable {
         }
       case .prominent(let title, let subtitle):
         [Entry(key: title, text: [title, subtitle ?? ""].joined(separator: " "))]
-      case .sentence, .cells, .label, .bars, .picture: []
+      case .sentence, .cells, .label, .bars, .picture, .quotes, .line, .ruler, .allocation, .heat, .candles, .zones: []
       }
     }
   }

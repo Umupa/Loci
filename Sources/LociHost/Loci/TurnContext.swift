@@ -99,6 +99,7 @@ struct TurnContext: Sendable {
     case .main: "main"
     case .item(let item): "on the item library/\(item)"
     case .course(let id): "on the course courses/\(id)"
+    case .project(let id): "in the project projects/\(id)"
     }
   }
 }

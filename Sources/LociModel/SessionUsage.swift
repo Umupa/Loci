@@ -111,6 +111,7 @@ public enum UsageActivity: Hashable, Codable, Sendable {
   case main
   case item(EntityID)
   case course(EntityID)
+  case project(Project.ID)
   /// Refreshing the panel by this name.
   case panel(String)
   case schedule(EntityID)
@@ -121,7 +122,7 @@ public enum UsageActivity: Hashable, Codable, Sendable {
   public var isBackground: Bool {
     switch self {
     case .panel, .schedule, .followUp, .review: true
-    case .main, .item, .course: false
+    case .main, .item, .course, .project: false
     }
   }
 }

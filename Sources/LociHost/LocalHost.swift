@@ -119,7 +119,9 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       for await batch in changes { await host.follow(batch) }
     }
     try? database.recoverRunning()
-    try? store.setMemoryWritable(false)
+    for home in [Home.chat] + store.projects().map({ .project($0.id) }) {
+      try? store.home(home).setMemoryWritable(false)
+    }
     let ticks = environment.ticks()
     let reviews = Task {
       let started = Day(containing: environment.now(), in: environment.timeZone)
@@ -139,10 +141,11 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     await host.hub.hold(reviews)
     await host.hub.hold(Task { await host.connectorKeeper.watchSites() })
     if let tool = environment.tool {
-      try? store.writeSkill(named: "loci", ToolGuide.skill)
+      try? store.home(.chat).writeSkill(named: "loci", ToolGuide.skill)
       await host.hub.hold(Task { await ToolGateway.serve(host, at: tool.socket) })
     }
     await host.discardSetAside()
+    await host.discardSetAsideProjects()
     await host.courses.recoverWork()
     await host.library.queue.resume()
     if let coverFolders {
@@ -158,6 +161,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     await library.picker.close()
     await courses.close()
     await discardSetAside()
+    await discardSetAsideProjects()
     await worker.close()
     await connectorKeeper.close()
     await loci.close()

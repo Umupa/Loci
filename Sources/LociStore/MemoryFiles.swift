@@ -6,11 +6,14 @@ import LociModel
 /// companion's reach, so a change made anywhere else is found and the next review is told of it.
 extension Store {
   static let wikiFolder = "memory"
-  /// Beside `agent/`, where no session works.
+  /// In the home's state folder, where no session works.
   static let keptMemoryFolder = "memory-kept"
+}
 
-  var wikiURL: URL { agentFolder.appending(path: Self.wikiFolder, directoryHint: .isDirectory) }
-  private var keptURL: URL { root.appending(path: Self.keptMemoryFolder, directoryHint: .isDirectory) }
+/// A project's index and wiki are kept the same way as the chat's, in its own folders.
+extension HomeFiles {
+  var wikiURL: URL { folder.appending(path: Store.wikiFolder, directoryHint: .isDirectory) }
+  private var keptURL: URL { stateFolder.appending(path: Store.keptMemoryFolder, directoryHint: .isDirectory) }
 
   /// The wiki's pages by name, in order.
   public func wikiPages() -> [String] {
@@ -21,7 +24,7 @@ extension Store {
   /// A page's text; `nil` when there is no such page.
   public func wikiPage(_ name: String) throws -> String? {
     guard WikiLink.isName(name) else { return nil }
-    return try optionalText(at: wikiURL.appending(path: "\(name).md"))
+    return try store.optionalText(at: wikiURL.appending(path: "\(name).md"))
   }
 
   /// Writes a page for the app, the wiki locked again afterwards when it was.
@@ -29,7 +32,7 @@ extension Store {
     guard WikiLink.isName(name) else {
       throw StoreError.invalid(FileProblem(path: "memory/\(name).md", kind: .invalid, reason: "not a page name"))
     }
-    try writingMemory { try write(Data(text.utf8), to: wikiURL.appending(path: "\(name).md")) }
+    try writingMemory { try store.write(Data(text.utf8), to: wikiURL.appending(path: "\(name).md")) }
   }
 
   /// Lets the index and the wiki be written, as during the daily review, or makes them read-only.
@@ -46,7 +49,7 @@ extension Store {
 
   /// Whether the index can be written now.
   public var memoryIsWritable: Bool {
-    FileManager.default.isWritableFile(atPath: agentFolder.appending(path: Self.memoryFile).path(percentEncoded: false))
+    FileManager.default.isWritableFile(atPath: folder.appending(path: Store.memoryFile).path(percentEncoded: false))
   }
 
   /// Runs `body` with the index and wiki writable, then puts them back as they were and keeps what is there now,
@@ -64,8 +67,8 @@ extension Store {
   public func keepMemory() throws {
     try? FileManager.default.removeItem(at: keptURL)
     try FileManager.default.createDirectory(
-      at: keptURL.appending(path: Self.wikiFolder, directoryHint: .isDirectory), withIntermediateDirectories: true)
-    for (path, data) in memoryContents() { try write(data, to: keptURL.appending(path: path)) }
+      at: keptURL.appending(path: Store.wikiFolder, directoryHint: .isDirectory), withIntermediateDirectories: true)
+    for (path, data) in memoryContents() { try store.write(data, to: keptURL.appending(path: path)) }
   }
 
   /// The index and pages that differ from what was last kept, added and removed ones too, as paths under
@@ -76,15 +79,15 @@ extension Store {
     var kept: [String: Data] = [:]
     let keptPages =
       (try? FileManager.default.contentsOfDirectory(
-        atPath: keptURL.appending(path: Self.wikiFolder).path(percentEncoded: false))) ?? []
-    for path in [Self.memoryFile] + keptPages.map({ "\(Self.wikiFolder)/\($0)" }) {
+        atPath: keptURL.appending(path: Store.wikiFolder).path(percentEncoded: false))) ?? []
+    for path in [Store.memoryFile] + keptPages.map({ "\(Store.wikiFolder)/\($0)" }) {
       if let data = try? Data(contentsOf: keptURL.appending(path: path)) { kept[path] = data }
     }
     return Set(now.keys).union(kept.keys).filter { now[$0] != kept[$0] }.sorted()
   }
 
   private func memoryFiles() -> [URL] {
-    [agentFolder.appending(path: Self.memoryFile)]
+    [folder.appending(path: Store.memoryFile)]
       .filter { FileManager.default.fileExists(atPath: $0.path(percentEncoded: false)) }
       + wikiPages().map { wikiURL.appending(path: "\($0).md") }
   }
@@ -92,12 +95,12 @@ extension Store {
   /// The index and every page by path under `agent/`.
   private func memoryContents() -> [String: Data] {
     var contents: [String: Data] = [:]
-    if let data = try? Data(contentsOf: agentFolder.appending(path: Self.memoryFile)) {
-      contents[Self.memoryFile] = data
+    if let data = try? Data(contentsOf: folder.appending(path: Store.memoryFile)) {
+      contents[Store.memoryFile] = data
     }
     for page in wikiPages() {
       if let data = try? Data(contentsOf: wikiURL.appending(path: "\(page).md")) {
-        contents["\(Self.wikiFolder)/\(page).md"] = data
+        contents["\(Store.wikiFolder)/\(page).md"] = data
       }
     }
     return contents

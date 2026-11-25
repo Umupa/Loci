@@ -61,7 +61,7 @@ struct AddressBar<Trailing: View>: View {
     .padding(.trailing, 6)
     .frame(height: Size.addressHeight)
     .background(Capsule().fill(Palette.surface).shadow(color: .black.opacity(0.04), radius: 1, y: 1))
-    .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+    .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
     .overlay(alignment: .bottom) { LoadingLine(progress: tab.progress) }
     .clipShape(Capsule())
     .padding(.horizontal, 6)

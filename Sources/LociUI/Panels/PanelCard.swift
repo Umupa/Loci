@@ -5,6 +5,8 @@ import SwiftUI
 /// A panel's frame keeps whole rows readable and previews the overflow until the panel is opened out.
 struct PanelFrame<Marks: View, Content: View>: View {
   let title: Text
+  /// When the numbers in it were got, for a panel whose rows point at sources.
+  var time: PanelDataTime?
   let menu: [PanelMenu]
   let choose: (PanelMenu) -> Void
   @ViewBuilder var marks: Marks
@@ -16,10 +18,11 @@ struct PanelFrame<Marks: View, Content: View>: View {
 
   /// `open` starts the panel opened out, for a snapshot.
   init(
-    title: Text, menu: [PanelMenu], open: Bool = false, choose: @escaping (PanelMenu) -> Void,
-    @ViewBuilder marks: () -> Marks, @ViewBuilder content: () -> Content
+    title: Text, time: PanelDataTime? = nil, menu: [PanelMenu], open: Bool = false,
+    choose: @escaping (PanelMenu) -> Void, @ViewBuilder marks: () -> Marks, @ViewBuilder content: () -> Content
   ) {
     self.title = title
+    self.time = time
     self.menu = menu
     self.choose = choose
     self.marks = marks()
@@ -86,6 +89,7 @@ struct PanelFrame<Marks: View, Content: View>: View {
       marks
       title.font(.system(size: 14, weight: .medium)).foregroundStyle(Palette.ink).lineLimit(1)
       Spacer(minLength: 0)
+      if let time { PanelTimeMark(time: time) }
     }
     .frame(height: Size.siteMark)
   }
@@ -199,7 +203,7 @@ private struct OpenOutButton: View {
         .background {
           Capsule().fill(Palette.surface).overlay(Capsule().fill(Palette.ink.opacity(pointed ? 0.09 : 0.05)))
         }
-        .overlay(Capsule().strokeBorder(Palette.bubbleEdge, lineWidth: Size.hairline))
+        .overlay(Capsule(style: .circular).strokeBorder(Palette.bubbleEdge, lineWidth: Size.hairline))
         .contentShape(.capsule)
     }
     .buttonStyle(PressStyle(scale: 0.92))
@@ -223,6 +227,9 @@ struct PanelCard: View {
   @Environment(\.controlActiveState) private var activeState
   @Environment(\.panelItemIDs) private var itemIDs
   @Environment(\.changesAllowed) private var changesAllowed
+  @Environment(\.panelHome) private var home
+  @Environment(\.pinnedPanels) private var pinnedPanels
+  @Environment(\.panelData) private var data
   @State private var editor: PanelEditor
   @State private var carry = ItemCarry()
 
@@ -244,7 +251,8 @@ struct PanelCard: View {
     let shown = editor.shown(panel)
     let face = panel.face
     PanelFrame(
-      title: Text(verbatim: panel.title), menu: PanelMenu.entries(for: .panel(panel)), open: open, choose: choose
+      title: Text(verbatim: panel.title), time: data.readings.time(of: panel, in: data.home),
+      menu: menu, open: open, choose: choose
     ) {
       if let progress = CheckProgress(shown) {
         CheckRing(progress: progress)
@@ -286,8 +294,18 @@ struct PanelCard: View {
   }
 
   /// What the rows may do; nothing while the Mac behind the window cannot take changes.
+  private var ref: PanelRef { PanelRef(panel.name, in: home) }
+
+  /// A panel the chat's column shows for its project is pinned there.
+  private var menu: [PanelMenu] {
+    let slot: PanelSlot = if case .project(let id) = home, pinnedHere { .pinned(id, panel) } else { .panel(panel) }
+    return PanelMenu.entries(for: slot, in: home, pinned: pinnedPanels.contains(panel.name))
+  }
+
+  @Environment(\.pinnedHere) private var pinnedHere
+
   private func editing(_ shown: Panel) -> PanelEditing {
-    let name = panel.name
+    let name = ref
     let actions = actions
     return PanelEditing(
       panel: shown,
@@ -304,10 +322,17 @@ struct PanelCard: View {
 
   private func choose(_ entry: PanelMenu) {
     switch entry {
-    case .refresh: actions.refresh(panel)
+    case .refresh: actions.refresh(ref)
     case .revise: actions.revise(panel)
-    case .moveToTop: actions.moveToTop(.panel(panel))
-    case .remove: actions.remove(panel)
+    case .pin: actions.pin(ref, true)
+    case .unpin: actions.pin(ref, false)
+    case .moveToTop:
+      if case .project(let id) = home, pinnedHere {
+        actions.moveToTop(.pinned(id, panel))
+      } else {
+        actions.moveToTop(.panel(panel))
+      }
+    case .remove: actions.remove(ref)
     }
   }
 }
@@ -329,62 +354,4 @@ struct PanelItemIDs: Sendable {
 
 extension EnvironmentValues {
   @Entry var panelItemIDs = PanelItemIDs.random
-}
-
-/// Pages turned with the arrows either side of the page's name; the new page slides in from the side turned to.
-struct PanelPager: View {
-  let pages: [PanelPage]
-  let actions: PanelActions
-  @Environment(\.reducesMotion) private var reduceMotion
-  @State private var index: Int
-  @State private var turn = PageTurn.forward
-
-  init(pages: [PanelPage], actions: PanelActions, page: Int = 0) {
-    self.pages = pages
-    self.actions = actions
-    _index = State(initialValue: page)
-  }
-
-  var body: some View {
-    let shown = min(index, max(pages.count - 1, 0))
-    VStack(alignment: .leading, spacing: 0) {
-      HStack {
-        arrow(Symbols.back, label: "panels.previous", to: shown - 1)
-        Spacer(minLength: Spacing.xs)
-        Text(verbatim: pages.indices.contains(shown) ? pages[shown].name : "")
-          .font(.system(size: 14, weight: .medium)).foregroundStyle(Palette.ink).lineLimit(1)
-          .transaction { $0.animation = nil }
-        Spacer(minLength: Spacing.xs)
-        arrow(Symbols.forward, label: "panels.next", to: shown + 1)
-      }
-      .padding(.top, -2)
-      .padding(.bottom, Spacing.s)
-      .panelRow()
-      if pages.indices.contains(shown) {
-        PanelRows(rows: pages[shown].rows, actions: actions)
-          .id(shown)
-          .transition(
-            .asymmetric(
-              insertion: .offset(x: turn == .forward ? 24 : -24).combined(with: .opacity), removal: .identity))
-      }
-    }
-  }
-
-  private func arrow(_ symbol: String, label: String.LocalizationValue, to page: Int) -> some View {
-    Button {
-      turn = PageTurn(from: index, to: page)
-      withAnimation(reduceMotion ? nil : .timingCurve(0.28, 0.67, 0.32, 1, duration: 0.38)) { index = page }
-    } label: {
-      Image(systemName: symbol)
-        .font(.system(size: 9, weight: .bold))
-        .foregroundStyle(Palette.ink)
-        .frame(width: Spacing.l, height: Spacing.l)
-        .background(Palette.ink.opacity(0.06), in: .circle)
-        .contentShape(.circle)
-    }
-    .buttonStyle(PressStyle(scale: 0.94))
-    .disabled(!pages.indices.contains(page))
-    .opacity(pages.indices.contains(page) ? 1 : 0.35)
-    .accessibilityLabel(Text(.loci(label)))
-  }
 }

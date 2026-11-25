@@ -42,6 +42,10 @@ enum Palette {
   /// choice that is on. Use `accentInk` when amber is the color of text.
   static let accent = Color(nsColor: Tones.accent)
   static let accentInk = Color(nsColor: Tones.accentInk)
+  /// A price or value that went up: red, as markets in China write it.
+  static let rise = Color(dark: 0xF0675A, light: 0xD0453A)
+  /// A price or value that went down: green.
+  static let fall = Color(dark: 0x3DBB7F, light: 0x23905E)
   /// Words and glyphs on an amber fill, such as a button's.
   static let onAccent = Color(nsColor: Tones.onAccent)
   /// Loci's messages, and the person's, a shade apart.

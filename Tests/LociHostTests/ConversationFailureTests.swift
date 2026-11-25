@@ -9,7 +9,7 @@ import Testing
 struct ConversationFailureTests {
   @Test func aMissingSavedSessionStartsAFreshOneAndKeepsTheHistory() async throws {
     try await withManualHost { host, _, world, agent in
-      let instructions = try await host.loci.context.instructions()
+      let instructions = try await host.loci.context.instructions(for: .chat)
       let old = SessionRecord(
         id: world.nextID(), owner: .conversation(.main), runtime: Runtime(provider: .pi), handle: "gone",
         instructions: Fingerprint.of(instructions), startedAt: TestWorld.instant)

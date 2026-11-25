@@ -45,7 +45,7 @@ enum Architecture {
       uses: ["LociModel"],
       frameworks: [
         "Foundation", "Observation", "SwiftUI", "AppKit", "PDFKit", "AVKit", "AVFoundation", "MediaPlayer",
-        "WebKit", "UniformTypeIdentifiers", "ImageIO", "ServiceManagement", "os",
+        "WebKit", "UniformTypeIdentifiers", "ImageIO", "ServiceManagement", "Charts", "os",
       ],
       packages: ["Markdown", "Textual", "HighlightSwift", "SwiftMath"]),
     "Loci": Module(
@@ -108,6 +108,10 @@ enum Architecture {
         + "(FSEvents in Sources/LociStore/FileEvents.swift, AVAssetResourceLoader in "
         + "Sources/LociUI/Media/RangedMedia.swift), and the callback goes straight to an AsyncStream or the main actor."
     ),
+    Restriction(
+      pattern: #"Capsule\(\)\s*\.(stroke|strokeBorder)\("#,
+      fix: "A capsule with the default continuous corners draws a stray straight line at each end when it is "
+        + "stroked. Stroke `Capsule(style: .circular)`, and give the fill or glass under it the same shape."),
     Restriction(
       pattern: #"swift-format-ignore"#,
       fix:

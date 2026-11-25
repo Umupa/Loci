@@ -164,7 +164,7 @@ private struct TodaySheet: View {
       case .item(_, let title?): Text(verbatim: title)
       case .review: Text(.loci("loci.fromReview"))
       case .run: Text(.loci("loci.fromRun"))
-      case .course, .item(_, nil), nil: nil
+      case .course, .project, .item(_, nil), nil: nil
       }
     guard let name else { return Text(verbatim: "") }
     return Text(joining: Text(verbatim: " · "), name).font(.system(size: 12)).foregroundStyle(Palette.inkFaint)

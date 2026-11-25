@@ -32,16 +32,20 @@ struct RunPrompts {
 
   private func text(for source: Event.Source, run: Run, today: Day, brief: ReviewBrief?) throws(HostError) -> String {
     switch source {
-    case .panel(let name, _):
-      guard let panel = store.panel(named: name)?.panel else { throw .notFound(name) }
-      return try context.prompts.panel(panel, hidden: store.panelState().marks[name] ?? [:])
-    case .schedule(let id):
+    case .panel(let name, _, _):
+      let files = store.home(source.home)
+      guard let panel = files.panel(named: name)?.panel else { throw .notFound(name) }
+      return try context.prompts.panel(panel, hidden: files.panelState().marks[name] ?? [:])
+    case .schedule(let id, _):
       guard let schedule = try attempt({ try context.database.schedule(id) }) else { throw .notFound(id.description) }
       return try text(for: schedule, run: run, today: today)
-    case .followUp(let id):
+    case .followUp(let id, _):
       guard let followUp = try attempt({ try context.database.followUp(id) }) else { throw .notFound(id.description) }
       return text(for: followUp, run: run, today: today)
-    case .review(let day):
+    case .review(let day, let project?):
+      let named = (try? store.project(project)).flatMap(\.name) ?? ""
+      return context.prompts.projectReview(of: day, project: named, brief: brief)
+    case .review(let day, nil):
       let previous = (try? context.database.latestReview(before: day)).flatMap { previous in
         previous.day == day.adding(days: -1)
           ? (day: previous.day, at: TimeOfDay(of: previous.startedAt, in: timeZone)) : nil
@@ -54,12 +58,13 @@ struct RunPrompts {
     var destination = "It goes only into your notes; there is no panel for it."
     var panelText = ""
     var hiddenNote = ""
-    if case .panel(let name) = schedule.destination, let panel = store.panel(named: name)?.panel {
+    let files = store.home(schedule.home)
+    if case .panel(let name) = schedule.destination, let panel = files.panel(named: name)?.panel {
       destination =
         "Keep the panel `\(name)` current with what you find: rewrite it whole with `\"$LOCI\" panel save \(name)`,"
         + " the JSON on standard input, keeping its title, sources and follow; the first row is one sentence that"
         + " sums it up. Items with `\"by\": \"you\"` are the person's; the app keeps them whatever you save."
-      let hidden = Prompts.hidden(in: panel, marks: store.panelState().marks[name] ?? [:])
+      let hidden = Prompts.hidden(in: panel, marks: files.panelState().marks[name] ?? [:])
       if !hidden.isEmpty { hiddenNote = ", or what the person no longer wants to see in the panel" }
       panelText = hidden + "\nThe panel now:\n\n```json\n\(try Prompts.json(panel))\n```\n"
     }
@@ -67,7 +72,7 @@ struct RunPrompts {
       .first { $0.id != run.id && $0.isFinished }
     let previous =
       last.flatMap { (try? store.runRecord(at: $0.record)).flatMap(\.self) }
-      .map { "What the last run of this schedule found (`\(last?.record ?? "")`):\n\n\($0)\n" }
+      .map { "What the last run of this schedule found (`\(files.local(last?.record ?? ""))`):\n\n\($0)\n" }
       ?? "This is the schedule's first run.\n"
     return context.prompts.schedule
       .replacing("{{name}}", with: schedule.name)

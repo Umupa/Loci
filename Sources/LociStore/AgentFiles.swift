@@ -70,16 +70,7 @@ extension Store {
   public func saveAgentText(_ text: String, as file: AgentFile) throws {
     let url = agentFolder.appending(path: file.name)
     guard file == .memory else { return try write(Data(text.utf8), to: url) }
-    try writingMemory { try write(Data(text.utf8), to: url) }
-  }
-
-  /// `notes/<day>.md`, empty when nothing was noted that day.
-  public func dayNotes(of day: Day) throws -> String {
-    try optionalText(at: dayNotesFile(of: day)) ?? ""
-  }
-
-  public func dayNotesFile(of day: Day) -> URL {
-    agentFolder.appending(path: Self.dayNotesFolder).appending(path: "\(day).md")
+    try home(.chat).writingMemory { try write(Data(text.utf8), to: url) }
   }
 
   /// `diary/<day>.md`; `notFound` when Loci wrote none that day.
@@ -95,29 +86,6 @@ extension Store {
   public func diaryDays() -> [Day] {
     files(in: agentFolder.appending(path: Self.diaryFolder), withExtension: "md")
       .compactMap { Day($0.deletingPathExtension().lastPathComponent) }.sorted(by: >)
-  }
-
-  /// `AGENTS.md` as it is now; empty before it is written.
-  public func instructions() -> String {
-    (try? readText(agentFolder.appending(path: Self.instructionsFile))) ?? ""
-  }
-
-  /// Writes `AGENTS.md`, and links `CLAUDE.md` to it unless the person put a file of their own there.
-  public func writeInstructions(_ text: String) throws {
-    try write(Data(text.utf8), to: agentFolder.appending(path: Self.instructionsFile))
-    let link = agentFolder.appending(path: Self.claudeInstructionsFile).path(percentEncoded: false)
-    let exists = (try? FileManager.default.attributesOfItem(atPath: link)) != nil
-    if !exists {
-      try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: Self.instructionsFile)
-    }
-  }
-
-  /// Writes a skill where the agent programs that read skills find it: `.claude/skills/` for Claude Code
-  /// and `.agents/skills/` for Codex.
-  public func writeSkill(named name: String, _ text: String) throws {
-    for folder in [".claude/skills", ".agents/skills"] {
-      try write(Data(text.utf8), to: agentFolder.appending(path: "\(folder)/\(name)/SKILL.md"))
-    }
   }
 
   /// The picture the person chose; `nil` when they chose none.
