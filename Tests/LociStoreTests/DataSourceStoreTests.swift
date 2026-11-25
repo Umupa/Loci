@@ -17,7 +17,7 @@ struct DataSourceStoreTests {
 
   static func sample(minutes: Int64) -> SourceSample {
     SourceSample(
-      at: at(minutes: minutes), state: nil, requests: [SourceRequest(url: URL(string: "https://qt.gtimg.cn/q=a")!)],
+      at: at(minutes: minutes), state: nil, requests: [.get(SourceGet(url: URL(string: "https://qt.gtimg.cn/q=a")!))],
       responses: [SourceResponse(url: URL(string: "https://qt.gtimg.cn/q=a")!, status: 200, text: "v=\(minutes)")])
   }
 
@@ -106,5 +106,44 @@ struct DataSourceStoreTests {
     let kept = try database.sourceSeries(Self.home, field: field, since: Self.at(minutes: 0)).map(\.value)
     #expect(kept.count == 3)
     #expect(kept.last == -1)
+  }
+}
+
+/// DS-S7: the entries a source read, to tell new ones from those offered already.
+struct SourceEntryStoreTests {
+  static let home = SourceKey(.chat, "news")
+
+  static func entry(_ id: String) -> SourceEntry { SourceEntry(id: id, title: "条目 \(id)") }
+
+  @Test func onlyEntriesNotSeenBeforeAreNew() throws {
+    let database = try StoreDatabase.inMemory()
+
+    let first = try database.recordEntries(
+      Self.home, [Self.entry("a"), Self.entry("b")], at: DataSourceStoreTests.at(minutes: 0))
+    let second = try database.recordEntries(
+      Self.home, [Self.entry("b"), Self.entry("c")], at: DataSourceStoreTests.at(minutes: 1))
+
+    #expect(first.map(\.id) == ["a", "b"])
+    #expect(second.map(\.id) == ["c"])
+    #expect(
+      try database.recordEntries(SourceKey(.chat, "other"), [Self.entry("a")], at: DataSourceStoreTests.at(minutes: 1))
+        .count == 1)
+  }
+
+  @Test func entriesAreFoundBySeenTimeAndById() throws {
+    let database = try StoreDatabase.inMemory()
+    try database.recordEntries(Self.home, [Self.entry("a")], at: DataSourceStoreTests.at(minutes: 0))
+    try database.recordEntries(Self.home, [Self.entry("b")], at: DataSourceStoreTests.at(minutes: 1))
+    try database.recordEntries(Self.home, [Self.entry("c")], at: DataSourceStoreTests.at(minutes: 2))
+
+    let since = try database.sourceEntries(
+      Self.home, seenAfter: DataSourceStoreTests.at(minutes: 0), through: DataSourceStoreTests.at(minutes: 1), limit: 10
+    )
+
+    #expect(since.map(\.entry.id) == ["b"])
+    #expect(
+      try database.sourceEntries(Self.home, seenAfter: nil, through: DataSourceStoreTests.at(minutes: 2), limit: 2).map(
+        \.entry.id) == ["c", "b"])
+    #expect(Set(try database.sourceEntries(Self.home, ids: ["a", "c", "z"]).map(\.entry.id)) == ["a", "c"])
   }
 }

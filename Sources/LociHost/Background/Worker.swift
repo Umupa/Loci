@@ -32,7 +32,14 @@ actor Worker {
     var policy: RunPolicy {
       switch run.kind {
       case .review: .review
-      case .timers(let timed): timed.sources.allSatisfy { $0.panel != nil } ? .panel : .timers
+      case .timers(let timed):
+        if timed.first.repair != nil {
+          .repair
+        } else if timed.sources.allSatisfy({ $0.panel != nil }) {
+          .panel
+        } else {
+          .timers
+        }
       }
     }
 
@@ -68,6 +75,14 @@ actor Worker {
   /// What the run's session may do with `loci`; `nil` once the run is over.
   func policy(of run: Run.ID) -> RunPolicy? {
     current.flatMap { $0.run.id == run && !$0.stopped ? $0.policy : nil }
+  }
+
+  /// The source the run mends, while it is under way.
+  func repairing(in run: Run.ID) -> SourceKey? {
+    guard let current, current.run.id == run, !current.stopped, case .timers(let timed) = current.run.kind else {
+      return nil
+    }
+    return timed.first.repair
   }
 
   /// Whether the run may save the panel now.
@@ -113,13 +128,13 @@ actor Worker {
   }
 
   /// The events that share a run with `first`: those of its home raised for the first time, due in the same
-  /// minute. A review, and a run being tried again, run alone.
+  /// minute. A review, a repair, and a run being tried again, run alone.
   static func together(_ events: [Event], first: Event) -> [Event] {
-    guard case .waiting(nil) = first.state, !first.isReview else { return [first] }
+    guard case .waiting(nil) = first.state, !first.runsAlone else { return [first] }
     let minute = first.due.millisecondsSince1970 / 60_000
     return events.filter { event in
       guard case .waiting(nil) = event.state, event.source.home == first.source.home else { return false }
-      return !event.isReview && !event.isAsked && event.due.millisecondsSince1970 / 60_000 == minute
+      return !event.runsAlone && !event.isAsked && event.due.millisecondsSince1970 / 60_000 == minute
     }
   }
 
@@ -209,6 +224,7 @@ actor Worker {
     case .finished(let reply, let sources):
       let summary = RunResult.summary(of: reply)
       try? database.saveRun(run.with(.finished(summary: summary, sources: sources)))
+      markFed(current.panels, of: run)
       for event in current.events { try? database.update(event.with(.done(run.id))) }
       record += RunRecord.found(reply, summary: summary, sources: sources, tries: tries)
       if let review { try? database.endReview(of: review, .finished) }
@@ -238,6 +254,16 @@ actor Worker {
     work = nil
     await context.follower.follow(changes(of: run.kind))
     await consider()
+  }
+
+  /// The panels of a finished run that follow entries are not offered again what the run was offered.
+  private func markFed(_ panels: Set<String>, of run: Run) {
+    let files = context.store.home(run.kind.home)
+    let fed = panels.filter { files.panel(named: $0)?.panel?.feed != nil }
+    guard !fed.isEmpty else { return }
+    _ = try? files.changePanelState { state in
+      for panel in fed { state.fed[panel] = run.startedAt }
+    }
   }
 
   /// After a daily review: on the first split, keeps any entry the review lost; keeps what the review left to
@@ -276,6 +302,8 @@ enum RunPolicy: Equatable {
   case timers
   /// The daily review: read, set follow-ups, and say how it feels.
   case review
+  /// Mending a source: show, test and save that source only.
+  case repair
 
   func refusal(_ name: String) -> String {
     switch self {
@@ -283,6 +311,7 @@ enum RunPolicy: Equatable {
     case .timers:
       "A run in the background only reads, sets follow-ups and saves its own panel; loci cannot run \(name) in it."
     case .review: "The daily review only reads, sets follow-ups and sets your mood; loci cannot run \(name) in it."
+    case .repair: "Mending a source only shows, tests and saves that source; loci cannot run \(name) in it."
     }
   }
 }
@@ -305,5 +334,10 @@ extension Event {
 
   var isReview: Bool {
     if case .review = source { true } else { false }
+  }
+
+  /// A review or a repair, which shares its run with nothing.
+  var runsAlone: Bool {
+    isReview || source.repair != nil
   }
 }

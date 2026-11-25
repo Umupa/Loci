@@ -56,6 +56,7 @@ extension FakeHost {
 extension FakeHost {
   func saveDataSource(_ command: SaveDataSource) async throws(HostError) -> SourceOutcome { .records([:]) }
   func testDataSource(_ command: TestDataSource) async throws(HostError) -> [SourceReplay] { [] }
+  func pickPanelEntries(_ command: PickPanelEntries) async throws(HostError) -> Done { Done() }
   func dataSources(of home: Home) async throws(HostError) -> [DataSourceEntry] { [] }
 
   func sourceHistory(_ subscription: WatchSourceHistory) async throws(HostError) -> SourceHistory? {

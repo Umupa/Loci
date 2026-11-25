@@ -194,6 +194,19 @@ enum Schema {
           CREATE INDEX source_series_key ON source_series(source, record, at);
           """)
     }
+    migrator.registerMigration("12 source entries") { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE source_entry (
+            source TEXT NOT NULL,
+            id TEXT NOT NULL,
+            seen TEXT NOT NULL,
+            body TEXT NOT NULL,
+            PRIMARY KEY (source, id)
+          );
+          CREATE INDEX source_entry_seen ON source_entry(source, seen);
+          """)
+    }
     return migrator
   }
 

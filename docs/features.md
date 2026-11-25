@@ -128,7 +128,11 @@
 | dreaming | 每日回顾整理记忆的那部分：核对、搬运、修链接，周日多看一遍 wiki | `ReviewBrief` |
 | 数据源 | 应用自己按时去取的东西（行情、净值、版本号、汇率），不经过模型：伙伴写 `requests` 和 `parse` 两个函数，`loci source save` 当场取一次，成功才存 | `DataSource` |
 | 数据源快照 | 一个数据源现在有的：最近一次取到的记录、什么时候取到的、之后连着失败了几次；失败时旧值留着、标成过期 | `SourceSnapshot` |
-| 样例 | 一次成功取数的请求和响应，留最近 5 份；`loci source test` 拿它回放新的 `parse`，不联网 | `SourceSample` |
+| 取数线 | 应用自己按时取数据源的那条线，和后台 run 并行、不进 inbox：前台按频率，后台最多每小时一次，时段外不取 | `SourceLine` |
+| 数据源坏了 | 脚本连着 3 次失败（网络出错不算）；inbox 放一件「修数据源」，伙伴在后台拿失败时的响应改好它 | `SourceBreakage` |
+| 样例 | 一次取数的请求和响应（成功的，和坏之前失败的），留最近 5 份；`loci source test` 拿它回放新的 `parse`，不联网 | `SourceSample` |
+| 条目 | 数据源读到的带 id 的一项，如一条快讯、一篇论文；之前没见过的才算新 | `SourceEntry` |
+| 跟条目 | 面板写 `feed`，有新条目时才刷新：伙伴只挑 id、说一句话，链接和时间由应用回填；`skip` 里的词先把条目去掉 | `PanelFeed` |
 | 字段引用 | 面板的行指向数据源里的一个值：`<数据源>.<记录>.<字段>`，数字由应用填 | `SourceField` |
 | 图表行 | 画数字的面板行，数字可以写死也可以引用字段；红涨绿跌：行情行、折线图、分位尺、配置环形图、热力格、K 线、区间条 | `PanelQuote`、`PanelLineChart`、`PanelRuler`、`PanelAllocation`、`PanelHeatTile`、`PanelCandles`、`PanelZones` |
 | 你对一行的态度 | 盯着外面的面板里，你对列表一行的置顶、不想再看和备注；存在应用里，伙伴改不到 | `PanelLineMark` |

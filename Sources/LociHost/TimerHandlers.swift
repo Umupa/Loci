@@ -68,7 +68,7 @@ extension LocalHost {
       }
       let changed = Panel(
         name: name, title: change.title ?? panel.title, sources: panel.sources, follow: change.follow ?? panel.follow,
-        refresh: change.every?.refresh ?? panel.refresh, body: panel.body)
+        refresh: change.every?.refresh ?? panel.refresh, feed: panel.feed, body: panel.body)
       try attempt { try store.home(ref.home).savePanel(changed) }
       await follow([.timers, .loci(.panels)])
       guard let entry = entry(of: ref, changed, state: store.home(ref.home).panelState()) else { throw .notFound(name) }
@@ -183,6 +183,6 @@ extension Schedule {
 
 extension Panel {
   func with(refresh: PanelRefresh?) -> Panel {
-    Panel(name: name, title: title, sources: sources, follow: follow, refresh: refresh, body: body)
+    Panel(name: name, title: title, sources: sources, follow: follow, refresh: refresh, feed: feed, body: body)
   }
 }

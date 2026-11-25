@@ -37,7 +37,7 @@ public enum PanelCheck {
     }
     let panel = Panel(
       name: name, title: decoded.title, sources: decoded.sources, follow: decoded.follow, refresh: decoded.refresh,
-      body: decoded.body)
+      feed: decoded.feed, body: decoded.body)
     let problems = problems(in: panel)
     guard problems.isEmpty else { throw PanelProblems(all: problems) }
     return panel
@@ -52,6 +52,13 @@ public enum PanelCheck {
       found.append(PanelProblem("sources[\(index)]", "is empty"))
     }
     if let refresh = panel.refresh { found += problems(in: refresh) }
+    if let feed = panel.feed {
+      found += DataSourceCheck.problems(ofName: feed.source).map { PanelProblem("feed.source", $0.reason) }
+      if panel.refresh != nil {
+        found.append(
+          PanelProblem("refresh", "a panel with a feed is refreshed when its source has new entries; drop refresh"))
+      }
+    }
     var seen = Seen()
     switch panel.body {
     case .rows(let rows):

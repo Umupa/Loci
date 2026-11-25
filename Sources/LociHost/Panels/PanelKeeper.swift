@@ -5,7 +5,7 @@ import LociStore
 /// The panels Loci keeps. Saving and removing a panel both go through here, one after the other, so a run
 /// whose panel was removed cannot save it back. Refreshing them is the worker's: a refresh is a run.
 actor PanelKeeper {
-  private let context: AgentContext
+  let context: AgentContext
   private let worker: Worker
   private let scheduler: Scheduler
 
@@ -101,7 +101,7 @@ actor PanelKeeper {
   }
 
   /// A run's session may touch only the panels it is for, and only while it runs.
-  private func allow(_ panel: PanelRef, from session: LocalSession?) async throws(HostError) {
+  func allow(_ panel: PanelRef, from session: LocalSession?) async throws(HostError) {
     guard case .run(let run) = session else { return }
     switch await worker.permission(toSave: panel, from: run) {
     case .allowed: return

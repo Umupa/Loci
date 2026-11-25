@@ -24,7 +24,7 @@ enum UsageKind: Hashable, CaseIterable {
     case .course: self = .course
     case .item: self = .item
     case .panel: self = .panel
-    case .schedule, .followUp: self = .timer
+    case .schedule, .followUp, .repair: self = .timer
     case .review: self = .review
     }
   }

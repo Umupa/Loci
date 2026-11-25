@@ -43,6 +43,7 @@ extension LocalHost {
         case .panel(let name, _, _): .panel(name)
         case .schedule(let schedule, _): .schedule(schedule)
         case .followUp(let followUp, _): .followUp(followUp)
+        case .source(let name, _): .repair(name)
         case .review, nil: .review
         }
       return (activity, failed)
@@ -73,6 +74,7 @@ private struct UsageNames {
     case .panel(let name): store.home(.chat).panel(named: name)?.panel?.title ?? name
     case .schedule(let schedule): schedules[schedule]
     case .followUp(let followUp): followUps[followUp]
+    case .repair(let name): name
     }
   }
 }

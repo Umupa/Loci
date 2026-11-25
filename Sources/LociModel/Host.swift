@@ -181,6 +181,7 @@ public protocol CommandHandler: Sendable {
   func pinPanel(_ command: PinPanel) async throws(HostError) -> Done
   func saveDataSource(_ command: SaveDataSource) async throws(HostError) -> SourceOutcome
   func testDataSource(_ command: TestDataSource) async throws(HostError) -> [SourceReplay]
+  func pickPanelEntries(_ command: PickPanelEntries) async throws(HostError) -> Done
   func dataSources(of home: Home) async throws(HostError) -> [DataSourceEntry]
   func sourceHistory(_ subscription: WatchSourceHistory) async throws(HostError) -> SourceHistory?
   func listCourses() async throws(HostError) -> [CourseEntry]

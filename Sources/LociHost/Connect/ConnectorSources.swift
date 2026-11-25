@@ -123,7 +123,7 @@ extension ConnectorKeeper {
           command, caller, "\(error.reason). Run `loci connector list \(record.id)` to see what it can read.")
       }
       await log(command, caller, .read)
-      return ExternalContent.wrap(text, from: record.id.rawValue, tool: command.tool)
+      return Self.answer(caller, text, from: record.id.rawValue, tool: command.tool)
     }
   }
 
@@ -153,7 +153,7 @@ extension ConnectorKeeper {
       throw .invalidRequest("\(record.name) could not be read: \(error.reason)")
     }
     await log(call, caller, .read)
-    return ExternalContent.wrap(text, from: record.id.rawValue, tool: "read")
+    return Self.answer(caller, text, from: record.id.rawValue, tool: "read")
   }
 
   private func callGitHub(_ command: CallConnector, arguments: JSONValue, by caller: ConnectorCall.Caller)
@@ -166,7 +166,7 @@ extension ConnectorKeeper {
     switch await connect.githubRead(words) {
     case .output(let text):
       await log(command, caller, .read)
-      return ExternalContent.wrap(text, from: "github", tool: "gh " + words.prefix(2).joined(separator: " "))
+      return Self.answer(caller, text, from: "github", tool: "gh " + words.prefix(2).joined(separator: " "))
     case .refused(let why):
       try await refuse(command, caller, why)
     case .failed(let why):

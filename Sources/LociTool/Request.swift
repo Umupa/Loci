@@ -152,12 +152,24 @@ enum PanelRequest: Hashable, Sendable {
   case show(String)
   /// Adds Loci's item at the end of a section; `proposed` leaves it for the person to take or not.
   case add(panel: String, section: String, text: String, proposed: Bool)
+  /// Keeps these of the entries a panel that follows a source was offered, with one sentence on them.
+  case pick(panel: String, ids: [String], say: String)
 
   static let usage =
     "loci panel save <name> < panel.json | loci panel list | loci panel show <name>"
-    + " | loci panel add <name> <section> <text> [--propose]"
+    + " | loci panel add <name> <section> <text> [--propose] | loci panel pick <name> --say <sentence> [<id>...]"
 
   static func parse(_ words: [String]) throws(UsageError) -> PanelRequest {
+    if words.first == "pick" {
+      var rest = Array(words.dropFirst())
+      guard let index = rest.firstIndex(of: "--say"), rest.indices.contains(index + 1) else {
+        throw UsageError("loci panel pick needs one sentence on what is new: --say \"…\"")
+      }
+      let say = rest[index + 1]
+      rest.removeSubrange(index...(index + 1))
+      guard let name = rest.first else { throw UsageError(usage) }
+      return .pick(panel: try self.name(name), ids: Array(rest.dropFirst()), say: say)
+    }
     if words.first == "add" {
       let rest = words.dropFirst().filter { $0 != "--propose" }
       let text = rest.dropFirst(2).joined(separator: " ").trimmingCharacters(in: .whitespaces)

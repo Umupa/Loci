@@ -4,7 +4,7 @@ public enum Wire {
   public static let toolCommands: [any LocalToolCommand.Type] = [
     ReadSource.self, FetchSourceRepository.self, AddSchedule.self, AddFollowUp.self, ListConnectors.self,
     CallConnector.self, Recall.self, NameProject.self, DescribeProject.self,
-    SaveDataSource.self, TestDataSource.self, ListDataSources.self,
+    SaveDataSource.self, TestDataSource.self, ListDataSources.self, PickPanelEntries.self,
   ]
 
   /// Commands only the Mac the companion lives on runs; another Mac is refused them.

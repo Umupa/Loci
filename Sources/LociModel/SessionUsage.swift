@@ -117,11 +117,13 @@ public enum UsageActivity: Hashable, Codable, Sendable {
   case schedule(EntityID)
   case followUp(EntityID)
   case review
+  /// Mending the source by this name.
+  case repair(String)
 
   /// Whether the companion does it in the background, on its own, rather than in a conversation.
   public var isBackground: Bool {
     switch self {
-    case .panel, .schedule, .followUp, .review: true
+    case .panel, .schedule, .followUp, .review, .repair: true
     case .main, .item, .course, .project: false
     }
   }

@@ -11,6 +11,7 @@ extension StoreDatabase {
     try queue.write { db in
       try db.execute(sql: "DELETE FROM source_snapshot WHERE source LIKE ?", arguments: [pattern])
       try db.execute(sql: "DELETE FROM source_series WHERE source LIKE ?", arguments: [pattern])
+      try db.execute(sql: "DELETE FROM source_entry WHERE source LIKE ?", arguments: [pattern])
     }
   }
 
@@ -56,12 +57,14 @@ extension StoreDatabase {
     return snapshot
   }
 
-  /// Notes a try that got nothing: the records stay as they were, and the snapshot is stale. `nil` when
-  /// the source never got anything.
+  /// Notes a try that got nothing: the records stay as they were, and the snapshot is stale; `script` when
+  /// its script failed, which counts toward its being broken. `nil` when the source never got anything.
   @discardableResult
-  public func recordFailure(_ source: SourceKey, at moment: Timestamp) throws -> SourceSnapshot? {
+  public func recordFailure(_ source: SourceKey, script: SourceProblems? = nil, at moment: Timestamp) throws
+    -> SourceSnapshot?
+  {
     try queue.write { db in
-      guard let failed = try Self.snapshot(source, in: db)?.failed(at: moment) else { return nil }
+      guard let failed = try Self.snapshot(source, in: db)?.failed(at: moment, script: script) else { return nil }
       try Self.put(source, try MirrorUpdate.json(failed), in: db)
       return failed
     }

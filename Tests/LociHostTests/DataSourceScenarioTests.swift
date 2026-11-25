@@ -96,38 +96,3 @@ struct DataSourceScenarioTests {
     }
   }
 }
-
-final class FakeSources: DataSourceRunning {
-  private let state: Mutex<(records: [String: SourceRecord], fetches: Int, replayed: [String])>
-  private let failure: SourceProblems?
-
-  init(records: [String: SourceRecord] = [:], failure: SourceProblems? = nil) {
-    state = Mutex((records, 0, []))
-    self.failure = failure
-  }
-
-  var fetches: Int { state.withLock { $0.fetches } }
-  var replayed: [String] { state.withLock { $0.replayed } }
-
-  func set(_ records: [String: SourceRecord]) {
-    state.withLock { $0.records = records }
-  }
-
-  func fetch(_ source: DataSource, state: JSONValue?, now: Timestamp) async throws(SourceProblems) -> SourceResult {
-    let records = self.state.withLock { current in
-      current.fetches += 1
-      return current.records
-    }
-    if let failure { throw failure }
-    return SourceResult(
-      records: records, state: nil, sample: SourceSample(at: now, state: state, requests: [], responses: []))
-  }
-
-  func replay(_ sample: SourceSample, script: String) async throws(SourceProblems) -> SourceResult {
-    let records = state.withLock { current in
-      current.replayed.append(script)
-      return current.records
-    }
-    return SourceResult(records: records, state: nil, sample: sample)
-  }
-}

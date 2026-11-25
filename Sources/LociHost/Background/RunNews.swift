@@ -2,7 +2,8 @@ import Foundation
 import LociModel
 import LociStore
 
-/// What a home's conversation is told of its runs in the background: runs since the person last talked, and
+/// What a home's conversation is told of its runs in the background: the runs of its schedules and panels and
+/// the repairs of its sources since the person last talked, and
 /// every follow-up that came due and was not yet told, done or not. A project's runs are told only in the
 /// project, the chat's only in the main conversation.
 struct RunNews {
@@ -28,13 +29,14 @@ extension AgentContext {
     let files = store.home(home)
     let ended = ((try? database.runs(startedAfter: moment)) ?? []).filter { run in
       if case .running = run.outcome { return false }
-      return run.kind.home == home && run.kind.sources.contains { $0.schedule != nil }
+      return run.kind.home == home && run.kind.sources.contains { $0.schedule != nil || $0.repair != nil }
     }
     news.runs = ended.suffix(RunNews.limit).map { run in
       let names = run.kind.sources.compactMap { source -> String? in
         switch source {
         case .schedule(let id, _): ((try? database.schedule(id)) ?? nil)?.name
         case .panel(let name, _, _): "panel \(name)"
+        case .source(let name, _): "source \(name)"
         case .followUp, .review: nil
         }
       }

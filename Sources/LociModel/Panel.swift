@@ -11,24 +11,33 @@ public struct Panel: Hashable, Codable, Sendable, Identifiable {
   public let follow: String
   /// `nil` when the panel only changes when Loci or the person asks.
   public let refresh: PanelRefresh?
+  /// The source whose new entries the panel is refreshed for, in place of a fixed time; its rows are then
+  /// written by the app from the entries Loci picks.
+  public let feed: PanelFeed?
   public let body: PanelBody
 
   public var id: String { name }
 
   public init(
     name: String, title: String, sources: [String] = [], follow: String, refresh: PanelRefresh? = nil,
-    body: PanelBody
+    feed: PanelFeed? = nil, body: PanelBody
   ) {
     self.name = name
     self.title = title
     self.sources = sources
     self.follow = follow
     self.refresh = refresh
+    self.feed = feed
     self.body = body
   }
 
+  /// The same panel showing `body`.
+  public func with(body: PanelBody) -> Panel {
+    Panel(name: name, title: title, sources: sources, follow: follow, refresh: refresh, feed: feed, body: body)
+  }
+
   private enum CodingKeys: String, CodingKey {
-    case name, title, sources, follow, refresh, rows, pages
+    case name, title, sources, follow, refresh, feed, rows, pages
   }
 
   public init(from decoder: any Decoder) throws {
@@ -38,6 +47,7 @@ public struct Panel: Hashable, Codable, Sendable, Identifiable {
     sources = try container.decodeIfPresent([String].self, forKey: .sources) ?? []
     follow = try container.decode(String.self, forKey: .follow)
     refresh = try container.decodeIfPresent(PanelRefresh.self, forKey: .refresh)
+    feed = try container.decodeIfPresent(PanelFeed.self, forKey: .feed)
     if let pages = try container.decodeIfPresent([PanelPage].self, forKey: .pages) {
       body = .pages(pages)
     } else {
@@ -52,6 +62,7 @@ public struct Panel: Hashable, Codable, Sendable, Identifiable {
     try container.encode(sources, forKey: .sources)
     try container.encode(follow, forKey: .follow)
     try container.encodeIfPresent(refresh, forKey: .refresh)
+    try container.encodeIfPresent(feed, forKey: .feed)
     switch body {
     case .rows(let rows): try container.encode(rows, forKey: .rows)
     case .pages(let pages): try container.encode(pages, forKey: .pages)
@@ -73,6 +84,29 @@ public struct PanelPage: Hashable, Codable, Sendable {
   public init(name: String, rows: [PanelRow]) {
     self.name = name
     self.rows = rows
+  }
+}
+
+/// The entries a panel follows: a source of its home, less the ones whose title has a word in `skip`.
+public struct PanelFeed: Hashable, Codable, Sendable {
+  public let source: String
+  /// Words that keep an entry from ever reaching Loci, matched in its title whatever the case.
+  public let skip: [String]
+
+  public init(source: String, skip: [String] = []) {
+    self.source = source
+    self.skip = skip
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    source = try container.decode(String.self, forKey: .source)
+    skip = try container.decodeIfPresent([String].self, forKey: .skip) ?? []
+  }
+
+  /// Whether the entry is let through to Loci.
+  public func admits(_ entry: SourceEntry) -> Bool {
+    !skip.contains { !$0.isEmpty && entry.title.localizedCaseInsensitiveContains($0) }
   }
 }
 

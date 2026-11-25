@@ -115,24 +115,38 @@ public struct SourceSnapshot: Hashable, Codable, Sendable {
   public let records: [String: SourceRecord]
   /// What `parse` kept for the next `requests`, such as the newest id it saw.
   public let state: JSONValue?
+  /// Its script failing since `fetched`; `nil` while it works.
+  public let breakage: SourceBreakage?
+
+  /// Script failures in a row that make a source broken, to be mended in the background.
+  public static let brokenAfter = 3
 
   public init(
     fetched: Timestamp, tried: Timestamp? = nil, failures: Int = 0, records: [String: SourceRecord],
-    state: JSONValue? = nil
+    state: JSONValue? = nil, breakage: SourceBreakage? = nil
   ) {
     self.fetched = fetched
     self.tried = tried ?? fetched
     self.failures = failures
     self.records = records
     self.state = state
+    self.breakage = breakage
   }
 
   /// The last try failed, so the records are older than they should be.
   public var isStale: Bool { failures > 0 }
 
-  /// The same records after one more failed try.
-  public func failed(at moment: Timestamp) -> SourceSnapshot {
-    SourceSnapshot(fetched: fetched, tried: moment, failures: failures + 1, records: records, state: state)
+  /// Its script failed `brokenAfter` times in a row; a new script is wanted.
+  public var isBroken: Bool { (breakage?.failures ?? 0) >= Self.brokenAfter }
+
+  /// The same records after one more failed try; `script` holds why when its script failed, not the network.
+  public func failed(at moment: Timestamp, script: SourceProblems? = nil) -> SourceSnapshot {
+    let breakage =
+      script.map {
+        SourceBreakage(since: breakage?.since ?? moment, failures: (breakage?.failures ?? 0) + 1, problems: $0.all)
+      } ?? breakage
+    return SourceSnapshot(
+      fetched: fetched, tried: moment, failures: failures + 1, records: records, state: state, breakage: breakage)
   }
 
   public func value(_ field: SourceField) -> SourceValue? {
@@ -140,25 +154,25 @@ public struct SourceSnapshot: Hashable, Codable, Sendable {
   }
 }
 
+/// How long a source's script has been failing.
+public struct SourceBreakage: Hashable, Codable, Sendable {
+  /// The first failure of this run of them.
+  public let since: Timestamp
+  public let failures: Int
+  /// Why it failed the last time.
+  public let problems: [SourceProblem]
+
+  public init(since: Timestamp, failures: Int, problems: [SourceProblem]) {
+    self.since = since
+    self.failures = failures
+    self.problems = problems
+  }
+}
+
 /// How the text of a response is written; read from its `Content-Type` when not given.
 public enum SourceEncoding: String, Hashable, Codable, Sendable {
   case utf8 = "utf-8"
   case gbk
-}
-
-/// One GET a source sends. There is no method to choose: a source only reads.
-public struct SourceRequest: Hashable, Codable, Sendable {
-  public let url: URL
-  public let referer: String?
-  public let userAgent: String?
-  public let encoding: SourceEncoding?
-
-  public init(url: URL, referer: String? = nil, userAgent: String? = nil, encoding: SourceEncoding? = nil) {
-    self.url = url
-    self.referer = referer
-    self.userAgent = userAgent
-    self.encoding = encoding
-  }
 }
 
 /// A response as `parse` gets it: the text already decoded.
@@ -190,16 +204,23 @@ public struct SourceSample: Hashable, Codable, Sendable {
   }
 }
 
-/// What one run of a source got: the records, what to keep for next time, and the sample to replay.
+/// What one run of a source got: the records and entries, what to keep for next time, and the sample to
+/// replay.
 public struct SourceResult: Hashable, Codable, Sendable {
   public let records: [String: SourceRecord]
+  public let entries: [SourceEntry]
   public let state: JSONValue?
   public let sample: SourceSample
 
-  public init(records: [String: SourceRecord], state: JSONValue?, sample: SourceSample) {
+  public init(records: [String: SourceRecord], entries: [SourceEntry] = [], state: JSONValue?, sample: SourceSample) {
     self.records = records
+    self.entries = entries
     self.state = state
     self.sample = sample
+  }
+
+  public init(_ output: SourceOutput, sample: SourceSample) {
+    self.init(records: output.records, entries: output.entries, state: output.state, sample: sample)
   }
 }
 

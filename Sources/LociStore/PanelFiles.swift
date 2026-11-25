@@ -13,6 +13,8 @@ public struct PanelState: Hashable, Codable, Sendable {
   public var removals: [String: [Removal]] = [:]
   /// Panels whose refresh the person paused.
   public var paused: Set<String> = []
+  /// For a panel that follows a source's entries, when the newest entry it was offered was first seen.
+  public var fed: [String: Timestamp] = [:]
 
   /// An item the person removed, and when.
   public struct Removal: Hashable, Codable, Sendable {
@@ -49,7 +51,7 @@ public struct PanelState: Hashable, Codable, Sendable {
   }
 
   private enum CodingKeys: String, CodingKey {
-    case order, refreshed, marks, removals, paused
+    case order, refreshed, marks, removals, paused, fed
   }
 
   /// A file that cannot be read is an empty state: the column falls back to its first order.
@@ -60,6 +62,7 @@ public struct PanelState: Hashable, Codable, Sendable {
     marks = (try? container.decodeIfPresent([String: [PanelLineKey: PanelLineMark]].self, forKey: .marks)) ?? [:]
     removals = (try? container.decodeIfPresent([String: [Removal]].self, forKey: .removals)) ?? [:]
     paused = (try? container.decodeIfPresent(Set<String>.self, forKey: .paused)) ?? []
+    fed = (try? container.decodeIfPresent([String: Timestamp].self, forKey: .fed)) ?? [:]
   }
 }
 

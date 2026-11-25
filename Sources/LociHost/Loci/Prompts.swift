@@ -15,6 +15,8 @@ struct Prompts: Sendable {
   let followUp: String
   let projectReview: String
   let projectStart: String
+  let repair: String
+  let feed: String
 
   static func bundled() throws(HostError) -> Prompts {
     Prompts(
@@ -22,7 +24,8 @@ struct Prompts: Sendable {
       rules: try resource("rules"), review: try resource("review"),
       panel: try resource("panel"), course: try resource("course"), schedule: try resource("schedule"),
       followUp: try resource("followup"), projectReview: try resource("project-review"),
-      projectStart: try resource("project-start"))
+      projectStart: try resource("project-start"), repair: try resource("source-repair"),
+      feed: try resource("panel-feed"))
   }
 
   private static func resource(_ name: String) throws(HostError) -> String {

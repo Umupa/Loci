@@ -33,6 +33,21 @@ struct PanelCheckTests {
     #expect(try PanelCheck.read(Data(json.utf8), name: "radar").name == "radar")
   }
 
+  @Test func aPanelThatFollowsEntriesKeepsItsFeedAndHasNoFixedRefresh() throws {
+    let feed = #"{ "source": "news", "skip": ["广告"] }"#
+    let following = #"{ "title": "快讯", "follow": "x", "feed": \#(feed), "rows": [\#(Self.sentence)] }"#
+
+    #expect(try PanelCheck.read(Data(following.utf8), name: "flash").feed == PanelFeed(source: "news", skip: ["广告"]))
+    #expect(
+      Self.problems(
+        #"{ "title": "快讯", "follow": "x", "feed": { "source": "News" }, "refresh": { "every": "hour" }, "rows": [\#(Self.sentence)] }"#
+      )
+        == [
+          #"feed.source: "News" is not a short lowercase English name, such as etf-premium (at most 32)"#,
+          "refresh: a panel with a feed is refreshed when its source has new entries; drop refresh",
+        ])
+  }
+
   @Test func anEmptyTitleOrFollowIsNamed() {
     let json = #"{ "title": " ", "follow": "", "rows": [\#(Self.sentence)] }"#
 

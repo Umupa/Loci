@@ -50,7 +50,8 @@ extension ConnectorKeeper {
       throw .invalidRequest("\(record.name) could not be read: \(error.reason)")
     }
     await log(command, caller, .read)
-    return ExternalContent.wrap(
+    return Self.answer(
+      caller,
       result.isError ? "The tool says it failed:\n" + result.text : result.text, from: id.rawValue, tool: command.tool)
   }
 
@@ -130,6 +131,12 @@ extension ConnectorKeeper {
       outcome: outcome)
     try? database.logConnectorCall(call)
     await follower.follow([.connectors])
+  }
+
+  /// What was read, marked as content from outside for a session; as it came for a source.
+  static func answer(_ caller: ConnectorCall.Caller, _ text: String, from connector: String, tool: String) -> String {
+    if case .source = caller { return text }
+    return ExternalContent.wrap(text, from: connector, tool: tool)
   }
 
   static func reconnect(_ record: ConnectorRecord, _ why: String) -> String {

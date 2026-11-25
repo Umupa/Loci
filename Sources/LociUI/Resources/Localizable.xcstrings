@@ -9171,6 +9171,23 @@
         }
       }
     },
+    "usage.repair": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source repair"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修数据源"
+          }
+        }
+      }
+    },
     "usage.review": {
       "extractionState": "manual",
       "localizations": {

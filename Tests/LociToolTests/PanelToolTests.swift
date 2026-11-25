@@ -39,6 +39,25 @@ struct PanelToolTests {
         == (.panel(.add(panel: "week", section: "today", text: "帮阿哲看简历", proposed: true)), false))
   }
 
+  @Test func pickingReadsThePanelTheSentenceAndTheIdsKept() async throws {
+    #expect(
+      try Request.parse(["panel", "pick", "flash", "--say", "**纳指**走高。", "a1", "a3"])
+        == (.panel(.pick(panel: "flash", ids: ["a1", "a3"], say: "**纳指**走高。")), false))
+    #expect(
+      try Request.parse(["panel", "pick", "flash", "--say", "没有新东西。"])
+        == (.panel(.pick(panel: "flash", ids: [], say: "没有新东西。")), false))
+    #expect(throws: UsageError.self) { try Request.parse(["panel", "pick", "flash", "a1"]) }
+    let line = ScriptedLine { _ in [.success(Self.json(Done()))] }
+
+    let picked = await tool(line).run(.panel(.pick(panel: "flash", ids: ["a1"], say: "x")), json: false)
+
+    #expect(picked == .worked("Kept 1 in flash."))
+    #expect(
+      line.requests == [
+        .command(name: PickPanelEntries.name, body: Self.json(PickPanelEntries("flash", ids: ["a1"], say: "x")))
+      ])
+  }
+
   static let week = Panel(
     name: "week", title: "本周待办", follow: "这周要做的事",
     body: .rows([.items(PanelItems(id: "week", name: "本周", adds: true, checks: true, items: []))]))

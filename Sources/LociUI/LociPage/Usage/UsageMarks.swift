@@ -69,6 +69,7 @@ extension UsageActivity {
     case .main, .project: .loci("usage.kindMain")
     case .review: .loci("usage.review")
     case .followUp: .loci("usage.followUp")
+    case .repair: .loci("usage.repair")
     case .item, .course, .panel, .schedule: UsageKind(self).name
     }
   }

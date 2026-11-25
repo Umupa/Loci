@@ -175,7 +175,7 @@ extension Panel {
       for page in pages { changedPages.append(PanelPage(name: page.name, rows: try changed(page.rows))) }
       body = .pages(changedPages)
     }
-    return Panel(name: name, title: title, sources: sources, follow: follow, refresh: refresh, body: body)
+    return with(body: body)
   }
 
   /// The rows of each page, or the one stack of rows of a panel that does not page.

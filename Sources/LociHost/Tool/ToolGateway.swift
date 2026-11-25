@@ -72,6 +72,11 @@ enum ToolGateway {
   static func refusal(of request: LocalCall.Request, in run: Run.ID, on host: LocalHost) async -> String? {
     let policy = await host.worker.policy(of: run) ?? .timers
     switch request {
+    case .command(let name, let body) where policy == .repair:
+      guard repairCommands.contains(name) else { return policy.refusal(name) }
+      guard name == SaveDataSource.name, let mending = await host.worker.repairing(in: run) else { return nil }
+      let saving = (try? WireCodec.decode(SaveDataSource.self, from: body))?.source.name
+      return saving == mending.name ? nil : "This repair mends only the source \(mending.name); save that one."
     case .command(let name, _):
       return runCommands.contains(name) ? nil : policy.refusal(name)
     case .feeling: return policy == .review ? nil : policy.refusal("mood")
@@ -86,8 +91,12 @@ enum ToolGateway {
       $0.name
     } + [
       ReadSource.name, FetchSourceRepository.name, AddFollowUp.name, SavePanel.name, EditPanel.name,
+      PickPanelEntries.name,
       ListConnectors.name, CallConnector.name, Recall.name, DescribeProject.name,
     ])
+
+  /// What a repair's session may run: show, test and save sources.
+  static let repairCommands: Set<String> = [ListDataSources.name, TestDataSource.name, SaveDataSource.name]
 
   /// The home a session works in: a project's conversation and runs are the project's, everything else the chat's.
   static func home(of session: LocalSession?, on host: LocalHost) async -> Home {
@@ -143,6 +152,11 @@ enum ToolGateway {
       let command = try WireCodec.decode(TestDataSource.self, from: body)
       return try WireCodec.encode(
         try await host.testDataSource(TestDataSource(command.source, script: command.script, in: home)))
+    }
+    if name == PickPanelEntries.name {
+      let command = try WireCodec.decode(PickPanelEntries.self, from: body)
+      try await host.panels.pick(command, in: home, from: call.session)
+      return try WireCodec.encode(Done())
     }
     if name == ListDataSources.name {
       return try WireCodec.encode(try await host.dataSources(of: home))

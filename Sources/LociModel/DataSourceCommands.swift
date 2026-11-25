@@ -119,3 +119,27 @@ public struct WatchSourceHistory: Subscription {
     }
   }
 }
+
+/// For a panel that follows a source's entries: the ids Loci keeps of what it was offered, and one sentence
+/// on them. The app writes the panel: the sentence, then those entries with their own titles, links and
+/// times, before the ones kept earlier. Refused, naming them, when an id is not the source's.
+public struct PickPanelEntries: LocalToolCommand {
+  public static let name = "panels.pick"
+  public let panel: String
+  public let ids: [String]
+  public let say: String
+  public let project: Project.ID?
+
+  public init(_ panel: String, ids: [String], say: String, in home: Home = .chat) {
+    self.panel = panel
+    self.ids = ids
+    self.say = say
+    project = home.project
+  }
+
+  public var home: Home { Home(project) }
+
+  public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
+    try await handler.pickPanelEntries(self)
+  }
+}

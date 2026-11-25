@@ -32,7 +32,8 @@ public enum DataSourceCheck {
     key.wholeMatch(of: /[A-Za-z0-9_-]+/) != nil
   }
 
-  /// The requests `requests(state)` gave: an array of links, or of `{ url, referer, userAgent, encoding }`.
+  /// The requests `requests(state)` gave: an array of links, of `{ url, referer, userAgent, encoding }`, of
+  /// `{ page }`, or of `{ connector, tool, arguments }`.
   public static func requests(from json: JSONValue) throws(SourceProblems) -> [SourceRequest] {
     guard let items = json.array else {
       throw SourceProblems("requests", "did not return an array of requests")
@@ -44,37 +45,57 @@ public enum DataSourceCheck {
     var found: [SourceProblem] = []
     var requests: [SourceRequest] = []
     for (index, item) in items.enumerated() {
-      let path = "requests[\(index)]"
-      guard let link = item.string ?? item["url"]?.string else {
-        found.append(SourceProblem(path, "is not a link or an object with \"url\""))
-        continue
+      do throws(SourceProblems) {
+        requests.append(try request(item, at: "requests[\(index)]"))
+      } catch {
+        found += error.all
       }
-      guard let url = URL(string: link), url.isWebLink else {
-        found.append(SourceProblem("\(path).url", "\"\(link)\" is not an http(s) link"))
-        continue
-      }
-      if let method = item["method"]?.string, method.uppercased() != "GET" {
-        found.append(SourceProblem("\(path).method", "a source only sends GET"))
-        continue
-      }
-      var encoding: SourceEncoding?
-      if let name = item["encoding"]?.string {
-        encoding = SourceEncoding(rawValue: name.lowercased().replacing("utf8", with: "utf-8"))
-        if encoding == nil { found.append(SourceProblem("\(path).encoding", "\"\(name)\" is not one of: utf-8, gbk")) }
-      }
-      requests.append(
-        SourceRequest(
-          url: url, referer: item["referer"]?.string, userAgent: item["userAgent"]?.string, encoding: encoding))
     }
     guard found.isEmpty else { throw SourceProblems(all: found) }
     return requests
   }
 
-  /// The records and state `parse(responses, now)` gave: `{ records: { <record>: { <field>: value } }, state }`.
-  public static func output(from json: JSONValue) throws(SourceProblems) -> (
-    records: [String: SourceRecord], state: JSONValue?
-  ) {
-    guard case .object(let members) = json, case .object(let records)? = members["records"] else {
+  private static func request(_ item: JSONValue, at path: String) throws(SourceProblems) -> SourceRequest {
+    if let method = item["method"]?.string, method.uppercased() != "GET" {
+      throw SourceProblems("\(path).method", "a source only sends GET")
+    }
+    if let connector = item["connector"] {
+      guard let id = connector.string, !id.isEmpty, let tool = item["tool"]?.string, !tool.isEmpty else {
+        throw SourceProblems(path, "a connector's request is { connector: \"github\", tool: \"gh\", arguments: {…} }")
+      }
+      let arguments = item["arguments"] ?? .object([:])
+      guard case .object = arguments else { throw SourceProblems("\(path).arguments", "is not an object") }
+      return .connector(SourceConnectorCall(connector: ConnectorID(rawValue: id), tool: tool, arguments: arguments))
+    }
+    if let page = item["page"] {
+      return .page(try link(page.string ?? "", at: "\(path).page"))
+    }
+    guard let given = item.string ?? item["url"]?.string else {
+      throw SourceProblems(path, "is not a link, or an object with \"url\", \"page\" or \"connector\"")
+    }
+    let url = try link(given, at: "\(path).url")
+    var encoding: SourceEncoding?
+    if let name = item["encoding"]?.string {
+      encoding = SourceEncoding(rawValue: name.lowercased().replacing("utf8", with: "utf-8"))
+      if encoding == nil { throw SourceProblems("\(path).encoding", "\"\(name)\" is not one of: utf-8, gbk") }
+    }
+    return .get(
+      SourceGet(url: url, referer: item["referer"]?.string, userAgent: item["userAgent"]?.string, encoding: encoding))
+  }
+
+  private static func link(_ text: String, at path: String) throws(SourceProblems) -> URL {
+    guard let url = URL(string: text), url.isWebLink else {
+      throw SourceProblems(path, "\"\(text)\" is not an http(s) link")
+    }
+    return url
+  }
+
+  /// What `parse(responses, now)` gave: `{ records: { <record>: { <field>: value } }, entries: [...], state }`;
+  /// a source that keeps only entries may leave out `records`.
+  public static func output(from json: JSONValue) throws(SourceProblems) -> SourceOutput {
+    guard case .object(let members) = json,
+      case .object(let records)? = members["records"] ?? (members["entries"] == nil ? nil : .object([:]))
+    else {
       throw SourceProblems("parse", "did not return { records: { <record>: { <field>: value } } }")
     }
     var found: [SourceProblem] = []
@@ -100,9 +121,10 @@ public enum DataSourceCheck {
       }
       read[key] = record
     }
+    let entries = members["entries"].map { entries(from: $0, found: &found) } ?? []
     guard found.isEmpty else { throw SourceProblems(all: found) }
     let state = members["state"].flatMap { $0 == .null ? nil : $0 }
-    return (read, state)
+    return SourceOutput(records: read, entries: entries, state: state)
   }
 }
 

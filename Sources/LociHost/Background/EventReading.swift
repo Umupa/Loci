@@ -18,6 +18,9 @@ extension AgentContext {
     case .followUp: return true
     case .review(_, nil): return true
     case .review(_, let project?): return (try? store.project(project))?.remembered == true
+    case .source(let name, _):
+      guard store.dataSource(named: name, in: DataSourceFolder(home)) != nil else { return false }
+      return ((try? database.sourceSnapshot(SourceKey(home, name))) ?? nil)?.isBroken == true
     }
   }
 
@@ -31,7 +34,7 @@ extension AgentContext {
         case .schedule(let id, _):
           guard case .panel(let name)? = (try? database.schedule(id))??.destination else { return nil }
           return name
-        case .followUp, .review: return nil
+        case .followUp, .review, .source: return nil
         }
       })
   }
@@ -42,6 +45,7 @@ extension AgentContext {
     case .schedule(let id, _): ((try? database.schedule(id)) ?? nil)?.title ?? id.description
     case .followUp(let id, _): ((try? database.followUp(id)) ?? nil)?.what ?? id.description
     case .review(let day, _): "\(day)"
+    case .source(let name, _): store.dataSource(named: name, in: DataSourceFolder(source.home))?.title ?? name
     }
   }
 
@@ -55,6 +59,7 @@ extension AgentContext {
     case .followUp: return "follow-up due \(due): \(title(of: event.source))"
     case .review(let day, nil): return "the review of \(day)"
     case .review(let day, _?): return "the review of this project's \(day)"
+    case .source(let name, _): return "the repair of the source \(name), broken since \(due)"
     }
   }
 }

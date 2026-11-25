@@ -9,6 +9,10 @@ extension Tool {
     case .show(let name): return try await show(name, json: json)
     case .add(let panel, let section, let text, let proposed):
       return try await add(text, to: panel, section: section, proposed: proposed, json: json)
+    case .pick(let panel, let ids, let say):
+      let reply = try await line.run(PickPanelEntries(panel, ids: ids, say: say))
+      if json { return .worked(Self.text(reply)) }
+      return .worked(ids.isEmpty ? "Kept none; \(panel) says so." : "Kept \(ids.count) in \(panel).")
     }
   }
 

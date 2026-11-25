@@ -14,7 +14,8 @@ final class TestWorld: Sendable {
   private let created: Mutex<UInt64>
   private let looks = Mutex<[Bool]>([])
   private let clock = Mutex<Timestamp>(TestWorld.instant)
-  private let ticking = AsyncStream.makeStream(of: Void.self)
+  private let ticking = Mutex<[AsyncStream<Void>.Continuation]>([])
+  private let front = Mutex(true)
   private let activities = Mutex<[String]>([])
   /// What the Mac seems to have installed: Pi only.
   static let installed: [AgentInstallation] = Provider.allCases.map { provider in
@@ -59,11 +60,23 @@ final class TestWorld: Sendable {
       detectAgents: { [self] again in
         self.looks.withLock { $0.append(again) }
         return Self.installed
-      }, ticks: { [ticking] in ticking.stream }, media: .disconnected(sources: sources), tool: tool,
+      }, ticks: { [self] in self.listen() }, media: .disconnected(sources: sources), tool: tool,
       activity: { [self] _ in
         self.activities.withLock { $0.append("begin") }
         return Activity { self.activities.withLock { $0.append("end") } }
-      }, connect: connect, sessionFiles: sessionFiles)
+      }, connect: connect, sessionFiles: sessionFiles, inFront: { [self] in self.inFront })
+  }
+
+  /// Whether the app's window is in front; it is unless a test sends it behind.
+  var inFront: Bool {
+    get { front.withLock { $0 } }
+    set { front.withLock { $0 = newValue } }
+  }
+
+  private func listen() -> AsyncStream<Void> {
+    let (stream, continuation) = AsyncStream.makeStream(of: Void.self)
+    ticking.withLock { $0.append(continuation) }
+    return stream
   }
 
   /// Each time the host declared background work, and each time it ended it.
@@ -87,7 +100,7 @@ final class TestWorld: Sendable {
 
   /// What the app's clock does once a minute.
   func tick() {
-    ticking.continuation.yield()
+    for listener in ticking.withLock({ $0 }) { listener.yield() }
   }
 
   /// Each time the host looked for agents, whether it was asked to look again.

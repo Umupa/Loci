@@ -58,9 +58,11 @@ struct DataSourceTests {
         #"["https://qt.gtimg.cn/q=sh513100", { "url": "https://a.example/x", "referer": "https://a.example", "encoding": "GBK" }]"#
       ))
 
-    #expect(requests.map(\.url.absoluteString) == ["https://qt.gtimg.cn/q=sh513100", "https://a.example/x"])
-    #expect(requests[1].encoding == .gbk)
-    #expect(requests[1].referer == "https://a.example")
+    #expect(
+      requests == [
+        .get(SourceGet(url: URL(string: "https://qt.gtimg.cn/q=sh513100")!)),
+        .get(SourceGet(url: URL(string: "https://a.example/x")!, referer: "https://a.example", encoding: .gbk)),
+      ])
     #expect(throws: SourceProblems("requests[0].method", "a source only sends GET")) {
       try DataSourceCheck.requests(from: Self.json(#"[{ "url": "https://a.example", "method": "POST" }]"#))
     }

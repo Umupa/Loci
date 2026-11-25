@@ -15,17 +15,18 @@ public struct Event: Hashable, Codable, Sendable, Identifiable {
     self.state = state
   }
 
-  /// The inbox keeps one event for each key: a timer that came due at a moment is raised once.
-  /// A project's keys start with its folder, so the chat's keys stay as they always were.
+  /// The inbox keeps one event for each key: a timer that came due at a moment is raised once, and a source
+  /// is mended once for each time it broke. A project's keys start with its folder, so the chat's keys stay
+  /// as they always were.
   public var key: String {
-    let key =
-      switch source {
-      case .schedule(let id, _): "schedule/\(id)/\(due)"
-      case .followUp(let id, _): "follow-up/\(id)"
-      case .panel(let name, let asked, _): "panel/\(name)/\(asked ? "asked/" : "")\(due)"
-      case .review(let day, _): "review/\(day)"
-      }
-    return source.home.folder + key
+    let folder = source.home.folder
+    return switch source {
+    case .schedule(let id, _): folder + "schedule/\(id)/\(due)"
+    case .followUp(let id, _): folder + "follow-up/\(id)"
+    case .panel(let name, let asked, _): folder + "panel/\(name)/\(asked ? "asked/" : "")\(due)"
+    case .review(let day, _): folder + "review/\(day)"
+    case .source(let name, let project): "source/\(SourceKey(Home(project), name))/broken/\(due)"
+    }
   }
 
   public func with(_ state: State) -> Event {
@@ -41,6 +42,8 @@ public struct Event: Hashable, Codable, Sendable, Identifiable {
     case panel(String, asked: Bool, project: Project.ID?)
     /// The daily review of the chat's memory, or of a project's.
     case review(Day, project: Project.ID?)
+    /// Mending a source whose script broke; due when it first failed.
+    case source(String, project: Project.ID?)
 
     public static func panel(_ panel: PanelRef, asked: Bool) -> Source {
       .panel(panel.name, asked: asked, project: panel.home.project)
@@ -49,7 +52,8 @@ public struct Event: Hashable, Codable, Sendable, Identifiable {
     /// Where its run works, and where what it finds is told.
     public var home: Home {
       switch self {
-      case .schedule(_, let project), .followUp(_, let project), .panel(_, _, let project), .review(_, let project):
+      case .schedule(_, let project), .followUp(_, let project), .panel(_, _, let project), .review(_, let project),
+        .source(_, let project):
         Home(project)
       }
     }
@@ -64,8 +68,13 @@ public struct Event: Hashable, Codable, Sendable, Identifiable {
       switch self {
       case .schedule(let id, _): .schedule(id)
       case .panel(let name, _, let project): .panel(name, project: project)
-      case .followUp, .review: nil
+      case .followUp, .review, .source: nil
       }
+    }
+
+    /// The source it mends, for a repair.
+    public var repair: SourceKey? {
+      if case .source(let name, let project) = self { SourceKey(Home(project), name) } else { nil }
     }
   }
 

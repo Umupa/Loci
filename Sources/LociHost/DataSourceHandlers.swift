@@ -11,22 +11,19 @@ extension LocalHost {
     let source = command.source
     let problems = DataSourceCheck.problems(in: source)
     guard problems.isEmpty else { return .failed(SourceProblems(all: problems)) }
-    let key = SourceKey(home, source.name)
-    let state = try attempt { try database.sourceSnapshot(key)?.state }
     let result: SourceResult
-    do throws(SourceProblems) {
-      result = try await environment.media.dataSources.fetch(source, state: state, now: environment.now())
-    } catch {
-      return .failed(error)
+    switch await sourceKeeper.fetch(source, in: home, at: environment.now()) {
+    case .success(let got): result = got
+    case .failure(let failure): return .failed(failure.problems)
     }
-    let folder = DataSourceFolder(home)
-    try attempt {
-      try store.saveDataSource(source, in: folder)
-      try store.keepSample(result.sample, of: source.name, in: folder)
-      try database.recordFetch(key, records: result.records, state: result.state, at: result.sample.at)
-    }
-    await follow([.source(key)])
+    try attempt { try store.saveDataSource(source, in: DataSourceFolder(home)) }
+    try await sourceKeeper.keep(result, of: source.name, in: home)
     return .records(result.records)
+  }
+
+  public func pickPanelEntries(_ command: PickPanelEntries) async throws(HostError) -> Done {
+    try await panels.pick(command, in: command.home, from: nil)
+    return Done()
   }
 
   public func testDataSource(_ command: TestDataSource) async throws(HostError) -> [SourceReplay] {

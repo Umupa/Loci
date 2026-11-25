@@ -22,6 +22,8 @@ public enum ToolGuide {
       loci panel add <name> <section> <text> [--propose]
                                        add your item at the end of an items section; --propose leaves it
                                        for the person to take or not
+      loci panel pick <name> --say <sentence> [<id>...]
+                                       keep these new entries in a panel that follows a source's entries
       loci source save <name> --title <title> --every <1m|15m|1h> [--between HH:mm-HH:mm] [--weekdays]
                                        fetch the script on standard input once, and keep it only if it works
       loci source test <name> [--script]

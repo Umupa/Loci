@@ -35,7 +35,24 @@ struct RunPrompts {
     case .panel(let name, _, _):
       let files = store.home(source.home)
       guard let panel = files.panel(named: name)?.panel else { throw .notFound(name) }
+      if let feed = panel.feed {
+        let entries = try attempt {
+          try context.database.sourceEntries(
+            SourceKey(source.home, feed.source), seenAfter: files.panelState().fed[name], through: run.startedAt,
+            limit: Prompts.entriesOffered * 4)
+        }
+        let offered = Array(entries.filter { feed.admits($0.entry) }.prefix(Prompts.entriesOffered))
+        return context.prompts.feed(panel, source: feed.source, entries: offered, timeZone: timeZone)
+      }
       return try context.prompts.panel(panel, hidden: files.panelState().marks[name] ?? [:])
+    case .source(let name, _):
+      let folder = DataSourceFolder(source.home)
+      guard let definition = store.dataSource(named: name, in: folder),
+        let broken = try attempt({ try context.database.sourceSnapshot(SourceKey(source.home, name)) })
+      else { throw .notFound(name) }
+      let since = broken.breakage?.since ?? broken.fetched
+      let failed = store.samples(of: name, in: folder).filter { $0.at >= since }
+      return context.prompts.repair(definition, broken: broken, failed: failed, timeZone: timeZone)
     case .schedule(let id, _):
       guard let schedule = try attempt({ try context.database.schedule(id) }) else { throw .notFound(id.description) }
       return try text(for: schedule, run: run, today: today)

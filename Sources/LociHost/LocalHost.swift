@@ -23,13 +23,17 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   let library: LibraryRuntime
   let agents: HostAgents
   let sources: SourceService
+  /// Keeps what each fetch of a data source got.
+  let sourceKeeper: SourceKeeper
+  let sourceLine: SourceLine
   /// Previews of the links Loci's replies show as cards.
   let links: LinkPreviewReader
   /// The CLIs' session files, read for the usage page.
   let sessionFiles: SessionFileReader
 
   private init(
-    store: Store, database: StoreDatabase, environment: HostEnvironment, prompts: Prompts, readingStateLost: Bool
+    store: Store, database: StoreDatabase, environment: HostEnvironment, prompts: Prompts, readingStateLost: Bool,
+    refreshed: any SourceRefreshed
   ) {
     self.store = store
     self.database = database
@@ -53,8 +57,13 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     let scheduler = Scheduler(context: context)
     self.scheduler = scheduler
     panels = PanelKeeper(context: context, worker: worker, scheduler: scheduler)
-    connectorKeeper = ConnectorKeeper(database: database, environment: environment, follower: follower)
-    sources = SourceService(context: library.context)
+    let connectorKeeper = ConnectorKeeper(database: database, environment: environment, follower: follower)
+    self.connectorKeeper = connectorKeeper
+    let sources = SourceService(context: library.context)
+    self.sources = sources
+    let keeper = SourceKeeper(context: context, connectors: connectorKeeper, pages: sources, refreshed: refreshed)
+    sourceKeeper = keeper
+    sourceLine = SourceLine(keeper: keeper)
     links = LinkPreviewReader(network: environment.media.network)
     sessionFiles = SessionFileReader(folders: environment.sessionFiles, timeZone: environment.timeZone)
   }
@@ -62,6 +71,13 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   /// Opens the database and starts serving from it at once, while the mirrors are rebuilt from the files
   /// in the background. A database that cannot be used is reported, not repaired.
   public static func start(root: URL, database url: URL, environment: HostEnvironment)
+    async throws(HostStartError) -> LocalHost
+  {
+    try await start(root: root, database: url, environment: environment, refreshed: NothingOnRefresh())
+  }
+
+  /// As `start`, with `refreshed` told of each fetch of a source that worked.
+  static func start(root: URL, database url: URL, environment: HostEnvironment, refreshed: any SourceRefreshed)
     async throws(HostStartError) -> LocalHost
   {
     let database: StoreDatabase
@@ -75,7 +91,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     }
     return try await begin(
       store: Store(root: root, discard: environment.discard), database: database, environment: environment,
-      readingStateLost: false)
+      readingStateLost: false, refreshed: refreshed)
   }
 
   /// Starts with a new database, setting the unusable one aside. Reading positions are lost, and `Health`
@@ -99,6 +115,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   /// applied after the rebuild has written, never overwritten by it.
   static func begin(
     store: Store, database: StoreDatabase, environment: HostEnvironment, readingStateLost: Bool,
+    refreshed: any SourceRefreshed = NothingOnRefresh(),
     rebuild: @escaping @Sendable (Store, StoreDatabase) async throws -> [FileProblem] = { store, database in
       try database.rebuild(from: store)
     }
@@ -111,7 +128,8 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       throw .storage(String(describing: error))
     }
     let host = LocalHost(
-      store: store, database: database, environment: environment, prompts: prompts, readingStateLost: readingStateLost)
+      store: store, database: database, environment: environment, prompts: prompts, readingStateLost: readingStateLost,
+      refreshed: refreshed)
     let changes = store.changes()
     let coverFolders = store.foldersForCoverBackfill()
     let work = Task {
@@ -140,6 +158,8 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     await host.hub.hold(work)
     await host.hub.hold(reviews)
     await host.hub.hold(Task { await host.connectorKeeper.watchSites() })
+    let fetchTicks = environment.ticks()
+    await host.hub.hold(Task { for await _ in fetchTicks { await host.sourceLine.look() } })
     if let tool = environment.tool {
       try? store.home(.chat).writeSkill(named: "loci", ToolGuide.skill)
       await host.hub.hold(Task { await ToolGateway.serve(host, at: tool.socket) })

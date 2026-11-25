@@ -154,12 +154,15 @@ public struct ConnectorCall: Hashable, Codable, Sendable, Identifiable {
   public enum Caller: Hashable, Codable, Sendable {
     case conversation(ConversationRef)
     case run(Run.ID)
+    /// A source the app fetches, which is given what it read as it came: its `parse` is no model.
+    case source(SourceKey)
 
-    /// As notes are tagged: `main`, `library/<id>`, `run/<id>`.
+    /// As notes are tagged: `main`, `library/<id>`, `run/<id>`; a source's is `source/<key>`.
     public var tag: String {
       switch self {
       case .conversation(let conversation): conversation.tag
       case .run(let run): LocalSession.run(run).tag
+      case .source(let source): "source/\(source)"
       }
     }
   }

@@ -59,7 +59,9 @@ struct DataSourceRunnerTests {
     let runner = DataSourceRunner(
       network: RecordingNetwork { _ throws(FetchError) in throw FetchError(reason: "HTTP 404") })
 
-    await #expect(throws: SourceProblems("requests[0]", "https://qt.gtimg.cn/q=sh513100: HTTP 404")) {
+    await #expect(
+      throws: SourceFailure.unreachable(SourceProblems("requests[0]", "https://qt.gtimg.cn/q=sh513100: HTTP 404"))
+    ) {
       try await runner.fetch(Self.source, state: nil, now: Self.now)
     }
   }
@@ -68,7 +70,8 @@ struct DataSourceRunnerTests {
   func aResponseTooLargeIsRefused() async {
     let runner = DataSourceRunner(network: RecordingNetwork { _ in (Data(count: SourceFetcher.mostBytes + 1), 200) })
 
-    await #expect(throws: SourceProblems("requests[0]", "the response is larger than 2 MB")) {
+    await #expect(throws: SourceFailure.unreachable(SourceProblems("requests[0]", "the response is larger than 2 MB")))
+    {
       try await runner.fetch(Self.source, state: nil, now: Self.now)
     }
   }
@@ -79,10 +82,63 @@ struct DataSourceRunnerTests {
     let source = Self.source.running(
       "function requests() { return [{ url: 'https://a.example', method: 'POST' }]; }\nfunction parse() {}")
 
-    await #expect(throws: SourceProblems("requests[0].method", "a source only sends GET")) {
+    await #expect(
+      throws: SourceFailure.script(SourceProblems("requests[0].method", "a source only sends GET"), sample: nil)
+    ) {
       try await DataSourceRunner(network: network).fetch(source, state: nil, now: Self.now)
     }
     #expect(network.requests.isEmpty)
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func pagesAndConnectorsAreReadByTheHostAndHandedToParse() async throws {
+    let network = RecordingNetwork { _ in (Data(), 200) }
+    let reader = ScriptedReading(["https://x.example/a": "page text", "connector://github/gh": "gh text"])
+    let source = Self.source.running(
+      """
+      function requests() {
+        return [{ page: "https://x.example/a" }, { connector: "github", tool: "gh", arguments: { args: ["api", "x"] } }];
+      }
+      function parse(responses) {
+        return { records: { a: { page: responses[0].text, gh: responses[1].text, url: responses[1].url } } };
+      }
+      """)
+
+    let result = try await DataSourceRunner(network: network).fetch(
+      source, state: nil, now: Self.now, elsewhere: reader)
+
+    #expect(
+      result.records["a"]
+        == ["page": .text("page text"), "gh": .text("gh text"), "url": .text("connector://github/gh")])
+    #expect(network.requests.isEmpty)
+    #expect(
+      reader.asked == [
+        .page(URL(string: "https://x.example/a")!),
+        .connector(
+          SourceConnectorCall(
+            connector: ConnectorID(rawValue: "github"), tool: "gh",
+            arguments: .object(["args": .array([.string("api"), .string("x")])]))),
+      ])
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func aParseThatFailsKeepsWhatItWasGivenToMendItWith() async throws {
+    let network = RecordingNetwork { _ in (Data("changed".utf8), 200) }
+    let source = Self.source.running(
+      "function requests() { return ['https://a.example']; }\nfunction parse(r) { throw new Error('no ~ in ' + r[0].text); }"
+    )
+
+    do {
+      _ = try await DataSourceRunner(network: network).fetch(source, state: nil, now: Self.now)
+      Issue.record("parsed")
+    } catch {
+      guard case .script(let problems, let sample?) = error else {
+        Issue.record("failed otherwise: \(error)")
+        return
+      }
+      #expect(problems.all.first?.description.contains("no ~ in changed") == true)
+      #expect(sample.responses.map(\.text) == ["changed"])
+    }
   }
 
   @Test func textIsReadInTheEncodingItIsIn() {
@@ -114,5 +170,22 @@ final class RecordingNetwork: Network {
     -> URL
   {
     throw FetchError(reason: "unexpected download")
+  }
+}
+
+final class ScriptedReading: SourceReading {
+  private let texts: [String: String]
+  private let seen = Mutex<[SourceRequest]>([])
+
+  init(_ texts: [String: String]) {
+    self.texts = texts
+  }
+
+  var asked: [SourceRequest] { seen.withLock { $0 } }
+
+  func read(_ request: SourceRequest) async throws(SourceProblems) -> String {
+    seen.withLock { $0.append(request) }
+    guard let text = texts[request.address.absoluteString] else { throw SourceProblems("", "nothing there") }
+    return text
   }
 }
