@@ -52,6 +52,7 @@ struct ItemView: View {
           serif: true, pane: .itemPanel,
           language: page.translatable
             ? ArticleLanguage(translation: page.translation, progress: page.translating) : nil,
+          tidiness: page.item.kind == .article ? ArticleTidiness(progress: page.tidying) : nil,
           openingQuote: openingQuote,
           placeholder: openedWhileFetching ? FetchingItem(item: page.item, job: nil) : nil
         )

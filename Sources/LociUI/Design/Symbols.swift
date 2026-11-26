@@ -55,6 +55,7 @@ enum Symbols {
   static let layout = "rectangle.split.3x1"
   static let update = "arrow.up"
   static let translate = "translate"
+  static let tidy = "paragraphsign"
   static let restart = "arrow.clockwise"
   static let retry = "exclamationmark"
   static let add = "plus"

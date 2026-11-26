@@ -131,6 +131,7 @@ public protocol CommandHandler: Sendable {
   func savingBatch() async -> SavingBatch?
   func stopSaving() async throws(HostError) -> Int
   func translateArticle(_ item: EntityID) async throws(HostError) -> Done
+  func tidyArticle(_ item: EntityID) async throws(HostError) -> Done
   func pickKeyPoints(_ command: PickKeyPoints) async throws(HostError) -> Done
   func keyPointsPage(_ item: EntityID) async throws(HostError) -> KeyPointsPage
   func modelOptions() async throws(HostError) -> ModelOptions

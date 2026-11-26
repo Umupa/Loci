@@ -306,7 +306,23 @@ final class FakeTranscriptAgent: RuntimeTranscriptAgent {
     return passages.map { "[\(language)] \($0)" }
   }
 
-  /// Makes passage translations and key points fail with `reason`, or succeed again with `nil`.
+  /// Leaves out every line that starts with `Continue reading`, unless told to answer otherwise.
+  func tidy(_ piece: String, title: String) async throws(HostError) -> String {
+    asked.withLock { $0.append("tidy") }
+    if let failure = failing.withLock({ $0 }) { throw .invalidRequest(failure) }
+    if let answer = tidyAnswer.withLock({ $0 }) { return answer(piece) }
+    return piece.split(separator: "\n", omittingEmptySubsequences: false)
+      .filter { !$0.hasPrefix("Continue reading") }.joined(separator: "\n")
+  }
+
+  /// Makes tidying answer with what `answer` makes of each piece.
+  func answerTidying(_ answer: @escaping @Sendable (String) -> String) {
+    tidyAnswer.withLock { $0 = answer }
+  }
+
+  private let tidyAnswer = Mutex<(@Sendable (String) -> String)?>(nil)
+
+  /// Makes passage translations, tidying and key points fail with `reason`, or succeed again with `nil`.
   func fail(_ reason: String?) {
     failing.withLock { $0 = reason }
   }

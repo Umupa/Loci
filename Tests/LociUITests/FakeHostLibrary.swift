@@ -53,6 +53,7 @@ extension FakeHost {
   }
   func pauseJob(_ item: EntityID) async throws(HostError) -> Done { Done() }
   func translateArticle(_ item: EntityID) async throws(HostError) -> Done { Done() }
+  func tidyArticle(_ item: EntityID) async throws(HostError) -> Done { Done() }
   func pickKeyPoints(_ command: PickKeyPoints) async throws(HostError) -> Done { Done() }
 
   func keyPointsPage(_ item: EntityID) async throws(HostError) -> KeyPointsPage {

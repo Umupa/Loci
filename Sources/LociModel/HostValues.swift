@@ -8,23 +8,26 @@ public struct ItemPage: Hashable, Codable, Sendable {
   /// The article in the reader's language, as far as it has been translated.
   public let translation: ArticleTranslation?
   public let translating: TranslationProgress?
+  public let tidying: TidyProgress?
 
   public init(
     item: Item, text: String?, translatable: Bool = false, translation: ArticleTranslation? = nil,
-    translating: TranslationProgress? = nil
+    translating: TranslationProgress? = nil, tidying: TidyProgress? = nil
   ) {
     self.item = item
     self.text = text
     self.translatable = translatable
     self.translation = translation
     self.translating = translating
+    self.tidying = tidying
   }
 
   private enum CodingKeys: String, CodingKey {
-    case item, text, translatable, translation, translating
+    case item, text, translatable, translation, translating, tidying
   }
 
-  /// A Mac on an older version sends no translation fields; its articles read as not translatable.
+  /// A Mac on an older version sends no translation or tidying fields; its articles read as not translatable and
+  /// not being tidied.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     item = try container.decode(Item.self, forKey: .item)
@@ -32,6 +35,7 @@ public struct ItemPage: Hashable, Codable, Sendable {
     translatable = try container.decodeIfPresent(Bool.self, forKey: .translatable) ?? false
     translation = try container.decodeIfPresent(ArticleTranslation.self, forKey: .translation)
     translating = try container.decodeIfPresent(TranslationProgress.self, forKey: .translating)
+    tidying = try container.decodeIfPresent(TidyProgress.self, forKey: .tidying)
   }
 }
 

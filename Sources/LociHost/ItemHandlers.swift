@@ -143,24 +143,32 @@ extension LocalHost {
         item: item, text: text, translatable: foreign,
         translation: foreign ? try store.articleTranslation(of: id, into: language) : nil)
     }
-    guard page.translatable else { return page }
+    guard page.item.kind == .article, page.text != nil else { return page }
     let job = await library.queue.job(of: id)
-    let progress: TranslationProgress?
-    if let job, job.stage == .translate {
-      progress =
-        switch job.state {
-        case .queued: .running(Fraction(0))
-        case .running(let fraction, _): .running(fraction ?? Fraction(0))
-        case .failed(let failure): .failed(failure.reason)
-        case .waiting(.modelService): .failed("No model service is configured to translate.")
-        case .paused, .waiting, .done: nil
-        }
-    } else {
-      progress = nil
-    }
     return ItemPage(
-      item: page.item, text: page.text, translatable: true, translation: page.translation,
-      translating: progress)
+      item: page.item, text: page.text, translatable: page.translatable, translation: page.translation,
+      translating: page.translatable && job?.stage == .translate ? job.flatMap(Self.translating) : nil,
+      tidying: job?.stage == .tidy ? job.flatMap(Self.tidying) : nil)
+  }
+
+  private static func translating(_ job: Job) -> TranslationProgress? {
+    switch job.state {
+    case .queued: .running(Fraction(0))
+    case .running(let fraction, _): .running(fraction ?? Fraction(0))
+    case .failed(let failure): .failed(failure.reason)
+    case .waiting(.modelService): .failed("No model service is configured to translate.")
+    case .paused, .waiting, .done: nil
+    }
+  }
+
+  private static func tidying(_ job: Job) -> TidyProgress? {
+    switch job.state {
+    case .queued: .running(Fraction(0))
+    case .running(let fraction, _): .running(fraction ?? Fraction(0))
+    case .failed(let failure): .failed(failure.reason)
+    case .waiting(.modelService): .failed("No model service is configured to tidy with.")
+    case .paused, .waiting, .done: nil
+    }
   }
 
   public func translateArticle(_ id: EntityID) async throws(HostError) -> Done {
@@ -168,6 +176,19 @@ extension LocalHost {
     guard page.translatable else { throw .invalidRequest("\(page.item.title) is not an article in another language") }
     do {
       try await library.queue.requestArticleTranslation(id)
+    } catch {
+      throw HostError(error)
+    }
+    return Done()
+  }
+
+  public func tidyArticle(_ id: EntityID) async throws(HostError) -> Done {
+    let page = try await itemPage(id)
+    guard page.item.kind == .article, page.text != nil else {
+      throw .invalidRequest("\(page.item.title) is not an article with text to tidy")
+    }
+    do {
+      try await library.queue.requestTidying(id)
     } catch {
       throw HostError(error)
     }

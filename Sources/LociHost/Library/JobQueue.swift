@@ -41,7 +41,8 @@ actor JobQueue {
       return
     }
     for job in saved {
-      jobs[job.item] = Job(item: job.item, stage: job.stage, state: job.state, stages: stages(of: job.item))
+      let stages = stages(of: job.item, at: job.stage)
+      jobs[job.item] = Job(item: job.item, stage: job.stage, state: job.state, stages: stages)
       switch job.state {
       case .queued, .running, .waiting: start(job.item, at: job.stage)
       case .failed, .paused, .done: continue
@@ -103,19 +104,25 @@ actor JobQueue {
       try context.store.saveImportChoice(choice, of: item)
     }
     if let pending = jobs[item], pending.state != .done {
-      if work[item] != nil, pending.stage == .translate {
-        switch pending.state {
-        case .running, .queued: return
-        default: break
-        }
-      }
-      if pending.stage != .translate {
+      if work[item] != nil, pending.stage == .translate, Self.isGoing(pending.state) { return }
+      if pending.stage != .translate, pending.stage != .tidy || Self.isGoing(pending.state) {
         await set(Job(item: item, stage: pending.stage, state: pending.state))
         return
       }
     }
     await set(Job(item: item, stage: .translate, state: .queued))
     start(item, at: .translate)
+  }
+
+  /// Tidies an article on its own job. While other work on it is going, it is not tidied: a translation made
+  /// meanwhile would no longer fit the text.
+  func requestTidying(_ item: EntityID) async throws {
+    if let pending = jobs[item], work[item] != nil, Self.isGoing(pending.state) {
+      guard pending.stage == .tidy else { throw HostError.invalidRequest("Wait until the work on it is done.") }
+      return
+    }
+    await set(Job(item: item, stage: .tidy, state: .queued))
+    start(item, at: .tidy)
   }
 
   /// Pauses the job and keeps what it made, a download's part among it; nothing when there is no work.
@@ -200,9 +207,14 @@ actor JobQueue {
   /// meanwhile reports nothing more.
   func report(_ item: EntityID, stage: Job.Stage, state: Job.State) async {
     guard !Task.isCancelled else { return }
-    let stages = stages(of: item)
+    let stages = stages(of: item, at: stage)
     if state == .done, stage == .findCover, stages.last == .translate {
       await set(Job(item: item, stage: .translate, state: .queued, stages: stages))
+      start(item, at: .translate)
+      return
+    }
+    if state == .done, stage == .tidy, untranslated(item) {
+      await set(Job(item: item, stage: .translate, state: .queued))
       start(item, at: .translate)
       return
     }
@@ -226,9 +238,18 @@ actor JobQueue {
     if work[item]?.generation == generation { work[item] = nil }
   }
 
+  /// An article the reader had translated whose translation no longer fits its text.
+  private func untranslated(_ item: EntityID) -> Bool {
+    guard let found = try? context.store.item(item),
+      Job.Stage.all(for: found, choice: context.choice(of: item)).contains(.translate)
+    else { return false }
+    return (try? JobRun.isFinished(.translate, of: found, in: context.store)) == false
+  }
+
   /// The stages the item goes through, as its files and the choice it was taken in with say now; none for an
-  /// item that is gone.
-  private func stages(of item: EntityID) -> [Job.Stage] {
+  /// item that is gone. Tidying is a job of its own.
+  private func stages(of item: EntityID, at stage: Job.Stage) -> [Job.Stage] {
+    guard stage != .tidy else { return [.tidy] }
     guard let found = try? context.store.item(item) else { return [] }
     return Job.Stage.all(for: found, choice: context.choice(of: item))
   }
@@ -269,8 +290,8 @@ actor JobQueue {
   }
 
   private func set(_ job: Job) async {
-    let job =
-      job.stages.isEmpty ? Job(item: job.item, stage: job.stage, state: job.state, stages: stages(of: job.item)) : job
+    let stages = stages(of: job.item, at: job.stage)
+    let job = job.stages.isEmpty ? Job(item: job.item, stage: job.stage, state: job.state, stages: stages) : job
     jobs[job.item] = job
     settleSaving()
     do {

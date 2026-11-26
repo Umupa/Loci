@@ -15,6 +15,15 @@ extension Store {
     try write(Data(markdown.utf8), to: folder.appending(path: Self.contentFile))
   }
 
+  /// Puts `markdown` in place of an article's text, keeping its pictures. Its translations were made from the
+  /// text it had and go with it.
+  public func replaceArticleText(_ markdown: String, of item: EntityID) throws {
+    let folder = try itemFolder(item)
+    try write(Data(markdown.utf8), to: folder.appending(path: Self.contentFile))
+    let translations = folder.appending(path: Self.translationsFolder, directoryHint: .isDirectory)
+    if let existing = existing(translations) { try FileManager.default.removeItem(at: existing) }
+  }
+
   /// `nil` while the text is still being fetched.
   public func fetchedContent(of item: EntityID) throws -> String? {
     try existing(itemFolder(item).appending(path: Self.contentFile)).map(readText)
