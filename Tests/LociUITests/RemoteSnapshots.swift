@@ -13,8 +13,8 @@ struct RemoteSnapshots {
   static let window = CGSize(width: 1240, height: 800)
 
   static func machines(
-    studio: LociModel.Link = .connected, alone: Bool = false, nearby: [NearbyMac] = [],
-    requests: [PairingRequest] = [], studioLibrary: Bool = false, acceptWaits: Bool = false
+    availability: RemoteAvailability = .available, studio: LociModel.Link = .connected, alone: Bool = false,
+    nearby: [NearbyMac] = [], requests: [PairingRequest] = [], studioLibrary: Bool = false, acceptWaits: Bool = false
   ) throws -> FakeMachines {
     let paired =
       alone
@@ -25,7 +25,7 @@ struct RemoteSnapshots {
       ]
     let activity = Activity()
     return FakeMachines(
-      paired: paired,
+      availability: availability, paired: paired,
       hosts: [
         FakeMachines.thisMac.id: FakeHost(
           try Sample(problems: false), library: try SampleLibrary(), activity: activity),
@@ -159,6 +159,25 @@ struct RemoteSnapshots {
     let nearby = [FakeMachines.nearby("iMac", .iMac, key: 4), FakeMachines.nearby("MacBook Air", .laptop, key: 5)]
     try await Self.shoot(
       "add", try Self.machines(alone: true, nearby: nearby), sheet: .adding, appearance: appearance)
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func addMacMissingRelay(appearance: Snapshot.Appearance) async throws {
+    try await Self.shoot(
+      "add-missing-relay", try Self.machines(availability: .missingRelay, alone: true), sheet: .adding,
+      appearance: appearance)
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func addMacInviteError(appearance: Snapshot.Appearance) async throws {
+    let machines = try Self.machines(alone: true)
+    let invite = FakeMachines.invite(issuedAt: .now)
+    let file = try await Snapshot.render(
+      AddMacSheet(machines: machines, go: { _ in }, inviteText: invite.link, inviteError: .failure(.expired))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Palette.canvas),
+      named: "remote-add-error", size: Self.window, appearance: appearance)
+    #expect(try Data(contentsOf: file).count > 10_000)
   }
 
   /// R-S2 on the Mac asked: the code, and the answer.

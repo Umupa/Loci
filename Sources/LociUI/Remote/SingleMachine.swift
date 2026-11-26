@@ -3,13 +3,17 @@ import LociModel
 
 /// The Macs a window can show when this Mac pairs with none: there is no relay to reach another one.
 public struct SingleMachine: Machines {
+  public let availability: RemoteAvailability
   private let this: Machine
   private let host: any LociModel.Host
 
   /// `host` serves this Mac, the only one there is. Without a relay this Mac has no device key, so no other Mac
   /// could know it by one; its id here is the fingerprint of an empty key, which only tells it apart within this
   /// window and is never stored or sent.
-  public init(name: String, model: MachineModel, host: any LociModel.Host) {
+  public init(
+    name: String, model: MachineModel, host: any LociModel.Host, availability: RemoteAvailability = .missingRelay
+  ) {
+    self.availability = availability
     this = Machine(id: MachineID(publicKey: Data()), name: name, model: model)
     self.host = host
   }

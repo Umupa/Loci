@@ -35,11 +35,21 @@ public struct PairingRequest: Hashable, Sendable, Identifiable {
   }
 }
 
+public enum RemoteAvailability: Hashable, Sendable {
+  case available
+  /// This build has no relay address or registration key.
+  case missingRelay
+  /// Remote access could not start on this Mac.
+  case unavailable
+}
+
 public enum PairingFailure: Error, Hashable, Sendable {
   /// The invite link's time ran out.
   case expired
   /// The invite link was already used.
   case used
+  /// The invite link belongs to this Mac.
+  case selfInvite
   /// The other Mac said no, or let the request go unanswered.
   case declined
   /// The other Mac or the relay could not be reached.

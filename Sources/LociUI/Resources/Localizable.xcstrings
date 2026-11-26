@@ -7012,6 +7012,57 @@
         }
       }
     },
+    "remote.connect": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接"
+          }
+        }
+      }
+    },
+    "remote.connecting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接中"
+          }
+        }
+      }
+    },
+    "remote.createInvite": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create Invite Link"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建邀请链接"
+          }
+        }
+      }
+    },
     "remote.decline": {
       "extractionState": "manual",
       "localizations": {
@@ -7080,19 +7131,104 @@
         }
       }
     },
-    "remote.inviteSpent": {
+    "remote.inviteExpired": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This Invite Link No Longer Works"
+            "value": "This Invite Link Has Expired"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这个邀请链接已失效"
+            "value": "这个邀请链接已过期"
+          }
+        }
+      }
+    },
+    "remote.inviteInvalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This invite link is invalid"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邀请链接格式无效"
+          }
+        }
+      }
+    },
+    "remote.invitePlaceholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste invite link"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴邀请链接"
+          }
+        }
+      }
+    },
+    "remote.inviteSelf": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This invite link belongs to this Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这是这台 Mac 的邀请链接"
+          }
+        }
+      }
+    },
+    "remote.inviteUsed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Invite Link Has Already Been Used"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个邀请链接已被使用"
+          }
+        }
+      }
+    },
+    "remote.missingRelay": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build is missing relay configuration, so it can’t create invite links or connect to another Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前安装包缺少中继配置，无法创建邀请链接或连接其他 Mac。"
           }
         }
       }
@@ -7131,6 +7267,23 @@
         }
       }
     },
+    "remote.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t access this Mac’s device key, so remote access is unavailable."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取这台 Mac 的设备密钥，无法启用远程连接。"
+          }
+        }
+      }
+    },
     "remote.unreachable": {
       "extractionState": "manual",
       "localizations": {
@@ -7143,24 +7296,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "连不上那台 Mac"
-          }
-        }
-      }
-    },
-    "remote.useInvite": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use Invite Link"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用邀请链接"
+            "value": "连不上对方 Mac"
           }
         }
       }

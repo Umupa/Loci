@@ -73,6 +73,7 @@ struct PairingScenarioTests {
       #expect(await macs.connected(macs.laptop, to: macs.studio))
       #expect(await macs.connected(macs.studio, to: macs.laptop))
       await #expect(throws: PairingFailure.used) { _ = try await macs.laptop.service.accept(pasted) }
+      await #expect(throws: PairingFailure.selfInvite) { _ = try await macs.studio.service.accept(pasted) }
     }
   }
 

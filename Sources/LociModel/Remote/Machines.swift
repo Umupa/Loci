@@ -1,5 +1,7 @@
 /// The Macs the window can show, and pairing new ones. The interface knows nothing else about the network.
 public protocol Machines: Sendable {
+  /// Whether this Mac can reach the relay and pair with other Macs.
+  var availability: RemoteAvailability { get }
   /// The roster now, then again whenever a Mac is paired or removed or its link changes.
   func roster() -> AsyncStream<Roster>
   /// The host behind a Mac's data; the same id always gives the same host. A Mac that is not in the roster

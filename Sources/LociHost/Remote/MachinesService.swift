@@ -9,6 +9,7 @@ import os
 /// reachable, and announces itself on the local network so a Mac nearby can ask to pair.
 public actor MachinesService: Machines {
   public nonisolated let this: Machine
+  public nonisolated var availability: RemoteAvailability { .available }
   nonisolated let local: any LociModel.Host
   nonisolated let folder: MachineFolder
   let key: DeviceKey

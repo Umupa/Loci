@@ -134,7 +134,7 @@ extension MachinesService {
   public func accept(_ invite: Invite) async throws(PairingFailure) -> Machine {
     guard !Task.isCancelled else { throw .cancelled }
     guard !invite.hasExpired(at: now()) else { throw .expired }
-    guard invite.from.id != this.id else { throw .used }
+    guard invite.from.id != this.id else { throw .selfInvite }
     let greeted: Greeted
     switch await dialInvite(invite) {
     case .success(let done): greeted = done

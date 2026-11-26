@@ -34,53 +34,203 @@ struct RemoteSheets: View {
   }
 }
 
-/// The Macs nearby, found while the sheet is open, and a way to pair with one that is not.
+/// The Macs nearby, found while the sheet is open, and ways to create or join an invite link.
 struct AddMacSheet: View {
   let machines: any Machines
   let go: (RemoteSheetState?) -> Void
   @State private var nearby: [NearbyMac] = []
+  @State private var inviteText: String
+  @State private var inviteError: InviteJoinError?
+  @State private var connectTask: Task<Void, Never>?
+
+  init(
+    machines: any Machines, go: @escaping (RemoteSheetState?) -> Void,
+    inviteText: String = "", inviteError: InviteJoinError? = nil
+  ) {
+    self.machines = machines
+    self.go = go
+    _inviteText = State(initialValue: inviteText)
+    _inviteError = State(initialValue: inviteError)
+  }
 
   var body: some View {
     Group {
       SheetTitle(text: Text(.loci("remote.addMacTitle")))
-      VStack(spacing: 0) {
-        ForEach(Array(nearby.enumerated()), id: \.element.id) { index, mac in
-          NearbyRow(mac: mac, ruled: index > 0) { go(.pairing(mac)) }
-        }
-        Spinner()
-          .frame(maxWidth: .infinity)
-          .frame(height: Size.settingsRow)
-          .overlay(alignment: .top) {
-            if !nearby.isEmpty {
-              Rectangle().fill(Palette.lineStrong).frame(height: Size.hairline).padding(.leading, 46)
-            }
-          }
-      }
-      .background(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(Palette.surface))
-      .overlay {
-        RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(
-          Palette.line, lineWidth: Size.hairline)
-      }
-      .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-      HStack(spacing: Spacing.xs) {
-        Button {
-          go(.inviting)
-        } label: {
-          Text(.loci("remote.useInvite"))
-        }
-        .buttonStyle(QuietButtonStyle())
-        Spacer(minLength: 0)
-        Button {
-          go(nil)
-        } label: {
-          Text(.loci("dialog.cancel"))
-        }
-        .buttonStyle(QuietButtonStyle())
+      if machines.availability == .available {
+        availableBody
+      } else {
+        unavailableBody
       }
     }
-    .remoteSheet(close: { go(nil) })
+    .remoteSheet(close: close)
+    .onDisappear { connectTask?.cancel() }
     .task {
+      guard machines.availability == .available else { return }
       for await found in machines.nearby() { nearby = found }
+    }
+  }
+
+  @ViewBuilder private var availableBody: some View {
+    VStack(alignment: .leading, spacing: Spacing.xs) {
+      inviteField
+      if let inviteError {
+        HStack(spacing: 6) {
+          Image(systemName: Symbols.problem).font(.system(size: 11.5)).accessibilityHidden(true)
+          Text(inviteError.message).font(.system(size: 12.5))
+        }
+        .foregroundStyle(Palette.failure)
+        .padding(.horizontal, 4)
+      }
+    }
+    nearbyList
+    HStack(spacing: Spacing.xs) {
+      Button {
+        cancelConnect()
+        go(.inviting)
+      } label: {
+        Text(.loci("remote.createInvite"))
+      }
+      .buttonStyle(QuietButtonStyle())
+      Spacer(minLength: 0)
+      Button(action: close) {
+        Text(.loci("dialog.cancel"))
+      }
+      .buttonStyle(QuietButtonStyle())
+    }
+  }
+
+  private var inviteField: some View {
+    let trimmed = inviteText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let validLink = Invite(pasted: trimmed) != nil
+    let connecting = connectTask != nil
+    return HStack(spacing: Spacing.xs) {
+      Image(systemName: Symbols.link)
+        .font(.system(size: 13, weight: .medium))
+        .foregroundStyle(validLink ? Palette.accent : Palette.inkFaint)
+        .accessibilityHidden(true)
+      TextField(
+        text: $inviteText,
+        prompt: Text(.loci("remote.invitePlaceholder")).foregroundStyle(Palette.inkFaint)
+      ) {
+        Text(.loci("remote.invitePlaceholder"))
+      }
+      .textFieldStyle(.plain)
+      .font(.system(size: 13))
+      .foregroundStyle(Palette.ink)
+      .disabled(connecting)
+      .onSubmit(connect)
+      .onChange(of: inviteText) { _, _ in inviteError = nil }
+      Button(action: connect) {
+        HStack(spacing: 6) {
+          if connecting { Spinner() }
+          Text(connecting ? .loci("remote.connecting") : .loci("remote.connect"))
+        }
+      }
+      .buttonStyle(AmberButtonStyle())
+      .disabled(trimmed.isEmpty || connecting)
+    }
+    .padding(.leading, Spacing.s)
+    .padding(.trailing, 5)
+    .frame(height: 40)
+    .background(RoundedRectangle(cornerRadius: Radius.group, style: .continuous).fill(Palette.surface))
+    .overlay {
+      RoundedRectangle(cornerRadius: Radius.group, style: .continuous).strokeBorder(
+        inviteError == nil ? Palette.lineStrong : Palette.failure, lineWidth: Size.hairline)
+    }
+  }
+
+  private var nearbyList: some View {
+    VStack(spacing: 0) {
+      ForEach(Array(nearby.enumerated()), id: \.element.id) { index, mac in
+        NearbyRow(mac: mac, ruled: index > 0) {
+          cancelConnect()
+          go(.pairing(mac))
+        }
+      }
+      Spinner()
+        .frame(maxWidth: .infinity)
+        .frame(height: Size.settingsRow)
+        .overlay(alignment: .top) {
+          if !nearby.isEmpty {
+            Rectangle().fill(Palette.lineStrong).frame(height: Size.hairline).padding(.leading, 46)
+          }
+        }
+    }
+    .background(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(Palette.surface))
+    .overlay {
+      RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(
+        Palette.line, lineWidth: Size.hairline)
+    }
+    .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+  }
+
+  @ViewBuilder private var unavailableBody: some View {
+    HStack(alignment: .top, spacing: Spacing.s) {
+      Image(systemName: Symbols.problem)
+        .font(.system(size: 15))
+        .foregroundStyle(Palette.inkMuted)
+        .padding(.top, 1)
+        .accessibilityHidden(true)
+      Text(machines.availability == .missingRelay ? .loci("remote.missingRelay") : .loci("remote.unavailable"))
+        .font(Typography.body)
+        .foregroundStyle(Palette.ink)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(Spacing.m)
+    .background(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(Palette.surface))
+    .overlay {
+      RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(
+        Palette.line, lineWidth: Size.hairline)
+    }
+    HStack {
+      Spacer(minLength: 0)
+      Button(action: close) {
+        Text(.loci("dialog.ok"))
+      }
+      .buttonStyle(AmberButtonStyle())
+    }
+  }
+
+  private func connect() {
+    let text = inviteText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !text.isEmpty, connectTask == nil else { return }
+    guard let invite = Invite(pasted: text) else {
+      inviteError = .invalidFormat
+      return
+    }
+    inviteError = nil
+    connectTask = Task {
+      defer { connectTask = nil }
+      do throws(PairingFailure) {
+        _ = try await machines.accept(invite)
+        if !Task.isCancelled { go(nil) }
+      } catch {
+        if !Task.isCancelled { inviteError = .failure(error) }
+      }
+    }
+  }
+
+  private func cancelConnect() {
+    connectTask?.cancel()
+    connectTask = nil
+  }
+
+  private func close() {
+    cancelConnect()
+    go(nil)
+  }
+}
+
+/// Inline validation or pairing failure shown in `AddMacSheet`.
+enum InviteJoinError: Hashable {
+  case invalidFormat
+  case failure(PairingFailure)
+
+  var message: LocalizedStringResource {
+    switch self {
+    case .invalidFormat: .loci("remote.inviteInvalid")
+    case .failure(let failure): failure.message
     }
   }
 }
@@ -172,7 +322,7 @@ struct FailedSheet: View {
 
   var body: some View {
     Group {
-      SheetTitle(text: Text(message))
+      SheetTitle(text: Text(failure.message))
       Button(action: close) {
         Text(.loci("dialog.ok"))
       }
@@ -180,10 +330,14 @@ struct FailedSheet: View {
     }
     .remoteSheet(centered: true, close: close)
   }
+}
 
-  private var message: LocalizedStringResource {
-    switch failure {
-    case .expired, .used: .loci("remote.inviteSpent")
+extension PairingFailure {
+  var message: LocalizedStringResource {
+    switch self {
+    case .expired: .loci("remote.inviteExpired")
+    case .used: .loci("remote.inviteUsed")
+    case .selfInvite: .loci("remote.inviteSelf")
     case .declined: .loci("remote.declined")
     case .unreachable, .cancelled: .loci("remote.unreachable")
     }

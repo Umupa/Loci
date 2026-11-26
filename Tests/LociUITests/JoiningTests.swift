@@ -32,6 +32,23 @@ struct JoiningTests {
     #expect(machines.acceptCancelled.withLock { $0 })
   }
 
+  @Test func singleMachineReportsWhyRemoteAccessIsUnavailable() {
+    let host = UnreachableHost()
+    let missing = SingleMachine(name: "Mac mini", model: .mini, host: host)
+    let unavailable = SingleMachine(name: "Mac mini", model: .mini, host: host, availability: .unavailable)
+
+    #expect(missing.availability == .missingRelay)
+    #expect(unavailable.availability == .unavailable)
+  }
+
+  @Test func pairingFailuresMapToDistinctMessages() {
+    let failures: [PairingFailure] = [.expired, .used, .selfInvite, .declined, .unreachable]
+    let keys = failures.map(\.message.key)
+
+    #expect(Set(keys).count == failures.count)
+    #expect(InviteJoinError.invalidFormat.message.key == "remote.inviteInvalid")
+  }
+
   private struct JoiningHarness: View {
     let shown: Shown
     let machines: FakeMachines

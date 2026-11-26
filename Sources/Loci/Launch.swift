@@ -40,16 +40,26 @@ final class Launch {
   init() {
     companion = MenuBarCompanion(host: host)
     let service: MachinesService?
+    let unavailability: RemoteAvailability
     let choice = DataFolder.choose(environment: ProcessInfo.processInfo.environment, home: URL.homeDirectory)
     switch choice {
     case .use(let root):
       folder = root
-      service = Self.service(serving: host)
+      switch Self.service(serving: host) {
+      case .ready(let started):
+        service = started
+        unavailability = .available
+      case .unavailable(let reason):
+        service = nil
+        unavailability = reason
+      }
     case .refuse(let path):
       folder = URL(filePath: path)
       service = nil
+      unavailability = .unavailable
     }
-    machines = service ?? SingleMachine(name: ThisMac.name, model: ThisMac.model, host: host)
+    machines =
+      service ?? SingleMachine(name: ThisMac.name, model: ThisMac.model, host: host, availability: unavailability)
     switch choice {
     case .use: start(replacingDatabase: false)
     case .refuse(let path): state = .problem(.refusedFolder(path))
@@ -58,14 +68,22 @@ final class Launch {
     Task { [updater] in await updater.watch() }
   }
 
+  private enum RelaySetup {
+    case ready(MachinesService)
+    case unavailable(RemoteAvailability)
+  }
+
   /// The relay's address and key are written into the app's Info.plist when it is built.
-  private static func service(serving host: DeferredHost) -> MachinesService? {
+  private static func service(serving host: DeferredHost) -> RelaySetup {
     guard let address = (Bundle.main.object(forInfoDictionaryKey: "LociRelayURL") as? String).flatMap(URL.init),
       let key = Bundle.main.object(forInfoDictionaryKey: "LociRelayKey") as? String, !key.isEmpty
-    else { return nil }
-    return MachinesService.onThisMac(
-      relay: address, registrationKey: key, local: host,
-      support: URL.applicationSupportDirectory.appending(path: DataFolder.name))
+    else { return .unavailable(.missingRelay) }
+    guard
+      let service = MachinesService.onThisMac(
+        relay: address, registrationKey: key, local: host,
+        support: URL.applicationSupportDirectory.appending(path: DataFolder.name))
+    else { return .unavailable(.unavailable) }
+    return .ready(service)
   }
 
   /// The `loci` command in the app's bundle, which `script/bundle` puts in `Contents/Helpers`; `nil` when
