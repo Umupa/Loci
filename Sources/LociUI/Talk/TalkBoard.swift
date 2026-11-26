@@ -31,7 +31,7 @@ struct TalkBoard<Conversation: View>: View {
   @State private var preview: TalkLayout?
   @State private var carried: Carried?
   @State private var conversationDrag: ConversationDrag?
-  @State private var sizing = false
+  @State private var widthDrag: TalkLayout.WidthDrag?
   @State private var pointedAtConversation = false
   @State private var openRail: String?
   /// Where the drag going on started, and where the one called off by Esc or by the window losing the keyboard
@@ -75,7 +75,7 @@ struct TalkBoard<Conversation: View>: View {
       .frame(width: page.size.width, height: page.size.height, alignment: .leading)
       .overlay(alignment: .topLeading) { dropLine(over: shown, height: page.size.height) }
       .overlay(alignment: .topLeading) { ghost }
-      .animation(reduceMotion || sizing ? nil : Motion.standard, value: fit)
+      .animation(reduceMotion || widthDrag != nil ? nil : Motion.standard, value: fit)
     }
     .coordinateSpace(.named(Board.space))
     .environment(\.boardFrames, $frames)
@@ -87,7 +87,7 @@ struct TalkBoard<Conversation: View>: View {
     }
   }
 
-  private var dragging: Bool { carried != nil || conversationDrag != nil || sizing }
+  private var dragging: Bool { carried != nil || conversationDrag != nil || widthDrag != nil }
 
   /// Whether the drag that started at `start` still counts; a new drag clears what an earlier one called off.
   private func heard(_ start: CGPoint) -> Bool {
@@ -115,7 +115,7 @@ struct TalkBoard<Conversation: View>: View {
       preview = nil
       carried = nil
       conversationDrag = nil
-      sizing = false
+      widthDrag = nil
     }
   }
 
@@ -128,7 +128,7 @@ struct TalkBoard<Conversation: View>: View {
   /// panels hidden, or none yet, the conversation stands alone; with no panels at all, one empty lane offers to
   /// make the first.
   private var shownLayout: TalkLayout {
-    let held = preview ?? layout.holding(keys)
+    let held = widthDrag?.preview ?? preview ?? layout.holding(keys)
     guard showsPanels, column != nil else {
       return TalkLayout(leading: [], conversationWidth: held.conversationWidth, trailing: [])
     }
@@ -300,17 +300,9 @@ struct TalkBoard<Conversation: View>: View {
   private func gap(between left: TalkLayout.Lane, and right: TalkLayout.Lane, fit: TalkLayout.Fit) -> some View {
     let folded = fit.folds(left) || fit.folds(right)
     return LaneGap(enabled: !folded) { distance, start in
-      guard heard(start) else { return }
-      let start = layout.holding(keys)
-      let range = Self.range(of: left)
-      let other = Self.range(of: right)
-      let (a, b) = (fit.width(of: left), fit.width(of: right))
-      let moved = min(
-        max(distance, range.lowerBound - a, b - other.upperBound), range.upperBound - a, b - other.lowerBound)
-      sizing = true
-      preview = start.resizing(left, to: a + moved).resizing(right, to: b - moved)
-    } ended: { start in
-      settleWidths(start)
+      resize(.gap(left, right), fit: fit, by: distance, from: start)
+    } ended: { distance, start in
+      settleWidths(at: distance, from: start)
     }
   }
 
@@ -318,39 +310,27 @@ struct TalkBoard<Conversation: View>: View {
     let lanes = shown.lanes
     if let lane = side == .leading ? lanes.first : lanes.last, !fit.folds(lane) {
       LaneGap(enabled: true, outer: true) { distance, start in
-        guard heard(start) else { return }
-        let start = layout.holding(keys)
-        let grown = (side == .trailing ? distance : -distance) * 2
-        let width = fit.width(of: lane) + min(grown, fit.inset * 2)
-        sizing = true
-        preview = start.resizing(lane, to: width)
-      } ended: { start in
-        settleWidths(start)
+        resize(.edge(side, lane), fit: fit, by: distance, from: start)
+      } ended: { distance, start in
+        settleWidths(at: distance, from: start)
       }
       .offset(x: side == .leading ? -TalkLayout.gutter : TalkLayout.gutter)
     }
   }
 
-  private func settleWidths(_ start: CGPoint) {
-    guard !endsCalledOff(start) else { return }
-    if let preview { layout = preview }
-    preview = nil
-    sizing = false
+  private func resize(
+    _ handle: TalkLayout.WidthDrag.Handle, fit: TalkLayout.Fit, by distance: CGFloat, from start: CGPoint
+  ) {
+    guard heard(start) else { return }
+    var drag = widthDrag ?? TalkLayout.WidthDrag(handle, layout: layout.holding(keys), fit: fit)
+    drag.move(by: distance)
+    if widthDrag?.preview != drag.preview { widthDrag = drag }
   }
 
-  private static func range(of lane: TalkLayout.Lane) -> ClosedRange<CGFloat> {
-    switch lane {
-    case .conversation: TalkLayout.conversationWidths
-    case .panels: TalkLayout.panelWidths
-    }
-  }
-}
-
-extension TalkLayout {
-  func resizing(_ lane: Lane, to width: CGFloat) -> TalkLayout {
-    switch lane {
-    case .conversation: resizing(nil, to: width)
-    case .panels(let panels): resizing(panels.id, to: width)
-    }
+  private func settleWidths(at distance: CGFloat, from start: CGPoint) {
+    guard !endsCalledOff(start), var drag = widthDrag else { return }
+    drag.move(by: distance)
+    layout = drag.preview
+    widthDrag = nil
   }
 }

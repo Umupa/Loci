@@ -180,6 +180,60 @@ struct PanelLane: Codable, Equatable, Identifiable {
 }
 
 extension TalkLayout {
+  struct WidthDrag {
+    enum Handle {
+      case gap(Lane, Lane)
+      case edge(Side, Lane)
+    }
+
+    private let handle: Handle
+    private let start: TalkLayout
+    private let fit: Fit
+    private let fittedLayout: TalkLayout
+    private(set) var preview: TalkLayout
+
+    init(_ handle: Handle, layout: TalkLayout, fit: Fit) {
+      self.handle = handle
+      self.fit = fit
+      start = layout
+      fittedLayout = layout.lanes.reduce(layout) { fitted, lane in
+        guard !fit.folds(lane), let width = fit.widths[lane.id], lane.widthRange.contains(width) else { return fitted }
+        return fitted.resizing(lane, to: width)
+      }
+      preview = layout
+    }
+
+    mutating func move(by distance: CGFloat) {
+      switch handle {
+      case .gap(let left, let right):
+        let leftWidth = fit.width(of: left)
+        let rightWidth = fit.width(of: right)
+        let leftRange = left.widthRange
+        let rightRange = right.widthRange
+        let moved = min(
+          max(distance, leftRange.lowerBound - leftWidth, rightWidth - rightRange.upperBound),
+          leftRange.upperBound - leftWidth, rightWidth - rightRange.lowerBound)
+        preview =
+          moved == 0
+          ? start
+          : fittedLayout.resizing(left, to: leftWidth + moved)
+            .resizing(right, to: rightWidth - moved)
+      case .edge(let side, let lane):
+        let grown = (side == .trailing ? distance : -distance) * 2
+        let width = fit.width(of: lane)
+        let resized = TalkLayout.clamp(width + min(grown, fit.inset * 2), to: lane.widthRange)
+        preview = distance == 0 || resized == width ? start : fittedLayout.resizing(lane, to: resized)
+      }
+    }
+  }
+
+  private func resizing(_ lane: Lane, to width: CGFloat) -> TalkLayout {
+    switch lane {
+    case .conversation: resizing(nil, to: width)
+    case .panels(let panels): resizing(panels.id, to: width)
+    }
+  }
+
   /// One lane, as the page draws them left to right.
   enum Lane: Equatable, Identifiable {
     case conversation
@@ -189,6 +243,13 @@ extension TalkLayout {
       switch self {
       case .conversation: "conversation"
       case .panels(let lane): lane.id
+      }
+    }
+
+    var widthRange: ClosedRange<CGFloat> {
+      switch self {
+      case .conversation: TalkLayout.conversationWidths
+      case .panels: TalkLayout.panelWidths
       }
     }
   }

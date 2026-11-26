@@ -72,6 +72,71 @@ struct TalkLayoutTests {
     #expect(Self.twoSides.resizing(nil, to: 100).conversationWidth == TalkLayout.conversationWidths.lowerBound)
   }
 
+  @Test func theDividerMovesTheSameDistanceWhetherThePointerGetsThereAtOnceOrInSteps() {
+    let layout = Self.twoSides
+    let handle = TalkLayout.WidthDrag.Handle.gap(layout.lanes[0], .conversation)
+    var direct = TalkLayout.WidthDrag(handle, layout: layout, fit: layout.fit(in: 1600))
+    var slowly = direct
+    direct.move(by: 30)
+    for distance: CGFloat in [10, 20, 30] { slowly.move(by: distance) }
+
+    #expect(slowly.preview == direct.preview)
+    #expect(slowly.preview.leading[0].width == 370)
+    #expect(slowly.preview.conversationWidth == 570)
+    #expect(slowly.preview.trailing == layout.trailing)
+  }
+
+  @Test func theDividerFollowsThePointerBackFromALimitAndReturnsToItsStartingPosition() {
+    let layout = Self.twoSides
+    var drag = TalkLayout.WidthDrag(.gap(layout.lanes[0], .conversation), layout: layout, fit: layout.fit(in: 1600))
+    drag.move(by: 200)
+    #expect(drag.preview.conversationWidth == 440)
+    #expect(drag.preview.leading[0].width == 500)
+
+    drag.move(by: 25)
+    #expect(drag.preview.leading[0].width == 365)
+    drag.move(by: -100)
+    #expect(drag.preview.leading[0].width == 300)
+    drag.move(by: 0)
+    #expect(drag.preview == layout)
+  }
+
+  @Test func aDividerStartsFromTheWidthsActuallyShownInATightWindow() {
+    let layout = TalkLayout(leading: Self.twoSides.leading, conversationWidth: 600, trailing: [])
+    var drag = TalkLayout.WidthDrag(.gap(layout.lanes[0], .conversation), layout: layout, fit: layout.fit(in: 900))
+    drag.move(by: 20)
+    #expect(drag.preview.leading[0].width == 360)
+    #expect(drag.preview.conversationWidth == 516)
+  }
+
+  @Test func theOtherLanesStayStillWhenTheDividerMovesInACrowdedWindow() {
+    let layout = TalkLayout(
+      leading: [Self.lane("far", ["a"], width: 400), Self.lane("near", ["b"], width: 400)],
+      conversationWidth: 600, trailing: [Self.lane("right", ["c"], width: 400)])
+    let fit = layout.fit(in: 1610)
+    var drag = TalkLayout.WidthDrag(.gap(layout.lanes[1], .conversation), layout: layout, fit: fit)
+    drag.move(by: -40)
+    let moved = drag.preview.fit(in: 1610)
+    #expect(moved.widths["far"] == fit.widths["far"])
+    #expect(moved.widths["near"] == 358)
+    #expect(moved.widths["conversation"] == 480)
+    #expect(moved.widths["right"] == fit.widths["right"])
+    #expect(moved.inset == fit.inset)
+  }
+
+  @Test func anOutsideEdgeFollowsThePointerBackAfterRunningOutOfRoom() {
+    let layout = Self.twoSides
+    var drag = TalkLayout.WidthDrag(.edge(.trailing, layout.lanes[2]), layout: layout, fit: layout.fit(in: 1400))
+    drag.move(by: 50)
+    #expect(drag.preview.trailing[0].width == 412)
+    drag.move(by: 20)
+    #expect(drag.preview.trailing[0].width == 380)
+    drag.move(by: -20)
+    #expect(drag.preview.trailing[0].width == 300)
+    #expect(drag.preview.leading == layout.leading)
+    #expect(drag.preview.conversationWidth == layout.conversationWidth)
+  }
+
   @Test func eachArrangementKeepsThePanelsInOrder() {
     let keys = ["/reading", "radar", "follow"]
     #expect(Self.twoSides.arranged(.panelsRight).trailing.map(\.keys) == [keys])

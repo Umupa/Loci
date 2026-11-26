@@ -8,7 +8,7 @@ struct LaneGap: View {
   var outer = false
   /// How far it is dragged, and where the drag started.
   let dragged: (CGFloat, CGPoint) -> Void
-  let ended: (CGPoint) -> Void
+  let ended: (CGFloat, CGPoint) -> Void
   @Environment(\.reducesMotion) private var reduceMotion
   @State private var pointed = false
   @State private var dragging = false
@@ -39,9 +39,9 @@ struct LaneGap: View {
             dragged(value.translation.width, value.startLocation)
           }
           .onEnded { value in
-            guard enabled else { return }
+            guard dragging else { return }
             dragging = false
-            ended(value.startLocation)
+            ended(value.translation.width, value.startLocation)
           }
       )
       .accessibilityHidden(true)
