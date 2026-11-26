@@ -184,9 +184,11 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
       case .html(let html, let base): ["html": html, "base": base.absoluteString]
       }
     arguments["preferCompleteText"] = purpose != .article
+    arguments["keepsDrawings"] = purpose == .article
     let reply: Any?
     do {
-      reply = try await webView.callAsyncJavaScript(Self.extraction, arguments: arguments, contentWorld: Self.world)
+      reply = try await webView.callAsyncJavaScript(
+        PageTidying.script + Self.extraction, arguments: arguments, contentWorld: Self.world)
     } catch {
       throw FetchError(reason: "The page's text could not be read: \(error.localizedDescription)")
     }
@@ -215,6 +217,7 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     const page = html === null ? document : new DOMParser().parseFromString(html, 'text/html');
     for (const meta of page.querySelectorAll(
       'meta[property="og:image"], meta[name="twitter:image"], meta[name="sailthru.image.full"]')) meta.remove();
+    lociTidy(page, html === null, keepsDrawings);
     const url = base ?? location.href;
     const result = new Defuddle(page, { url, separateMarkdown: true }).parse();
     let markdown = result.contentMarkdown || "";

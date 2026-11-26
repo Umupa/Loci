@@ -26,6 +26,20 @@ struct ArticleAssemblerTests {
     #expect(image.name.hasSuffix(".png"))
   }
 
+  @Test func aDiagramDrawnInThePageIsStoredAsAPictureOfItsOwn() async throws {
+    let svg = #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>"#
+    let address = "data:image/svg+xml;base64,\(Data(svg.utf8).base64EncodedString())"
+    let network = FakeNetwork([:])
+    let article = try await Self.assemble(
+      Extraction(title: "S", markdown: "Intro\n\n![The gateway](\(address))\n\nEnd"), network: network)
+
+    let image = try #require(article.images.first)
+    #expect(image.name.hasSuffix(".svg"))
+    #expect(image.data == Data(svg.utf8))
+    #expect(article.markdown == "Intro\n\n![The gateway](images/\(image.name))\n\nEnd")
+    #expect(network.requests.isEmpty)
+  }
+
   @Test func relativeImagesAreFetchedFromThePagesSite() async throws {
     let network = FakeNetwork(["https://blog.example.com/img/b.jpg": .image("B", type: "image/jpeg")])
     let article = try await Self.assemble(

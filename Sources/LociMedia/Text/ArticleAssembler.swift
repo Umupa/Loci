@@ -11,7 +11,9 @@ struct ArticleAssembler: Sendable {
   func article(from extraction: Extraction, at page: URL) async throws(FetchError) -> FetchedArticle {
     let body = extraction.markdown.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !body.isEmpty else { throw FetchError(reason: "The page has no text to read.", cause: .noArticleText) }
-    let (markdown, images) = await localizingImages(in: body, from: page)
+    let (drawnText, drawn) = Self.keepingDrawings(in: body)
+    let (markdown, fetched) = await localizingImages(in: drawnText, from: page)
+    let images = drawn + fetched.filter { file in !drawn.contains { $0.name == file.name } }
     return FetchedArticle(
       title: Self.title(of: extraction, at: page), authors: Self.authors(extraction.author),
       site: Self.nonEmpty(extraction.site), published: Self.date(extraction.published),
@@ -22,7 +24,7 @@ struct ArticleAssembler: Sendable {
   /// address, so one missing picture does not cost the whole article.
   private func localizingImages(in markdown: String, from page: URL) async -> (String, [FetchedFile]) {
     var addresses: [String: URL] = [:]
-    for address in Self.imageAddresses(in: markdown) {
+    for address in Self.imageAddresses(in: markdown) where !address.hasPrefix("\(Self.imageFolder)/") {
       if let url = URL(string: address, relativeTo: page)?.absoluteURL, url.isWebLink { addresses[address] = url }
     }
     let fetched = await withTaskGroup(of: (String, FetchedFile?).self) { group in
@@ -52,6 +54,22 @@ struct ArticleAssembler: Sendable {
     return (result, files)
   }
 
+  /// Diagrams the page drew itself arrive as SVG in the text; each is stored as a picture of its own.
+  static func keepingDrawings(in markdown: String) -> (String, [FetchedFile]) {
+    var files: [FetchedFile] = []
+    let text = markdown.replacing(drawing) { match in
+      guard let data = Data(base64Encoded: String(match.output.2)) else { return String(match.output.0) }
+      let name = digest(of: String(match.output.2)) + ".svg"
+      if !files.contains(where: { $0.name == name }) { files.append(FetchedFile(name: name, data: data)) }
+      return "![\(match.output.1)](\(imageFolder)/\(name))"
+    }
+    return (text, files)
+  }
+
+  private static var drawing: Regex<(Substring, Substring, Substring)> {
+    /!\[([^\]]*)\]\(\s*<?data:image\/svg\+xml;base64,([A-Za-z0-9+\/=]+)>?\s*\)/
+  }
+
   private func image(at url: URL, referer: URL) async -> FetchedFile? {
     var request = URLRequest(url: url)
     request.setValue(referer.absoluteString, forHTTPHeaderField: "Referer")
@@ -76,13 +94,17 @@ struct ArticleAssembler: Sendable {
 
   /// A name that is the same for the same address, so an image linked twice is stored once.
   static func fileName(for url: URL, type: String) -> String {
+    digest(of: url.absoluteString) + "." + fileExtension(for: url, type: type)
+  }
+
+  private static func digest(of text: String) -> String {
     var hash: UInt64 = 0xcbf2_9ce4_8422_2325
-    for byte in url.absoluteString.utf8 {
+    for byte in text.utf8 {
       hash ^= UInt64(byte)
       hash = hash &* 0x0100_0000_01b3
     }
     let digits = String(hash, radix: 16)
-    return String(repeating: "0", count: 16 - digits.count) + digits + "." + fileExtension(for: url, type: type)
+    return String(repeating: "0", count: 16 - digits.count) + digits
   }
 
   private static func fileExtension(for url: URL, type: String) -> String {
