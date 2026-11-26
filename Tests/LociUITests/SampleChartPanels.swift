@@ -91,7 +91,7 @@ enum SampleChartPanels {
           uniqueKeysWithValues: [
             ("NVDA", 8.0, -0.059), ("MSFT", 6.0, -0.008), ("AAPL", 5.0, 0.004), ("AMZN", 4.0, -0.012),
             ("AVGO", 3.5, -0.047), ("META", 3.0, -0.011), ("GOOGL", 2.6, -0.006), ("TSLA", 2.2, 0.019),
-            ("COST", 1.2, 0.003), ("NFLX", 1.0, -0.002),
+            ("COST", 1.2, 0.003), ("NFLX", 1.0, -0.002), ("HC07", 0.35, 0.024), ("HC08", 0.3, -0.012),
           ].map { ($0.0, ["weight": SourceValue.number($0.1), "change": .number($0.2)]) })),
       SourceKey(.chat, "kline"): SourceSnapshot(fetched: now, records: ["300308": ["daily": candles]]),
       SourceKey(.chat, "prem"): SourceSnapshot(
@@ -156,7 +156,7 @@ enum SampleChartPanels {
     body: .rows([
       .sentence("**英伟达 −5.9%**，拖累指数约 0.6 个点。"),
       .heat(
-        ["NVDA", "MSFT", "AAPL", "AMZN", "AVGO", "META", "GOOGL", "TSLA", "COST", "NFLX"].map {
+        ["NVDA", "MSFT", "AAPL", "AMZN", "AVGO", "META", "GOOGL", "TSLA", "COST", "NFLX", "HC07", "HC08"].map {
           PanelHeatTile(code: $0, weight: number("heat.\($0).weight"), change: number("heat.\($0).change"))
         }),
     ]))
@@ -185,7 +185,7 @@ enum SampleChartPanels {
             PanelZoneRow(name: "513870", note: "你持有", value: number("prem.513870.premium")),
             PanelZoneRow(name: "159501", note: "你持有", value: number("prem.159501.premium")),
             PanelZoneRow(name: "159513", note: "最低", value: number("prem.159513.premium")),
-          ], style: PanelStyle(format: .percent))),
+          ], style: PanelStyle(format: .percent, digits: 1))),
     ]))
 
   static var column: PanelColumn {

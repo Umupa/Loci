@@ -82,6 +82,66 @@ struct SourceLineTests {
     }
   }
 
+  @Test func noSourceWaitsBehindOthersThatAreDueAsOften() async throws {
+    let runner = FakeSources(records: Self.records)
+    try await withHost(sources: runner) { host, _, world in
+      let project = try await ProjectScenarioTests.start(host)
+      let names = ["a", "b", "c", "d", "e"]
+      for (index, name) in names.enumerated() {
+        let source = DataSource(name: name, title: name, every: SourceEvery(minutes: 1)!, script: "x")
+        let session = LocalSession.conversation(index < 3 ? .main : .project(project))
+        _ = await Background.call(SaveDataSource(source), from: session, on: host)
+      }
+      runner.hold()
+
+      for _ in 0..<3 {
+        world.advance(minutes: 1)
+        let started = await host.sourceLine.look()
+        #expect(started.count <= SourceLine.most)
+        runner.release()
+        for fetch in started { await fetch.value }
+        runner.hold()
+      }
+      runner.release()
+      for _ in 0..<200 where runner.finished < runner.fetches { try await Task.sleep(for: .milliseconds(10)) }
+
+      let fetched = Dictionary(grouping: runner.names.dropFirst(names.count), by: \.self).mapValues(\.count)
+      #expect(names.allSatisfy { (fetched[$0] ?? 0) >= 2 }, "\(fetched)")
+    }
+  }
+
+  @Test func aFetchOfADefinitionSavedOverSinceNeverWritesOverTheNewOne() async throws {
+    let runner = FakeSources(records: Self.records)
+    let handed = HandedOn()
+    let place = Place()
+    defer { place.remove() }
+    let world = TestWorld(sources: runner)
+    let host = try await LocalHost.start(
+      root: place.root, database: place.database, environment: world.environment, refreshed: handed)
+    let old = Self.source()
+    let new = DataSource(name: "prem", title: "ETF 溢价", every: SourceEvery(minutes: 1)!, script: "new script")
+    let newer: [String: SourceRecord] = ["513870": ["premium": .number(0.2)]]
+    _ = try await host.run(SaveDataSource(old))
+    runner.hold(script: old.script)
+    world.advance(minutes: 1)
+    let stale = await host.sourceLine.look()
+
+    runner.set(newer)
+    _ = try await host.run(SaveDataSource(new))
+    runner.set(["513870": ["premium": .number(0.1)]])
+    runner.fail(.script(SourceProblems("parse", "old script"), sample: nil))
+    runner.release()
+    for fetch in stale { await fetch.value }
+
+    let snapshot = try #require(try host.database.sourceSnapshot(SourceKey(.chat, "prem")))
+    #expect(runner.finished == 3)
+    #expect(snapshot.records == newer && !snapshot.isStale && snapshot.breakage == nil)
+    #expect(place.store.dataSource(named: "prem", in: DataSourceFolder(.chat)) == new)
+    #expect(place.store.samples(of: "prem", in: DataSourceFolder(.chat)).count == 2)
+    #expect(await handed.all.count == 2)
+    await host.close()
+  }
+
   @Test func fetchingGoesOnWhileLociIsAnswering() async throws {
     let runner = FakeSources(records: Self.records)
     try await withHost(agent: FakeAgent { _ in .hang }, sources: runner) { host, _, world in
@@ -118,6 +178,31 @@ struct SourceLineTests {
     }
   }
 
+  @Test func aFetchKeptFirstIsHandedOnBeforeOneKeptAfterIt() async throws {
+    let runner = FakeSources(records: Self.records)
+    let handed = HandedOnHeld()
+    let place = Place()
+    defer { place.remove() }
+    let world = TestWorld(sources: runner)
+    let host = try await LocalHost.start(
+      root: place.root, database: place.database, environment: world.environment, refreshed: handed)
+    let saving = Task { try await host.run(SaveDataSource(Self.source())) }
+    for _ in 0..<500 where await handed.log.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+
+    runner.set(["513870": ["premium": .number(0.2)]])
+    world.advance(minutes: 1)
+    let later = await host.sourceLine.look()
+    for _ in 0..<50 where runner.finished < 2 { try await Task.sleep(for: .milliseconds(10)) }
+    try await Task.sleep(for: .milliseconds(50))
+    await handed.letGo()
+    _ = try await saving.value
+    for fetch in later { await fetch.value }
+
+    #expect(runner.finished == 2)
+    #expect(await handed.log == ["begin 0.159", "end 0.159", "begin 0.2", "end 0.2"])
+    await host.close()
+  }
+
   @Test func eachFetchThatWorksIsHandedOnOnceItsSnapshotIsWritten() async throws {
     let runner = FakeSources(records: Self.records)
     let handed = HandedOn()
@@ -146,5 +231,27 @@ actor HandedOn: SourceRefreshed {
   func refreshed(_ source: SourceKey, _ snapshot: SourceSnapshot) async {
     all.append(source)
     written = snapshot.records == SourceLineTests.records
+  }
+}
+
+/// Each fetch handed on, as it begins and ends; the first is held until let go.
+actor HandedOnHeld: SourceRefreshed {
+  private(set) var log: [String] = []
+  private var gate: CheckedContinuation<Void, Never>?
+  private var holds = true
+
+  func refreshed(_ source: SourceKey, _ snapshot: SourceSnapshot) async {
+    let premium = if case .number(let value)? = snapshot.records["513870"]?["premium"] { "\(value)" } else { "-" }
+    log.append("begin \(premium)")
+    if holds {
+      holds = false
+      await withCheckedContinuation { gate = $0 }
+    }
+    log.append("end \(premium)")
+  }
+
+  func letGo() {
+    gate?.resume()
+    gate = nil
   }
 }

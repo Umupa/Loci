@@ -34,6 +34,7 @@ actor PanelKeeper {
     async throws(HostError)
   {
     try await allow(PanelRef(panel.name, in: home), from: session)
+    try keepsFeed(PanelRef(panel.name, in: home), from: session)
     let store = context.store.home(home)
     let saved: Panel
     switch author {
@@ -66,6 +67,7 @@ actor PanelKeeper {
     async throws(HostError)
   {
     try await allow(ref, from: session)
+    try keepsFeed(ref, from: session)
     let name = ref.name
     let store = context.store.home(ref.home)
     guard let current = store.panel(named: name)?.panel else { throw .notFound(name) }
@@ -114,6 +116,16 @@ actor PanelKeeper {
     }
   }
 
+  /// A panel that follows entries is written by the app from the picks of its runs: a run may not save or edit
+  /// it, so what it shows is always the source's own titles, links and times.
+  private func keepsFeed(_ panel: PanelRef, from session: LocalSession?) throws(HostError) {
+    guard case .run = session, context.store.home(panel.home).panel(named: panel.name)?.panel?.feed != nil else {
+      return
+    }
+    throw .invalidRequest(
+      "\(panel.name) follows a source's entries; keep entries with loci panel pick, never save or edit it in a run.")
+  }
+
   private func checked<Value>(_ body: () throws(PanelProblems) -> Value) throws(HostError) -> Value {
     do {
       return try body()
@@ -137,7 +149,7 @@ actor PanelKeeper {
       }
     }
     if case .project(let id) = ref.home, let project = try? context.store.project(id), project.pinned.contains(name) {
-      _ = try? context.store.changeProject(id) { $0.with(pinned: $0.pinned.filter { $0 != name }) }
+      _ = try? await context.changeProject(id) { $0.with(pinned: $0.pinned.filter { $0 != name }) }
       _ = try? context.store.home(.chat).changePanelState { $0.order.removeAll { $0 == .pinned(id, name) } }
     }
     await worker.panelRemoved(ref)

@@ -130,20 +130,16 @@ struct SourceEntryStoreTests {
         .count == 1)
   }
 
-  @Test func entriesAreFoundBySeenTimeAndById() throws {
+  @Test func entriesAreFoundInTheOrderTheyCameAndById() throws {
     let database = try StoreDatabase.inMemory()
-    try database.recordEntries(Self.home, [Self.entry("a")], at: DataSourceStoreTests.at(minutes: 0))
-    try database.recordEntries(Self.home, [Self.entry("b")], at: DataSourceStoreTests.at(minutes: 1))
-    try database.recordEntries(Self.home, [Self.entry("c")], at: DataSourceStoreTests.at(minutes: 2))
+    try database.recordEntries(Self.home, [Self.entry("a"), Self.entry("b")], at: DataSourceStoreTests.at(minutes: 0))
+    try database.recordEntries(Self.home, [Self.entry("c")], at: DataSourceStoreTests.at(minutes: 0))
 
-    let since = try database.sourceEntries(
-      Self.home, seenAfter: DataSourceStoreTests.at(minutes: 0), through: DataSourceStoreTests.at(minutes: 1), limit: 10
-    )
+    let all = try database.sourceEntries(Self.home, after: nil, limit: 10)
 
-    #expect(since.map(\.entry.id) == ["b"])
-    #expect(
-      try database.sourceEntries(Self.home, seenAfter: nil, through: DataSourceStoreTests.at(minutes: 2), limit: 2).map(
-        \.entry.id) == ["c", "b"])
+    #expect(all.map(\.entry.id) == ["a", "b", "c"])
+    #expect(try database.sourceEntries(Self.home, after: all[0].seq, limit: 1).map(\.entry.id) == ["b"])
     #expect(Set(try database.sourceEntries(Self.home, ids: ["a", "c", "z"]).map(\.entry.id)) == ["a", "c"])
   }
+
 }

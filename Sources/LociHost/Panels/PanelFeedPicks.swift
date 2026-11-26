@@ -8,7 +8,8 @@ extension PanelKeeper {
   static let picksShown = 20
 
   /// Writes the panel from what Loci picked: its sentence, then the picked entries filled from the source,
-  /// newest pick first, before the ones shown already. From a run's session, only the panel it is for.
+  /// newest pick first, before the ones shown already. Only entries the run under way was shown may be
+  /// picked, and from a run's session only by that run, for the panel it is for.
   func pick(_ command: PickPanelEntries, in home: Home, from session: LocalSession?) async throws(HostError) {
     let ref = PanelRef(command.panel, in: home)
     try await allow(ref, from: session)
@@ -19,12 +20,17 @@ extension PanelKeeper {
     }
     let say = command.say.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !say.isEmpty else { throw .invalidRequest("Say in one sentence what is new, with --say.") }
+    let offer = files.panelState().offers[panel.name]
+    if case .run(let run) = session, offer?.run != run {
+      throw .invalidRequest("This run was shown no entries for \(panel.name); there is nothing to pick.")
+    }
+    let shown = Set(offer?.ids ?? [])
     let key = SourceKey(home, feed.source)
-    let found = try attempt { try context.database.sourceEntries(key, ids: command.ids) }
+    let found = try attempt { try context.database.sourceEntries(key, ids: command.ids.filter(shown.contains)) }
     let unknown = command.ids.filter { id in !found.contains { $0.entry.id == id } }
     guard unknown.isEmpty else {
       throw .invalidRequest(
-        "\(feed.source) has no entry \(unknown.joined(separator: ", ")); pick only ids you were offered.")
+        "\(unknown.joined(separator: ", ")) were not among the entries shown this time; pick only those.")
     }
     let picked = command.ids.compactMap { id in found.first { $0.entry.id == id } }.map(line)
     let earlier = panel.rowsOfEveryPage.flatMap { $0 }.flatMap { row -> [PanelListItem] in

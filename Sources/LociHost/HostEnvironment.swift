@@ -162,8 +162,8 @@ actor InstalledAgents {
     await GitHubCLI(search: await currentSearch()).login()
   }
 
-  func githubRead(_ arguments: [String]) async -> GitHubReply {
-    await GitHubCLI(search: await currentSearch()).read(arguments)
+  func githubRead(_ read: GitHubRead) async -> GitHubReply {
+    await GitHubCLI(search: await currentSearch()).read(read)
   }
 
   func detect(again: Bool) async -> [AgentInstallation] {

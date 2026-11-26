@@ -2,10 +2,21 @@ import LociModel
 import SwiftUI
 
 /// Quotes, one line each: name and code, a small line of the day, the price, and the change in a red or
-/// green block.
+/// green block. The figures roll to new values, price or change, and change at once when motion is reduced.
 struct PanelQuotes: View {
   let quotes: [PanelQuote]
   @Environment(\.panelData) private var data
+  @Environment(\.reducesMotion) private var reduceMotion
+
+  /// What a line's figures roll on.
+  struct Figures: Equatable {
+    let price: Double?
+    let change: Double?
+  }
+
+  static func motion(reducesMotion: Bool) -> Animation? {
+    reducesMotion ? nil : .default
+  }
 
   var body: some View {
     VStack(spacing: 0) {
@@ -18,6 +29,7 @@ struct PanelQuotes: View {
 
   private func line(_ quote: PanelQuote) -> some View {
     let change = data.number(quote.change)
+    let price = data.number(quote.price)
     let code = [quote.code, data.text(quote.asOf)].compactMap { $0 }.joined(separator: " · ")
     return HStack(spacing: 10) {
       VStack(alignment: .leading, spacing: 1) {
@@ -29,7 +41,7 @@ struct PanelQuotes: View {
       .lineLimit(1)
       .frame(maxWidth: .infinity, alignment: .leading)
       PanelSpark(points: spark(quote), change: change).frame(width: 58, height: 24)
-      Text(verbatim: PanelFigures.number(data.number(quote.price), style: PanelStyle(digits: quote.digits)))
+      Text(verbatim: PanelFigures.number(price, style: PanelStyle(digits: quote.digits)))
         .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Palette.ink)
         .contentTransition(.numericText())
         .lineLimit(1).fixedSize()
@@ -39,9 +51,9 @@ struct PanelQuotes: View {
         .contentTransition(.numericText())
         .frame(minWidth: 62, minHeight: 24)
         .background(
-          change == nil ? Palette.fill : PanelFigures.tone(change), in: .rect(cornerRadius: 7, style: .continuous))
+          PanelFigures.block(change), in: .rect(cornerRadius: 7, style: .continuous))
     }
-    .animation(.default, value: change)
+    .animation(Self.motion(reducesMotion: reduceMotion), value: Figures(price: price, change: change))
   }
 
   private func spark(_ quote: PanelQuote) -> [SourcePoint] {

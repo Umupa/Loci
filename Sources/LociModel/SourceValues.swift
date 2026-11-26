@@ -19,24 +19,19 @@ public enum SourceValue: Hashable, Sendable {
       let numbers = rows.map { row in row.array.map { cells in cells.map(\.number) } }
       guard numbers.allSatisfy({ $0?.allSatisfy({ $0?.isFinite == true }) == true }) else { return nil }
       let rows = numbers.map { $0?.compactMap { $0 } ?? [] }
-      guard rows.allSatisfy({ ($0.first.map(abs) ?? 0) < Self.latestMoment }) else { return nil }
+      let moments = rows.compactMap { $0.first.flatMap(Timestamp.init(sourceMilliseconds:)) }
+      guard moments.count == rows.count else { return nil }
       if rows.allSatisfy({ $0.count == 2 }) {
-        self = .points(rows.map { SourcePoint(at: Timestamp(millisecondsSince1970: Int64($0[0])), value: $0[1]) })
+        self = .points(zip(moments, rows).map { SourcePoint(at: $0, value: $1[1]) })
       } else if rows.allSatisfy({ $0.count == 5 }) {
         self = .candles(
-          rows.map {
-            SourceCandle(
-              at: Timestamp(millisecondsSince1970: Int64($0[0])), open: $0[1], high: $0[2], low: $0[3], close: $0[4])
-          })
+          zip(moments, rows).map { SourceCandle(at: $0, open: $1[1], high: $1[2], low: $1[3], close: $1[4]) })
       } else {
         return nil
       }
     default: return nil
     }
   }
-
-  /// Milliseconds past which a point's time is not a moment but a mistake.
-  private static let latestMoment = 1e15
 
   public var json: JSONValue {
     switch self {
@@ -247,5 +242,17 @@ public struct SourceProblems: Error, Hashable, Codable, Sendable {
 
   public init(_ path: String, _ reason: String) {
     all = [SourceProblem(path, reason)]
+  }
+}
+
+extension Timestamp {
+  /// Milliseconds past which a time a script gives is not a moment but a mistake, far within `Int64`.
+  static let latestSourceMoment = 1e15
+
+  /// A time a script gave in milliseconds since 1970, cut to whole milliseconds; `nil` for one that is not
+  /// finite or is out of reach, which would not fit a moment.
+  public init?(sourceMilliseconds value: Double) {
+    guard value.isFinite, abs(value) < Self.latestSourceMoment else { return nil }
+    self.init(millisecondsSince1970: Int64(value.rounded(.down)))
   }
 }

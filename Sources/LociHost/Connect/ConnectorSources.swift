@@ -136,18 +136,23 @@ extension ConnectorKeeper {
   }
 
   /// Reads a page of a connected website with its sign-in, sending only GET and never from a cache, and
-  /// records the call.
+  /// records the call. A data source reads it with every request the app's own (`SourcePages`), the sign-in
+  /// sent only to the site.
   func readSite(
     _ url: URL, record: ConnectorRecord, by caller: ConnectorCall.Caller, command: CallConnector? = nil
   ) async throws(HostError) -> String {
     let call = command ?? CallConnector(record.id, tool: "read")
-    guard ConnectorCatalog.entry(record.id)?.site?.covers(url) == true, url.isWebLink else {
+    guard let site = ConnectorCatalog.entry(record.id)?.site, site.covers(url), url.isWebLink else {
       try await refuse(call, caller, "\(url.absoluteString) is not a page of \(record.name).")
     }
     if case .needsReconnecting(let why) = record.status { try await refuse(call, caller, Self.reconnect(record, why)) }
     let text: String
     do throws(FetchError) {
-      text = try await connect.sites.read(url)
+      if case .source = caller {
+        text = try await connect.sites.readSource(url, on: site.domains)
+      } else {
+        text = try await connect.sites.read(url)
+      }
     } catch {
       await log(call, caller, .failed(error.reason))
       throw .invalidRequest("\(record.name) could not be read: \(error.reason)")
@@ -162,13 +167,17 @@ extension ConnectorKeeper {
     guard let given = arguments["args"]?.array else {
       try await refuse(command, caller, #"gh takes its words as {"args": ["pr", "view", "12"]}."#)
     }
-    let words = given.compactMap(\.string)
-    switch await connect.githubRead(words) {
+    let read: GitHubRead
+    do throws(GitHubRefusal) {
+      guard given.allSatisfy({ $0.string != nil }) else { throw GitHubRefusal("gh's words are all text.") }
+      read = try GitHubRead(checking: given.compactMap(\.string))
+    } catch {
+      try await refuse(command, caller, error.reason)
+    }
+    switch await connect.githubRead(read) {
     case .output(let text):
       await log(command, caller, .read)
-      return Self.answer(caller, text, from: "github", tool: "gh " + words.prefix(2).joined(separator: " "))
-    case .refused(let why):
-      try await refuse(command, caller, why)
+      return Self.answer(caller, text, from: "github", tool: "gh " + read.command.joined(separator: " "))
     case .failed(let why):
       await log(command, caller, .failed(why))
       throw .invalidRequest("gh could not read: \(why)")

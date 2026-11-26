@@ -47,20 +47,31 @@ extension Tool {
 
   private func list(json: Bool) async throws(Failure) -> Outcome {
     let reply = try await line.run(ListPanels())
-    if json { return .worked(Self.text(reply)) }
     let entries = try Failure.decoding([PanelEntry].self, from: reply)
+    if json { return .worked(Self.list(try entries.map { entry throws(Failure) in try Self.json(entry) })) }
     guard !entries.isEmpty else { return .worked("There are no panels yet.") }
     return .worked(entries.map(PanelWords.line).joined(separator: "\n"))
   }
 
+  /// A panel that follows a source's entries holds their titles and links as they came: it is shown marked as
+  /// content from outside.
   private func show(_ name: String, json: Bool) async throws(Failure) -> Outcome {
     let reply = try await line.run(ListPanels())
     let entries = try Failure.decoding([PanelEntry].self, from: reply)
     guard let entry = entries.first(where: { $0.name == name }) else {
       return .failed("There is no panel \(name). Run `loci panel list` to see them.")
     }
-    if json { return .worked(Self.text(try Failure.encoding(entry))) }
-    return .worked(try PanelWords.entry(entry))
+    if json { return .worked(Self.text(try Self.json(entry))) }
+    let text = try PanelWords.entry(entry)
+    guard let feed = entry.panel?.feed else { return .worked(text) }
+    return .worked(ExternalContent.wrap(text, from: "source \(feed.source)", tool: "panel show"))
+  }
+
+  /// The panel as JSON, marked in it as content from outside when it follows a source's entries.
+  private static func json(_ entry: PanelEntry) throws(Failure) -> Data {
+    let encoded = try Failure.encoding(entry)
+    guard let feed = entry.panel?.feed else { return encoded }
+    return ExternalContent.json(encoded, from: "source \(feed.source)")
   }
 }
 

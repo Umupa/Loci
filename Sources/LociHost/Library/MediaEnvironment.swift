@@ -27,13 +27,16 @@ public struct MediaEnvironment: Sendable {
   public let transcriptAgent: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)?
   /// Fetches sources and runs their scripts; over `sourceNetwork` unless given.
   public let dataSources: any DataSourceRunning
+  /// Reads the pages data sources read as no one, apart from the library's fetching.
+  public let sourcePages: SourcePages
 
   public init(
     support: URL, runner: any ProgramRunner, network: any Network, transcriber: any Transcribing,
     searchPaths: [URL], proxy: @escaping @Sendable () -> String? = { nil }, readerLanguage: String,
     arm: Bool = true, textFetching: (any TextFetching)? = nil,
     transcriptAgent: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)? = nil, diarizer: (any Diarizing)? = nil,
-    sourceNetwork: (any Network)? = nil, dataSources: (any DataSourceRunning)? = nil
+    sourceNetwork: (any Network)? = nil, dataSources: (any DataSourceRunning)? = nil,
+    sourcePages: SourcePages = SourcePages(hops: HopNetwork())
   ) {
     self.support = support
     self.runner = runner
@@ -48,6 +51,7 @@ public struct MediaEnvironment: Sendable {
     self.textFetching = textFetching
     self.transcriptAgent = transcriptAgent
     self.dataSources = dataSources ?? DataSourceRunner(network: sourceNetwork ?? network)
+    self.sourcePages = sourcePages
   }
 
   /// The programs on this Mac, the internet, whisper.cpp, and `~/Library/Application Support/Loci`, with
@@ -78,11 +82,16 @@ public struct MediaEnvironment: Sendable {
   public static func disconnected(sources: (any DataSourceRunning)?) -> MediaEnvironment {
     MediaEnvironment(
       support: URL(filePath: "/nonexistent/loci-support"), runner: Disconnected(), network: Disconnected(),
-      transcriber: Disconnected(), searchPaths: [], readerLanguage: "en", dataSources: sources)
+      transcriber: Disconnected(), searchPaths: [], readerLanguage: "en", dataSources: sources,
+      sourcePages: SourcePages(hops: Disconnected()))
   }
 }
 
-private struct Disconnected: ProgramRunner, Network, Transcribing {
+private struct Disconnected: ProgramRunner, Network, Transcribing, PageHops {
+  func send(_ request: URLRequest) async throws(FetchError) -> (Data, HTTPURLResponse) {
+    throw FetchError(reason: "no network here")
+  }
+
   func run(_ call: ProgramCall, line: @escaping @Sendable (String) -> Void) async throws(ProgramError)
     -> ProgramResult
   {

@@ -66,7 +66,14 @@ extension DataSourceCheck {
         url = URL(string: link).flatMap { $0.isWebLink ? $0 : nil }
         if url == nil { found.append(SourceProblem("\(path).url", "\"\(link)\" is not an http(s) link")) }
       }
-      let at = item["at"]?.number.map { Timestamp(millisecondsSince1970: Int64($0)) }
+      var at: Timestamp?
+      if let given = item["at"], given != .null {
+        at = given.number.flatMap(Timestamp.init(sourceMilliseconds:))
+        if at == nil {
+          let shown = given.number.map { "\($0) " } ?? ""
+          found.append(SourceProblem("\(path).at", "\(shown)is not a time in milliseconds since 1970"))
+        }
+      }
       entries.append(SourceEntry(id: id, title: title, url: url, at: at, note: item["note"]?.string))
     }
     return entries

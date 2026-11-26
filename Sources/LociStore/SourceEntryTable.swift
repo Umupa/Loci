@@ -33,19 +33,13 @@ extension StoreDatabase {
     }
   }
 
-  /// The entries first seen after `moment` (any time when it is `nil`) and no later than `end`; newest
-  /// first, at most `limit`.
-  public func sourceEntries(_ source: SourceKey, seenAfter moment: Timestamp?, through end: Timestamp, limit: Int)
-    throws -> [SeenEntry]
-  {
+  /// The entries kept after `seq` in the order they were first read (all when it is `nil`), at most `limit`.
+  public func sourceEntries(_ source: SourceKey, after seq: Int64?, limit: Int) throws -> [SeenEntry] {
     try queue.read { db in
       try Row.fetchAll(
         db,
-        sql: """
-          SELECT seen, body FROM source_entry WHERE source = ? AND seen > ? AND seen <= ?
-          ORDER BY seen DESC, rowid ASC LIMIT ?
-          """,
-        arguments: [source.description, moment?.description ?? "", end.description, limit]
+        sql: "SELECT rowid AS seq, seen, body FROM source_entry WHERE source = ? AND rowid > ? ORDER BY rowid LIMIT ?",
+        arguments: [source.description, seq ?? 0, limit]
       ).compactMap(Self.seenEntry)
     }
   }
@@ -56,7 +50,7 @@ extension StoreDatabase {
     return try queue.read { db in
       let marks = Array(repeating: "?", count: ids.count).joined(separator: ", ")
       return try Row.fetchAll(
-        db, sql: "SELECT seen, body FROM source_entry WHERE source = ? AND id IN (\(marks))",
+        db, sql: "SELECT rowid AS seq, seen, body FROM source_entry WHERE source = ? AND id IN (\(marks))",
         arguments: StatementArguments([source.description] + ids)
       ).compactMap(Self.seenEntry)
     }
@@ -66,17 +60,20 @@ extension StoreDatabase {
     guard let seen = Timestamp(row["seen"] as String), let entry = try? decoded(SourceEntry.self, row["body"]) else {
       return nil
     }
-    return SeenEntry(entry: entry, seen: seen)
+    return SeenEntry(entry: entry, seen: seen, seq: row["seq"])
   }
 }
 
-/// An entry, and when its source first read it.
+/// An entry, when its source first read it, and its place among the entries the source read: later ones
+/// have a larger `seq`.
 public struct SeenEntry: Hashable, Sendable {
   public let entry: SourceEntry
   public let seen: Timestamp
+  public let seq: Int64
 
-  public init(entry: SourceEntry, seen: Timestamp) {
+  public init(entry: SourceEntry, seen: Timestamp, seq: Int64) {
     self.entry = entry
     self.seen = seen
+    self.seq = seq
   }
 }

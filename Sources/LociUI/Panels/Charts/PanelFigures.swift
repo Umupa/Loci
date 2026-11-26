@@ -51,6 +51,23 @@ enum PanelFigures {
   }
 
   /// Red for up, green for down, ink for neither.
+  /// A zone's stop under its bar, with no digits it does not need: `0`, `3%`, `12.5%`.
+  static func stop(_ value: Double, style: PanelStyle) -> String {
+    guard value != 0 else { return "0" }
+    let digits = style.digits ?? 2
+    let shown = style.format == .percent ? value * 100 : value
+    let written = shown.formatted(.number.locale(locale).grouping(.automatic).precision(.fractionLength(0...digits)))
+      .replacing("-", with: "−")
+    if style.format == .percent { return written + "%" }
+    return style.unit.map { "\(written) \($0)" } ?? written
+  }
+
+  /// The block a change is written on: red up, green down, soft in the dark.
+  static func block(_ change: Double?) -> Color {
+    guard let change, change.isFinite, abs(change) >= 0.00005 else { return Palette.fill }
+    return change > 0 ? Palette.riseBlock : Palette.fallBlock
+  }
+
   static func tone(_ change: Double?) -> Color {
     guard let change, change.isFinite, abs(change) >= 0.00005 else { return Palette.ink }
     return change > 0 ? Palette.rise : Palette.fall

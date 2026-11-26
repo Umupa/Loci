@@ -75,10 +75,14 @@ struct PanelZonesView: View {
       HStack(spacing: 10) {
         Color.clear.frame(width: Self.name, height: 1)
         GeometryReader { scale in
-          ForEach(Array(zones.stops.enumerated()), id: \.offset) { _, stop in
-            Text(verbatim: PanelFigures.number(stop, style: zones.style, defaultDigits: 0))
+          let labels = zones.stops.map { PanelFigures.stop($0, style: zones.style) }
+          let shown = Self.shownStops(
+            centers: zones.stops.map { scale.size.width * position(of: $0) },
+            widths: labels.map { Self.width(of: $0) })
+          ForEach(shown, id: \.self) { index in
+            Text(verbatim: labels[index])
               .fixedSize()
-              .position(x: scale.size.width * position(of: stop), y: 7)
+              .position(x: scale.size.width * position(of: zones.stops[index]), y: 7)
           }
         }
         .frame(height: 14)
@@ -131,6 +135,30 @@ struct PanelZonesView: View {
 
   private func position(of value: Double) -> Double {
     panelShare(value, from: zones.stops.first ?? 0, to: zones.stops.last ?? 1)
+  }
+
+  private static let stopFont = NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .regular)
+
+  static func width(of label: String) -> CGFloat {
+    NSAttributedString(string: label, attributes: [.font: stopFont]).size().width
+  }
+
+  /// The stops whose labels can each be read: from the left, one too close to the last kept is left out, and
+  /// the last stop is always kept, giving way to the ones before it.
+  static func shownStops(centers: [CGFloat], widths: [CGFloat], gap: CGFloat = 6) -> [Int] {
+    guard !centers.isEmpty else { return [] }
+    func left(_ index: Int) -> CGFloat { centers[index] - widths[index] / 2 }
+    func right(_ index: Int) -> CGFloat { centers[index] + widths[index] / 2 }
+    var kept = [0]
+    for index in centers.indices.dropFirst() where left(index) >= right(kept[kept.count - 1]) + gap {
+      kept.append(index)
+    }
+    let last = centers.count - 1
+    if kept.last != last {
+      while kept.count > 1, let previous = kept.last, right(previous) + gap > left(last) { kept.removeLast() }
+      kept.append(last)
+    }
+    return kept
   }
 
   /// The first zone is green, the last red, those between plain.

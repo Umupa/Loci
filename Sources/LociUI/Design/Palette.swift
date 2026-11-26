@@ -46,6 +46,11 @@ enum Palette {
   static let rise = Color(dark: 0xF0675A, light: 0xD0453A)
   /// A price or value that went down: green.
   static let fall = Color(dark: 0x3DBB7F, light: 0x23905E)
+  /// The block a quote's change is written on, as soft in the dark as the design's.
+  static let riseBlockColor = NSColor(dark: 0xE78472, light: 0xD0453A)
+  static let fallBlockColor = NSColor(dark: 0x74C296, light: 0x23905E)
+  static let riseBlock = Color(nsColor: riseBlockColor)
+  static let fallBlock = Color(nsColor: fallBlockColor)
   /// Words and glyphs on an amber fill, such as a button's.
   static let onAccent = Color(nsColor: Tones.onAccent)
   /// Loci's messages, and the person's, a shade apart.

@@ -31,7 +31,8 @@ struct SourceReadingTests {
       #expect(outcome == .records(["a": ["v": .number(1)]]))
       #expect(runner.read == [FakeSites.page, "build failed: TestSnapshotRestore\n"])
       #expect(world.sites.read == [URL(string: "https://x.com/umupa")!])
-      #expect(world.gh.runs == [["api", "x"]])
+      #expect(world.sites.sourceDomains.count == 1 && world.sites.sourceDomains.first?.contains("x.com") == true)
+      #expect(world.gh.runs == [["api", "--method=GET", "x"]])
       let calls = try await host.connectorCalls(limit: 10)
       #expect(calls.map(\.caller) == [.source(SourceKey(.chat, "prem")), .source(SourceKey(.chat, "prem"))])
       #expect(calls.map(\.outcome) == [.read, .read])
@@ -45,7 +46,7 @@ struct SourceReadingTests {
       .connector(
         SourceConnectorCall(
           connector: Self.github, tool: "gh",
-          arguments: .object(["args": .array(["api", "-X", "POST", "repos/o/r/issues"].map(JSONValue.string))])))
+          arguments: .object(["args": .array(["api", "-iXPOST", "repos/o/r/issues"].map(JSONValue.string))])))
     ])
     try await withHost(connect: world.environment, sources: runner) { host, _, _ in
       _ = try await host.run(Connect(Self.github))
@@ -56,7 +57,7 @@ struct SourceReadingTests {
         Issue.record("saved: \(outcome)")
         return
       }
-      #expect(problems.all.first?.description.contains("not a GET") == true)
+      #expect(problems.all.first?.description.contains("-iXPOST is not an option that only shapes a GET") == true)
       #expect(world.gh.runs.isEmpty)
       #expect(try await host.run(ListDataSources()).isEmpty)
     }

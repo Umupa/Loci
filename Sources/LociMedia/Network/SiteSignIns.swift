@@ -24,6 +24,9 @@ public protocol SiteSignIns: Sendable {
   func changes() -> AsyncStream<Void>
   /// The text of a page read signed in, sending only GET (`ReadOnlyPage`).
   func read(_ url: URL) async throws(FetchError) -> String
+  /// A page a data source reads signed in: every request the app's own GET (`SourcePages`), the sign-in sent
+  /// only to `domains`, the site's.
+  func readSource(_ url: URL, on domains: [String]) async throws(FetchError) -> String
 }
 
 extension SiteCookie {
@@ -46,6 +49,14 @@ public final class BuiltInBrowserSignIns: SiteSignIns {
 
   public func read(_ url: URL) async throws(FetchError) -> String {
     try await SourceTextReader(network: network).read(url, signedIn: true)
+  }
+
+  public func readSource(_ url: URL, on domains: [String]) async throws(FetchError) -> String {
+    let all = await MainActor.run { WKWebsiteDataStore.default().httpCookieStore }.allCookies()
+    let cookies = all.filter { cookie in
+      domains.contains { SiteCookie(domain: cookie.domain, name: cookie.name, expires: nil).belongs(to: $0) }
+    }
+    return try await SourcePages(hops: HopNetwork()).read(url, cookies: cookies, domains: domains)
   }
 
   public func cookies(on domains: [String]) async -> [SiteCookie] {

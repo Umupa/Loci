@@ -5,16 +5,6 @@ import LociModel
 /// What each source has now (`source_snapshot`, written over on every try) and the numbers it got over
 /// time (`source_series`, one row per record per fetch that worked).
 extension StoreDatabase {
-  /// Forgets every snapshot and series of a project's sources, as when the project is deleted for good.
-  public func forgetSources(of project: Project.ID) throws {
-    let pattern = Home.project(project).folder + "%"
-    try queue.write { db in
-      try db.execute(sql: "DELETE FROM source_snapshot WHERE source LIKE ?", arguments: [pattern])
-      try db.execute(sql: "DELETE FROM source_series WHERE source LIKE ?", arguments: [pattern])
-      try db.execute(sql: "DELETE FROM source_entry WHERE source LIKE ?", arguments: [pattern])
-    }
-  }
-
   /// How long every fetch is kept; older ones are thinned to the last in each hour.
   public static let seriesKeptWhole: Int64 = 7 * 86_400_000
 

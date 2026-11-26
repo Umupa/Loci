@@ -76,18 +76,19 @@ extension Tool {
       let problems = DataSourceCheck.problems(in: source)
       guard problems.isEmpty else { return .failed(SourceWords.refused(problems)) }
       let reply = try await line.run(SaveDataSource(source))
-      if json { return .worked(Self.text(reply)) }
+      if json { return .worked(SourceWords.outside(json: reply, of: name)) }
       switch try Failure.decoding(SourceOutcome.self, from: reply) {
       case .records(let records): return .worked(SourceWords.saved(source, records))
-      case .failed(let problems): return .failed(SourceWords.refused(problems.all))
+      case .failed(let problems): return .failed(SourceWords.failedToFetch(problems.all, of: name))
       }
     case .test(let name, let newScript):
       let script = newScript ? String(decoding: readInput(), as: UTF8.self) : nil
       let reply = try await line.run(TestDataSource(name, script: script))
-      if json { return .worked(Self.text(reply)) }
+      if json { return .worked(SourceWords.outside(json: reply, of: name)) }
       let replays = try Failure.decoding([SourceReplay].self, from: reply)
       guard !replays.isEmpty else { return .failed("\(name) keeps no samples yet; save it to fetch one.") }
-      let text = replays.map { SourceWords.replay($0, timeZone: timeZone) }.joined(separator: "\n\n")
+      let text = SourceWords.outside(
+        replays.map { SourceWords.replay($0, timeZone: timeZone) }.joined(separator: "\n\n"), of: name, "test")
       let failed = replays.contains { if case .failed = $0.outcome { true } else { false } }
       return failed ? .failed(text) : .worked(text)
     case .show(let name):
@@ -96,20 +97,42 @@ extension Tool {
       guard let entry = entries.first(where: { $0.source.name == name }) else {
         return .failed("There is no source \(name). Run `loci source list` to see them.")
       }
-      if json { return .worked(Self.text(try Failure.encoding(entry))) }
+      if json { return .worked(SourceWords.outside(json: try Failure.encoding(entry), of: name)) }
       return .worked(SourceWords.entry(entry, timeZone: timeZone))
     case .list:
       let reply = try await line.run(ListDataSources())
-      if json { return .worked(Self.text(reply)) }
       let entries = try Failure.decoding([DataSourceEntry].self, from: reply)
+      if json {
+        return .worked(
+          Self.list(
+            try entries.map { entry throws(Failure) in
+              ExternalContent.json(try Failure.encoding(entry), from: "source \(entry.source.name)")
+            }))
+      }
       guard !entries.isEmpty else { return .worked("There are no sources yet.") }
       return .worked(entries.map { SourceWords.line($0, timeZone: timeZone) }.joined(separator: "\n"))
     }
   }
 }
 
-/// What `loci source` prints, for Loci to read.
+/// What `loci source` prints, for Loci to read. What a source got, and what its script said while it failed,
+/// came from outside: it is marked as such, so the records' text never reads as instructions. Printed as JSON,
+/// it is marked in the JSON, so the reply still reads as JSON.
 enum SourceWords {
+  static func outside(_ text: String, of source: String, _ step: String) -> String {
+    ExternalContent.wrap(text, from: "source \(source)", tool: step)
+  }
+
+  static func outside(json: Data, of source: String) -> String {
+    Tool.text(ExternalContent.json(json, from: "source \(source)"))
+  }
+
+  static func failedToFetch(_ problems: [SourceProblem], of source: String) -> String {
+    "The source was not saved. What its fetch said:\n"
+      + outside(problems.map { "- \($0)" }.joined(separator: "\n"), of: source, "fetch")
+      + "\nFix the script and save it again."
+  }
+
   static func refused(_ problems: [SourceProblem]) -> String {
     (["The source was not saved. Fix each of these and save it again:"] + problems.map { "- \($0)" })
       .joined(separator: "\n")
@@ -119,7 +142,7 @@ enum SourceWords {
     let window = source.window.map { " between \($0)" } ?? ""
     return """
       Saved \(source.name). It is fetched every \(source.every)\(window). This fetch got:
-      \(SourceWords.records(records, source: source.name))
+      \(outside(SourceWords.records(records, source: source.name), of: source.name, "save"))
       Point panel rows at \(source.name).<record>.<field>.
       """
   }
@@ -143,7 +166,9 @@ enum SourceWords {
       "\(source.name)  \(source.title)", "every \(source.every)\(source.window.map { " between \($0)" } ?? "")",
       state(entry, timeZone: timeZone), "\(entry.samples) sample(s) kept",
     ]
-    if let snapshot = entry.snapshot { parts.append(records(snapshot.records, source: source.name)) }
+    if let snapshot = entry.snapshot {
+      parts.append(outside(records(snapshot.records, source: source.name), of: source.name, "show"))
+    }
     parts.append("Script:\n\(source.script)")
     return parts.joined(separator: "\n")
   }

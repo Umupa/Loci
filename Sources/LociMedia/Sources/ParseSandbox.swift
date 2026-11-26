@@ -1,55 +1,103 @@
 import Foundation
 import LociModel
-import WebKit
 
-/// Runs a source's script in a web view no one sees, made for that one call and dropped after it.
+/// Runs a source's script on a page no one sees, made for that one call and dropped after it.
+///
+/// One deadline holds loading the page, running the script and stopping it. A run that goes past it is
+/// stopped by the page ending its worker. If the page itself does not answer by the deadline, or the fetch is
+/// cancelled, the page is asked to end its worker again and again, for at most `stopping`; then the page is
+/// closed whatever it is doing, and its process with it. The run returns only after that, so the fetch it
+/// belongs to holds its place until the script is stopped, and never longer than the deadline and `stopping`.
 ///
 /// What holds the script in: it runs in a worker the page starts, and the page ends the worker when its time
-/// is up, because dropping a web view leaves a script stuck in a loop running in its process. The page's
-/// content security policy allows no connection, image, frame or other load, and workers only from the
-/// page's own blob (`default-src 'none'; worker-src blob:`); the navigation delegate lets nothing but the
-/// blank page load; the app's prelude takes `fetch`, `XMLHttpRequest`, `WebSocket`, `importScripts` and
-/// storage away inside the worker; the data store keeps nothing; and each call gets a fresh page, so one
-/// source never sees another or its own last run.
+/// is up, because a script stuck in a loop on the page itself would stop the page answering. The app's
+/// prelude takes `fetch`, `XMLHttpRequest`, `WebSocket`, `importScripts` and storage away inside the worker;
+/// what the page lets load is `WebSandboxPage`'s.
 @MainActor
-final class ParseSandbox: NSObject, WKNavigationDelegate {
+enum ParseSandbox {
   /// What the script is asked for.
   enum Call {
     case requests(state: JSONValue?)
     case parse(responses: [SourceResponse])
   }
 
-  static let page = """
-    <!doctype html><html><head><meta http-equiv="Content-Security-Policy" \
-    content="default-src 'none'; connect-src 'none'; form-action 'none'; worker-src blob:"></head><body></body></html>
-    """
+  /// How long past the script's own time the page has to answer before it is asked to end its worker.
+  static let grace: Duration = .seconds(2)
+  /// How long the page is asked to end its worker before it is closed.
+  static let stopping: Duration = .seconds(3)
 
-  private var webView: WKWebView?
-  private var loading: CheckedContinuation<Bool, Never>?
-  private var answer: CheckedContinuation<Result<String, SourceProblems>, Never>?
-
-  private override init() {
-    let configuration = WKWebViewConfiguration()
-    configuration.websiteDataStore = .nonPersistent()
-    configuration.mediaTypesRequiringUserActionForPlayback = .all
-    webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 10, height: 10), configuration: configuration)
-    super.init()
-    webView?.navigationDelegate = self
-  }
+  static let cancelled = SourceProblems("script", "its fetch was cancelled, and it was stopped")
 
   /// What the script's `requests(state)` or `parse(responses, now)` returned, as JSON.
-  static func run(_ script: String, _ call: Call, now: Timestamp, timeout: Duration) async throws(SourceProblems)
-    -> JSONValue
-  {
-    let sandbox = ParseSandbox()
-    defer { sandbox.close() }
-    guard await sandbox.load() else { throw SourceProblems("sandbox", "the page to run the script in did not load") }
-    let text = try await sandbox.evaluate(
-      try page(script, call, timeout: timeout), input: try input(call, now: now), timeout: timeout + .seconds(2))
-    return try answer(text, call: call, timeout: timeout)
+  /// `ended` is told, before this returns, that the page is closed and its worker ended, or the page closed.
+  static func run(
+    _ script: String, _ call: Call, now: Timestamp, timeout: Duration, stopping: Duration = stopping,
+    page open: () -> any SandboxPage = { WebSandboxPage() }, ended: @Sendable () -> Void = {}
+  ) async throws(SourceProblems) -> JSONValue {
+    let clock = ContinuousClock()
+    let deadline = clock.now + timeout + grace
+    let page = open()
+    defer {
+      page.close()
+      ended()
+    }
+    guard await within(deadline, otherwise: false, cancelled: false, page.load) else {
+      if Task.isCancelled { throw cancelled }
+      throw SourceProblems("sandbox", "the page to run the script in did not load in time")
+    }
+    let left = max(.zero, deadline - clock.now - grace)
+    let body = try Self.page(script, call, timeout: left)
+    let input = try input(call, now: now)
+    let result = await within(deadline, otherwise: .failure(overdue), cancelled: .failure(cancelled)) {
+      await page.evaluate(body, input: input)
+    }
+    if case .failure(let problems) = result, problems == overdue || problems == cancelled {
+      let by = clock.now + stopping
+      let stopped = await Task { await stop(page, by: by) }.value
+      if problems == cancelled { throw cancelled }
+      throw stopped
+        ? SourceProblems("script", "ran longer than \(timeout) and was stopped")
+        : SourceProblems("script", "ran longer than \(timeout); its page did not stop it and was closed")
+    }
+    return try answer(try result.get(), call: call, timeout: timeout)
+  }
+
+  /// Asks the page to end its worker until it says it has, or `deadline` passes; whether it said so.
+  private static func stop(_ page: any SandboxPage, by deadline: ContinuousClock.Instant) async -> Bool {
+    let clock = ContinuousClock()
+    while clock.now < deadline {
+      let asked = clock.now
+      if await within(min(deadline, asked + .milliseconds(500)), otherwise: false, cancelled: nil, page.endWorker) {
+        return true
+      }
+      try? await Task.sleep(until: min(deadline, asked + .milliseconds(100)))
+    }
+    return false
+  }
+
+  /// What `work` gives, or `otherwise` once `deadline` passes first, or `cancelled` as soon as the task is
+  /// cancelled, when given. `work` is left to the page's closing to answer.
+  private static func within<Value: Sendable>(
+    _ deadline: ContinuousClock.Instant, otherwise: Value, cancelled: Value?,
+    _ work: @escaping @MainActor () async -> Value
+  ) async -> Value {
+    let first = First<Value>()
+    return await withTaskCancellationHandler {
+      await withCheckedContinuation { continuation in
+        first.waiting = continuation
+        Task { first.give(await work()) }
+        first.timer = Task {
+          try? await Task.sleep(until: deadline)
+          first.give(otherwise)
+        }
+      }
+    } onCancel: {
+      if let cancelled { Task { @MainActor in first.give(cancelled) } }
+    }
   }
 
   /// The page's side: starts the worker, hands it the input, and ends it when it answers or runs out of time.
+  /// The worker is kept on the page until it is ended, so it can be ended from outside too.
   private static func page(_ script: String, _ call: Call, timeout: Duration) throws(SourceProblems) -> String {
     guard let url = Bundle.module.url(forResource: "source-sandbox", withExtension: "js", subdirectory: "Resources"),
       let prelude = try? String(contentsOf: url, encoding: .utf8)
@@ -77,8 +125,11 @@ final class ParseSandbox: NSObject, WKNavigationDelegate {
     return """
       const code = URL.createObjectURL(new Blob([\(JSONValue.string(worker).text)], { type: "text/javascript" }));
       const worker = new Worker(code);
+      window.lociWorker = worker;
       return await new Promise((resolve) => {
-        const end = (answer) => { clearTimeout(timer); worker.terminate(); resolve(JSON.stringify(answer)); };
+        const end = (answer) => {
+          clearTimeout(timer); worker.terminate(); window.lociWorker = null; resolve(JSON.stringify(answer));
+        };
         const timer = setTimeout(() => end({ timeout: true }), \(milliseconds));
         worker.onmessage = (message) => end(JSON.parse(message.data));
         worker.onerror = (event) => { event.preventDefault(); end({ error: event.message, line: event.lineno }); };
@@ -114,76 +165,24 @@ final class ParseSandbox: NSObject, WKNavigationDelegate {
     return JSONValue.object(members).text
   }
 
-  private func load() async -> Bool {
-    await withCheckedContinuation { continuation in
-      loading = continuation
-      if webView?.loadHTMLString(Self.page, baseURL: nil) == nil { finishLoading(false) }
-    }
-  }
-
-  private func evaluate(_ body: String, input: String, timeout: Duration) async throws(SourceProblems) -> String {
-    let result = await withCheckedContinuation { continuation in
-      answer = continuation
-      Task { [weak self, weak webView] in
-        do {
-          let value = try await webView?.callAsyncJavaScript(
-            body, arguments: ["inputText": input], in: nil, contentWorld: .page)
-          self?.respond(value.flatMap { $0 as? String }.map { .success($0) } ?? .failure(Self.nothing))
-        } catch {
-          self?.respond(.failure(Self.problems(error)))
-        }
-      }
-      Task { [weak self] in
-        try? await Task.sleep(for: timeout)
-        self?.respond(.failure(SourceProblems("script", "ran longer than \(timeout) and was stopped")))
-      }
-    }
-    return try result.get()
-  }
+  /// The page did not answer by the deadline.
+  private static let overdue = SourceProblems("script", "ran past its time and was stopped")
 
   private static let nothing = SourceProblems("script", "returned nothing")
+}
 
-  private static func problems(_ error: any Error) -> SourceProblems {
-    let info = (error as NSError).userInfo
-    let message = info["WKJavaScriptExceptionMessage"] as? String ?? (error as NSError).localizedDescription
-    let line = (info["WKJavaScriptExceptionLineNumber"] as? Int).map { " (line \($0))" } ?? ""
-    return SourceProblems("script", "\(message)\(line)")
-  }
+/// The first of several answers, given to whoever waits for it; the rest are dropped.
+@MainActor
+private final class First<Value: Sendable> {
+  var waiting: CheckedContinuation<Value, Never>?
+  var timer: Task<Void, Never>?
 
-  private func respond(_ result: Result<String, SourceProblems>) {
-    let waiting = answer
-    answer = nil
-    waiting?.resume(returning: result)
-  }
-
-  private func finishLoading(_ loaded: Bool) {
-    let waiting = loading
-    loading = nil
-    waiting?.resume(returning: loaded)
-  }
-
-  /// Drops the page, and with it whatever the script is still doing.
-  private func close() {
-    webView?.stopLoading()
-    webView?.navigationDelegate = nil
-    webView = nil
-  }
-
-  func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction) async -> WKNavigationActionPolicy {
-    loading != nil && action.request.url?.absoluteString == "about:blank" ? .allow : .cancel
-  }
-
-  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { finishLoading(true) }
-  func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
-    finishLoading(false)
-  }
-  func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: any Error)
-  {
-    finishLoading(false)
-  }
-  func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-    finishLoading(false)
-    respond(.failure(SourceProblems("script", "its page stopped")))
+  func give(_ value: Value) {
+    timer?.cancel()
+    timer = nil
+    let continuation = waiting
+    waiting = nil
+    continuation?.resume(returning: value)
   }
 }
 

@@ -13,8 +13,8 @@ struct GitHubReadsTests {
     ["api", "repos/o/r/pulls"], ["api", "repos/o/r", "--jq", ".stargazers_count"], ["api", "-X", "GET", "repos/o/r"],
     ["api", "--method=GET", "user"], ["api", "repos/o/r/issues", "--paginate"],
   ])
-  func commandsThatOnlyReadRun(_ arguments: [String]) {
-    #expect(GitHubReads.refusal(arguments) == nil)
+  func commandsThatOnlyReadRun(_ arguments: [String]) throws {
+    _ = try GitHubRead(checking: arguments)
   }
 
   @Test(arguments: [
@@ -27,11 +27,24 @@ struct GitHubReadsTests {
     ["api", "repos/o/r/issues", "-f", "title=x"], ["api", "repos/o/r/issues", "-Ftitle=x"],
     ["api", "repos/o/r", "--input", "body.json"], ["api", "repos/o/r", "--raw-field=a=b"], ["api", "graphql"],
     ["api", "repos/o/r", "-H", "X-HTTP-Method-Override: DELETE"], ["pr"], [], ["api"],
+    ["api", "repos/o/r", "-iXPOST"], ["api", "repos/o/r", "-XGET", "-fa=b"], ["api", "-iX", "POST", "repos/o/r"],
+    ["pr", "list", "-Lw"], ["pr", "list", "--weird"], ["api", "repos/o/r", "user"],
+    ["api", "repos/o/r", "--paginate=x"],
   ])
   func commandsThatCouldChangeSomethingAreRefusedWithAReason(_ arguments: [String]) {
-    let refusal = GitHubReads.refusal(arguments)
-    #expect(refusal != nil)
-    #expect(refusal?.isEmpty == false)
+    #expect(throws: GitHubRefusal.self) { try GitHubRead(checking: arguments) }
+    #expect((try? GitHubRead(checking: arguments)) == nil)
+  }
+
+  @Test func ghIsRunWithArgumentsBuiltAgainFromWhatWasChecked() throws {
+    #expect(
+      try GitHubRead(checking: ["api", "repos/o/r", "-q", ".x", "-X", "GET", "--paginate"]).arguments
+        == ["api", "--method=GET", "repos/o/r", "--jq=.x", "--paginate"])
+    #expect(
+      try GitHubRead(checking: ["pr", "list", "-R", "o/r", "--limit=5"]).arguments
+        == ["pr", "list", "--repo=o/r", "--limit=5"])
+    #expect(
+      try GitHubRead(checking: ["issue", "list", "--search", "-label:bug"]).arguments.last == "--search=-label:bug")
   }
 
   @Test func aReadRunsGhWithoutAShellAndGivesBackWhatItPrinted() async throws {
@@ -41,8 +54,8 @@ struct GitHubReadsTests {
     let launcher = ProbeLauncher(["gh run view 123 --log": .init(output: "build failed: test X\n")])
     let cli = GitHubCLI(launcher: launcher, search: AgentSearch(directories: [folder]))
 
-    #expect(await cli.read(["run", "view", "123", "--log"]) == .output("build failed: test X\n"))
-    #expect(await cli.read(["pr", "merge", "1"]) == .refused(GitHubReads.refusal(["pr", "merge", "1"]) ?? ""))
+    #expect(
+      await cli.read(try GitHubRead(checking: ["run", "view", "123", "--log"])) == .output("build failed: test X\n"))
     #expect(launcher.launched == ["gh run view 123 --log"])
   }
 
@@ -50,11 +63,11 @@ struct GitHubReadsTests {
     let folder = try probeFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let missing = GitHubCLI(launcher: ProbeLauncher(), search: AgentSearch(directories: [folder]))
-    #expect(await missing.read(["pr", "list"]) == .failed("gh is not installed on this Mac"))
+    #expect(await missing.read(try GitHubRead(checking: ["pr", "list"])) == .failed("gh is not installed on this Mac"))
 
     try probeProgram("gh", in: folder)
     let failing = GitHubCLI(
       launcher: ProbeLauncher(["gh pr list": .init(output: "", status: 4)]), search: AgentSearch(directories: [folder]))
-    #expect(await failing.read(["pr", "list"]) == .failed("gh stopped with status 4"))
+    #expect(await failing.read(try GitHubRead(checking: ["pr", "list"])) == .failed("gh stopped with status 4"))
   }
 }

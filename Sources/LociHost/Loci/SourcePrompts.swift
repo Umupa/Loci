@@ -1,5 +1,4 @@
 import Foundation
-import LociConnect
 import LociModel
 import LociStore
 
@@ -37,7 +36,11 @@ extension Prompts {
       .replacing("{{window}}", with: window)
       .replacing("{{failures}}", with: String(broken.breakage?.failures ?? SourceSnapshot.brokenAfter))
       .replacing("{{since}}", with: since)
-      .replacing("{{problems}}", with: (broken.breakage?.problems ?? []).map { "- \($0)" }.joined(separator: "\n"))
+      .replacing(
+        "{{problems}}",
+        with: ExternalContent.wrap(
+          (broken.breakage?.problems ?? []).map { "- \($0)" }.joined(separator: "\n"), from: source.name, tool: "parse")
+      )
       .replacing("{{script}}", with: source.script)
       .replacing("{{samples}}", with: shown.isEmpty ? "(none were kept)" : shown.joined(separator: "\n\n"))
   }

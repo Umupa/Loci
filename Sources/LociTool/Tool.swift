@@ -161,4 +161,9 @@ struct Tool: Sendable {
   static func text(_ data: Data) -> String {
     String(decoding: data, as: UTF8.self)
   }
+
+  /// A JSON array of these JSON values.
+  static func list(_ values: [Data]) -> String {
+    "[" + values.map(text).joined(separator: ",") + "]"
+  }
 }

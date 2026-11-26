@@ -13,8 +13,42 @@ public struct PanelState: Hashable, Codable, Sendable {
   public var removals: [String: [Removal]] = [:]
   /// Panels whose refresh the person paused.
   public var paused: Set<String> = []
-  /// For a panel that follows a source's entries, when the newest entry it was offered was first seen.
-  public var fed: [String: Timestamp] = [:]
+  /// For a panel that follows a source's entries, the `seq` of the last entry a finished run was offered.
+  public var fed: [String: Int64] = [:]
+  /// For a panel that follows a source's entries, what the run under way was offered.
+  public var offers: [String: PanelOffer] = [:]
+  /// For a panel that follows a source's entries, the runs in a row that failed to get past what they were
+  /// offered.
+  public var stuck: [String: PanelStuck] = [:]
+
+  /// Runs of a panel that failed in a row: the panel is woken again only by entries that came after the last
+  /// of them was offered, and after `mostRuns` only when the person refreshes it.
+  public struct PanelStuck: Hashable, Codable, Sendable {
+    /// The `seq` of the last entry the last of them was offered.
+    public let through: Int64
+    public let runs: Int
+
+    public static let mostRuns = 3
+
+    public init(through: Int64, runs: Int) {
+      self.through = through
+      self.runs = runs
+    }
+  }
+
+  /// The entries one run of a panel that follows a source was shown: only these may be picked in it.
+  public struct PanelOffer: Hashable, Codable, Sendable {
+    public let run: EntityID
+    public let ids: [String]
+    /// The `seq` of the last entry shown; the panel's `fed` once the run is done.
+    public let through: Int64
+
+    public init(run: EntityID, ids: [String], through: Int64) {
+      self.run = run
+      self.ids = ids
+      self.through = through
+    }
+  }
 
   /// An item the person removed, and when.
   public struct Removal: Hashable, Codable, Sendable {
@@ -51,7 +85,7 @@ public struct PanelState: Hashable, Codable, Sendable {
   }
 
   private enum CodingKeys: String, CodingKey {
-    case order, refreshed, marks, removals, paused, fed
+    case order, refreshed, marks, removals, paused, fed, offers, stuck
   }
 
   /// A file that cannot be read is an empty state: the column falls back to its first order.
@@ -62,7 +96,9 @@ public struct PanelState: Hashable, Codable, Sendable {
     marks = (try? container.decodeIfPresent([String: [PanelLineKey: PanelLineMark]].self, forKey: .marks)) ?? [:]
     removals = (try? container.decodeIfPresent([String: [Removal]].self, forKey: .removals)) ?? [:]
     paused = (try? container.decodeIfPresent(Set<String>.self, forKey: .paused)) ?? []
-    fed = (try? container.decodeIfPresent([String: Timestamp].self, forKey: .fed)) ?? [:]
+    fed = (try? container.decodeIfPresent([String: Int64].self, forKey: .fed)) ?? [:]
+    offers = (try? container.decodeIfPresent([String: PanelOffer].self, forKey: .offers)) ?? [:]
+    stuck = (try? container.decodeIfPresent([String: PanelStuck].self, forKey: .stuck)) ?? [:]
   }
 }
 

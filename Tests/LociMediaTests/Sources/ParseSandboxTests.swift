@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import LociModel
+import Synchronization
 import Testing
 
 @testable import LociMedia
@@ -82,6 +83,32 @@ struct ParseSandboxTests {
     #expect(ContinuousClock.now - started < .seconds(5))
     let json = try await Self.parse("function parse() { return { records: {} }; }")
     #expect(json == JSONValue(parsing: #"{ "records": {} }"#))
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func aStoppedScriptIsKnownToHaveEndedBeforeTheRunReturns() async throws {
+    let ended = Mutex(false)
+
+    do throws(SourceProblems) {
+      _ = try await ParseSandbox.run(
+        "function parse() { while (true) {} }", .parse(responses: []), now: Self.now, timeout: .milliseconds(300),
+        ended: { ended.withLock { $0 = true } })
+      Issue.record("the script was not stopped")
+    } catch {
+      #expect(error == SourceProblems("script", "ran longer than 0.3 seconds and was stopped"))
+    }
+
+    #expect(ended.withLock { $0 })
+  }
+
+  @Test(.timeLimit(.minutes(1)))
+  func oneDeadlineHoldsLoadingAndRunning() async throws {
+    let started = ContinuousClock.now
+
+    let problems = await Self.failure("function parse() { while (true) {} }", timeout: .zero)
+
+    #expect(problems == ["script: ran longer than 0.0 seconds and was stopped"])
+    #expect(ContinuousClock.now - started < ParseSandbox.grace + .seconds(2))
   }
 
   @Test(.timeLimit(.minutes(1)))

@@ -28,16 +28,15 @@ public struct GitHubCLI: Sendable {
     return GitHubLogin(token: token, account: account.isEmpty || account.contains(" ") ? nil : account)
   }
 
-  /// Runs `gh` with arguments that only read (`GitHubReads`), without a shell, in a folder it cannot change,
-  /// and gives back what it printed. Arguments that would change something are refused before `gh` starts.
-  public func read(_ arguments: [String], within limit: Duration = .seconds(30)) async -> GitHubReply {
-    if let refusal = GitHubReads.refusal(arguments) { return .refused(refusal) }
+  /// Runs `gh` with a command checked to only read, its arguments built again from what was checked, without
+  /// a shell, in a folder it cannot change, and gives back what it printed.
+  public func read(_ read: GitHubRead, within limit: Duration = .seconds(30)) async -> GitHubReply {
     guard let gh = search.executable(named: ["gh"]) else { return .failed("gh is not installed on this Mac") }
     let environment = ProcessInfo.processInfo.environment.merging([
       "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1", "GH_PAGER": "cat", "NO_COLOR": "1",
     ]) { $1 }
     let invocation = Invocation(
-      executable: gh, arguments: arguments, workingDirectory: URL.temporaryDirectory, environment: environment)
+      executable: gh, arguments: read.arguments, workingDirectory: URL.temporaryDirectory, environment: environment)
     guard let program = try? launcher.launch(invocation) else { return .failed("gh could not start") }
     program.closeInput()
     let reading = Task { () -> (Data, Data, Int32) in
@@ -78,8 +77,6 @@ public struct GitHubCLI: Sendable {
 /// What a `gh` command that reads came to.
 public enum GitHubReply: Hashable, Sendable {
   case output(String)
-  /// It would change something, or not only read; says why.
-  case refused(String)
   case failed(String)
 }
 

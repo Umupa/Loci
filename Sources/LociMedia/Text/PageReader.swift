@@ -104,6 +104,14 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     return .page(try await reader.extract())
   }
 
+  /// Markup already fetched, parsed as a document that loads nothing and runs none of its scripts, on a
+  /// blank page that keeps nothing: what a data source's page is read from.
+  static func inert(_ html: String, base: URL, timeout: Duration = .seconds(10)) async throws(FetchError)
+    -> Extraction
+  {
+    try await open(.html(html, base: base), timeout: timeout, visitor: .anonymous, purpose: .source).extract()
+  }
+
   private static func open(
     _ source: Source, timeout: Duration, visitor: Visitor, purpose: Purpose
   ) async throws(FetchError) -> PageReader {

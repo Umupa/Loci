@@ -7,18 +7,47 @@ import LociStore
 /// `agent/projects/<id>/sources/`), fetched by the app with no model in the way.
 extension LocalHost {
   public func saveDataSource(_ command: SaveDataSource) async throws(HostError) -> SourceOutcome {
-    let home = command.home
-    let source = command.source
+    let problems = DataSourceCheck.problems(in: command.source)
+    guard problems.isEmpty else { return .failed(SourceProblems(all: problems)) }
+    return try await sourceKeeper.save(command.source, in: command.home)
+  }
+
+  /// A repair's save: the source it was granted, in its home. The new script must read every sample the
+  /// source failed on, and it is kept only while the repair's grant is open and the definition it mends is
+  /// still the saved one and still broken.
+  func saveDataSource(_ source: DataSource, repairing grant: RepairGrant) async throws(HostError) -> SourceOutcome {
     let problems = DataSourceCheck.problems(in: source)
     guard problems.isEmpty else { return .failed(SourceProblems(all: problems)) }
-    let result: SourceResult
-    switch await sourceKeeper.fetch(source, in: home, at: environment.now()) {
-    case .success(let got): result = got
-    case .failure(let failure): return .failed(failure.problems)
+    guard source.name == grant.source.name else {
+      throw .invalidRequest("This repair mends only the source \(grant.source.name); use that one.")
     }
-    try attempt { try store.saveDataSource(source, in: DataSourceFolder(home)) }
-    try await sourceKeeper.keep(result, of: source.name, in: home)
-    return .records(result.records)
+    let home = grant.source.home
+    let folder = DataSourceFolder(home)
+    let store = store
+    let database = database
+    let commits = sourceKeeper.commits
+    let runner = environment.media.dataSources
+    let saving = SourceKeeper.Saving(
+      check: { _ in
+        guard await commits.isOpen(grant) else { return nil }
+        let since =
+          ((try? database.sourceSnapshot(grant.source)) ?? nil)?.breakage?.since ?? Timestamp(millisecondsSince1970: 0)
+        var found: [SourceProblem] = []
+        for sample in store.samples(of: source.name, in: folder) where sample.at >= since {
+          do throws(SourceProblems) {
+            _ = try await runner.replay(sample, script: source.script)
+          } catch {
+            found += error.all.map { SourceProblem("sample \(sample.at)", $0.description) }
+          }
+        }
+        return found.isEmpty ? nil : SourceProblems(all: found)
+      },
+      still: {
+        store.dataSource(named: source.name, in: folder) == grant.broken
+          && ((try? database.sourceSnapshot(grant.source)) ?? nil)?.isBroken == true
+      },
+      grant: grant, refusal: "The source changed or works again since this repair began; nothing was saved.")
+    return try await sourceKeeper.save(source, in: home, saving: saving)
   }
 
   public func pickPanelEntries(_ command: PickPanelEntries) async throws(HostError) -> Done {
@@ -44,9 +73,14 @@ extension LocalHost {
   }
 
   public func dataSources(of home: Home) async throws(HostError) -> [DataSourceEntry] {
+    try await dataSources(of: home, named: nil)
+  }
+
+  /// The home's sources; only `named`, when given.
+  func dataSources(of home: Home, named: String?) async throws(HostError) -> [DataSourceEntry] {
     let folder = DataSourceFolder(home)
     return try attempt {
-      try store.dataSources(in: folder).map { source in
+      try store.dataSources(in: folder).filter { named == nil || $0.name == named }.map { source in
         DataSourceEntry(
           source: source, snapshot: try database.sourceSnapshot(SourceKey(home, source.name)),
           samples: store.samples(of: source.name, in: folder).count)
