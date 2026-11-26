@@ -24,7 +24,6 @@ struct StreamingRowsTests {
         case .asked(let prompt): "asked " + prompt.text
         case .said(let words, let answer): "said \(words) \(answer ?? "-")"
         case .doing(let doing): "doing \(doing)"
-        case .replies(let replies): "replies \(replies)"
         case .ended: "ended"
         case .startedOver: "startedOver"
         case .saved: "saved"

@@ -65,7 +65,7 @@ struct ScreenSnapshots {
     try await Self.shoot("conversation", view, appearance: appearance, size: CGSize(width: 384, height: 900))
   }
 
-  /// UI-S11, UI-S13, UI-S14, C-S7, C-S9, C-S10: a display formula, a code block and an answer with their
+  /// UI-S11, UI-S13, UI-S14, C-S9, C-S10: a display formula, a code block and an answer with their
   /// copy buttons, no trace of the tools, a line where the conversation started over, replies offered at
   /// the end, and the way back to the latest.
   @Test(arguments: Snapshot.Appearance.allCases)

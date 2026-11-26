@@ -25,7 +25,6 @@ struct TalkRowsTests {
       case .asked(let prompt): "asked " + prompt.text
       case .said(let words, _): "said " + words
       case .doing(let doing): "doing \(doing)"
-      case .replies(let replies): "replies " + replies.joined(separator: " ")
       case .ended: "ended"
       case .startedOver: "startedOver"
       case .saved: "saved"
@@ -127,16 +126,10 @@ struct TalkRowsTests {
     #expect(rows.last?.speaker == .loci)
   }
 
-  @Test func repliesOfferedAtTheEndOfTheLatestAnswerShowUnderItWithoutTheirBlock() {
+  @Test func anOldReplysAnswerBlockIsNotShown() {
     let offer = Self.message(1, .reply("要我存进去吗？\n\n```loci-replies\n好，存进去\n先不用\n```"))
-    let rows = Self.rows([Self.asked(0, "问"), offer])
 
-    #expect(Self.kinds(rows) == ["day", "asked 问", "said 要我存进去吗？", "replies 好，存进去 先不用"])
-    #expect(
-      Self.kinds(Self.rows([Self.asked(0, "问"), offer, Self.asked(2, "算了")])).contains { $0.hasPrefix("replies") }
-        == false)
-    #expect(
-      Self.kinds(Self.rows([Self.asked(0, "问"), offer], live: true)).contains { $0.hasPrefix("replies") } == false)
+    #expect(Self.kinds(Self.rows([Self.asked(0, "问"), offer])) == ["day", "asked 问", "said 要我存进去吗？"])
   }
 
   @Test func aStreamingReplyShowsOnlyFinishedSentences() {
@@ -209,13 +202,5 @@ struct TalkRowsTests {
     #expect(
       ReplyHold.due(LiveTurn(startedAt: turn.startedAt, messages: Array(turn.messages.prefix(2))), wait: .seconds(1))
         == nil)
-  }
-
-  @Test func repliesGoAwayWhileThePersonIsTyping() {
-    let offer = Self.message(1, .reply("要吗？\n\n```loci-replies\n好\n```"))
-    let rows = Self.rows([Self.asked(0, "问"), offer])
-
-    #expect(Self.kinds(TalkRow.offered(rows, composing: false)).last == "replies 好")
-    #expect(Self.kinds(TalkRow.offered(rows, composing: true)).last == "said 要吗？")
   }
 }

@@ -12,7 +12,6 @@ struct TalkRow: Identifiable {
     /// What Loci is doing while the next part of its reply is pending.
     case doing(Doing)
     /// Answers Loci offers at the end of the latest reply, for the person to send with one click.
-    case replies([String])
     /// A turn that did not finish, said in one bubble from Loci.
     case ended(TurnEnding)
     /// Where the conversation started over.
@@ -45,7 +44,7 @@ struct TalkRow: Identifiable {
     switch kind {
     case .asked: .person
     case .said, .ended: .loci
-    case .day, .doing, .replies, .startedOver, .saved, .savedItems, .document, .links: nil
+    case .day, .doing, .startedOver, .saved, .savedItems, .document, .links: nil
     }
   }
 
@@ -58,7 +57,7 @@ struct TalkRow: Identifiable {
     let answers = ConversationEntry.answers(entries)
     var rows: [TalkRow] = []
     var previous = earlier
-    for (index, entry) in entries.enumerated() {
+    for entry in entries {
       if case .asked(_, let prompt) = entry, !prompt.showsPersonBubble { continue }
       if let day = Sitting.start(of: entry, after: previous) {
         rows.append(TalkRow(id: ID(message: entry.id, part: -1), kind: .day(day)))
@@ -68,13 +67,8 @@ struct TalkRow: Identifiable {
       case .asked(let message, let prompt):
         rows.append(TalkRow(id: ID(message: message.id, part: 0), kind: .asked(prompt)))
       case .reply(let message, let text, let streaming):
-        let said = QuickReplies(text)
-        let parts = BubbleLayout.bubbles(in: ReplyText.settled(said.text, streaming: streaming))
-        let pieces = Self.rows(of: parts, in: message.id, answer: answers[message.id])
-        rows.append(contentsOf: pieces)
-        if turn == nil, index == entries.count - 1, !said.replies.isEmpty {
-          rows.append(TalkRow(id: ID(message: message.id, part: pieces.count), kind: .replies(said.replies)))
-        }
+        let parts = BubbleLayout.bubbles(in: ReplyText.settled(AnswerButtons.removed(from: text), streaming: streaming))
+        rows.append(contentsOf: Self.rows(of: parts, in: message.id, answer: answers[message.id]))
       case .aside(let message):
         if case .ended(let ending) = message.body {
           rows.append(TalkRow(id: ID(message: message.id, part: 0), kind: .ended(ending)))
@@ -95,12 +89,6 @@ struct TalkRow: Identifiable {
       rows.append(TalkRow(id: ID(message: nil, part: 0), kind: .doing(Doing(turn.messages))))
     }
     return rows
-  }
-
-  /// The rows to draw: without the replies Loci offers while the person is typing their own.
-  static func offered(_ rows: [TalkRow], composing: Bool) -> [TalkRow] {
-    guard composing else { return rows }
-    return rows.filter { if case .replies = $0.kind { false } else { true } }
   }
 
   /// Whether the turn's reply is what shows last, so there is nothing to say about what Loci is doing.

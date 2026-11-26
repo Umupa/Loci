@@ -15,6 +15,12 @@ enum RowWindow {
     start(near: rows.count - length, in: rows)
   }
 
+  static func opening(in rows: [TalkRow], at reading: TalkRow.ID?) -> Int {
+    let latest = latest(in: rows)
+    guard let reading, let index = rows.firstIndex(where: { $0.id == reading }), index < latest else { return latest }
+    return earlier(than: index, in: rows)
+  }
+
   /// Where the drawn rows start once the stretch before `start` is added.
   static func earlier(than start: Int, in rows: [TalkRow]) -> Int {
     Self.start(near: min(start, rows.count) - step, in: rows)

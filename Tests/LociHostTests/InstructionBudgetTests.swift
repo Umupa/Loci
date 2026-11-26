@@ -53,7 +53,7 @@ struct InstructionBudgetTests {
       #expect(ToolGuide.topic(topic) != nil, "loci help \(topic)")
       #expect(rules.contains(topic), "the rules do not point to \(topic)")
     }
-    #expect(rules.contains("```loci-replies") && rules.contains("loci-doc"))
+    #expect(!rules.contains("loci-replies") && rules.contains("loci-doc"))
   }
 
   @Test func theSkillHoldsTheOverviewAndEveryTopic() {

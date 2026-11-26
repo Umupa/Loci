@@ -14,6 +14,7 @@ final class FakeHost: LociModel.Host, CommandHandler {
   let recognizing: Bool
   /// Loci is answering in the main conversation.
   let working: Bool
+  let chat: Conversation?
   /// The picture the person chose for Loci.
   let avatar: Avatar?
   /// The panel column beside the main conversation; empty unless a test gives one.
@@ -52,7 +53,7 @@ final class FakeHost: LociModel.Host, CommandHandler {
     modelOptions: ModelOptions = .sample,
     timers: SampleTimers = .none, connectors: Connectors = SampleConnectors.empty, remembers: Bool = true,
     books: SampleBooks? = nil, usage: [SessionUsage] = [], projects: ProjectBar = ProjectBar(projects: []),
-    projectPanels: [Project.ID: PanelColumn] = [:], nextUps: [NextUp] = []
+    projectPanels: [Project.ID: PanelColumn] = [:], nextUps: [NextUp] = [], chat: Conversation? = nil
   ) {
     self.nextUps = nextUps
     self.projects = projects
@@ -72,6 +73,7 @@ final class FakeHost: LociModel.Host, CommandHandler {
     self.keyPoints = keyPoints
     self.recognizing = recognizing
     self.working = working
+    self.chat = chat
     self.avatar = avatar
     self.panels = panels
     self.activity = activity

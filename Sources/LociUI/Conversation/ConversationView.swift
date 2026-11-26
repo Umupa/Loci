@@ -6,12 +6,14 @@ import SwiftUI
 struct ConversationScreen<Tail: View>: View {
   @Environment(\.host) private var host
   @Environment(\.openPage) private var openPage
+  @Environment(\.documents) private var documents
   let ref: ConversationRef
   @Binding var draft: PassageDraft?
   var revealPassage: @MainActor (Locator) -> Void = { _ in }
   var attach: (() -> Void)?
   var focusRequest = 0
   var panelRequest = PanelRequest()
+  var visit: ConversationVisit?
   /// The lesson being read beside a course's conversation, which what is sent is about.
   var lesson: Lesson.ID?
   var courseLessons: [Lesson] = []
@@ -19,6 +21,19 @@ struct ConversationScreen<Tail: View>: View {
   @State private var conversation: Feed<Conversation>?
 
   var body: some View {
+    Group {
+      if documents == nil {
+        view.showingDocuments()
+      } else {
+        view
+      }
+    }
+    .id(ref)
+    .modifier(FollowingLinks(ref: ref, revealPassage: revealPassage))
+    .subscribing(OneConversation(ref), into: $conversation)
+  }
+
+  private var view: some View {
     ConversationView(
       conversation: conversation?.value, draft: $draft,
       revealPassage: { openPage.follow($0, in: ref, reveal: revealPassage) },
@@ -28,13 +43,9 @@ struct ConversationScreen<Tail: View>: View {
       stop: { _ = try? await host.run(StopTurn(in: ref)) },
       startOver: { () async throws(HostError) -> Done in try await host.run(StartOver(in: ref)) },
       scale: ref == ref.home.conversation ? .main : .companion, attach: attach, focusRequest: focusRequest,
-      panelRequest: panelRequest,
+      panelRequest: panelRequest, visit: visit,
       courseLessons: courseLessons, tail: tail
     )
-    .id(ref)
-    .modifier(FollowingLinks(ref: ref, revealPassage: revealPassage))
-    .subscribing(OneConversation(ref), into: $conversation)
-    .showingDocuments()
   }
 }
 
@@ -42,6 +53,7 @@ struct ConversationScreen<Tail: View>: View {
 private struct FollowingLinks: ViewModifier {
   @Environment(\.openPage) private var openPage
   @Environment(\.peekLink) private var peekLink
+  @Environment(\.openPlace) private var openPlace
   let ref: ConversationRef
   let revealPassage: @MainActor (Locator) -> Void
 
@@ -49,6 +61,10 @@ private struct FollowingLinks: ViewModifier {
     content.environment(
       \.openURL,
       OpenURLAction { url in
+        if let connector = ConnectorID(link: url) {
+          openPlace(.connector(connector))
+          return .handled
+        }
         if url.isWebLink, let peekLink {
           peekLink(url)
           return .handled
@@ -63,11 +79,12 @@ extension ConversationScreen where Tail == EmptyView {
     ref: ConversationRef, draft: Binding<PassageDraft?>,
     revealPassage: @escaping @MainActor (Locator) -> Void = { _ in },
     attach: (() -> Void)? = nil, focusRequest: Int = 0, panelRequest: PanelRequest = PanelRequest(),
+    visit: ConversationVisit? = nil,
     lesson: Lesson.ID? = nil, courseLessons: [Lesson] = []
   ) {
     self.init(
       ref: ref, draft: draft, revealPassage: revealPassage, attach: attach, focusRequest: focusRequest,
-      panelRequest: panelRequest, lesson: lesson, courseLessons: courseLessons
+      panelRequest: panelRequest, visit: visit, lesson: lesson, courseLessons: courseLessons
     ) { EmptyView() }
   }
 }
@@ -92,6 +109,7 @@ struct ConversationView<Tail: View>: View {
   /// Changes each time the composer should take the keyboard.
   var focusRequest = 0
   var panelRequest = PanelRequest()
+  var visit: ConversationVisit?
   /// How long the reply being written waits, with no tool after it, before it shows.
   var replyHold = Motion.replyHold
   var courseLessons: [Lesson] = []
@@ -100,30 +118,49 @@ struct ConversationView<Tail: View>: View {
   @Environment(\.standIns) private var standIns
   /// Starts keeping the newest line in view.
   @State var follow = Following()
-  @State private var position = ScrollPosition(edge: .bottom)
   @State private var scrolling = false
+  @State private var visibleRow: TalkRow.ID?
+  @State private var localVisit = ConversationVisit()
   @State private var pointedAnswer: EntityID?
   @State private var settled = Remembered(TalkRow.settled)
   /// The running turn's rows, which moving through the conversation leaves as they are.
   @State private var going = Remembered<LiveSoFar, [TalkRow]>(TalkRow.live)
   /// How many of the earliest rows are not drawn; `nil` until the conversation arrives.
   @State private var hidden: Int?
-  @State private var composing = false
   /// When a reply held back last came due, so the conversation is drawn again to show it.
   @State private var cameDue = Date.distantPast
   @State private var cover = ConversationCover()
 
+  private enum End: Hashable { case latest }
+
+  private var currentVisit: ConversationVisit { visit ?? localVisit }
+
   var body: some View {
+    ScrollViewReader { proxy in
+      scroll(using: proxy)
+    }
+  }
+
+  private func scroll(using proxy: ScrollViewProxy) -> some View {
     let said = said
     let now = standIns?.conversationAt ?? max(cameDue, .now)
     let live = going(LiveSoFar(conversation?.turn, hold: ReplyHold(now: now, wait: replyHold)))
-    let start = min(hidden ?? RowWindow.latest(in: said), said.count)
+    let reading = currentVisit.reading
+    let start = min(hidden ?? RowWindow.opening(in: said, at: reading), said.count)
+    let rows = Array(said[start...]) + live
     return ScrollView {
-      LazyVStack(alignment: .leading, spacing: Size.messageGap) {
-        ForEach(TalkRow.offered(Array(said[start...]) + live, composing: composing)) { row in
-          view(of: row).arriving()
+      VStack(alignment: .leading, spacing: Size.messageGap) {
+        LazyVStack(alignment: .leading, spacing: Size.messageGap) {
+          ForEach(rows) { row in
+            view(of: row).arriving()
+          }
         }
-        tail()
+        .scrollTargetLayout()
+        VStack(spacing: 0) {
+          tail()
+          Color.clear.frame(height: 1).accessibilityHidden(true)
+        }
+        .id(End.latest)
       }
       .animatingArrivals(said.count(where: \.arrives) + live.count(where: \.arrives))
       .padding(.horizontal, Spacing.m)
@@ -132,33 +169,53 @@ struct ConversationView<Tail: View>: View {
     }
     .defaultScrollAnchor(.top, for: .alignment)
     .defaultScrollAnchor(.bottom, for: .initialOffset)
-    .scrollPosition($position)
-    .onScrollPhaseChange { _, phase in
+    .onScrollPhaseChange { _, phase, context in
+      if phase == .idle, scrolling { read(at: Following.distanceFromEnd(context.geometry)) }
       scrolling = phase == .tracking || phase == .interacting || phase == .decelerating
     }
     .onScrollGeometryChange(for: CGFloat.self, of: Following.distanceFromEnd) { _, distance in
-      if scrolling { follow.scrolled(to: distance) }
+      if scrolling {
+        read(at: distance)
+      } else if reading == nil, follow.isOn, distance > 1 {
+        scrollToLatest(using: proxy)
+      }
     }
-    .onScrollGeometryChange(for: CGFloat.self, of: \.contentSize.height) { _, _ in
-      if follow.isOn && !scrolling { position.scrollTo(edge: .bottom) }
+    .onScrollTargetVisibilityChange(idType: TalkRow.ID.self, threshold: 0.01) { ids in
+      let visible = Set(ids)
+      visibleRow = rows.first { visible.contains($0.id) }?.id
+      if scrolling, !follow.isOn, let visibleRow { currentVisit.reading = visibleRow }
     }
     .onScrollGeometryChange(for: Bool.self, of: { $0.contentOffset.y + $0.contentInsets.top < 1 }) { _, atTop in
       let said = said
-      guard atTop, let hidden, hidden > 0, hidden < said.count else { return }
+      guard atTop, !follow.isOn, let hidden, hidden > 0, hidden < said.count else { return }
       self.hidden = RowWindow.earlier(than: hidden, in: said)
-      position.scrollTo(id: said[hidden].id, anchor: .top)
+    }
+    .onChange(of: hidden) { earlier, now in
+      guard let earlier, let now, now < earlier, earlier < said.count else { return }
+      proxy.scrollTo(said[earlier].id, anchor: .top)
     }
     .task(id: ReplyHold.due(conversation?.turn, wait: replyHold)) {
       guard let due = ReplyHold.due(conversation?.turn, wait: replyHold), standIns == nil else { return }
       try? await Task.sleep(for: .seconds(max(0, due.timeIntervalSinceNow)))
       if !Task.isCancelled { cameDue = .now }
     }
-    .onChange(of: said.isEmpty, initial: true) {
-      if hidden == nil, !said.isEmpty { hidden = RowWindow.latest(in: said) }
+    .onChange(of: conversation != nil, initial: true) { _, loaded in
+      guard loaded else { return }
+      hidden = start
+      if let reading, rows.contains(where: { $0.id == reading }) {
+        follow.scrolled(to: .infinity)
+        proxy.scrollTo(reading, anchor: .top)
+      } else {
+        currentVisit.reading = nil
+        scrollToLatest(using: proxy)
+      }
     }
-    .onChange(of: questions) {
+    .onChange(of: questions) { old, _ in
+      guard old != nil else { return }
+      scrolling = false
       follow.asked()
-      withAnimation(reduceMotion ? nil : Motion.standard) { position.scrollTo(edge: .bottom) }
+      currentVisit.reading = nil
+      scrollToLatest(using: proxy)
     }
     .scrollIndicators(.never)
     .blur(radius: panelRequest.making.wrappedValue ? 16 : 0)
@@ -169,13 +226,15 @@ struct ConversationView<Tail: View>: View {
       Composer(
         busy: conversation?.turn != nil, draft: $draft, send: send, stop: stop, startOver: startOver,
         style: scale == .main ? .talk : .companion, attach: scale == .main ? attach : nil, focusRequest: focusRequest,
-        composing: $composing, making: panelRequest.making, made: panelRequest.made, fill: panelRequest.fill
+        making: panelRequest.making, made: panelRequest.made, fill: panelRequest.fill
       )
       .overlay(alignment: .top) {
         if follow.offersLatest {
           LatestButton {
+            scrolling = false
             follow.returned()
-            withAnimation(reduceMotion ? nil : Motion.standard) { position.scrollTo(edge: .bottom) }
+            currentVisit.reading = nil
+            scrollToLatest(using: proxy)
           }
           .offset(y: -(LatestButton.size + Spacing.s))
           .transition(reduceMotion ? .identity : .opacity.combined(with: .scale(scale: 0.8)))
@@ -208,11 +267,27 @@ struct ConversationView<Tail: View>: View {
   }
 
   /// Questions the person has asked; one more means the conversation goes to its end to show the answer.
-  private var questions: Int {
-    let said = (conversation?.entries ?? []).count {
+  private var questions: Int? {
+    guard let conversation else { return nil }
+    let said = conversation.entries.count {
       if case .message(let message) = $0, case .prompt = message.body { true } else { false }
     }
-    return said + (conversation?.turn == nil ? 0 : 1)
+    return said + (conversation.turn == nil ? 0 : 1)
+  }
+
+  private func read(at distance: CGFloat) {
+    follow.scrolled(to: distance)
+    if follow.isOn {
+      currentVisit.reading = nil
+    } else if let visibleRow {
+      currentVisit.reading = visibleRow
+    }
+  }
+
+  private func scrollToLatest(using proxy: ScrollViewProxy) {
+    var transaction = Transaction()
+    transaction.disablesAnimations = true
+    withTransaction(transaction) { proxy.scrollTo(End.latest, anchor: .bottom) }
   }
 
   @ViewBuilder private func view(of row: TalkRow) -> some View {
@@ -236,10 +311,6 @@ struct ConversationView<Tail: View>: View {
       .onHover { pointedAnswer = $0 ? row.reply : nil }
     case .doing(let doing):
       DoingLine(doing: doing, size: scale.fontSize)
-    case .replies(let replies):
-      QuickReplyChips(replies: replies, size: scale.fontSize) { reply in
-        Task { _ = try? await send(reply, nil) }
-      }
     case .ended(let ending):
       BubbleRow(speaker: .loci, scale: scale) { EndedTurn(ending: ending) }
     case .startedOver:

@@ -17,6 +17,7 @@ struct TalkScreen: View {
   let attach: () -> Void
   let opened: (WindowState) -> Void
   let failed: (HostError) -> Void
+  let visit: ConversationVisit
   /// Whether the person left the panels showing.
   @Binding var columnPreferred: Bool
   @AppStorage private var storedLayout: Data
@@ -30,7 +31,8 @@ struct TalkScreen: View {
   /// The chat keeps its layout as it always did; each project keeps its own.
   init(
     home: Home, pinned: Set<String> = [], focusRequest: Int, attach: @escaping () -> Void,
-    opened: @escaping (WindowState) -> Void, failed: @escaping (HostError) -> Void, columnPreferred: Binding<Bool>
+    opened: @escaping (WindowState) -> Void, failed: @escaping (HostError) -> Void, visit: ConversationVisit,
+    columnPreferred: Binding<Bool>
   ) {
     self.home = home
     self.pinned = pinned
@@ -38,6 +40,7 @@ struct TalkScreen: View {
     self.attach = attach
     self.opened = opened
     self.failed = failed
+    self.visit = visit
     _columnPreferred = columnPreferred
     _storedLayout = AppStorage(wrappedValue: Data(), TalkLayout.key + (home.project.map { " \($0)" } ?? ""))
   }
@@ -50,7 +53,7 @@ struct TalkScreen: View {
       ConversationScreen(
         ref: home.conversation, draft: $draft, revealPassage: { if let page = Page($0.content) { openPage(page) } },
         attach: attach,
-        focusRequest: focusRequest, panelRequest: panelRequest
+        focusRequest: focusRequest, panelRequest: panelRequest, visit: visit
       )
     }
     .padding(.top, Size.projectBarRoom)

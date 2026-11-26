@@ -10,6 +10,7 @@ extension FakeHost {
     let empty = Conversation(ref: conversation, entries: [], turn: nil)
     switch conversation {
     case .main:
+      if let chat { return chat }
       if let library { return library.mainConversation(working: working) }
       return (try? sample.chat()) ?? empty
     case .project:

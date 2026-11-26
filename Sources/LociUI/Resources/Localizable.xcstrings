@@ -2092,23 +2092,6 @@
         }
       }
     },
-    "document.more": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "More"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更多"
-          }
-        }
-      }
-    },
     "document.save": {
       "extractionState": "manual",
       "localizations": {

@@ -58,7 +58,7 @@ struct ChatTests {
     #expect(!CodePointer.isOver(block, nil))
   }
 
-  @Test func aFinishedAnswerIsCopiedWithoutTheRepliesItOffers() {
+  @Test func anOldAnswerIsCopiedWithoutItsAnswerBlock() {
     let offer = Self.message(2, .reply("要我存进去吗？\n\n```loci-replies\n好\n```"))
 
     #expect(ConversationEntry.answers(Self.layout([Self.asked, offer], live: false)) == [offer.id: "要我存进去吗？"])

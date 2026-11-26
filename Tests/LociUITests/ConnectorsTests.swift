@@ -9,13 +9,10 @@ import Testing
 @MainActor
 @Suite(.serialized, .onStage)
 struct ConnectorsTests {
-  @Test func aReplyWrittenAsAConnectorsLinkOpensThatConnector() {
-    let answer = QuickAnswer("[重新连接 Notion](loci://connectors/notion)")
-
-    #expect(answer.words == "重新连接 Notion")
-    #expect(answer.place == .connector(ConnectorID("notion")))
-    #expect(QuickAnswer("好的").place == nil)
-    #expect(QuickAnswer("[看看](https://example.com)").place == nil)
+  @Test func aConnectorsLinkInAReplyOpensThatConnector() throws {
+    #expect(ConnectorID(link: try #require(URL(string: "loci://connectors/notion"))) == ConnectorID("notion"))
+    #expect(ConnectorID(link: try #require(URL(string: "https://example.com/connectors/notion"))) == nil)
+    #expect(ConnectorID(link: try #require(URL(string: "loci://notes/notion"))) == nil)
   }
 
   @Test func aCustomMCPAddressHasNoBrandArtwork() {

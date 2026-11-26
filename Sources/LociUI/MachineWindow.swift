@@ -25,6 +25,7 @@ struct MachineWindow: View {
   @State private var panelPictures = PanelPictures()
   @State private var browser: BrowserSession
   @State private var nowPlaying = NowPlaying()
+  @State private var conversationVisits = ConversationVisits()
   @AppStorage(PaneWidth.sidebar.key) private var sidebarWidth = Double(PaneWidth.sidebar.ideal)
   @AppStorage("sidebarShown") private var sidebarPreferred = true
   @AppStorage("panelColumnShown") private var panelColumnPreferred = true
@@ -225,7 +226,8 @@ struct MachineWindow: View {
     case .talk:
       CompanionPage(
         focusRequest: focusRequest, attach: { dialogs.importing = true }, opened: { window = $0 },
-        failed: { dialogs.failure = $0 }, columnPreferred: $panelColumnPreferred, memory: memory
+        failed: { dialogs.failure = $0 }, columnPreferred: $panelColumnPreferred, memory: memory,
+        visits: conversationVisits
       )
       .onAppear(perform: talkShown)
     case .loci:

@@ -113,7 +113,7 @@ extension ConversationEntry {
         default: break
         }
       case .reply(let message, let text, let going):
-        texts.append(QuickReplies(text).text)
+        texts.append(AnswerButtons.removed(from: text))
         last = message.id
         streaming = going
       case .saved, .savedItems:

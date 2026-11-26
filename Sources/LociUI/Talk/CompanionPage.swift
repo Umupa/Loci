@@ -13,6 +13,7 @@ struct CompanionPage: View {
   let failed: (HostError) -> Void
   @Binding var columnPreferred: Bool
   let memory: WindowMemory
+  let visits: ConversationVisits
   @State private var project: Project.ID?
   @State private var recalled = false
   @State private var bar: Feed<ProjectBar>?
@@ -49,7 +50,7 @@ struct CompanionPage: View {
         } else {
           TalkScreen(
             home: home, pinned: Set(openProject?.pinned ?? []), focusRequest: focusRequest, attach: attach,
-            opened: opened, failed: failed, columnPreferred: $columnPreferred
+            opened: opened, failed: failed, visit: visits.visit(for: home), columnPreferred: $columnPreferred
           )
           .id(home)
           .transition(.opacity)
@@ -83,6 +84,7 @@ struct CompanionPage: View {
     }
     .animation(reduceMotion ? nil : Motion.standard, value: notice)
     .animation(reduceMotion ? nil : Motion.standard, value: starting == nil)
+    .showingDocuments(coversPanels: true)
     .subscribing(WatchProjects(), into: $bar)
     .subscribing(WatchNextUps(of: home), into: $nextUps)
     .onChange(of: home) { nextUps = nil }

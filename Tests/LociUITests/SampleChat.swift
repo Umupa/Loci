@@ -19,7 +19,7 @@ extension Sample {
   }
 
   /// A finished answer with a formula and code after a run of tools, a line where it started over, and an
-  /// answer offering replies.
+  /// answer that ends on an offer.
   func chat() throws -> Conversation {
     var entropy = Seeded()
     let messages: [(Double, Message.Body)] = [
@@ -48,7 +48,7 @@ extension Sample {
       (30, .prompt(Prompt(text: "那 lstrip 呢？", purpose: .chat))),
       (31, Self.tool("g", "commandExecution", .execute, "/bin/zsh -lc 'python3 -c \"print(1)\"'")),
       (32, Self.tool("h", "commandExecution", .execute, "/bin/zsh -lc 'false'", state: .failed)),
-      (33, .reply("lstrip 只从左边开始。要我把 rstrip 也对照着写一遍吗？\n\n```loci-replies\n好，写吧\n先不用\n```")),
+      (33, .reply("lstrip 只从左边开始。要我把 rstrip 也对照着写一遍吗？")),
     ]
     return Conversation(
       ref: .main, entries: messages.map { .message(Self.chatMessage($0.0, $0.1, &entropy)) }, turn: nil,

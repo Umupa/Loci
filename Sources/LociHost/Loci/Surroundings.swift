@@ -76,7 +76,7 @@ extension AgentContext {
     guard !waiting.isEmpty else { return nil }
     return TurnContext.ShownFile(
       path:
-        "Connectors that need the person to reconnect them (mention it once; offer [reconnect](loci://connectors/<id>))",
+        "Connectors that need the person to reconnect them (mention it once; link [reconnect](loci://connectors/<id>))",
       text: waiting.joined(separator: "\n"), keep: nil)
   }
 

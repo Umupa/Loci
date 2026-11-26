@@ -23,7 +23,6 @@ struct Composer: View {
   /// first shows.
   var focusRequest = 0
   /// Whether the person has typed anything, for what the conversation offers to send instead.
-  var composing: Binding<Bool> = .constant(false)
   /// Whether the composer asks for a new panel: what is sent then asks Loci to make one, and `made` hears what
   /// was typed once it has been sent.
   var making: Binding<Bool> = .constant(false)
@@ -102,7 +101,6 @@ struct Composer: View {
     .overlay(shape.strokeBorder(Palette.composerEdge, lineWidth: Size.hairline))
     .shadow(color: .black.opacity(0.18), radius: 15, y: 8)
     .onChange(of: draft) { if draft != nil { focused = true } }
-    .onChange(of: trimmed.isEmpty) { composing.wrappedValue = !trimmed.isEmpty }
     .onChange(of: focusRequest) { focused = true }
     .onAppear { if style == .talk { focused = true } }
   }
