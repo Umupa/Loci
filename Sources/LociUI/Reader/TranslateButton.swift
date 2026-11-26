@@ -58,9 +58,10 @@ struct TranslateButton: View {
           face
         }
         .menuStyle(.button)
+        .buttonStyle(.plain)
         .menuIndicator(.hidden)
-        .buttonStyle(PressStyle())
         .fixedSize()
+        .frame(width: Size.iconButton, height: Size.iconButton)
       }
     }
     .onHover { hovering = $0 }

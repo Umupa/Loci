@@ -92,8 +92,7 @@ struct TidyButton: View {
           .stroke(Palette.accent, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
           .rotationEffect(.degrees(-90))
       }
-      Image(systemName: symbol)
-        .font(.system(size: 13, weight: .medium))
+      glyph
         .foregroundStyle(tint)
         .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
     }
@@ -105,11 +104,16 @@ struct TidyButton: View {
     .contentShape(Rectangle())
   }
 
-  private var symbol: String {
+  @ViewBuilder private var glyph: some View {
     switch face {
-    case .tidied: Symbols.done
-    case .failed: Symbols.retry
-    case .ready, .running, .waiting: Symbols.tidy
+    case .tidied:
+      Image(systemName: Symbols.done).font(.system(size: 13, weight: .medium))
+    case .failed:
+      Image(systemName: Symbols.retry).font(.system(size: 13, weight: .medium))
+    case .ready, .running, .waiting:
+      TidyFrame()
+        .stroke(style: StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round))
+        .frame(width: 15, height: 15)
     }
   }
 
@@ -129,5 +133,27 @@ struct TidyButton: View {
     case .failed(let reason): .loci("article.tidyFailed \(reason)")
     case .waiting: .loci("article.tidyWaits")
     }
+  }
+}
+
+/// Corner marks framing tidy lines of text, for formatting an article.
+private struct TidyFrame: Shape {
+  func path(in rect: CGRect) -> Path {
+    let x = { (share: CGFloat) in rect.minX + rect.width * share / 15 }
+    let y = { (share: CGFloat) in rect.minY + rect.height * share / 15 }
+    var path = Path()
+    path.move(to: CGPoint(x: x(2.0), y: y(4.5)))
+    path.addLine(to: CGPoint(x: x(2.0), y: y(2.0)))
+    path.addLine(to: CGPoint(x: x(4.5), y: y(2.0)))
+    path.move(to: CGPoint(x: x(13.0), y: y(10.5)))
+    path.addLine(to: CGPoint(x: x(13.0), y: y(13.0)))
+    path.addLine(to: CGPoint(x: x(10.5), y: y(13.0)))
+    path.move(to: CGPoint(x: x(4.2), y: y(5.0)))
+    path.addLine(to: CGPoint(x: x(10.8), y: y(5.0)))
+    path.move(to: CGPoint(x: x(4.2), y: y(7.6)))
+    path.addLine(to: CGPoint(x: x(10.8), y: y(7.6)))
+    path.move(to: CGPoint(x: x(4.2), y: y(10.2)))
+    path.addLine(to: CGPoint(x: x(8.6), y: y(10.2)))
+    return path
   }
 }

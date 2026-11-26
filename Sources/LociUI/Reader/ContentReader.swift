@@ -196,7 +196,7 @@ struct ContentReader: View {
         .disabled(tidiness?.running ?? false)
       }
     }
-    .padding(.top, Spacing.xs)
+    .padding(.top, Spacing.s)
     .padding(.trailing, panelOpen ? Spacing.s : Spacing.s * 2 + Size.iconButton)
   }
 
