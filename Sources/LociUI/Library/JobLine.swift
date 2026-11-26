@@ -11,7 +11,7 @@ enum JobLine: Equatable {
 
   enum Activity: Equatable {
     case fetching, fetchingPage, extracting, findingCover
-    case downloading, recognizing, separatingSpeakers, translating, outlining, queued
+    case downloading, recognizing, separatingSpeakers, translating, outlining, tidying, queued
   }
 
   enum Fix: Equatable {
@@ -80,6 +80,7 @@ enum JobLine: Equatable {
     case .diarize: .separatingSpeakers
     case .translate: .translating
     case .outline: .outlining
+    case .tidy: .tidying
     }
   }
 }

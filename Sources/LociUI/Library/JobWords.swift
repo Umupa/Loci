@@ -13,6 +13,7 @@ extension JobLine.Activity {
     case .separatingSpeakers: .loci("job.separatingSpeakers")
     case .translating: .loci("job.translating")
     case .outlining: .loci("job.outlining")
+    case .tidying: .loci("job.tidying")
     case .queued: .loci("job.queued")
     }
   }
@@ -68,6 +69,7 @@ extension JobLine.Problem {
       case .diarize: .loci("job.failedSeparateSpeakers")
       case .translate: .loci("job.failedTranslate")
       case .outline: .loci("job.failedOutline")
+      case .tidy: .loci("job.failedTidy")
       }
     }
   }

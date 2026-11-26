@@ -10,6 +10,9 @@ public protocol TranscriptAgent: Sendable {
   func outline(_ transcript: Transcript, title: String) async throws(HostError) -> Outline
   /// One translation per passage of an article, in order, each still Markdown.
   func translate(passages: [String], into language: String) async throws(HostError) -> [String]
+  /// A piece of an article's Markdown tidied: the site's leftovers gone, headings, code and captions set right,
+  /// in the same language, with every picture, code block and link it had.
+  func tidy(_ piece: String, title: String) async throws(HostError) -> String
   /// Within `count.range`, or as many as there are sentences or passages when there are fewer; in order.
   func keyPoints(of source: KeyPointSource, count: KeyPointCount, for reader: KeyPointReader)
     async throws(HostError) -> [KeyPoint]

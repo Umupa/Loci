@@ -19,7 +19,7 @@ struct JobRun: Sendable {
     }
     var page: ArticlePage?
     var last = first
-    var next = Self.stage(in: stages(of: current), from: first, after: false)
+    var next = Self.stage(in: stages(of: current, from: first), from: first, after: false)
     while let stage = next {
       if Task.isCancelled { return }
       await queue.report(item, stage: stage, state: .running(progress: nil))
@@ -38,13 +38,14 @@ struct JobRun: Sendable {
       last = stage
       guard let now = try? context.store.item(item) else { break }
       current = now
-      next = Self.stage(in: stages(of: current), from: stage, after: true)
+      next = Self.stage(in: stages(of: current, from: first), from: stage, after: true)
     }
     await queue.report(item, stage: last, state: .done)
   }
 
-  private func stages(of item: Item) -> [Job.Stage] {
-    Job.Stage.all(for: item, choice: context.choice(of: item.id))
+  /// Tidying is a job of its own, asked for after the text is in.
+  private func stages(of item: Item, from first: Job.Stage) -> [Job.Stage] {
+    first == .tidy ? [.tidy] : Job.Stage.all(for: item, choice: context.choice(of: item.id))
   }
 
   /// The stage of `stages` at `stage`, or the one after it. A stage the item no longer goes through, such
@@ -74,6 +75,7 @@ struct JobRun: Sendable {
     case .translate:
       if current.kind == .article { try await translateArticle(current) } else { try await translate(current) }
     case .outline: try await outline(current)
+    case .tidy: try await tidyArticle(current)
     }
   }
 
@@ -106,7 +108,7 @@ struct JobRun: Sendable {
     return nil
   }
 
-  private static func isFinished(_ stage: Job.Stage, of item: Item, in store: Store) throws -> Bool {
+  static func isFinished(_ stage: Job.Stage, of item: Item, in store: Store) throws -> Bool {
     switch stage {
     case .resolve:
       return try store.mediaFile(of: item.id) != nil || store.workFile(named: info, of: item.id) != nil
@@ -136,6 +138,8 @@ struct JobRun: Sendable {
     case .outline:
       guard let transcript = try store.transcript(of: item.id), !transcript.segments.isEmpty else { return true }
       return try store.outline(of: item.id) != nil
+    case .tidy:
+      return true
     }
   }
 }

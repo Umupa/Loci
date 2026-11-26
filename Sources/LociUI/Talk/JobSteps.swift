@@ -5,7 +5,7 @@ import SwiftUI
 /// text out of a page are one step to the person: fetching.
 enum JobSteps {
   enum Step: Equatable {
-    case fetch, extract, cover, download, recognize, diarize, translate, outline
+    case fetch, extract, cover, download, recognize, diarize, translate, outline, tidy
 
     init(_ stage: Job.Stage, separateArticleStages: Bool = false) {
       switch stage {
@@ -17,6 +17,7 @@ enum JobSteps {
       case .diarize: self = .diarize
       case .translate: self = .translate
       case .outline: self = .outline
+      case .tidy: self = .tidy
       }
     }
 
@@ -30,6 +31,7 @@ enum JobSteps {
       case .diarize: .loci("job.separatingSpeakers")
       case .translate: .loci("job.translating")
       case .outline: .loci("job.outlining")
+      case .tidy: .loci("job.tidying")
       }
     }
   }

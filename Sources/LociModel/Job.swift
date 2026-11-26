@@ -46,6 +46,8 @@ public struct Job: Hashable, Codable, Sendable {
     case translate
     /// Finds chapters; key points are picked when the reader asks.
     case outline
+    /// Tidies an article's text, only when the reader asks.
+    case tidy
   }
 
   public enum State: Hashable, Codable, Sendable {

@@ -27,6 +27,13 @@ struct TranscriptWriting: TranscriptAgent {
     }
   }
 
+  func tidy(_ piece: String, title: String) async throws(HostError) -> String {
+    try await answer(TidyPrompt.request(for: piece, title: title), piece: 1, of: 1) {
+      reply throws(TranscriptAnswerError) in
+      try TidyPrompt.markdown(in: reply)
+    }
+  }
+
   func outline(_ transcript: Transcript, title: String) async throws(HostError) -> Outline {
     var chapters: [Outline.Chapter] = []
     let pieces = Batches.pieces(of: transcript.segments, size: outlinePiece)

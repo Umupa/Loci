@@ -76,6 +76,7 @@ struct StageRuler: View {
     case .diarize: 1.5
     case .translate: 1.4
     case .outline: 1
+    case .tidy: 1
     }
   }
 
@@ -235,6 +236,7 @@ extension Job.Stage {
     case .diarize: .loci("stage.diarize")
     case .translate: .loci("stage.translate")
     case .outline: .loci("stage.outline")
+    case .tidy: .loci("stage.tidy")
     }
   }
 }

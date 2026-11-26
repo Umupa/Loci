@@ -30,7 +30,7 @@ public enum Wire {
     .writes(DeleteNote.self),
     .reads(DataLocation.self),
     .writes(RetryJob.self), .writes(PauseJob.self), .writes(StopSaving.self), .reads(ListJobs.self),
-    .writes(TranslateArticle.self),
+    .writes(TranslateArticle.self), .writes(TidyArticle.self),
     .writes(RenameSpeaker.self), .reads(ReadMediaPage.self), .reads(ReadPlayback.self), .reads(ReadMediaSetup.self),
     .reads(DetectComponents.self), .writes(InstallComponent.self),
     .writes(DownloadSpeechModel.self), .writes(DeleteSpeechModel.self), .writes(SetSpeechModel.self),

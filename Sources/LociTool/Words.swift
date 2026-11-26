@@ -70,6 +70,7 @@ enum Words {
     case .diarize: "separating speakers"
     case .translate: "translating"
     case .outline: "finding chapters"
+    case .tidy: "tidying the article"
     }
   }
 

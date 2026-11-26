@@ -31,6 +31,10 @@ struct ModelTranscriptAgent: TranscriptAgent {
     try await writing.translate(input, using: prompt)
   }
 
+  func tidy(_ piece: String, title: String) async throws(HostError) -> String {
+    try await writing.tidy(piece, title: title)
+  }
+
   func outline(_ transcript: Transcript, title: String) async throws(HostError) -> Outline {
     try await writing.outline(transcript, title: title)
   }

@@ -12,6 +12,7 @@ struct ContentReader: View {
   @Environment(\.standIns) private var standIns
   @Environment(\.changesAllowed) private var changesAllowed
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.showFailure) private var showFailure
   let content: ContentRef
   /// The item being read, for the thought on the whole of it; `nil` for a lesson.
   let item: Item?
@@ -26,6 +27,8 @@ struct ContentReader: View {
   let pane: PaneWidth
   /// The article's translation, when it is in another language than the reader's.
   let language: ArticleLanguage?
+  /// Where tidying the article stands; `nil` for text that is not an article.
+  let tidiness: ArticleTidiness?
   let openingQuote: TextQuote?
   let placeholder: FetchingItem?
   /// The number of the source a link cites, for text whose links to its sources are citations.
@@ -60,13 +63,15 @@ struct ContentReader: View {
   init(
     content: ContentRef, item: Item? = nil, title: String?, markdown: String, byline: NSAttributedString? = nil,
     images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel, language: ArticleLanguage? = nil,
-    openingQuote: TextQuote? = nil, placeholder: FetchingItem? = nil, cite: ((URL) -> Int?)? = nil,
+    tidiness: ArticleTidiness? = nil, openingQuote: TextQuote? = nil, placeholder: FetchingItem? = nil,
+    cite: ((URL) -> Int?)? = nil,
     showsProgress: Bool = false, renderMermaid: @escaping MermaidRenderer.Render = MermaidRenderer.render
   ) {
     self.cite = cite
     self.showsProgress = showsProgress
     self.renderMermaid = renderMermaid
     self.language = language
+    self.tidiness = tidiness
     self.openingQuote = openingQuote
     self.placeholder = placeholder
     self.byline = byline
@@ -167,14 +172,28 @@ struct ContentReader: View {
     }
   }
 
-  /// The top corner over the text: playing only the key points, and translating.
+  /// The top corner over the text: playing only the key points, tidying and translating. One of the two waits
+  /// while the other runs.
   private var corner: some View {
     HStack(spacing: Spacing.xs) {
       if !points.isEmpty { OnlyKeyPointsButton(on: $onlyKeyPoints) }
+      if let tidiness, !onlyKeyPoints {
+        TidyButton(progress: tidiness.progress, translating: language?.running ?? false) {
+          guard let itemID else { return }
+          Task {
+            do throws(HostError) {
+              _ = try await host.run(TidyArticle(item: itemID))
+            } catch {
+              showFailure(error)
+            }
+          }
+        }
+      }
       if let language, !onlyKeyPoints {
         TranslateButton(language: language, mode: $mode) {
           if let itemID { Task { _ = try? await host.run(TranslateArticle(item: itemID)) } }
         }
+        .disabled(tidiness?.running ?? false)
       }
     }
     .padding(.top, Spacing.xs)

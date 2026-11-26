@@ -6,6 +6,10 @@ struct ArticleLanguage: Equatable {
   let translation: ArticleTranslation?
   let progress: TranslationProgress?
 
+  var running: Bool {
+    if case .running = progress { true } else { false }
+  }
+
   /// The translation to set the text with in `mode`, once any of it has arrived.
   func shown(_ mode: SubtitleMode, order: SubtitleStyle.BilingualOrder) -> ShownTranslation? {
     translation.map { ShownTranslation(passages: $0.bySource, mode: mode, order: order) }
@@ -37,7 +41,7 @@ struct TranslateButton: View {
           face
         }
         .buttonStyle(PressStyle())
-        .disabled(running)
+        .disabled(language.running)
       } else {
         Menu {
           Picker(selection: $mode) {
@@ -88,10 +92,6 @@ struct TranslateButton: View {
     .frame(width: Size.iconButton, height: Size.iconButton)
     .background(RoundedRectangle(cornerRadius: Radius.row).fill(hovering ? Palette.fillStrong : .clear))
     .contentShape(Rectangle())
-  }
-
-  private var running: Bool {
-    if case .running = language.progress { true } else { false }
   }
 
   private var failed: Bool {
