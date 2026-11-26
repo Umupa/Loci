@@ -94,7 +94,8 @@ extension ConversationScreen where Tail == EmptyView {
 ///
 /// Each row is its own view keyed by its message and part, so a reply that grows while it streams redraws
 /// only its last bubble. What was said before the running turn is laid out once, not again as the reply
-/// grows.
+/// grows. The scroll view is made again once the conversation arrives, so it opens at the latest message
+/// measured, not where the lazy stack guessed its rows would end.
 struct ConversationView<Tail: View>: View {
   let conversation: Conversation?
   @Binding var draft: PassageDraft?
@@ -139,6 +140,7 @@ struct ConversationView<Tail: View>: View {
     ScrollViewReader { proxy in
       scroll(using: proxy)
     }
+    .id(conversation != nil)
   }
 
   private func scroll(using proxy: ScrollViewProxy) -> some View {
