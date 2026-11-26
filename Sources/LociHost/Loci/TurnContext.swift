@@ -51,7 +51,9 @@ struct TurnContext: Sendable {
       lines += runs
     }
     if !followUps.isEmpty {
-      lines.append("Follow-ups you set came due; tell the person what came of each:")
+      lines.append(
+        "Follow-ups you set came due; what each that was done found was already said where it was set, so do not"
+          + " say it again; tell the person of any not done:")
       lines += followUps
     }
     var remembered = shown

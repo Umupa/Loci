@@ -149,4 +149,31 @@ struct RunTableTests {
       #expect(throws: (any Error).self) { try store.saveRunRecord("x", at: "../MEMORY.md") }
     }
   }
+
+  @Test func aRunIsClosedWithWhatWasSaidOfItOrNotAtAll() throws {
+    let database = try StoreDatabase.inMemory()
+    let event = InboxTests.event(10, .followUp(Fixture.id(1), project: nil))
+    try database.raise(event)
+    let session = SessionRecord(
+      id: Fixture.id(30), owner: .conversation(.main), runtime: Runtime(provider: .codex), instructions: "",
+      startedAt: InboxTests.at(0))
+    try database.start(session)
+    let running = Self.run(20, Run.Timed(event.source), minutes: 0, .running(tries: 0))
+    try database.saveRun(running)
+    let finished = running.with(.finished(summary: "看过了。", sources: []))
+    let line = Message(id: Fixture.id(40), at: InboxTests.at(1), body: .told("看过了。"))
+    try database.append([line], to: session.id)
+
+    #expect(throws: (any Error).self) {
+      try database.close(finished, events: [event.with(.done(running.id))], saying: (line, session.id))
+    }
+    #expect(try database.run(running.id)?.outcome == .running(tries: 0))
+    #expect(try database.event(event.id)?.state == event.state)
+
+    let again = Message(id: Fixture.id(41), at: InboxTests.at(1), body: .told("看过了。"))
+    try database.close(finished, events: [event.with(.done(running.id))], saying: (again, session.id))
+    #expect(try database.run(running.id)?.outcome == finished.outcome)
+    #expect(try database.event(event.id)?.state == .done(running.id))
+    #expect(try database.messages(of: .conversation(.main)).map(\.id) == [line.id, again.id])
+  }
 }

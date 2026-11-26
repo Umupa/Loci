@@ -8,7 +8,7 @@ struct TurnRecordTests {
   private let at = TestWorld.instant
 
   private func record(_ world: TestWorld) -> TurnRecord {
-    TurnRecord(prompt: Prompt(text: "Hi", purpose: .chat), at: at, newID: { world.nextID() })
+    TurnRecord(prompt: Prompt(text: "Hi", purpose: .chat), at: at, id: world.nextID(), newID: { world.nextID() })
   }
 
   @Test func streamedChunksKeepTheMessageIdentityAndStartTime() throws {

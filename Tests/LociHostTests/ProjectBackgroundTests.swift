@@ -13,7 +13,7 @@ struct ProjectBackgroundTests {
 
   static var agent: FakeAgent {
     FakeAgent(provider: .codex) { prompt in
-      if prompt.hasPrefix(Background.lookInto) { return .reply(found) }
+      if prompt.hasPrefix(Background.lookInto) || prompt.hasPrefix(Background.followUp) { return .reply(found) }
       if prompt.hasPrefix("It is the end of") { return .reply("Done.") }
       return .reply("好")
     }
@@ -52,6 +52,100 @@ struct ProjectBackgroundTests {
     }
   }
 
+  @Test func aProjectsFollowUpIsToldItMayPutACardAndTheCardIsTheProjects() async throws {
+    let agent = FakeAgent(provider: .codex) { prompt in
+      if prompt.hasPrefix(Background.followUp) { return .hang }
+      return .reply("好")
+    }
+    try await withHost(agent: agent) { host, place, world in
+      let project = try await ProjectScenarioTests.start(host)
+      let inProject = LocalSession.conversation(.project(project))
+      _ = await Background.call(AddFollowUp(.after(minutes: 2), "看看纳指，放一张卡"), from: inProject, on: host)
+      world.advance(minutes: 2)
+      world.tick()
+
+      let run = try await Background.runSession(world)
+      for _ in 0..<500 where Background.prompts(world, starting: Background.followUp).isEmpty {
+        try await Task.sleep(for: .milliseconds(10))
+      }
+      let prompt = try #require(world.agent.prompts.last { $0.hasPrefix(Background.followUp) })
+      #expect(prompt.contains("next add"))
+      #expect(world.agent.opened.last?.workingDirectory == place.store.home(.project(project)).folder)
+      let card = await Background.call(AddNextUp("纳指回撤到二十日线", asking: "要加仓吗"), from: .run(run), on: host)
+      guard case .value(let data)? = card else { throw HostError.invalidRequest("\(String(describing: card))") }
+      #expect(try JSONDecoder().decode(NextUp.self, from: data).home == .project(project))
+      #expect(try await host.nextUps(of: .project(project)).map(\.what) == ["纳指回撤到二十日线"])
+      #expect(try await host.nextUps(of: .chat).map(\.what) == ["纳指回撤到二十日线"])
+    }
+  }
+
+  @Test func whatAProjectsFollowUpFoundIsToldOnlyInTheProject() async throws {
+    try await withHost(agent: Self.agent) { host, _, world in
+      let project = try await ProjectScenarioTests.start(host)
+      let inProject = LocalSession.conversation(.project(project))
+      _ = await Background.call(AddFollowUp(.after(minutes: 2), "看看纳指"), from: inProject, on: host)
+      world.advance(minutes: 2)
+      world.tick()
+      for _ in 0..<500 where Background.prompts(world, starting: Background.followUp).isEmpty {
+        try await Task.sleep(for: .milliseconds(10))
+      }
+      _ = await value(host.subscribe(LociWorking())) { $0.work == nil }
+
+      _ = try await host.run(SendMessage(to: .main, text: "后台做了什么"))
+      _ = try #require(await settled(host))
+      #expect(world.agent.prompts.last?.contains(Self.found) == false)
+      _ = try await host.run(SendMessage(to: .project(project), text: "后台做了什么"))
+      _ = try #require(await settled(host, .project(project), prompts: 2))
+      #expect(world.agent.prompts.last?.contains(Self.found) == true)
+    }
+  }
+
+  @Test func aFollowUpThatFinishesSaysWhatItFoundInItsConversationAtOnce() async throws {
+    try await withHost(agent: Self.agent) { host, _, world in
+      let project = try await ProjectScenarioTests.start(host)
+      _ = await Background.call(
+        AddFollowUp(.after(minutes: 2), "看看纳指"), from: .conversation(.project(project)), on: host)
+      _ = await Background.call(AddFollowUp(.after(minutes: 2), "看看日元"), from: .conversation(.main), on: host)
+      world.advance(minutes: 2)
+      world.tick()
+
+      let told = { @Sendable (conversation: ConversationRef) in
+        ((try? host.database.messages(of: .conversation(conversation))) ?? []).filter { $0.body == .told(Self.found) }
+      }
+      for _ in 0..<500 where told(.project(project)).isEmpty || told(.main).isEmpty {
+        try await Task.sleep(for: .milliseconds(10))
+      }
+
+      #expect(told(.project(project)).count == 1)
+      #expect(told(.main).count == 1)
+    }
+  }
+
+  @Test func aScheduleAndAFollowUpThatFailedSayNothingInTheConversation() async throws {
+    let agent = FakeAgent(provider: .codex) { prompt in
+      if prompt.hasPrefix(Background.lookInto) { return .reply(Self.found) }
+      if prompt.hasPrefix(Background.followUp) { return .fail("no network") }
+      return .reply("好")
+    }
+    try await withHost(agent: agent) { host, _, world in
+      let project = try await ProjectScenarioTests.start(host)
+      let entry = try await Self.addSchedule(in: project, on: host)
+      _ = await Background.call(
+        AddFollowUp(.after(minutes: 60), "看看纳指"), from: .conversation(.project(project)), on: host)
+      world.advance(minutes: 60)
+      world.tick()
+      _ = try #require(await Background.runs(of: entry.ref, on: host, where: Background.finished)?.first)
+      for _ in 0..<500 where try host.database.openEvents().contains(where: { $0.source.home == .project(project) }) {
+        world.advance(minutes: 20)
+        world.tick()
+        try await Task.sleep(for: .milliseconds(20))
+      }
+
+      let messages = try host.database.messages(of: .conversation(.project(project)))
+      #expect(!messages.contains { if case .told = $0.body { true } else { false } })
+    }
+  }
+
   static func id(_ seed: UInt64) -> EntityID {
     var entropy = SeededGenerator(seed: seed)
     return EntityID(at: Date(timeIntervalSince1970: 1_763_337_600 + Double(seed)), entropy: &entropy)
@@ -61,9 +155,11 @@ struct ProjectBackgroundTests {
     let due = Timestamp(millisecondsSince1970: 1_763_337_600_000)
     let chat = Event(id: Self.id(1), source: .schedule(Self.id(2), project: nil), due: due)
     let other = Event(id: Self.id(3), source: .schedule(Self.id(4), project: Self.id(40)), due: due)
-    let same = Event(id: Self.id(5), source: .followUp(Self.id(6), project: nil), due: due)
+    let same = Event(id: Self.id(5), source: .schedule(Self.id(6), project: nil), due: due)
+    let followUp = Event(id: Self.id(7), source: .followUp(Self.id(8), project: nil), due: due)
 
-    #expect(Worker.together([chat, other, same], first: chat) == [chat, same])
+    #expect(Worker.together([chat, other, same, followUp], first: chat) == [chat, same])
+    #expect(Worker.together([followUp, chat, same], first: followUp) == [followUp])
   }
 
   @Test func anArchivedProjectsSchedulesDoNotComeDue() async throws {

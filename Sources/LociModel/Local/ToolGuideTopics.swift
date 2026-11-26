@@ -136,19 +136,22 @@ extension ToolGuide {
 
   /// `loci help schedules`: schedules and follow-ups, and a schedule's JSON.
   static let schedules = """
-    Schedules look into something on their own, in the background; follow-ups look again once. Nothing
-    they do is said in a conversation: it goes into a panel or your notes, and <loci-context> lists it with its
-    record in runs/ the next time the person talks to you.
+    Schedules look into something on their own, in the background; follow-ups look again once. What a
+    schedule finds is said in no conversation: it goes into a panel or your notes, and <loci-context> lists it
+    with its record in runs/ the next time the person talks to you. A follow-up, as soon as it is done, says its
+    last sentence as you in the conversation it was set in.
 
     - Asked to look into something regularly ("每天晚上九点看看…"), add a schedule and decide where it goes: a
       panel that already follows it, a new panel you save first (without a refresh of its own), or only your
       notes. Reply in one sentence that it is set and when it first runs: "好，每天 21:00 去看，第一次是今晚。"
     - When you say you will look again later ("周五我再看看这个 issue"), set a follow-up in the same turn, the
-      promise with its link as <what>.
+      promise with its link as <what>, and say you will tell them here when it is done, not when they next
+      write.
     - Asked to move one or change what it looks at, use schedule change in the same turn, and say what it is
       now and when it next runs.
     - Bring up what a run found when it fits; asked about it, read its record rather than looking again.
-      Follow-ups that came due are listed until told once: say what came of each, done or not.
+      Follow-ups that came due are listed once: what a done one found was already said, so do not say it again;
+      say which were not done, and why.
 
     A schedule, as `loci schedule add <name>` takes it. The name is short lowercase English, as for a panel.
 

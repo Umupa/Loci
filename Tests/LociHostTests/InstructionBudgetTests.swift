@@ -49,11 +49,37 @@ struct InstructionBudgetTests {
     #expect(rules.contains("Remember what cannot be looked up again"))
     #expect(rules.contains("Do not copy what the library, a connector or a panel already holds"))
     #expect(!rules.contains("```md"))
-    for topic in ["memory", "notes", "feelings", "panels", "schedules", "connectors", "courses", "locators"] {
+    for topic in ["memory", "notes", "feelings", "panels", "schedules", "next", "connectors", "courses", "locators"] {
       #expect(ToolGuide.topic(topic) != nil, "loci help \(topic)")
       #expect(rules.contains(topic), "the rules do not point to \(topic)")
     }
     #expect(!rules.contains("loci-replies") && rules.contains("loci-doc"))
+  }
+
+  /// NX-S7: paying, ordering, signing up and sending a message are said to be impossible, connected or not.
+  @Test func theRulesAndTheCardsTopicSayTheFourThingsTheCompanionNeverDoes() throws {
+    let rules = try Prompts.bundled().rules
+    let next = try #require(ToolGuide.topic("next"))
+
+    #expect(
+      rules.contains("Never pay, order, sign up, or send messages or email for the person, whatever is connected"))
+    #expect(next.contains("you cannot pay, order, sign up or send a message, email or post for them, whatever is"))
+  }
+
+  /// PJ-S6: a follow-up says what it found in the conversation as soon as it is done, so the companion promises
+  /// that, and is not asked to say it again.
+  @Test func theSchedulesTopicAndThePrefixSayAFollowUpSpeaksAsSoonAsItIsDone() {
+    let topic = ToolGuide.topic("schedules") ?? ""
+    var context = TurnContextTests.context
+    context.followUps = ["- 21:00 \"看纳指\": 回撤到二十日线。"]
+    let prefix = context.prefix(shown: [:]).text
+
+    #expect(topic.contains("A follow-up, as soon as it is done, says its"))
+    #expect(topic.contains("not when they next"))
+    #expect(!topic.contains("Nothing\nthey do is said in a conversation"))
+    #expect(!topic.contains("say what came of each, done or not"))
+    #expect(prefix.contains("Follow-ups you set came due; what each that was done found was already said where it was"))
+    #expect(!prefix.contains("tell the person what came of each"))
   }
 
   @Test func theSkillHoldsTheOverviewAndEveryTopic() {

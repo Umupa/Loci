@@ -26,8 +26,15 @@ actor Worker {
     var panels: Set<String>
     var agent: AgentRun?
     var stopped = false
+    /// Its home was archived or deleted, or for a review kept out of memory: its events wait to be done again.
+    var closed = false
+    /// The run's hold on its home; once it no longer holds, the run writes nothing there. `nil` for the moment
+    /// before it is taken.
+    var ticket: HomeTicket?
     /// What the app worked out for a daily review.
     var brief: ReviewBrief?
+    /// For a repair, the one source it may save, granted as the run started.
+    var repair: RepairGrant?
 
     var policy: RunPolicy {
       switch run.kind {
@@ -46,9 +53,24 @@ actor Worker {
     var home: Home { run.kind.home }
   }
 
-  init(context: AgentContext, talking: @escaping @Sendable () async -> Bool) {
+  /// Says a line as the companion in a conversation, on its own.
+  let tell: @Sendable (String, ConversationRef) async -> Void
+  /// Says a line as the companion in a conversation as the message with the id, kept in the same write as what
+  /// it is given to keep with it: see `LociAgent.say`.
+  let say: Say
+
+  typealias Say = @Sendable (String, ConversationRef, EntityID, @escaping LociAgent.Closing) async throws(HostError) ->
+    Void
+
+  init(
+    context: AgentContext, talking: @escaping @Sendable () async -> Bool,
+    tell: @escaping @Sendable (String, ConversationRef) async -> Void = { _, _ in },
+    say: @escaping Say = { _, _, _, closing throws(HostError) in try attempt { try closing(nil) } }
+  ) {
     self.context = context
     self.talking = talking
+    self.tell = tell
+    self.say = say
   }
 
   /// What the run under way is doing, for the line under the companion's name.
@@ -77,12 +99,16 @@ actor Worker {
     current.flatMap { $0.run.id == run && !$0.stopped ? $0.policy : nil }
   }
 
-  /// The source the run mends, while it is under way.
-  func repairing(in run: Run.ID) -> SourceKey? {
-    guard let current, current.run.id == run, !current.stopped, case .timers(let timed) = current.run.kind else {
-      return nil
-    }
-    return timed.first.repair
+  /// Whether the run's home was closed under it: its session may do nothing more.
+  func isClosed(_ run: Run.ID) -> Bool {
+    current.map { $0.run.id == run && $0.closed } ?? false
+  }
+
+  /// What the run's session may touch, read at once: its policy, its home, and for a repair what it may save.
+  /// `nil` once the run is over.
+  func access(of run: Run.ID) -> RunAccess? {
+    guard let current, current.run.id == run, !current.stopped else { return nil }
+    return RunAccess(policy: current.policy, home: current.home, repair: current.repair)
   }
 
   /// Whether the run may save the panel now.
@@ -105,20 +131,52 @@ actor Worker {
     self.current = current
   }
 
+  /// The home was archived or deleted: the run under way there stops, and its events wait for the home to open
+  /// again.
+  func homeClosed(_ home: Home) {
+    guard var current, current.home == home else { return }
+    stop(&current)
+  }
+
+  /// The project was kept out of memory: its review under way stops, and waits for it to be remembered again.
+  func reviewStopped(in home: Home) {
+    guard var current, current.home == home, current.policy == .review else { return }
+    stop(&current)
+  }
+
+  private func stop(_ current: inout Current) {
+    current.stopped = true
+    current.closed = true
+    if let agent = current.agent { Task { await agent.stop() } }
+    self.current = current
+  }
+
+  /// Returns once no run of the home is under way.
+  func quiet(_ home: Home) async {
+    while let current, current.home == home, let work { await work.value }
+  }
+
   /// Starts the next run when one can start. Returns at once; the run goes on in the background.
   func consider() async {
     guard current == nil, !closing else { return }
     let busy = await talking()
     guard current == nil, !closing else { return }
     let now = context.environment.now()
+    let leaving = await context.life.projectsLeaving
+    guard current == nil, !closing else { return }
     let ready = ((try? context.database.openEvents()) ?? []).filter { event in
+      if let project = event.source.home.project, leaving.contains(project) { return false }
       guard case .waiting(let retry) = event.state else { return false }
       return retry?.notBefore.map { $0 <= now } ?? true
     }
     let wanted = ready.filter { event in
-      if context.isWanted(event) { return true }
-      try? context.database.update(event.with(.dropped))
-      return false
+      switch context.isWanted(event) {
+      case .now: return true
+      case .later: return false
+      case .never:
+        try? context.database.update(event.with(.dropped))
+        return false
+      }
     }
     if let asked = wanted.first(where: \.isAsked) {
       await start([asked], at: now)
@@ -128,7 +186,7 @@ actor Worker {
   }
 
   /// The events that share a run with `first`: those of its home raised for the first time, due in the same
-  /// minute. A review, a repair, and a run being tried again, run alone.
+  /// minute. A review, a repair, a follow-up, and a run being tried again, run alone.
   static func together(_ events: [Event], first: Event) -> [Event] {
     guard case .waiting(nil) = first.state, !first.runsAlone else { return [first] }
     let minute = first.due.millisecondsSince1970 / 60_000
@@ -153,22 +211,35 @@ actor Worker {
     let run = (begun ?? Run(id: id, kind: kind, startedAt: now, outcome: .running(tries: tries), record: record))
       .with(.running(tries: tries))
     let titles = events.map { context.title(of: $0.source) }
+    let repair = context.repairGrant(of: kind, run: id)
     current = Current(
-      run: run, events: events, tries: tries, title: titles.joined(separator: "、"), panels: context.panels(of: kind))
+      run: run, events: events, tries: tries, title: titles.joined(separator: "、"), panels: context.panels(of: kind),
+      ticket: nil, repair: repair)
+    if let repair { await context.commits.open(repair) }
     try? context.database.saveRun(run)
     for event in events { try? context.database.update(event.with(.running(id, tries: tries))) }
-    if begun == nil {
-      let header = RunRecord.header(
-        run, events: events.map { context.describe($0) }, tries: tries, in: context.environment.timeZone)
-      try? context.store.saveRunRecord(header, at: run.record)
-    }
+    let ticket = await context.ticket(for: kind.home)
+    current?.ticket = ticket
     let panels = refreshingPanels
-    if !panels.isEmpty {
-      _ = try? context.store.home(kind.home).changePanelState { state in
-        for panel in panels { state.refreshed[panel.name] = now }
+    let opened = await context.steadily {
+      guard await context.holds(ticket) else { return false }
+      if begun == nil {
+        let header = RunRecord.header(
+          run, events: events.map { context.describe($0) }, tries: tries, in: context.environment.timeZone)
+        try? context.store.saveRunRecord(header, at: run.record)
       }
+      if !panels.isEmpty {
+        _ = try? context.store.home(kind.home).changePanelState { state in
+          for panel in panels { state.refreshed[panel.name] = now }
+        }
+      }
+      return true
     }
-    if case .review(let day, let project) = kind {
+    if !opened {
+      current?.stopped = true
+      current?.closed = true
+    }
+    if opened, case .review(let day, let project) = kind {
       if project == nil, (try? context.database.review(of: day)) == nil {
         try? context.database.beginReview(of: day, at: now)
       }
@@ -185,6 +256,7 @@ actor Worker {
     let result: RunResult
     var usage: ContextUsage?
     do throws(HostError) {
+      guard current?.stopped != true else { throw .invalidRequest(ToolGateway.stopped) }
       let owner: SessionOwner = if case .review(let day, nil) = run.kind { .review(day) } else { .run(run.id) }
       let agent = try AgentRun(owner: owner, home: run.kind.home, session: .run(run.id), context: context)
       current?.agent = agent
@@ -206,26 +278,53 @@ actor Worker {
     await finish(run.with(usage: usage), result)
   }
 
-  private func finish(_ run: Run, _ result: RunResult) async {
+  private func finish(_ run: Run, _ said: RunResult) async {
     guard let current else { return }
+    let mended = if let repair = current.repair { await context.commits.close(repair) } else { false }
+    let result = judged(said, of: current, mended: mended)
+    let isReview = current.run.kind.sources.contains { if case .review = $0 { true } else { false } }
+    if closing {
+      if case .review(let day, nil) = run.kind { try? context.database.forgetReview(of: day) }
+      if isReview { try? context.store.home(run.kind.home).setMemoryWritable(false) }
+      return
+    }
+    await context.steadily { await self.keep(run, result, of: current) }
+    self.current = nil
+    work = nil
+    await context.follower.follow(changes(of: run.kind))
+    await consider()
+  }
+
+  /// Keeps what the run came to, with no project closing or moving meanwhile. A run whose home closed under it,
+  /// or a review of a project kept out of memory since, keeps nothing in the home and leaves its events to be
+  /// done again. A repair that mended its source and a follow-up that finished say how it went in their
+  /// conversation.
+  private func keep(_ run: Run, _ result: RunResult, of current: Current) async {
     let database = context.database
     let now = context.environment.now()
     let isReview = current.run.kind.sources.contains { if case .review = $0 { true } else { false } }
     let review: Day? = if case .review(let day, nil) = run.kind { day } else { nil }
-    if closing {
+    let tries = current.tries + 1
+    let holds = if let ticket = current.ticket { await context.holds(ticket) } else { false }
+    let forgotten = if case .review(_, let project?) = run.kind { !context.isRemembered(project) } else { false }
+    guard !current.closed, holds, !forgotten else {
+      if isReview, context.isThere(run.kind.home) { try? context.store.home(run.kind.home).setMemoryWritable(false) }
+      try? database.saveRun(run.with(.failed("stopped: its project was closed", tries: tries)))
+      for event in current.events { try? database.update(event.with(.waiting(nil))) }
       if let review { try? database.forgetReview(of: review) }
-      if isReview { try? context.store.home(run.kind.home).setMemoryWritable(false) }
       return
     }
-    let tries = current.tries + 1
     var record = (try? context.store.runRecord(at: run.record)).flatMap(\.self) ?? ""
     if isReview { tidyMemory(of: run.kind.home, after: result, brief: current.brief) }
+    let (result, said) = await sayWhatItFound(run, result, of: current)
     switch result {
     case .finished(let reply, let sources):
       let summary = RunResult.summary(of: reply)
-      try? database.saveRun(run.with(.finished(summary: summary, sources: sources)))
-      markFed(current.panels, of: run)
-      for event in current.events { try? database.update(event.with(.done(run.id))) }
+      if !said {
+        if current.repair != nil { await tell(summary, run.kind.home.conversation) }
+        try? database.close(
+          run.with(.finished(summary: summary, sources: sources)), events: current.events.map { $0.with(.done(run.id)) })
+      }
       record += RunRecord.found(reply, summary: summary, sources: sources, tries: tries)
       if let review { try? database.endReview(of: review, .finished) }
     case .stopped:
@@ -246,35 +345,15 @@ actor Worker {
       record += RunRecord.failed(try: tries, reason, final: true)
       if let review { try? database.endReview(of: review, .failed(reason)) }
     }
+    let retried = if case .failed(_, let again) = result { again && tries < Run.tries } else { false }
+    if !retried {
+      let done = if case .finished = result { true } else { false }
+      context.settleOffers(of: current.panels, in: run.kind.home, run: run.id, done: done, at: now)
+    }
     let calls = (try? database.connectorCalls(by: .run(run.id))) ?? []
     if case .finished = result { record += RunRecord.connectors(calls) }
     try? context.store.saveRunRecord(record, at: run.record)
     try? database.indexTranscript(run.record, from: context.store)
-    self.current = nil
-    work = nil
-    await context.follower.follow(changes(of: run.kind))
-    await consider()
-  }
-
-  /// The panels of a finished run that follow entries are not offered again what the run was offered.
-  private func markFed(_ panels: Set<String>, of run: Run) {
-    let files = context.store.home(run.kind.home)
-    let fed = panels.filter { files.panel(named: $0)?.panel?.feed != nil }
-    guard !fed.isEmpty else { return }
-    _ = try? files.changePanelState { state in
-      for panel in fed { state.fed[panel] = run.startedAt }
-    }
-  }
-
-  /// After a daily review: on the first split, keeps any entry the review lost; keeps what the review left to
-  /// compare against later; and makes the index and wiki read-only again.
-  private func tidyMemory(of home: Home, after result: RunResult, brief: ReviewBrief?) {
-    let store = context.store
-    if case .finished = result {
-      if let entries = brief?.migrating { _ = try? ReviewBrief.keepLost(entries, store: store) }
-      try? store.home(home).keepMemory()
-    }
-    try? store.home(home).setMemoryWritable(false)
   }
 
   /// Stops the run under way. Its events stay in the inbox and are done again when the app next opens.
@@ -282,64 +361,5 @@ actor Worker {
     closing = true
     await current?.agent?.close()
     await work?.value
-  }
-
-  private func changes(of kind: Run.Kind) -> Set<ContentChange> {
-    let changes: Set<ContentChange> =
-      switch kind {
-      case .review: [.timers, .review]
-      case .timers: [.timers, .loci(.panels)]
-      }
-    return kind.home == .chat ? changes : changes.union([.projects, .turnEnded(kind.home.conversation)])
-  }
-}
-
-/// What a run's session may do with `loci`.
-enum RunPolicy: Equatable {
-  /// Only panels' refreshes: read, save those panels, and put cards on the deck.
-  case panel
-  /// Schedules and follow-ups: read, set follow-ups, save the panels they keep, and put cards on the deck.
-  case timers
-  /// The daily review: read, set follow-ups, and say how it feels.
-  case review
-  /// Mending a source: show, test and save that source only.
-  case repair
-
-  func refusal(_ name: String) -> String {
-    switch self {
-    case .panel:
-      "A panel's refresh only reads, saves its own panel and puts cards on the deck; loci cannot run \(name) in it."
-    case .timers:
-      "A run in the background only reads, sets follow-ups, saves its own panel and puts cards on the deck; loci "
-        + "cannot run \(name) in it."
-    case .review: "The daily review only reads, sets follow-ups and sets your mood; loci cannot run \(name) in it."
-    case .repair: "Mending a source only shows, tests and saves that source; loci cannot run \(name) in it."
-    }
-  }
-}
-
-/// Whether a run may save a panel.
-enum PanelPermission: Equatable {
-  case allowed
-  /// The run is over, or what it was for was removed.
-  case stopped
-  /// It may save only these.
-  case only([String])
-  /// It may save none.
-  case none
-}
-
-extension Event {
-  var isAsked: Bool {
-    if case .panel(_, asked: true, _) = source { true } else { false }
-  }
-
-  var isReview: Bool {
-    if case .review = source { true } else { false }
-  }
-
-  /// A review or a repair, which shares its run with nothing.
-  var runsAlone: Bool {
-    isReview || source.repair != nil
   }
 }

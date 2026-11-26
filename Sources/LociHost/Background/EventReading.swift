@@ -5,23 +5,38 @@ import LociStore
 /// What the worker reads of an event: whether it is still wanted, what it is called, and which panels its
 /// run may save.
 extension AgentContext {
-  /// An event is wanted while its home is active and what raised it is still there; a project's review only
-  /// while the project is remembered.
-  func isWanted(_ event: Event) -> Bool {
+  /// An event of an archived project, or one deleted that can still come back, waits until the project is open
+  /// again, and a project's review until it is remembered again; otherwise it is wanted while what raised it is
+  /// still there.
+  func isWanted(_ event: Event) -> EventWant {
+    guard isActive(event.source.home) else { return .later }
+    if case .review(_, let project?) = event.source, !isRemembered(project) { return .later }
+    return isStillThere(event) ? .now : .never
+  }
+
+  /// Whether the project's review may run and write its memory.
+  func isRemembered(_ project: Project.ID) -> Bool {
+    (try? store.project(project))?.remembered == true
+  }
+
+  private func isStillThere(_ event: Event) -> Bool {
     let home = event.source.home
-    guard isActive(home) else { return false }
     switch event.source {
     case .schedule(let id, _):
       guard let schedule = try? database.schedule(id) else { return false }
       return !schedule.paused
     case .panel(let name, _, _): return store.home(home).panel(named: name)?.panel != nil
     case .followUp: return true
-    case .review(_, nil): return true
-    case .review(_, let project?): return (try? store.project(project))?.remembered == true
+    case .review: return true
     case .source(let name, _):
       guard store.dataSource(named: name, in: DataSourceFolder(home)) != nil else { return false }
       return ((try? database.sourceSnapshot(SourceKey(home, name))) ?? nil)?.isBroken == true
     }
+  }
+
+  /// Whether the worker runs an event now, keeps it for later, or drops it.
+  enum EventWant {
+    case now, later, never
   }
 
   /// The panels of the run's home that its run may save, by name.
@@ -61,5 +76,30 @@ extension AgentContext {
     case .review(let day, _?): return "the review of this project's \(day)"
     case .source(let name, _): return "the repair of the source \(name), broken since \(due)"
     }
+  }
+
+  /// For a repair, the source it may save, as it is now.
+  func repairGrant(of kind: Run.Kind, run: Run.ID) -> RepairGrant? {
+    guard case .timers(let timed) = kind, let source = timed.first.repair,
+      let broken = store.dataSource(named: source.name, in: DataSourceFolder(source.home))
+    else { return nil }
+    return RepairGrant(run: run, source: source, broken: broken)
+  }
+}
+
+extension Event {
+  var isAsked: Bool {
+    if case .panel(_, asked: true, _) = source { true } else { false }
+  }
+
+  var isReview: Bool {
+    if case .review = source { true } else { false }
+  }
+
+  /// A review, a repair or a follow-up, which shares its run with nothing: a follow-up's result is said in the
+  /// conversation it was set in, and only its own.
+  var runsAlone: Bool {
+    if case .followUp = source { return true }
+    return isReview || source.repair != nil
   }
 }

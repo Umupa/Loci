@@ -7,7 +7,8 @@ It is for: {{follow}}
 3. {{where}}
 4. Add what is worth remembering to the end of `notes/{{today}}.md`, one line each, tagged with this run: `- HH:MM [run/{{run}}] …`. Never rewrite what is there. Nothing new is worth one line saying so.
 5. If you cannot get what it is for (a page or command fails, a source is unreachable, you are not signed in), save nothing; say in one line what failed.
-6. In this session `loci` only reads, calls connectors, sets follow-ups and saves the panel above; never save or import into the library.
+6. If the person should act on something you found, put one card on their deck: `"$LOCI" next add <what happened> --ask <their question>`.
+7. In this session `loci` only reads, calls connectors, sets follow-ups, saves the panel above and puts cards on the deck; never save or import into the library.
 
 {{previous}}
 {{panel}}

@@ -67,6 +67,28 @@ actor LociAgent {
     }
   }
 
+  /// Says a line in the conversation as Loci, on its own.
+  func tell(_ text: String, in conversation: ConversationRef) async {
+    guard let run = try? run(of: conversation) else { return }
+    await run.tell(text)
+  }
+
+  /// Keeps a line Loci says, with the session it goes in, together with whatever goes with it; `nil` when the
+  /// line was said before, or has no conversation to be said in, and only the rest is kept.
+  typealias Closing = @Sendable ((message: Message, session: EntityID)?) throws -> Void
+
+  /// Says a line in the conversation as Loci, as the message `id`, kept by `closing` in one write with what goes
+  /// with it; nothing is said when that write fails. Said once under `id`, it is not said again.
+  func say(_ text: String, in conversation: ConversationRef, as id: EntityID, closing: @escaping Closing)
+    async throws(HostError)
+  {
+    guard let run = try? run(of: conversation) else {
+      try attempt { try closing(nil) }
+      return
+    }
+    try await run.say(text, as: id, closing: closing)
+  }
+
   /// Says in the conversation's running turn that Loci put an item into the library.
   func saved(_ item: EntityID, in conversation: ConversationRef) async {
     await runs[conversation]?.saved(item)

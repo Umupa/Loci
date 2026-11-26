@@ -29,6 +29,10 @@ actor AgentRun {
   private var running: Task<Void, Never>?
   private var stopping = false
   private var lastTurn: [Message] = []
+  /// Lines the companion says on its own, waiting for the turn under way to end.
+  private var untold: [String] = []
+  /// Lines said and kept while the turn under way ran, shown once it ends, after its prompt as they are kept.
+  private var saidDuringTurn: [Message] = []
   /// What the turn did since it was last shown, waiting to be shown with what comes after it.
   private var showing: Task<Void, Never>?
 
@@ -66,10 +70,13 @@ actor AgentRun {
   var snapshot: (messages: [Message], turn: LiveTurn?, context: ContextUsage?) { (stored, turn?.live, wear.usage) }
 
   /// Starts a turn and returns at once; the turn goes on in the background. Loci is told `text`, which
-  /// adds to what the person wrote when they asked about a passage.
-  func send(_ prompt: Prompt, saying text: String) async throws(HostError) {
+  /// adds to what the person wrote when they asked about a passage. The person's message is kept as `id` when
+  /// given, so whoever asked can tell later whether it was.
+  func send(_ prompt: Prompt, saying text: String, as id: EntityID? = nil) async throws(HostError) {
     guard turn == nil else { throw .invalidRequest(Self.busy) }
-    let started = TurnRecord(prompt: prompt, at: context.environment.now(), newID: context.environment.newID)
+    let started = TurnRecord(
+      prompt: prompt, at: context.environment.now(), id: id ?? context.environment.newID(),
+      newID: context.environment.newID)
     try attempt { try context.database.append(started.messages, to: try holdingSession().id) }
     turn = started
     stopping = false
@@ -109,6 +116,45 @@ actor AgentRun {
   func close() async {
     await stop()
     await dropLive()
+  }
+
+  /// Says a line as the companion as the message `id`, kept by `closing` in one write with what goes with it:
+  /// see `LociAgent.say`. During a turn it is kept at once and shown when the turn ends.
+  func say(_ text: String, as id: EntityID, closing: LociAgent.Closing) async throws(HostError) {
+    if try attempt({ try context.database.hasMessage(id) }) {
+      try attempt { try closing(nil) }
+      return
+    }
+    let line = Message(id: id, at: context.environment.now(), body: .told(text))
+    let record = try attempt { try sessionForStoring() }
+    try attempt { try closing((line, record.id)) }
+    guard turn == nil else {
+      saidDuringTurn.append(line)
+      return
+    }
+    mirror([line], of: record)
+    stored.append(line)
+    await changed(ended: true)
+  }
+
+  /// Says a line in the conversation as the companion, on its own, such as what it mended in the background:
+  /// at once, or once the turn under way has ended.
+  func tell(_ text: String) async {
+    guard turn == nil else {
+      untold.append(text)
+      return
+    }
+    let line = Message(id: context.environment.newID(), at: context.environment.now(), body: .told(text))
+    do {
+      let record = try sessionForStoring()
+      try context.database.append([line], to: record.id)
+      mirror([line], of: record)
+    } catch {
+      await context.follower.hub.failed(String(describing: error))
+      return
+    }
+    stored.append(line)
+    await changed(ended: true)
   }
 
   /// Says in the running turn that Loci put an item into the library; nothing when no turn is running.
@@ -161,13 +207,6 @@ actor AgentRun {
     turn?.apply(event, at: context.environment.now())
   }
 
-  /// Every session runs with full access, so a request the agent still makes is allowed.
-  private static func allowing(_ request: PermissionRequest) -> PermissionAnswer {
-    let roles: [PermissionRequest.Option.Role] = [.allow, .allowAlways]
-    let option = roles.lazy.compactMap { role in request.options.first { $0.role == role } }.first
-    return option.map { .chosen($0.id) } ?? .dismissed
-  }
-
   /// The message Loci is sent: what changed around it, the item when a session on one starts, what was
   /// said before when a session is renewed, then the text.
   private func compose(_ text: String, opening: SessionRotation.Reason?) async throws(TurnFailure) -> String {
@@ -197,7 +236,8 @@ actor AgentRun {
     let selection = await context.agents.selection()
     let runtime = selection.runtime
     let instructions = try TurnFailure.from { () throws(HostError) in try context.instructions(for: home) }
-    let fingerprint = Fingerprint.of(instructions + selection.instructionsScope)
+    let fingerprint = SessionRotation.fingerprint(
+      of: instructions + selection.instructionsScope, keptOut: context.knownProjects(from: home))
     var reason = SessionRotation.reason(
       current: session, startedOver: stored.last?.body == .startedOver, wear: wear, runtime: runtime,
       instructions: fingerprint)
@@ -261,18 +301,24 @@ actor AgentRun {
   private func finish() async {
     guard var turn else { return }
     if case .conversation = owner { await saveAnswer(of: &turn) }
+    let said = saidDuringTurn
+    saidDuringTurn = []
+    let kept = Array(turn.messages.prefix(1)) + said + turn.messages.dropFirst()
     do {
       let record = try sessionForStoring()
       try context.database.append(Array(turn.messages.dropFirst()), to: record.id)
-      mirror(turn.messages, of: record)
+      mirror(kept, of: record)
     } catch {
       await context.follower.hub.failed(String(describing: error))
     }
-    stored += turn.messages
+    stored += kept
     lastTurn = turn.messages
     self.turn = nil
     running = nil
     await changed(ended: true)
+    let waiting = untold
+    untold = []
+    for text in waiting { await tell(text) }
   }
 
   /// The session to store a turn in. A turn whose agent never started still needs one.
@@ -297,18 +343,6 @@ actor AgentRun {
 
   private func mirror(_ messages: [Message], of session: SessionRecord) {
     Self.mirror(messages, of: session, in: home, context: context)
-  }
-
-  /// A copy that cannot be written loses nothing the app needs; it is logged and the turn stands.
-  private static func mirror(_ messages: [Message], of session: SessionRecord, in home: Home, context: AgentContext) {
-    do {
-      for path in try context.store.home(home).mirror(messages, of: session, in: context.environment.timeZone) {
-        try context.database.indexTranscript(path, from: context.store)
-      }
-    } catch {
-      Logger(subsystem: "Loci", category: "agent").error(
-        "could not copy the conversation: \(String(describing: error), privacy: .public)")
-    }
   }
 
   private func dropLive() async {
@@ -343,13 +377,5 @@ actor AgentRun {
     case .panel, .run:
       break
     }
-  }
-}
-
-extension SessionRecord {
-  func with(sent: [String: String]) -> SessionRecord {
-    SessionRecord(
-      id: id, owner: owner, runtime: runtime, handle: handle, instructions: instructions, sent: sent,
-      startedAt: startedAt)
   }
 }

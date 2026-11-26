@@ -140,6 +140,14 @@ extension StoreDatabase {
     }
   }
 
+  /// Whether a message with the id was kept, in any session.
+  public func hasMessage(_ id: EntityID) throws -> Bool {
+    try queue.read { db in
+      try Bool.fetchOne(db, sql: "SELECT EXISTS(SELECT 1 FROM message WHERE id = ?)", arguments: [id.description])
+        ?? false
+    }
+  }
+
   /// Every message of every session the owner had, oldest first. A row that cannot be read is left out
   /// rather than hiding the rest.
   public func messages(of owner: SessionOwner) throws -> [Message] {

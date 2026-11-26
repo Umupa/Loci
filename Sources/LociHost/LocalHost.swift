@@ -48,11 +48,16 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     self.agents = agents
     let context = AgentContext(
       store: store, database: database, environment: environment, follower: follower, prompts: prompts, agents: agents,
-      feelings: FeelingsKeeper(store: store, environment: environment, follower: follower))
+      feelings: FeelingsKeeper(store: store, environment: environment, follower: follower), life: HomeLife())
     let loci = LociAgent(context: context)
     self.loci = loci
     courses = CourseKeeper(context: context, loci: loci)
-    let worker = Worker(context: context) { await loci.isWorking }
+    let worker = Worker(
+      context: context, talking: { await loci.isWorking },
+      tell: { text, conversation in await loci.tell(text, in: conversation) },
+      say: { text, conversation, id, closing throws(HostError) in
+        try await loci.say(text, in: conversation, as: id, closing: closing)
+      })
     self.worker = worker
     let scheduler = Scheduler(context: context)
     self.scheduler = scheduler
@@ -62,7 +67,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     let sources = SourceService(context: library.context)
     self.sources = sources
     let keeper = SourceKeeper(
-      context: context, connectors: connectorKeeper, pages: sources,
+      context: context, connectors: connectorKeeper,
       refreshed: refreshed ?? NextUpConditions(context: context))
     sourceKeeper = keeper
     sourceLine = SourceLine(keeper: keeper)
@@ -140,6 +145,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       for await batch in changes { await host.follow(batch) }
     }
     try? database.recoverRunning()
+    await host.recoverNextUps()
     for home in [Home.chat] + store.projects().map({ .project($0.id) }) {
       try? store.home(home).setMemoryWritable(false)
     }

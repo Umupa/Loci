@@ -8,11 +8,12 @@ struct TurnRecord: Sendable {
   private(set) var messages: [Message]
   private let newID: @Sendable () -> EntityID
 
-  init(prompt: Prompt, at time: Timestamp, newID: @escaping @Sendable () -> EntityID) {
+  /// The prompt is kept as `id`.
+  init(prompt: Prompt, at time: Timestamp, id: EntityID, newID: @escaping @Sendable () -> EntityID) {
     startedAt = time
     self.prompt = prompt
     self.newID = newID
-    messages = [Message(id: newID(), at: time, body: .prompt(prompt))]
+    messages = [Message(id: id, at: time, body: .prompt(prompt))]
   }
 
   var live: LiveTurn { LiveTurn(startedAt: startedAt, messages: messages) }
