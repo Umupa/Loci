@@ -1,4 +1,5 @@
 import AppKit
+import LociModel
 import Synchronization
 
 /// A wait that ran out before what it waited for happened, and how often it looked: a wait the main thread starved
@@ -29,6 +30,17 @@ func eventually(
 /// Requests a fake host has been asked and not yet answered, so a test can wait for the data a view asked for.
 final class Activity: Sendable {
   private let counts = Mutex((begun: 0, open: 0))
+  private let watched = Mutex<[String]>([])
+
+  /// Notes a subscription a view made.
+  func watch(_ subscription: some Subscription) {
+    watched.withLock { $0.append(String(describing: subscription)) }
+  }
+
+  /// How many times views subscribed to `subscription`.
+  func watches(of subscription: some Subscription) -> Int {
+    watched.withLock { $0.count { $0 == String(describing: subscription) } }
+  }
 
   func begin() {
     counts.withLock {

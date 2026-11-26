@@ -87,6 +87,7 @@ final class FakeHost: LociModel.Host, CommandHandler {
 
   func subscribe<S: Subscription>(_ subscription: S) -> AsyncStream<Feed<S.Value>> {
     let (feed, continuation) = AsyncStream.makeStream(of: Feed<S.Value>.self)
+    activity.watch(subscription)
     activity.begin()
     Task { [activity] in
       defer { activity.end() }

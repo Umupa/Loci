@@ -25,6 +25,9 @@ struct CompanionPage: View {
   @State private var flight: NextUp?
   /// How many cards each seal caught, to stamp it once more.
   @State private var stamps: [Home: Int] = [:]
+  /// Asks the chat's input field for the keyboard; only while the chat shows, since it stays made under a
+  /// project.
+  @State private var chatFocus = 0
   /// The chat's layout, for the layout button over a new project's field.
   @AppStorage(TalkLayout.key) private var storedLayout = Data()
 
@@ -53,24 +56,17 @@ struct CompanionPage: View {
 
   var body: some View {
     ZStack(alignment: .top) {
-      Group {
-        if let starting {
-          NewProjectStage(sent: starting.sent, send: start)
-            .padding(.top, Size.projectBarRoom)
-            .padding(.horizontal, Spacing.m)
-            .overlay(alignment: .topTrailing) {
-              CornerButtons(layout: chatLayout, panelsShown: $columnPreferred)
-            }
-        } else {
-          TalkScreen(
-            home: home, pinned: Set(openProject?.pinned ?? []), focusRequest: focusRequest, attach: attach,
-            opened: opened, failed: failed, visit: visits.visit(for: home), columnPreferred: $columnPreferred
-          )
-          .id(home)
-          .transition(.opacity)
-          .environment(\.projectName, openProject?.name)
-          .environment(\.nextUpDeck, deck)
-        }
+      talk(.chat, shown: chatShown, focusRequest: chatFocus)
+      if let starting {
+        NewProjectStage(sent: starting.sent, send: start)
+          .padding(.top, Size.projectBarRoom)
+          .padding(.horizontal, Spacing.m)
+          .overlay(alignment: .topTrailing) {
+            CornerButtons(layout: chatLayout, panelsShown: $columnPreferred)
+          }
+      } else if let project {
+        talk(.project(project), shown: true, focusRequest: focusRequest)
+          .id(project)
       }
       ProjectBarView(bar: shownBar, home: home, starting: starting != nil, stamps: stamps, actions: actions)
         .padding(.top, 11)
@@ -103,6 +99,8 @@ struct CompanionPage: View {
     .subscribing(WatchProjects(), into: $bar)
     .subscribing(WatchNextUps(of: home), into: $nextUps)
     .onChange(of: home) { nextUps = nil }
+    .onChange(of: chatShown) { if chatShown { chatFocus += 1 } }
+    .onChange(of: focusRequest) { if chatShown { chatFocus += 1 } }
     .onAppear {
       guard !recalled else { return }
       recalled = true
@@ -117,6 +115,23 @@ struct CompanionPage: View {
       if !Task.isCancelled, notice == shown { notice = nil }
     }
   }
+
+  /// A home's conversation and panels. The chat's stays made while a project is open over it, so going back to
+  /// it shows it as it was instead of making it again.
+  private func talk(_ shownHome: Home, shown: Bool, focusRequest: Int) -> some View {
+    TalkScreen(
+      home: shownHome, pinned: Set(shownHome == home ? openProject?.pinned ?? [] : []), focusRequest: focusRequest,
+      attach: attach, opened: opened, failed: failed, visit: visits.visit(for: shownHome),
+      columnPreferred: $columnPreferred
+    )
+    .environment(\.projectName, shownHome == home ? openProject?.name : nil)
+    .environment(\.nextUpDeck, deck)
+    .opacity(shown ? 1 : 0)
+    .allowsHitTesting(shown)
+    .accessibilityHidden(!shown)
+  }
+
+  private var chatShown: Bool { starting == nil && project == nil }
 
   private var openProject: Project? {
     guard let project else { return nil }
@@ -142,7 +157,7 @@ struct CompanionPage: View {
         if case .project(let id) = chosen, shownBar.archived.contains(where: { $0.id == id }) {
           send(ArchiveProject(id, archived: false))
         }
-        withAnimation(reduceMotion ? nil : Motion.standard) { project = chosen.project }
+        project = chosen.project
         if let id = chosen.project { send(SeeProject(id)) }
       },
       start: { starting = Starting() },
