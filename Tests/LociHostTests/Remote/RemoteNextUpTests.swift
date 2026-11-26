@@ -16,12 +16,12 @@ struct RemoteNextUpTests {
       let declined = try await studio.addNextUp(AddNextUp("新的 ETF 上市", asking: "要看看吗"))
 
       let deck = try #require(await value(remote.subscribe(WatchNextUps(of: .chat))) { $0.count == 2 })
-      _ = try await remote.run(SetNextUp(kept.id, .keep))
-      _ = try await remote.run(SetNextUp(declined.id, .decline))
+      _ = try await remote.run(SetNextUp(kept.id, .keep, version: kept.version))
+      _ = try await remote.run(SetNextUp(declined.id, .decline, version: declined.version))
 
       #expect(Set(deck.map(\.id)) == [kept.id, declined.id])
       #expect(try await studio.nextUps(of: .chat).map(\.id) == [kept.id])
-      #expect(try await studio.nextUps(of: .chat).first?.state == .kept)
+      #expect(try await studio.nextUps(of: .chat).first?.place == .kept)
       #expect(try await macs.laptop.local.nextUps(of: .chat).isEmpty)
     }
   }

@@ -1,2 +1,2 @@
-"NSCalendarsFullAccessUsageDescription" = "连接日历后，Loci 为你的伙伴读取日程；它不会新建或修改日程。";
-"NSRemindersFullAccessUsageDescription" = "连接提醒事项后，Loci 为你的伙伴读取待办；它不会新建或修改提醒。";
+"NSCalendarsFullAccessUsageDescription" = "连接日历后，Loci 为你的伙伴读取日程；只在你批准一张卡片后新建一个日程，可以撤回。";
+"NSRemindersFullAccessUsageDescription" = "连接提醒事项后，Loci 为你的伙伴读取待办；只在你批准一张卡片后新建一条提醒，可以撤回。";

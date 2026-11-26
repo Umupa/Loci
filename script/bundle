@@ -87,8 +87,8 @@ cat >"$app/Contents/Info.plist" <<PLIST
   <key>NSHighResolutionCapable</key><true/>
   <key>NSLocalNetworkUsageDescription</key><string>Loci finds your other Macs on this network so you can pair them.</string>
   <key>NSBonjourServices</key><array><string>_loci._tcp</string></array>
-  <key>NSCalendarsFullAccessUsageDescription</key><string>Loci reads your calendar for your companion when you connect it; it never adds or changes events.</string>
-  <key>NSRemindersFullAccessUsageDescription</key><string>Loci reads your reminders for your companion when you connect them; it never adds or changes reminders.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>Loci reads your calendar for your companion when you connect it. It adds an event only when you approve a card, and you can undo it.</string>
+  <key>NSRemindersFullAccessUsageDescription</key><string>Loci reads your reminders for your companion when you connect them. It adds a reminder only when you approve a card, and you can undo it.</string>
   <key>CFBundleDocumentTypes</key>
   <array>
     <dict>

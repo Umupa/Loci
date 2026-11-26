@@ -1,8 +1,8 @@
 import LociModel
 import SwiftUI
 
-/// A card with a question: where it comes from, what happened, and the amber button that starts it. Keep,
-/// later and decline show under the pointer.
+/// A card with a question: where it comes from and what happened at its top, and the amber button that starts
+/// it at its foot. Keep, later and decline show under the pointer.
 struct NextUpCard: View {
   let card: NextUp
   let question: String
@@ -23,10 +23,11 @@ struct NextUpCard: View {
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         start
       }
       .padding(EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 14))
+      .frame(minHeight: Size.nextUpCard)
       .overlay(alignment: .topTrailing) {
         if changesAllowed { choices.opacity(pointed ? 1 : 0).padding(.top, 8).padding(.trailing, 10) }
       }
@@ -45,7 +46,6 @@ struct NextUpCard: View {
         .foregroundStyle(Palette.onAccent)
         .frame(width: 34, height: 34)
         .background(Circle().fill(Palette.accent))
-        .shadow(color: Palette.accentLine, radius: 7, y: 4)
         .contentShape(Circle())
     }
     .buttonStyle(PressStyle(scale: 0.92))
@@ -56,7 +56,7 @@ struct NextUpCard: View {
 
   private var choices: some View {
     HStack(spacing: 0) {
-      let kept = card.state == .kept
+      let kept = card.place == .kept
       choice(kept ? "pin.fill" : "pin", .loci("deck.keep"), tint: kept ? Palette.accentInk : nil) {
         actions.set(card, kept ? .restore : .keep)
       }

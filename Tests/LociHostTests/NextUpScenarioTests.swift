@@ -103,7 +103,7 @@ struct NextUpScenarioTests {
       await host.nextUpConditions.refreshed(key, Self.snapshot(0.028, at: world.now))
       let card = try #require(try await Self.deck(host).first)
 
-      _ = try await host.run(SetNextUp(card.id, .decline))
+      _ = try await host.run(SetNextUp(card.id, .decline, version: card.version))
       world.advance(minutes: 600)
       await host.nextUpConditions.refreshed(key, Self.snapshot(0.035, at: world.now))
       world.advance(minutes: 1)
@@ -120,11 +120,110 @@ struct NextUpScenarioTests {
         "费城半导体跌 8%", asking: "这对我意味着什么", in: .conversation(.project(project)), on: host)
       #expect(card.home == .project(project))
 
-      _ = try await host.run(StartNextUp(card.id))
+      _ = try await host.run(StartNextUp(card.id, version: card.version))
 
       _ = try #require(await settled(host, .project(project), prompts: 2))
       #expect(world.agent.prompts.last?.typed.hasSuffix("\n这对我意味着什么") == true)
       #expect(try await Self.deck(host).isEmpty)
+    }
+  }
+
+  @Test func aCardStartedWhileTheConversationIsAnsweringIsSaidOnceTheAnswerEnds() async throws {
+    let agent = FakeAgent(provider: .codex) { prompt in prompt.hasSuffix("在吗") ? .hang : .reply("好") }
+    try await withHost(agent: agent) { host, _, world in
+      let card = try await Self.add("纳指回撤", asking: "还定投吗", on: host)
+      _ = try await host.run(SendMessage(to: .main, text: "在吗"))
+
+      let started = Task { try await host.run(StartNextUp(card.id, version: card.version)) }
+      try await Background.quiet()
+      #expect(try await Self.deck(host).isEmpty)
+      #expect(!world.agent.prompts.contains { $0.hasSuffix("还定投吗") })
+      _ = try await host.run(StopTurn(in: .main))
+      _ = try await started.value
+
+      _ = try #require(await settled(host, prompts: 2))
+      #expect(world.agent.prompts.filter { $0.hasSuffix("还定投吗") }.count == 1)
+      #expect(try host.database.nextUp(card.id)?.place == .started)
+    }
+  }
+
+  @Test func aCardStartedWhileTheConversationIsAnsweringIsNotSaidIfItsProjectIsArchivedMeanwhile() async throws {
+    let agent = FakeAgent(provider: .codex) { prompt in prompt.hasSuffix("在吗") ? .hang : .reply("好") }
+    try await withHost(agent: agent) { host, _, world in
+      let project = try await ProjectScenarioTests.start(host)
+      let card = try await Self.add("纳指回撤", asking: "还定投吗", in: .conversation(.project(project)), on: host)
+      _ = try await host.run(SendMessage(to: .project(project), text: "在吗"))
+
+      let started = Task { try await host.run(StartNextUp(card.id, version: card.version)) }
+      try await Background.quiet()
+      _ = try await host.run(ArchiveProject(project, archived: true))
+      _ = try? await host.run(StopTurn(in: .project(project)))
+      _ = try? await started.value
+
+      #expect(!world.agent.prompts.contains { $0.hasSuffix("还定投吗") })
+      #expect(try host.database.nextUp(card.id)?.place == .new)
+    }
+  }
+
+  @Test func aKeepFromAMacThatSawTheCardBeforeItWasStartedLeavesItStarted() async throws {
+    try await withHost(agent: FakeAgent(provider: .codex)) { host, _, world in
+      let card = try await Self.add("纳指回撤", asking: "还定投吗", on: host)
+      _ = try await host.run(StartNextUp(card.id, version: card.version))
+      _ = try #require(await settled(host))
+
+      await #expect(throws: HostError.invalidRequest(NextUp.changed)) {
+        try await host.run(SetNextUp(card.id, .keep, version: card.version))
+      }
+
+      #expect(try host.database.nextUp(card.id)?.place == .started)
+      #expect(try await Self.deck(host).isEmpty)
+      #expect(world.agent.prompts.filter { $0.typed.hasSuffix("还定投吗") }.count == 1)
+    }
+  }
+
+  @Test func aCardStartedFromTwoMacsAtOnceIsSaidOnce() async throws {
+    try await withHost(agent: FakeAgent(provider: .codex)) { host, _, world in
+      let card = try await Self.add("纳指回撤", asking: "还定投吗", on: host)
+
+      let results = await withTaskGroup(of: Bool.self) { group in
+        for _ in 0..<2 {
+          group.addTask { (try? await host.run(StartNextUp(card.id, version: card.version))) != nil }
+        }
+        return await group.reduce(into: [Bool]()) { $0.append($1) }
+      }
+
+      #expect(results.filter { $0 }.count == 1)
+      _ = try #require(await settled(host))
+      #expect(world.agent.prompts.filter { $0.typed.hasSuffix("还定投吗") }.count == 1)
+      #expect(try await Self.deck(host).isEmpty)
+    }
+  }
+
+  @Test func aCardThatChangedSinceItWasShownIsNotStarted() async throws {
+    try await withHost(agent: FakeAgent(provider: .codex)) { host, _, _ in
+      let shown = try await Self.add("纳指回撤", asking: "还定投吗", on: host)
+      _ = try await host.run(AddNextUp("纳指回撤", asking: "要不要减仓", key: shown.key))
+
+      await #expect(throws: HostError.invalidRequest(NextUp.changed)) {
+        try await host.run(StartNextUp(shown.id, version: shown.version))
+      }
+
+      #expect(try await Self.deck(host).first?.kind == .ask(question: "要不要减仓"))
+    }
+  }
+
+  @Test func aCardPutAgainKeepsKeptAndPutOffWhereThePersonPutThem() async throws {
+    try await withHost { host, _, _ in
+      let kept = try await Self.add("持仓里英伟达占 14%", on: host)
+      let later = try await Self.add("JR Pass 12 月起涨价", on: host)
+      _ = try await host.run(SetNextUp(kept.id, .keep, version: kept.version))
+      _ = try await host.run(SetNextUp(later.id, .later(.after(minutes: 60)), version: later.version))
+
+      _ = try await Self.add("持仓里英伟达占 14%", asking: "再看看", on: host)
+      _ = try await Self.add("JR Pass 12 月起涨价", asking: "再看看", on: host)
+
+      #expect(try await Self.deck(host).map(\.id) == [kept.id])
+      #expect(try host.database.nextUp(kept.id)?.place == .kept)
     }
   }
 
@@ -134,9 +233,9 @@ struct NextUpScenarioTests {
       let later = try await Self.add("JR Pass 12 月起涨价", on: host)
       let declined = try await Self.add("新的 ETF 上市", on: host)
 
-      _ = try await host.run(SetNextUp(kept.id, .keep))
-      _ = try await host.run(SetNextUp(later.id, .later(.after(minutes: 60))))
-      _ = try await host.run(SetNextUp(declined.id, .decline))
+      _ = try await host.run(SetNextUp(kept.id, .keep, version: kept.version))
+      _ = try await host.run(SetNextUp(later.id, .later(.after(minutes: 60)), version: later.version))
+      let away = try await host.run(SetNextUp(declined.id, .decline, version: declined.version))
       #expect(try await Self.deck(host).map(\.what) == ["持仓里英伟达占 14%"])
 
       world.advance(minutes: 60)
@@ -147,8 +246,25 @@ struct NextUpScenarioTests {
       let again = await Background.call(AddNextUp("新的 ETF 上市。", asking: "?"), from: .conversation(.main), on: host)
       #expect(RunToolScenarioTests.refused(again) == NextUp.declinedBefore)
 
-      _ = try await host.run(SetNextUp(declined.id, .restore))
+      _ = try await host.run(SetNextUp(declined.id, .restore, version: away.version))
       #expect(try await Self.deck(host).count == 3)
+    }
+  }
+
+  @Test func pinningACardTwiceLeavesItAsItWas() async throws {
+    try await withHost { host, _, _ in
+      let card = try await Self.add("持仓里英伟达占 14%", on: host)
+      let other = try await Self.add("JR Pass 12 月起涨价", on: host)
+
+      let kept = try await host.run(SetNextUp(card.id, .keep, version: card.version))
+      let unpinned = try await host.run(SetNextUp(card.id, .restore, version: kept.version))
+
+      #expect(kept.place == .kept)
+      #expect(unpinned.place == .new && unpinned.shownAt == card.shownAt)
+      #expect(try await Self.deck(host).map(\.id) == [other.id, card.id])
+      await #expect(throws: HostError.invalidRequest(NextUp.changed)) {
+        try await host.run(SetNextUp(card.id, .restore, version: kept.version))
+      }
     }
   }
 

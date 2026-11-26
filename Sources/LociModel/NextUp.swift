@@ -1,7 +1,9 @@
 import Foundation
 
 /// Something the companion or a reminder condition thinks the person should deal with, waiting at the top of
-/// the panel column until they do. It belongs to one home and is kept in the database.
+/// the panel column until they do. It belongs to one home and is kept in the database. Where it sits on the deck
+/// (`place`) and what its approval did (`execution`) are kept apart, so putting a done approval away and back
+/// never makes it ask again.
 public struct NextUp: Hashable, Codable, Sendable, Identifiable {
   public let id: EntityID
   public let home: Home
@@ -10,7 +12,13 @@ public struct NextUp: Hashable, Codable, Sendable, Identifiable {
   public let kind: Kind
   /// What happened, in a line.
   public let what: String
-  public let state: State
+  /// Goes up each time anything the person sees of it changes: its words, where it is, what its approval did.
+  /// Whatever the person does with it names the version they saw, and is refused for any other, so a Mac that
+  /// saw an older card cannot undo what another did since.
+  public let version: Int
+  public let place: Place
+  /// What an approval did; `.waiting` for a question.
+  public let execution: Execution
   /// When it last came to the top; the newest is shown first.
   public let shownAt: Timestamp
   public let createdAt: Timestamp
@@ -22,63 +30,115 @@ public struct NextUp: Hashable, Codable, Sendable, Identifiable {
     case approval(Approval)
   }
 
-  public enum State: Hashable, Codable, Sendable {
+  /// Where the card is.
+  public indirect enum Place: Hashable, Codable, Sendable {
     case new
     /// Kept where it is, without asking again.
     case kept
     /// Out of the way until then, when it comes back to the top.
     case later(until: Timestamp)
     case declined
+    /// Its question is being said as `message`; it goes back to where it was if that message was never kept.
+    case starting(from: Place, message: EntityID)
     case started
-    /// An approval that was done; what it made is kept to undo it.
-    case approved(Approved)
+  }
+
+  /// What an approval did, apart from where its card is.
+  public enum Execution: Hashable, Codable, Sendable {
+    case waiting
+    /// Approved once: the calendars or lists of its name that macOS showed, for the person to confirm one.
+    case choosing([ApprovalTarget])
+    /// No calendar or list has the name it gave; approving again looks for the default one.
+    case targetGone(String)
+    /// Being written into `into`, by the one approval that claimed it; what is written carries `marker`, so it
+    /// can be found again if the app stops before it is kept.
+    case writing(marker: String, into: ApprovalTarget)
+    case made(Approved)
+    /// Being removed again.
+    case undoing(Approved)
+
+    /// Being written or removed: what became of it outside the app may not be known yet.
+    public var isUnderWay: Bool {
+      switch self {
+      case .writing, .undoing: true
+      case .waiting, .choosing, .targetGone, .made: false
+      }
+    }
   }
 
   public init(
-    id: EntityID, home: Home, key: String, kind: Kind, what: String, state: State = .new, shownAt: Timestamp,
-    createdAt: Timestamp? = nil
+    id: EntityID, home: Home, key: String, kind: Kind, what: String, version: Int = 1, place: Place = .new,
+    execution: Execution = .waiting, shownAt: Timestamp, createdAt: Timestamp? = nil
   ) {
     self.id = id
     self.home = home
     self.key = key
     self.kind = kind
     self.what = what
-    self.state = state
+    self.version = version
+    self.place = place
+    self.execution = execution
     self.shownAt = shownAt
     self.createdAt = createdAt ?? shownAt
   }
 
   public func with(
-    kind: Kind? = nil, what: String? = nil, state: State? = nil, shownAt: Timestamp? = nil
+    kind: Kind? = nil, what: String? = nil, version: Int? = nil, place: Place? = nil, execution: Execution? = nil,
+    shownAt: Timestamp? = nil
   ) -> NextUp {
     NextUp(
-      id: id, home: home, key: key, kind: kind ?? self.kind, what: what ?? self.what, state: state ?? self.state,
-      shownAt: shownAt ?? self.shownAt, createdAt: createdAt)
+      id: id, home: home, key: key, kind: kind ?? self.kind, what: what ?? self.what, version: version ?? self.version,
+      place: place ?? self.place, execution: execution ?? self.execution, shownAt: shownAt ?? self.shownAt,
+      createdAt: createdAt)
   }
 
   /// Whether the deck shows it at `now`.
   public func isShown(at now: Timestamp) -> Bool {
-    switch state {
-    case .new, .kept, .approved: true
+    switch place {
+    case .new, .kept: true
     case .later(let until): until <= now
-    case .declined, .started: false
+    case .declined, .starting, .started: false
     }
   }
+
+  /// The same card with new words or a new proposal, put again by the companion or a condition: it keeps the
+  /// place the person gave it unless it was started. `nil` when the person declined it. An approval already
+  /// done or under way keeps what it was; one waiting for the person to confirm where it goes asks again.
+  public func putAgain(_ kind: Kind, what: String, at now: Timestamp) -> NextUp? {
+    if place == .declined { return nil }
+    if !isOpen { return self }
+    let execution: Execution = kind == self.kind && !isTargetGone ? execution : .waiting
+    switch place {
+    case .kept: return with(kind: kind, what: what, execution: execution)
+    case .later(let until) where until > now: return with(kind: kind, what: what, execution: execution)
+    case .starting: return self
+    case .new, .later, .started, .declined:
+      return with(kind: kind, what: what, place: .new, execution: execution, shownAt: now)
+    }
+  }
+
+  /// Whether nothing was written for it nor is being written.
+  private var isOpen: Bool {
+    switch execution {
+    case .waiting, .choosing, .targetGone: true
+    case .writing, .made, .undoing: false
+    }
+  }
+
+  public var isTargetGone: Bool { if case .targetGone = execution { true } else { false } }
 
   /// The deck's order: new ones above kept ones, the latest to come up first.
   public static func deck(_ cards: [NextUp], at now: Timestamp) -> [NextUp] {
     cards.filter { $0.isShown(at: now) }.sorted { a, b in
-      if a.isKept != b.isKept { return !a.isKept }
+      if (a.place == .kept) != (b.place == .kept) { return b.place == .kept }
       let first = a.cameUp
       let second = b.cameUp
       return first != second ? first > second : a.id.description > b.id.description
     }
   }
 
-  private var isKept: Bool { if case .kept = state { true } else { false } }
-
   private var cameUp: Timestamp {
-    if case .later(let until) = state { max(until, shownAt) } else { shownAt }
+    if case .later(let until) = place { max(until, shownAt) } else { shownAt }
   }
 
   /// The key of a line the companion wrote, when it gave none: the words without case or spacing.
@@ -100,6 +160,14 @@ public enum Approval: Hashable, Codable, Sendable {
     }
   }
 
+  /// The calendar or list it goes to, by name; `nil` for the default one.
+  public var target: String? {
+    switch self {
+    case .event(let event): event.calendar
+    case .reminder(let reminder): reminder.list
+    }
+  }
+
   /// The same thing proposed twice has the same key.
   public var key: String {
     switch self {
@@ -115,10 +183,12 @@ public struct EventDraft: Hashable, Codable, Sendable {
   public let start: Timestamp
   public let end: Timestamp
   public let allDay: Bool
-  /// By name; `nil` for the default calendar.
+  /// By name; `nil` for the default calendar. Which calendar of that name the app finds only once the person
+  /// approves.
   public let calendar: String?
 
-  public init(title: String, start: Timestamp, end: Timestamp? = nil, allDay: Bool = false, calendar: String? = nil) {
+  public init(title: String, start: Timestamp, end: Timestamp? = nil, allDay: Bool = false, calendar: String? = nil)
+  {
     self.title = title
     self.start = start
     self.end = end ?? Timestamp(millisecondsSince1970: start.millisecondsSince1970 + 3_600_000)
@@ -131,7 +201,7 @@ public struct EventDraft: Hashable, Codable, Sendable {
 public struct ReminderDraft: Hashable, Codable, Sendable {
   public let title: String
   public let due: Timestamp?
-  /// By name; `nil` for the default list.
+  /// By name; `nil` for the default list. Which list of that name the app finds only once the person approves.
   public let list: String?
 
   public init(title: String, due: Timestamp? = nil, list: String? = nil) {
@@ -141,11 +211,31 @@ public struct ReminderDraft: Hashable, Codable, Sendable {
   }
 }
 
-/// What an approval made, to remove it when the person undoes it.
+/// A calendar or a list of reminders as macOS has it: its identifier, which stays, and its name and account,
+/// which the card shows so two of one name can be told apart. Only the app finds these, never the companion.
+public struct ApprovalTarget: Hashable, Codable, Sendable {
+  public let id: String
+  public let name: String
+  /// The account it is in, such as iCloud.
+  public let source: String
+
+  public init(id: String, name: String, source: String) {
+    self.id = id
+    self.name = name
+    self.source = source
+  }
+}
+
+/// What an approval made and where, to remove it when the person undoes it: by its identifier, or, once a sync
+/// lost that, by the marker it was written with.
 public struct Approved: Hashable, Codable, Sendable {
   public let identifier: String
+  public let marker: String
+  public let into: ApprovalTarget
 
-  public init(identifier: String) {
+  public init(identifier: String, marker: String, into: ApprovalTarget) {
     self.identifier = identifier
+    self.marker = marker
+    self.into = into
   }
 }

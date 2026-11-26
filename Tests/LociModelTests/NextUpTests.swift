@@ -15,9 +15,9 @@ struct NextUpTests {
     return EntityID(at: Date(timeIntervalSince1970: 1_763_337_600 + Double(seed)), entropy: &entropy)
   }
 
-  static func card(_ seed: UInt64, _ state: NextUp.State = .new, shown minutes: Int64) -> NextUp {
+  static func card(_ seed: UInt64, _ state: NextUp.Place = .new, shown minutes: Int64) -> NextUp {
     NextUp(
-      id: id(seed), home: .chat, key: "\(seed)", kind: .ask(question: "?"), what: "\(seed)", state: state,
+      id: id(seed), home: .chat, key: "\(seed)", kind: .ask(question: "?"), what: "\(seed)", place: state,
       shownAt: at(minutes: minutes))
   }
 
@@ -92,6 +92,44 @@ struct NextUpTests {
 
     let payment = Data(#"{"payment":{"_0":{"amount":30000}}}"#.utf8)
     #expect(throws: DecodingError.self) { try JSONDecoder().decode(Approval.self, from: payment) }
+  }
+
+  @Test func aCardPutAgainKeepsWhereThePersonPutIt() {
+    let now = Self.at(minutes: 10)
+    let kept = Self.card(1, .kept, shown: 0)
+    let later = Self.card(2, .later(until: Self.at(minutes: 60)), shown: 0)
+    let started = Self.card(3, .started, shown: 0)
+
+    #expect(kept.putAgain(.ask(question: "?"), what: "新的话", at: now)?.place == .kept)
+    #expect(kept.putAgain(.ask(question: "?"), what: "新的话", at: now)?.shownAt == Self.at(minutes: 0))
+    #expect(later.putAgain(.ask(question: "?"), what: "2", at: now)?.place == .later(until: Self.at(minutes: 60)))
+    #expect(started.putAgain(.ask(question: "?"), what: "3", at: now)?.place == .new)
+    #expect(Self.card(4, .declined, shown: 0).putAgain(.ask(question: "?"), what: "4", at: now) == nil)
+  }
+
+  @Test func aProposalChangedWhileThePersonPicksWhereItGoesAsksAgain() {
+    let first = Approval.reminder(ReminderDraft(title: "交房租", list: "家"))
+    let found = [ApprovalTarget(id: "l-1", name: "家", source: "iCloud")]
+    let choosing = NextUp(
+      id: Self.id(1), home: .chat, key: "k", kind: .approval(first), what: "x", execution: .choosing(found),
+      shownAt: Self.at(minutes: 0))
+    let other = Approval.reminder(ReminderDraft(title: "交房租", list: "公司"))
+
+    #expect(choosing.putAgain(.approval(first), what: "x", at: Self.at(minutes: 1))?.execution == .choosing(found))
+    #expect(choosing.putAgain(.approval(other), what: "x", at: Self.at(minutes: 1))?.execution == .waiting)
+  }
+
+  @Test func anApprovalDoneOrUnderWayIsNotChangedByAProposalAgain() {
+    let made = NextUp(
+      id: Self.id(1), home: .chat, key: "k", kind: .approval(.reminder(ReminderDraft(title: "交房租"))), what: "x",
+      execution: .made(Approved(identifier: "a", marker: "m", into: ApprovalTarget(id: "l-1", name: "家", source: "iCloud"))),
+      shownAt: Self.at(minutes: 0))
+    let again = Approval.reminder(ReminderDraft(title: "交房租", list: "家"))
+
+    #expect(made.putAgain(.approval(again), what: "y", at: Self.at(minutes: 1)) == made)
+    #expect(
+      made.with(execution: .writing(marker: "m", into: ApprovalTarget(id: "l-1", name: "家", source: "iCloud")))
+        .putAgain(.approval(again), what: "y", at: Self.at(minutes: 1))?.kind == made.kind)
   }
 
   @Test func theSameWordsHaveTheSameKey() {

@@ -9,9 +9,11 @@ import Testing
 struct NextUpStoreTests {
   static let project = Fixture.id(40)
 
-  static func card(_ seed: UInt64, in home: Home, key: String, state: NextUp.State = .new) -> NextUp {
+  static let target = ApprovalTarget(id: "l-1", name: "家", source: "iCloud")
+
+  static func card(_ seed: UInt64, in home: Home, key: String, state: NextUp.Place = .new) -> NextUp {
     NextUp(
-      id: Fixture.id(seed), home: home, key: key, kind: .ask(question: "怎么办"), what: "溢价落到 2.8%", state: state,
+      id: Fixture.id(seed), home: home, key: key, kind: .ask(question: "怎么办"), what: "溢价落到 2.8%", place: state,
       shownAt: Fixture.instant)
   }
 
@@ -28,7 +30,7 @@ struct NextUpStoreTests {
 
     #expect(try database.nextUps(of: [.chat]).map(\.id) == [Fixture.id(1)])
     #expect(try database.nextUps(of: [.chat, .project(Self.project)]).count == 2)
-    #expect(try database.nextUp(withKey: "a", in: .project(Self.project))?.state == .declined)
+    #expect(try database.nextUp(withKey: "a", in: .project(Self.project))?.place == .declined)
     #expect(try database.nextUp(withKey: "b", in: .chat) == nil)
   }
 
@@ -36,10 +38,57 @@ struct NextUpStoreTests {
     let database = try StoreDatabase.inMemory()
     let card = Self.card(1, in: .chat, key: "a")
     try database.saveNextUp(card)
-    try database.saveNextUp(card.with(state: .kept))
+    try database.saveNextUp(card.with(place: .kept))
 
-    #expect(try database.nextUp(card.id)?.state == .kept)
+    #expect(try database.nextUp(card.id)?.place == .kept)
     #expect(try database.nextUps(of: [.chat]).count == 1)
+  }
+
+  @Test func aChangeSeesTheCardAsStoredAndCanRefuse() throws {
+    let database = try StoreDatabase.inMemory()
+    let card = Self.card(1, in: .chat, key: "a")
+    try database.saveNextUp(card)
+
+    let writing = NextUp.Execution.writing(marker: "m", into: Self.target)
+    let first = try database.changeNextUp(card.id) { $0.execution == .waiting ? $0.with(execution: writing) : nil }
+    let second = try database.changeNextUp(card.id) { $0.execution == .waiting ? $0.with(execution: writing) : nil }
+
+    #expect(first?.after?.execution == writing)
+    #expect(second?.before.execution == writing && second?.after == nil)
+    #expect(try database.changeNextUp(Fixture.id(9)) { $0 } == nil)
+  }
+
+  @Test func everyChangeKeepsTheCardOneVersionOnAndNoChangeKeepsItsVersion() throws {
+    let database = try StoreDatabase.inMemory()
+    let card = Self.card(1, in: .chat, key: "a")
+    try database.saveNextUp(card)
+
+    let kept = try database.changeNextUp(card.id) { $0.with(place: .kept) }?.after
+    let same = try database.changeNextUp(card.id) { $0 }?.after
+    let put = try database.putNextUp(withKey: "a", in: .chat) { $0?.with(what: "改了") }.after
+
+    #expect(kept?.version == card.version + 1)
+    #expect(same?.version == card.version + 1)
+    #expect(put?.version == card.version + 2)
+  }
+
+  @Test func forgettingAProjectKeepsOnlyTheCardsWhoseWritingIsNotSettled() throws {
+    let database = try StoreDatabase.inMemory()
+    let home = Home.project(Self.project)
+    let made = Approved(identifier: "e-1", marker: "m", into: Self.target)
+    for (seed, execution) in [
+      (1, NextUp.Execution.waiting), (2, .writing(marker: "m", into: Self.target)), (3, .undoing(made)), (4, .made(made)),
+    ] {
+      try database.saveNextUp(
+        NextUp(
+          id: Fixture.id(UInt64(seed)), home: home, key: "\(seed)",
+          kind: .approval(.reminder(ReminderDraft(title: "交房租"))), what: "x", execution: execution,
+          shownAt: Fixture.instant))
+    }
+
+    try database.forgetProject(Self.project)
+
+    #expect(Set(try database.nextUps(of: [home]).map(\.id)) == [Fixture.id(2), Fixture.id(3)])
   }
 
   @Test func cardsPutOffComeDueAtTheirTime() throws {
@@ -69,7 +118,7 @@ struct NextUpStoreTests {
     try database.saveNextUp(Self.card(2, in: .project(Self.project), key: "a"))
     try database.saveNextUpCondition(Self.condition(3, in: .project(Self.project)))
 
-    try database.forgetNextUps(of: Self.project)
+    try database.forgetProject(Self.project)
 
     #expect(try database.nextUps(of: [.chat, .project(Self.project)]).map(\.id) == [Fixture.id(1)])
     #expect(try database.nextUpConditions(of: .project(Self.project)).isEmpty)

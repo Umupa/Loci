@@ -15,7 +15,7 @@ public struct ConnectEnvironment: Sendable {
   public let vault: (any ConnectorVault)?
   public let githubLogin: @Sendable () async -> GitHubLogin?
   /// Runs `gh` with arguments that only read; anything else is refused before it starts.
-  public let githubRead: @Sendable ([String]) async -> GitHubReply
+  public let githubRead: @Sendable (GitHubRead) async -> GitHubReply
   /// Which websites the built-in browser is signed into, and reading their pages with that sign-in.
   public let sites: any SiteSignIns
   public let personal: any PersonalData
@@ -30,7 +30,8 @@ public struct ConnectEnvironment: Sendable {
   public init(
     http: any HTTPClient, receiver: any CallbackReceiver, vault: (any ConnectorVault)?,
     githubLogin: @escaping @Sendable () async -> GitHubLogin?,
-    githubRead: @escaping @Sendable ([String]) async -> GitHubReply = { _ in .failed("gh is not installed on this Mac")
+    githubRead: @escaping @Sendable (GitHubRead) async -> GitHubReply = { _ in
+      .failed("gh is not installed on this Mac")
     },
     sites: any SiteSignIns = NoSites(), personal: any PersonalData = NoPersonalData(),
     writes: any PersonalWrites = NoPersonalWrites(),
@@ -56,7 +57,7 @@ public struct ConnectEnvironment: Sendable {
 
   public static func system(
     githubLogin: @escaping @Sendable () async -> GitHubLogin?,
-    githubRead: @escaping @Sendable ([String]) async -> GitHubReply,
+    githubRead: @escaping @Sendable (GitHubRead) async -> GitHubReply,
     browserReturned: @escaping @Sendable (ConnectorID) async -> Void
   ) -> ConnectEnvironment {
     ConnectEnvironment(
@@ -79,6 +80,9 @@ public struct NoSites: SiteSignIns {
   public func changes() -> AsyncStream<Void> { AsyncStream { $0.finish() } }
   public func read(_ url: URL) async throws(FetchError) -> String {
     throw FetchError(reason: "This Loci has no built-in browser to read signed in with.")
+  }
+  public func readSource(_ url: URL, on domains: [String]) async throws(FetchError) -> String {
+    try await read(url)
   }
 }
 

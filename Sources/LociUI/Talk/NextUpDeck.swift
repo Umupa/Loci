@@ -14,8 +14,9 @@ struct NextUpDeckState {
 struct NextUpActions {
   let start: (NextUp) -> Void
   let set: (NextUp, SetNextUp.Choice) -> Void
-  let approve: (NextUp) -> Void
-  let undo: (NextUp) -> Void
+  let approve: (NextUp, ApproveNextUp.Step) -> Void
+  /// Removes what the card's approval made.
+  let undo: (NextUp, Approved) -> Void
 }
 
 extension EnvironmentValues {
@@ -24,7 +25,6 @@ extension EnvironmentValues {
 }
 
 /// The next-up cards: the first on top, two more tucked under it, all of them laid out under the pointer.
-/// With no cards it takes no room.
 struct NextUpDeck: View {
   let state: NextUpDeckState
   /// Laid out, for a snapshot.
@@ -73,7 +73,7 @@ struct NextUpDeck: View {
             Circle().fill(index == 0 ? Palette.ink : Palette.inkFaint).frame(width: 5, height: 5)
           }
         }
-        .offset(x: -18, y: 8)
+        .offset(x: -18, y: 9)
       }
     }
     .padding(.bottom, cards.isEmpty ? 0 : Spacing.xs)
@@ -104,7 +104,8 @@ struct NextUpDeck: View {
   private func height(of cards: [NextUp], open: Bool) -> CGFloat {
     guard let first = cards.first else { return 0 }
     if open { return offset(of: cards.count - 1, in: cards) + height(of: cards[cards.count - 1]) }
-    return height(of: first) + Self.tucked[min(cards.count, Self.tucked.count) - 1].offset
+    let top = height(of: first)
+    return Self.tucked.prefix(cards.count).map { $0.offset + $0.scale * top }.max() ?? top
   }
 
   /// A card the person dealt with slides away; with motion reduced it is simply gone.

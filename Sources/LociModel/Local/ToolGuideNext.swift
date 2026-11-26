@@ -19,6 +19,7 @@ extension ToolGuide {
     - "$LOCI" next propose event <title> --at YYYY-MM-DD [HH:mm] [--until HH:mm] [--calendar <name>]
       [--why <line>], or propose reminder <title> [--at YYYY-MM-DD [HH:mm]] [--list <name>]: an approval
       card. Nothing is written until the person approves it, and they can undo it. Only these two exist:
-      you cannot pay, order, sign up or send a message for them. Asked to, say you cannot.
+      you cannot pay, order, sign up or send a message, email or post for them, whatever is connected. Asked
+      to, say you cannot.
     """
 }

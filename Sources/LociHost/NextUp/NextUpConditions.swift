@@ -13,7 +13,7 @@ struct NextUpConditions: SourceRefreshed {
     let now = context.environment.now()
     for condition in (try? context.database.nextUpConditions(on: key)) ?? [] {
       let (next, fired) = condition.step(snapshot, at: now)
-      let declined = (try? context.database.nextUp(withKey: condition.key, in: condition.home))?.state == .declined
+      let declined = (try? context.database.nextUp(withKey: condition.key, in: condition.home))?.place == .declined
       guard !declined else { continue }
       if next != condition { try? context.database.saveNextUpCondition(next) }
       if let fired {
