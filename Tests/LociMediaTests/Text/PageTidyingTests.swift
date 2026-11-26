@@ -51,6 +51,29 @@ struct PageTidyingTests {
   }
 
   @Test(.timeLimit(.minutes(1)))
+  func aDiagramsArrowheadsAreDrawnWhereItsLinesEnd() async throws {
+    let markdown = try await Self.markdown(
+      """
+      <figure><svg viewBox="0 0 720 380" xmlns="http://www.w3.org/2000/svg">
+        <defs><marker id="diagram-9-su-h" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7"
+          orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8 z"></path></marker></defs>
+        <rect x="24" y="48" width="166" height="64" rx="8" fill="none" stroke="currentColor"></rect>
+        <path d="M190 80 H242" marker-end="url(#diagram-9-su-h)" fill="none" stroke="#2a7c50"></path>
+        <path d="M100 300 v-40" marker-end="url(#diagram-9-su-h)" fill="none" stroke="currentColor"></path>
+        <line x1="400" y1="200" x2="500" y2="200" marker-start="url(#diagram-9-su-h)" stroke="currentColor"></line>
+      </svg></figure>
+      """)
+
+    let drawn = try #require(markdown.firstMatch(of: /data:image\/svg\+xml;base64,([A-Za-z0-9+\/=]+)/))
+    let svg = String(decoding: try #require(Data(base64Encoded: String(drawn.output.1))), as: UTF8.self)
+    #expect(!svg.contains("marker"))
+    #expect(svg.contains("translate(242 80) rotate(0) scale(0.875) translate(-7 -4)"))
+    #expect(svg.contains("translate(100 260) rotate(-90)"))
+    #expect(svg.contains("translate(400 200) rotate(180)"))
+    #expect(svg.contains(##"<path d="M0 0 L8 4 L0 8 z" fill="#2a7c50""##))
+  }
+
+  @Test(.timeLimit(.minutes(1)))
   func aSourceReadForTheCompanionCarriesNoPictureData() async throws {
     let html = Self.page(
       """
