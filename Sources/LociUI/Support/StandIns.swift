@@ -12,6 +12,8 @@ struct StandIns {
   var overlayFacts: PageFacts?
   /// The list under the library button, over a page or beside the browser's address, is open.
   var keepListOpen = false
+  /// What was just kept from the page, with the note under the library button up.
+  var keeping: Keeping?
   var moment: MediaMoment?
   /// The pointer rests on the sidebar's foot, or on the first Mac in settings' list.
   var pointerOnMachineFoot = false

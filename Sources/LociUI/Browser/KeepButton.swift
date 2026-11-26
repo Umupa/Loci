@@ -2,24 +2,36 @@ import LociModel
 import SwiftUI
 
 /// The button over a web page that puts what it holds into the library: the library's books, filled once the
-/// page is kept, with a small amber number when there is more on the page to choose from.
+/// page is kept, with a small amber number when there is more on the page to choose from. From the click on, a
+/// ring goes round it while what was kept is saved, and an amber mark stays on it when it was not.
 struct KeepButton: View {
   let finds: PageFinds
   let choosing: Bool
+  var keeping: Keeping.State?
   let action: () -> Void
   @Environment(\.reducesMotion) private var reduceMotion
   @State private var hovering = false
 
   var body: some View {
     Button(action: action) {
-      Image(systemName: finds.kept ? Symbols.libraryKept : Symbols.library)
-        .font(.system(size: 14))
+      Image(systemName: filled ? Symbols.libraryKept : Symbols.library)
+        .font(.system(size: saving ? 10.5 : 14))
         .foregroundStyle(Palette.accent)
         .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace.downUp))
         .frame(width: Size.iconButton, height: Size.iconButton)
+        .overlay { if case .saving(let share) = keeping { KeepRing(share: share).padding(5) } }
         .background(Circle().fill(hovering || choosing ? Palette.fillStrong : .clear))
         .overlay(alignment: .topTrailing) {
-          if let count = finds.count {
+          if stopped {
+            Image(systemName: Symbols.retry)
+              .font(.system(size: 8, weight: .heavy))
+              .foregroundStyle(Palette.onAccent)
+              .frame(width: 13, height: 13)
+              .background(Circle().fill(Palette.accent))
+              .overlay(Circle().strokeBorder(Palette.menuFace, lineWidth: 1.5).padding(-1.5))
+              .offset(x: 4, y: -1)
+              .transition(reduceMotion ? .identity : .scale.combined(with: .opacity))
+          } else if keeping == nil, let count = finds.count {
             Text(verbatim: "\(count)")
               .font(.system(size: 9.5, weight: .semibold).monospacedDigit())
               .foregroundStyle(Palette.onAccent)
@@ -36,13 +48,61 @@ struct KeepButton: View {
     .buttonStyle(PressStyle())
     .onHover { hovering = $0 }
     .animation(reduceMotion ? nil : Motion.quick, value: finds.count)
+    .animation(reduceMotion ? nil : Motion.quick, value: keeping)
     .help(Text(title))
     .accessibilityLabel(Text(title))
     .accessibilityValue(finds.count.map { Text(verbatim: "\($0)") } ?? Text(verbatim: ""))
   }
 
   private var title: LocalizedStringResource {
-    finds.kept && finds.count == nil ? .loci("overlay.inLibrary") : .loci("overlay.save")
+    switch keeping {
+    case .saving: .loci("overlay.saving")
+    case .saved: .loci("overlay.inLibrary")
+    case .stopped, .refused: .loci("overlay.notSaved")
+    case nil: finds.kept && finds.count == nil ? .loci("overlay.inLibrary") : .loci("overlay.save")
+    }
+  }
+
+  private var saving: Bool {
+    if case .saving = keeping { true } else { false }
+  }
+
+  private var stopped: Bool {
+    switch keeping {
+    case .stopped, .refused: true
+    case .saving, .saved, nil: false
+    }
+  }
+
+  private var filled: Bool {
+    switch keeping {
+    case .saved: true
+    case .saving, .stopped, .refused: false
+    case nil: finds.kept
+    }
+  }
+}
+
+/// Round the library button while what was kept is saved: filled as far as it has got, or turning when that
+/// cannot be told.
+private struct KeepRing: View {
+  let share: Fraction?
+  @Environment(\.reducesMotion) private var reduceMotion
+  @State private var turned = false
+
+  var body: some View {
+    ZStack {
+      Circle().stroke(Palette.line, lineWidth: 1.5)
+      Circle()
+        .trim(from: 0, to: share.map { max($0.value, 0.06) } ?? 0.28)
+        .stroke(Palette.accent, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+        .rotationEffect(.degrees(share == nil && turned ? 270 : -90))
+        .animation(
+          share == nil && !reduceMotion ? .linear(duration: 0.9).repeatForever(autoreverses: false) : .default,
+          value: turned)
+    }
+    .onAppear { turned = !reduceMotion }
+    .accessibilityHidden(true)
   }
 }
 
