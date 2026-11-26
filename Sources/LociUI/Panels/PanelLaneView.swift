@@ -155,7 +155,7 @@ private struct BoardFrameReporter: ViewModifier {
     content.onGeometryChange(for: CGRect.self) {
       $0.frame(in: .named(Board.space))
     } action: { frame in
-      frames?.wrappedValue.place(key, at: frame, lane: lane)
+      frames?.frames.place(key, at: frame, lane: lane)
     }
   }
 }
@@ -168,7 +168,7 @@ extension BoardFrames {
 
 extension EnvironmentValues {
   /// Where the main page keeps the frames its lanes and panels report; elsewhere nothing listens.
-  @Entry var boardFrames: Binding<BoardFrames>?
+  @Entry var boardFrames: BoardFrameReports?
   /// The person's take on the lines of each panel's lists, by panel name, as the column has it.
   @Entry var panelLineMarks: [String: [PanelLineKey: PanelLineMark]] = [:]
 }

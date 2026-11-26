@@ -124,6 +124,20 @@ struct ProjectScenarioTests {
     }
   }
 
+  @Test func openingAProjectWithNothingNewLeavesItAsItWas() async throws {
+    try await withHost(agent: Self.agent) { host, place, world in
+      let project = try await Self.start(host)
+      world.advance(minutes: 1)
+      _ = try await host.run(SeeProject(project))
+      let seen = try #require(place.store.projects().first { $0.id == project }?.seen)
+
+      world.advance(minutes: 1)
+      _ = try await host.run(SeeProject(project))
+
+      #expect(place.store.projects().first { $0.id == project }?.seen == seen)
+    }
+  }
+
   @Test func renamingAProjectChangesItsSeal() async throws {
     try await withHost(agent: Self.agent) { host, _, _ in
       let project = try await Self.start(host)

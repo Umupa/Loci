@@ -27,7 +27,8 @@ struct TalkBoard<Conversation: View>: View {
   let actions: PanelActions
   @ViewBuilder var conversation: Conversation
   @Environment(\.reducesMotion) private var reduceMotion
-  @State private var frames = BoardFrames()
+  @State private var reports = BoardFrameReports()
+  @State private var pointer = BoardPointer()
   @State private var preview: TalkLayout?
   @State private var carried: Carried?
   @State private var conversationDrag: ConversationDrag?
@@ -41,21 +42,22 @@ struct TalkBoard<Conversation: View>: View {
   @Environment(\.controlActiveState) private var activeState
   @Environment(\.panelHome) private var panelHome
 
-  /// A panel being dragged: where it was grabbed, how large it is, where the pointer is, and the layout the
-  /// drag started from.
+  /// A panel being dragged: where it was grabbed, how large it is, the layout the drag started from, and the
+  /// new lane it would open.
   struct Carried {
     let key: String
     let grab: CGSize
     let size: CGSize
-    var location: CGPoint
     let start: TalkLayout
     var newLane: TalkLayout.Side?
   }
 
+  /// Where the conversation stood when it was picked up.
   struct ConversationDrag {
     let start: CGFloat
-    var offset: CGFloat = 0
   }
+
+  private var frames: BoardFrames { reports.frames }
 
   var body: some View {
     GeometryReader { page in
@@ -78,7 +80,7 @@ struct TalkBoard<Conversation: View>: View {
       .animation(reduceMotion || widthDrag != nil ? nil : Motion.standard, value: fit)
     }
     .coordinateSpace(.named(Board.space))
-    .environment(\.boardFrames, $frames)
+    .environment(\.boardFrames, reports)
     .environment(\.panelLineMarks, column?.marks ?? [:])
     .environment(\.panelData, PanelData(readings: column?.readings ?? PanelReadings(), home: panelHome))
     .callsOffOnEscape(while: dragging) { callOff() }
@@ -95,7 +97,7 @@ struct TalkBoard<Conversation: View>: View {
       guard calledOff != start else { return false }
       self.calledOff = nil
     }
-    dragStart = start
+    if dragStart != start { dragStart = start }
     return true
   }
 
@@ -115,6 +117,7 @@ struct TalkBoard<Conversation: View>: View {
       preview = nil
       carried = nil
       conversationDrag = nil
+      pointer.conversationShift = 0
       widthDrag = nil
     }
   }
@@ -188,10 +191,10 @@ struct TalkBoard<Conversation: View>: View {
               .overlay(shape.strokeBorder(Palette.lineStrong, lineWidth: Size.hairline).opacity(lifted ? 1 : 0))
           }
           .scaleEffect(lifted ? 0.985 : 1)
-          .offset(x: conversationDrag?.offset ?? 0)
+          .shiftedWithConversation(pointer)
           .overlay(alignment: .top) {
             ConversationGrip(lifted: lifted)
-              .offset(x: conversationDrag?.offset ?? 0, y: -Size.gripLift)
+              .shiftedWithConversation(pointer, y: -Size.gripLift)
               .opacity(pointedAtConversation || lifted ? 1 : 0)
               .gesture(moveConversation)
           }
@@ -208,12 +211,13 @@ struct TalkBoard<Conversation: View>: View {
         guard heard(value.startLocation), let frame = frames.lanes[TalkLayout.Lane.conversation.id] else { return }
         if conversationDrag == nil {
           conversationDrag = ConversationDrag(start: frame.minX)
+          pointer.conversationShift = 0
           preview = shownLayout
         }
-        guard var drag = conversationDrag, let shown = preview else { return }
-        drag.offset = value.translation.width - (frame.minX - drag.start)
-        conversationDrag = drag
-        let place = shown.conversationPlace(over: frame.offsetBy(dx: drag.offset, dy: 0), frames: frames)
+        guard let drag = conversationDrag, let shown = preview else { return }
+        let shift = value.translation.width - (frame.minX - drag.start)
+        pointer.conversationShift = shift
+        let place = shown.conversationPlace(over: frame.offsetBy(dx: shift, dy: 0), frames: frames)
         if place != shown.conversationPlace {
           withAnimation(reduceMotion ? nil : Motion.standard) { preview = shown.movingConversation(to: place) }
         }
@@ -224,6 +228,7 @@ struct TalkBoard<Conversation: View>: View {
           if let preview { layout = preview }
           preview = nil
           conversationDrag = nil
+          pointer.conversationShift = 0
         }
       }
   }
@@ -238,17 +243,18 @@ struct TalkBoard<Conversation: View>: View {
             let frame = frames.panels[key]
           else { return }
           let start = shownLayout
+          pointer.location = value.location
           carried = Carried(
             key: key,
             grab: CGSize(width: value.startLocation.x - frame.minX, height: value.startLocation.y - frame.minY),
-            size: frame.size, location: value.location, start: start)
+            size: frame.size, start: start)
           preview = start
         }
-        guard var moving = carried, let shown = preview else { return }
-        moving.location = value.location
+        guard let moving = carried, let shown = preview else { return }
+        pointer.location = value.location
         let drop = shown.drop(of: moving.key, at: value.location, frames: frames, folded: [])
-        if case .newLane(let side) = drop { moving.newLane = side } else { moving.newLane = nil }
-        carried = moving
+        let newLane: TalkLayout.Side? = if case .newLane(let side) = drop { side } else { nil }
+        if newLane != moving.newLane { carried?.newLane = newLane }
         guard let drop, case .lane(let id, _) = drop, moving.start.panelLanes.contains(where: { $0.id == id }) else {
           return
         }
@@ -277,7 +283,7 @@ struct TalkBoard<Conversation: View>: View {
         .rotationEffect(.degrees(reduceMotion ? 0 : 1.2))
         .scaleEffect(reduceMotion ? 1 : 1.02)
         .shadow(color: Palette.liftShadow, radius: 28, y: 18)
-        .offset(x: carried.location.x - carried.grab.width, y: carried.location.y - carried.grab.height)
+        .underPointer(pointer, grab: carried.grab)
         .allowsHitTesting(false)
         .transition(.opacity)
     }

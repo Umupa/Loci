@@ -1,9 +1,54 @@
-import Foundation
+import SwiftUI
 
 /// Where things are on the main page while something is dragged across it, in the page's own coordinates.
 struct BoardFrames: Equatable {
   var lanes: [String: CGRect] = [:]
   var panels: [String: CGRect] = [:]
+}
+
+/// The frames the lanes and panels last reported. Only a drag reads them, so a report, made on every scroll and
+/// every step of an animation, draws nothing again.
+@MainActor
+final class BoardFrameReports {
+  var frames = BoardFrames()
+}
+
+/// Where the pointer is while something is dragged across the page. Only what follows it is drawn again as it
+/// moves, not the lanes under it.
+@MainActor @Observable
+final class BoardPointer {
+  var location = CGPoint.zero
+  var conversationShift: CGFloat = 0
+}
+
+extension View {
+  /// Puts the view's top left corner under the pointer, `grab` short of it.
+  func underPointer(_ pointer: BoardPointer, grab: CGSize) -> some View {
+    modifier(UnderPointer(pointer: pointer, grab: grab))
+  }
+
+  /// Shifts the view sideways as far as the conversation is dragged.
+  func shiftedWithConversation(_ pointer: BoardPointer, y: CGFloat = 0) -> some View {
+    modifier(ShiftedWithConversation(pointer: pointer, y: y))
+  }
+}
+
+private struct UnderPointer: ViewModifier {
+  let pointer: BoardPointer
+  let grab: CGSize
+
+  func body(content: Content) -> some View {
+    content.offset(x: pointer.location.x - grab.width, y: pointer.location.y - grab.height)
+  }
+}
+
+private struct ShiftedWithConversation: ViewModifier {
+  let pointer: BoardPointer
+  let y: CGFloat
+
+  func body(content: Content) -> some View {
+    content.offset(x: pointer.conversationShift, y: y)
+  }
 }
 
 extension TalkLayout {

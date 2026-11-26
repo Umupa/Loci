@@ -35,7 +35,7 @@ struct LaneGap: View {
         DragGesture(minimumDistance: 1, coordinateSpace: .global)
           .onChanged { value in
             guard enabled else { return }
-            dragging = true
+            if !dragging { dragging = true }
             dragged(value.translation.width, value.startLocation)
           }
           .onEnded { value in

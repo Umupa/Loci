@@ -109,7 +109,9 @@ extension LocalHost {
     await worker.homeClosed(.project(project))
   }
 
+  /// Opening a project with nothing new in it changes nothing, so no one watching projects looks again.
   public func seeProject(_ command: SeeProject) async throws(HostError) -> Done {
+    if let project = store.projects().first(where: { $0.id == command.project }), !isUnseen(project) { return Done() }
     _ = try await changeProject(command.project) { $0.with(seen: .some(self.environment.now())) }
     return Done()
   }
