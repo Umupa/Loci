@@ -2,8 +2,7 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// A connector's mark on a small tile, by its id: GitHub in ink, the others in their colors, and a link for
-/// any connector the app draws no mark for, such as an address the person added.
+/// A connector's icon on its tile.
 struct ConnectorMark: View {
   let id: ConnectorID
   var size: CGFloat = 34
@@ -15,63 +14,38 @@ struct ConnectorMark: View {
     shape.fill(Palette.surface)
       .overlay(shape.strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
       .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
-      .overlay { ConnectorArt(art: Self.art(for: id), size: size * 0.58) }
+      .overlay { ConnectorArt(id: id, size: size * 0.64) }
       .frame(width: size, height: size)
       .saturation(faded ? 0 : 1)
       .opacity(faded ? 0.55 : 1)
       .accessibilityHidden(true)
   }
-
-  /// How a connector is drawn on its tile: a site's own mark in ink, a service's mark in its colors, a symbol
-  /// for this Mac's calendars and reminders, a letter in ink for a site the app has no mark for, and a link
-  /// for an address the person added.
-  enum Art {
-    case ink(String)
-    case colored(NSImage)
-    case symbol(String)
-    case letter(String)
-    case link
-  }
-
-  static func art(for id: ConnectorID) -> Art {
-    switch id.rawValue {
-    case "github", "x": .ink(id.rawValue)
-    case "calendar": .symbol("calendar")
-    case "reminders": .symbol("checklist")
-    case "v2ex": .letter("V")
-    case "xiaohongshu": .letter("小")
-    case "bilibili": .letter("B")
-    default: MarkArt.connector(id).map(Art.colored) ?? .link
-    }
-  }
 }
 
-/// A connector's mark itself, `size` across, without the tile or circle it sits on: the Connectors page and a
-/// panel's sites draw a connector the same way.
+/// The icon shared by connector rows and panel sources.
 struct ConnectorArt: View {
-  let art: ConnectorMark.Art
+  let id: ConnectorID
   let size: CGFloat
+  @Environment(\.colorScheme) private var scheme
 
   var body: some View {
     Group {
-      switch art {
-      case .ink(let name):
-        if let art = MarkArt.site(name) {
-          Image(nsImage: art).renderingMode(.template).resizable().scaledToFit().foregroundStyle(Palette.ink)
-        }
-      case .colored(let art):
-        Image(nsImage: art).resizable().scaledToFit()
-      case .symbol(let name):
-        Image(systemName: name).resizable().scaledToFit().fontWeight(.medium).foregroundStyle(Palette.ink).padding(1)
-      case .letter(let letter):
-        Text(serif: letter, Serif.Face(size: size * 0.8, weight: .semibold)).foregroundStyle(Palette.ink)
-          .minimumScaleFactor(0.5)
-      case .link:
-        Image(systemName: Symbols.link).resizable().scaledToFit().fontWeight(.medium)
-          .foregroundStyle(Palette.inkMuted).padding(1)
+      if let art = MarkArt.connector(id, in: scheme) {
+        Image(nsImage: art).renderingMode(.original).resizable().scaledToFit()
+      } else {
+        Image(systemName: fallback).resizable().scaledToFit().fontWeight(.medium)
+          .foregroundStyle(Palette.inkMuted).padding(2)
       }
     }
     .frame(width: size, height: size)
+  }
+
+  private var fallback: String {
+    switch id.rawValue {
+    case "calendar": "calendar"
+    case "reminders": "checklist"
+    default: Symbols.link
+    }
   }
 }
 

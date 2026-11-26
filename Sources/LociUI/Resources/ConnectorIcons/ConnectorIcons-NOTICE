@@ -1,5 +1,13 @@
-Connector icons
+连接器图标
 
-Notion, Linear, Sentry and Atlassian are simplified drawings made for Loci after each company's mark, in its
-colors. GitHub uses the site icon in ../SiteIcons. Brand marks identify their products and remain their owners'
-trademarks.
+- Notion 使用官网的立方体站点图标。https://www.notion.com/front-static/shared/logos/block-sticker.svg
+- Linear 使用品牌包的深色和浅色图形标志。https://linear.app/brand
+- GitHub 使用品牌包的 Invertocat 黑白图形标志。https://brand.github.com/foundations/logo
+- Sentry 使用媒体资源页 Logo 生成器的透明 Glyph，保留官方的路径和深浅配色。https://sentry.io/about/media-resources/
+- Atlassian 使用品牌包的 brand 和 inverse 图形标志。https://atlassian.design/foundations/logos/
+- X 使用品牌包的黑白 PNG，缩至最长边 128 像素。https://about.x.com/en/who-we-are/brand-toolkit
+- V2EX 使用官网的站点图标。https://www.v2ex.com/static/icon-192.png
+- 小红书使用官网的触屏书签图标。https://picasso-static.xiaohongshu.com/fe-platform/f43dc4a8baf03678996c62d8db6ebc01a82256ff.png
+- 哔哩哔哩使用官网的站点图标，转存为 PNG。https://www.bilibili.com/favicon.ico
+
+图标用于识别相应的服务，商标归各自权利人所有。

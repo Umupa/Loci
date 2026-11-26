@@ -2,7 +2,7 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// The brand artwork shipped with the app, loaded once per image.
+/// Brand and system app artwork, loaded once per image.
 @MainActor
 enum MarkArt {
   private static var loaded: [String: NSImage] = [:]
@@ -43,22 +43,27 @@ enum MarkArt {
     }
   }
 
-  /// A site's mark, drawn in one color to be tinted.
-  static func site(_ name: String) -> NSImage? {
-    guard let mark = image("site-" + name, extension: "svg") else { return nil }
-    mark.isTemplate = true
-    return mark
+  static func connector(_ id: ConnectorID, in scheme: ColorScheme) -> NSImage? {
+    let name = "connector-" + id.rawValue
+    let suffix = scheme == .dark ? "-dark" : ""
+    return switch id.rawValue {
+    case "linear", "github", "sentry", "atlassian": image(name + suffix, extension: "svg")
+    case "x": image(name + suffix, extension: "png")
+    case "notion": image(name, extension: "svg")
+    case "v2ex", "xiaohongshu", "bilibili": image(name, extension: "png")
+    case "calendar": application("com.apple.iCal")
+    case "reminders": application("com.apple.reminders")
+    default: nil
+    }
   }
 
-  /// A connector's mark in its colors, by the connector's id; `nil` for one the app draws no mark for.
-  static func connector(_ id: ConnectorID) -> NSImage? {
-    connectorArt[id.rawValue].flatMap { image($0, extension: "svg") }
+  private static func application(_ identifier: String) -> NSImage? {
+    if let image = loaded[identifier] { return image }
+    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { return nil }
+    let image = NSWorkspace.shared.icon(forFile: url.path)
+    loaded[identifier] = image
+    return image
   }
-
-  private static let connectorArt = [
-    "notion": "connector-notion", "linear": "connector-linear", "sentry": "connector-sentry",
-    "atlassian": "connector-atlassian",
-  ]
 
   private static func image(_ name: String, extension fileType: String) -> NSImage? {
     if let image = loaded[name] { return image }

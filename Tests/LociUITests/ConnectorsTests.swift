@@ -18,22 +18,17 @@ struct ConnectorsTests {
     #expect(QuickAnswer("[看看](https://example.com)").place == nil)
   }
 
-  @Test func aConnectorWithoutAMarkOfItsOwnIsDrawnAsALink() {
-    #expect(MarkArt.connector(ConnectorID("notion")) != nil)
-    #expect(MarkArt.connector(ConnectorID("mcp-mcp.stripe.com")) == nil)
-    if case .link = ConnectorMark.art(for: ConnectorID("mcp-mcp.stripe.com")) {} else { Issue.record("not a link") }
+  @Test func aCustomMCPAddressHasNoBrandArtwork() {
+    let id = ConnectorID("mcp-mcp.stripe.com")
+    #expect(MarkArt.connector(id, in: .light) == nil)
+    #expect(MarkArt.connector(id, in: .dark) == nil)
   }
 
-  /// CN-S11, CN-S13: every connector the host offers has a mark of its own.
-  @Test func everyConnectorInTheCatalogHasItsOwnMark() {
-    for offer in SampleConnectors.offers {
-      if case .link = ConnectorMark.art(for: offer.id) { Issue.record("\(offer.id) is drawn as a link") }
-    }
-    if case .ink("x") = ConnectorMark.art(for: SampleConnectors.x) {} else { Issue.record("X is not drawn in ink") }
-    if case .symbol("checklist") = ConnectorMark.art(for: SampleConnectors.reminders) {
-    } else {
-      Issue.record("reminders is not a checklist")
-    }
+  /// CN-S1, CN-S11, CN-S13: each offered service or app is recognizable by its own icon.
+  @Test(arguments: SampleConnectors.offers.map(\.id))
+  func everyBuiltInConnectorDisplaysAnImage(id: ConnectorID) {
+    #expect(MarkArt.connector(id, in: .light)?.isValid == true)
+    #expect(MarkArt.connector(id, in: .dark)?.isValid == true)
   }
 
   /// CN-S12: a website's sign-in page opens in the built-in browser; an OAuth one in the default browser.

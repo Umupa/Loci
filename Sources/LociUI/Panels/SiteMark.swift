@@ -44,7 +44,7 @@ struct SiteBadge: View {
   @ViewBuilder private var face: some View {
     switch SiteMark(site) {
     case .connector(let id):
-      ConnectorArt(art: ConnectorMark.art(for: id), size: size * 0.56)
+      ConnectorArt(id: id, size: size * 0.62)
         .frame(width: size, height: size)
         .overlay(Circle().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
     case .hackerNews:
