@@ -645,7 +645,7 @@
 
 ### 项目
 
-范围见 [roadmap.md](roadmap.md#项目)。
+范围见 [roadmap.md](roadmap.md#已完成)。
 
 | 编号 | 场景 |
 |---|---|
@@ -664,7 +664,7 @@
 
 ### 数据源与图表行
 
-范围见 [roadmap.md](roadmap.md#数据源与图表行)。
+范围见 [roadmap.md](roadmap.md#已完成)。
 
 | 编号 | 场景 |
 |---|---|
@@ -685,7 +685,7 @@
 
 ### 下一步
 
-范围见 [roadmap.md](roadmap.md#下一步)。
+范围见 [roadmap.md](roadmap.md#已完成)。
 
 | 编号 | 场景 |
 |---|---|

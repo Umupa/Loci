@@ -33,6 +33,12 @@ Every night after 23:00, once you have gone quiet, your companion looks back on 
 - Videos and podcasts transcribed on your Mac with Whisper, with chapters, highlights and a line-by-line translation.
 - Highlights anywhere: select a passage, keep a thought, or ask your companion about it right there.
 
+**Following for you.** Connect GitHub, Notion, your calendar, X and the other places you check, and your companion looks on a schedule, putting what it finds into panels beside the conversation. Numbers you only need to see, such as quotes, rates or prices, Loci fetches itself and draws as chart rows, so they never pass through a model. Feeds are filtered by your companion first, and it only wakes when something new arrives.
+
+**Projects.** A long-running thing, like an investment, a trip or a round of interviews, gets its own conversation, panels, schedules and memory, in a bar at the top of the companion page, so it never crowds the main conversation.
+
+**Next up, and a little done for you.** What your companion notices for you lands as a stack of cards on top of the panels: start, keep, later or dismiss. When it wants to put something in your calendar or add a reminder, it shows an approval card first, writes only when you approve, and can take it back. It never pays, orders, signs up or sends messages for you, and never pushes notifications.
+
 **Your other Mac.** Pair two Macs through an end-to-end encrypted relay and switch to the other one's library and companion from the sidebar. What you have opened stays readable offline.
 
 ## Build
