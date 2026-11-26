@@ -237,7 +237,7 @@ struct MachineWindow: View {
         category: category, chooseFiles: { dialogs.importing = true }, opened: { window = $0 },
         failed: { dialogs.failure = $0 })
     case .browser:
-      BrowserScreen(session: browser, failed: { dialogs.failure = $0 })
+      BrowserScreen(session: browser)
     case .courses(let open):
       CoursesScreen(open: open)
     case .settings(.general):

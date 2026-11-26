@@ -9,7 +9,6 @@ struct WebOverlay: View {
   @Environment(\.host) private var host
   @Environment(\.takeIn) private var takeIn
   @Environment(\.changesAllowed) private var changesAllowed
-  @Environment(\.showFailure) private var showFailure
   @Environment(\.openPage) private var openPage
   @Environment(\.openPlace) private var openPlace
   @Environment(\.standIns) private var standIns
@@ -18,7 +17,9 @@ struct WebOverlay: View {
   let tab: BrowserTab
   let close: () -> Void
   @State private var items: Feed<[Item]>?
+  @State private var jobs: Feed<[Job]>?
   @State private var choosing = false
+  @State private var keeping = PageKeeping()
 
   var body: some View {
     VStack(spacing: 0) {
@@ -42,11 +43,23 @@ struct WebOverlay: View {
         .padding(.top, Self.barHeight + 4)
         .padding(.trailing, 64)
         .transition(reduceMotion ? .identity : .scale(scale: 0.95, anchor: .topTrailing).combined(with: .opacity))
+      } else {
+        KeepNoteSlot(keeping: keeping, state: keepingState, session: session, keepAgain: keep, opening: close)
+          .padding(.top, Self.barHeight + 4)
+          .padding(.trailing, 64)
       }
     }
     .subscribing(AllItems(), into: $items)
-    .onChange(of: tab.address) { choosing = false }
-    .onAppear { if standIns?.keepListOpen == true { choosing = true } }
+    .subscribing(AllJobs(), into: $jobs)
+    .onChange(of: items?.value) { _, library in keeping.noting(library ?? []) }
+    .onChange(of: tab.address) {
+      choosing = false
+      keeping.forget()
+    }
+    .onAppear {
+      if standIns?.keepListOpen == true { choosing = true }
+      if let standing = standIns?.keeping { keeping.stand(in: standing) }
+    }
   }
 
   private var bar: some View {
@@ -65,7 +78,7 @@ struct WebOverlay: View {
       }
       Spacer(minLength: Spacing.s)
       if let finds {
-        KeepButton(finds: finds, choosing: choosing) { click(finds) }.changesData()
+        KeepButton(finds: finds, choosing: choosing, keeping: keepingState) { click(finds) }.changesData()
       }
       IconButton(
         symbol: Symbols.external, title: .loci("overlay.openInBrowser"), tint: Palette.ink, action: openInBrowser)
@@ -103,7 +116,18 @@ struct WebOverlay: View {
     return PageFinds(at: address, title: title, facts: tab.facts, library: items?.value ?? [])
   }
 
+  private var keepingState: Keeping.State? {
+    keeping.state(library: items?.value, jobs: jobs?.value ?? [])
+  }
+
   private func click(_ finds: PageFinds) {
+    switch keepingState {
+    case .saving: return
+    case .stopped, .refused:
+      keeping.showNote()
+      return
+    case .saved, nil: break
+    }
     switch finds.click {
     case .keepPage: keep(finds.left)
     case .choose: withAnimation(reduceMotion ? nil : Motion.quick) { choosing.toggle() }
@@ -115,14 +139,8 @@ struct WebOverlay: View {
 
   private func keep(_ chosen: [PageFinds.Find]) {
     withAnimation(reduceMotion ? nil : Motion.quick) { choosing = false }
-    let taker = PageTaker(
-      host: host, session: session, takeIn: takeIn, failed: showFailure.callAsFunction,
-      changesAllowed: changesAllowed)
-    let page = tab
-    Task {
-      await page.point(at: nil)
-      await taker.keep(chosen, from: page)
-    }
+    keeping.keep(
+      chosen, from: tab, by: PageTaker(host: host, session: session, takeIn: takeIn, changesAllowed: changesAllowed))
   }
 
   /// Esc and the close button put the list away first, then the page.

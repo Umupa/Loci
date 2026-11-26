@@ -9,8 +9,13 @@ struct PageTaker {
   let host: any LociModel.Host
   let session: BrowserSession
   let takeIn: TakeIn?
-  let failed: (HostError) -> Void
   let changesAllowed: Bool
+
+  /// What the library took from a page, and why it would not take the rest.
+  struct Taken: Equatable {
+    var items: [EntityID] = []
+    var refusal: HostError?
+  }
 
   /// Hands the browser's sign-in to the host, so the import panel reads the videos as the reader sees them,
   /// then lets them wait in the panel.
@@ -20,34 +25,31 @@ struct PageTaker {
     takeIn?.videos(links)
   }
 
-  /// Adds the page in `tab` as it shows it, staying on the page; its button then shows it in the library.
-  func addPage(in tab: BrowserTab) async {
-    guard changesAllowed, let address = tab.address else { return }
-    let html = await tab.articleHTML(at: address)
-    await handOverSignIn(for: address)
-    do throws(HostError) {
-      _ = try await host.run(AddLink(url: address, articleHTML: html))
-    } catch {
-      failed(error)
-    }
-  }
-
-  /// Keeps what was chosen from the page in `tab`: the page as `addPage` does, the papers as links, and the
-  /// videos, the page among them when it is one, through the import panel.
-  func keep(_ chosen: [PageFinds.Find], from tab: BrowserTab) async {
-    guard changesAllowed else { return }
+  /// Keeps what was chosen from the page in `tab`: the page as it shows it, the papers as links, and the
+  /// videos, the page among them when it is one, through the import panel. Tells what was added as links.
+  func keep(_ chosen: [PageFinds.Find], from tab: BrowserTab) async -> Taken {
+    guard changesAllowed else { return Taken() }
+    var taken = Taken()
     let pageIsVideo = tab.address.map { LinkKind($0) == .video } ?? false
-    if chosen.contains(where: { $0.kind == .page }), !pageIsVideo { await addPage(in: tab) }
+    if chosen.contains(where: { $0.kind == .page }), !pageIsVideo, let address = tab.address {
+      let html = await tab.articleHTML(at: address)
+      await add(AddLink(url: address, articleHTML: html), to: &taken)
+    }
     for paper in chosen where paper.kind == .paper {
-      await handOverSignIn(for: paper.url)
-      do throws(HostError) {
-        _ = try await host.run(AddLink(url: paper.url))
-      } catch {
-        failed(error)
-      }
+      await add(AddLink(url: paper.url), to: &taken)
     }
     let videos = chosen.filter { $0.kind == .video || ($0.kind == .page && pageIsVideo) }.map(\.url)
     if !videos.isEmpty { await takeVideos(videos) }
+    return taken
+  }
+
+  private func add(_ link: AddLink, to taken: inout Taken) async {
+    await handOverSignIn(for: link.url)
+    do throws(HostError) {
+      taken.items.append(try await host.run(link).id)
+    } catch {
+      taken.refusal = error
+    }
   }
 
   private func handOverSignIn(for link: URL) async {
