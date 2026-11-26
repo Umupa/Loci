@@ -19,7 +19,8 @@ actor CallerSession {
   private var pending: [UInt32: CheckedContinuation<Result<Data, HostError>, Never>] = [:]
   private var feeds: [UInt32: AsyncStream<FeedFrame>.Continuation] = [:]
   private var isEnded = false
-  private var endWaiters: [CheckedContinuation<Void, Never>] = []
+  private var endWaiters: [UInt64: CheckedContinuation<Void, Never>] = [:]
+  private var waiterSerial: UInt64 = 0
 
   /// `unpaired` runs when the other Mac says it removed this one.
   init(channel: SecureChannel, unpaired: @escaping @Sendable () async -> Void) {
@@ -31,11 +32,24 @@ actor CallerSession {
     Task { await self.read() }
   }
 
-  /// Returns once the connection has ended.
+  /// Returns once the connection has ended, or the task waiting for it is cancelled.
   func ended() async {
-    guard !isEnded else { return }
-    await withCheckedContinuation { endWaiters.append($0) }
+    guard !isEnded, !Task.isCancelled else { return }
+    waiterSerial += 1
+    let waiter = waiterSerial
+    await withTaskCancellationHandler {
+      await withCheckedContinuation { endWaiters[waiter] = $0 }
+    } onCancel: {
+      Task { await self.stopWaiting(waiter) }
+    }
   }
+
+  private func stopWaiting(_ waiter: UInt64) {
+    endWaiters.removeValue(forKey: waiter)?.resume()
+  }
+
+  /// How many are waiting for the connection to end.
+  var waitingForEnd: Int { endWaiters.count }
 
   /// A call, an upload or a subscription is still waiting on this connection.
   var isBusy: Bool { !pending.isEmpty || !feeds.isEmpty }
@@ -128,8 +142,8 @@ actor CallerSession {
     pending = [:]
     for feed in feeds.values { feed.finish() }
     feeds = [:]
-    for waiter in endWaiters { waiter.resume() }
-    endWaiters = []
+    for waiter in endWaiters.values { waiter.resume() }
+    endWaiters = [:]
   }
 
   private func handle(_ frame: Frame) async {

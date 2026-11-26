@@ -130,7 +130,8 @@ struct Composer: View {
     TextField(text: $text, selection: $selection, axis: .vertical) {
       if !making.wrappedValue {
         if style == .talk, let projectName {
-          Text(.loci("talk.projectPrompt \(projectName)"))
+          let shown = ProjectSeal.shortened(projectName)
+          Text(.loci("talk.projectPrompt \(shown)")).lineLimit(1)
         } else if name.isEmpty {
           Text(.loci(style == .talk ? "talk.prompt" : "companion.prompt"))
         } else {

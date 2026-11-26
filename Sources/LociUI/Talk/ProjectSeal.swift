@@ -34,3 +34,10 @@ struct ProjectSeal: View {
 extension Project {
   var shownName: String { name ?? "" }
 }
+
+extension ProjectSeal {
+  /// A long name cut to what fits a line, as the field's prompt says it.
+  static func shortened(_ name: String) -> String {
+    name.count > 10 ? String(name.prefix(9)) + "…" : name
+  }
+}

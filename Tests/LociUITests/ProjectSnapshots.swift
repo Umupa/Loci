@@ -66,15 +66,40 @@ struct ProjectSnapshots {
   @Test(arguments: Snapshot.Appearance.allCases)
   func starting(appearance: Snapshot.Appearance) async throws {
     for (name, sent) in [("projects-new", nil), ("projects-new-sent", "建一个投资项目，盯纳指和我的几只基金")] {
-      let view = VStack(spacing: 0) {
-        ProjectBarView(bar: Self.bar, home: .chat, starting: true, actions: Self.actions).padding(.top, 11)
-        NewProjectStage(sent: sent, send: { _ in }).padding(.top, 40)
-      }
+      let memory = WindowMemory(
+        recall: { WindowState() }, remember: { _ in }, recallProject: { nil }, rememberProject: { _ in })
+      let view = CompanionPage(
+        focusRequest: 0, attach: {}, opened: { _ in }, failed: { _ in }, columnPreferred: .constant(true),
+        memory: memory, visits: ConversationVisits(), opening: CompanionPage.Starting(sent: sent)
+      )
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
       .background(Palette.canvas)
-      .lociHost(FakeHost(try Sample(problems: false)))
-      try await Snapshot.render(view, named: name, size: CGSize(width: 960, height: 640), appearance: appearance)
+      .lociHost(FakeHost(try Sample(problems: false), projects: Self.bar))
+      .defaultAppStorage(PanelSnapshots.defaults(columnShown: true, sidebarShown: false, layout: nil))
+      try await Snapshot.render(
+        view, named: name, size: CGSize(width: 1000, height: 700), appearance: appearance, settle: .seconds(1))
     }
+  }
+
+  /// PJ-S8: a very long name stays on one line, cut short, and the corner buttons stay clear of the bar in the
+  /// narrowest window; the field's prompt is one line too.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func aLongName(appearance: Snapshot.Appearance) async throws {
+    let long = Project(
+      id: Self.investing.id, name: "边界🌼" + String(repeating: "超长中文项目名🧪", count: 12), pinned: [],
+      createdAt: Timestamp(millisecondsSince1970: 1))
+    let bar = ProjectBar(projects: [long, Self.trip, Self.interview, Self.moving.with(archived: false)])
+    let host = FakeHost(
+      try Sample(problems: false), projects: bar,
+      projectPanels: [long.id: PanelColumn(slots: [.panel(Self.rules)])])
+    let memory = WindowMemory(
+      recall: { WindowState() }, remember: { _ in }, recallProject: { long.id }, rememberProject: { _ in })
+    let view = MachineWindow(memory: memory)
+      .lociHost(host)
+      .defaultAppStorage(PanelSnapshots.defaults(columnShown: true, sidebarShown: true, layout: nil))
+    try await Snapshot.render(
+      view, named: "projects-long-name", size: CGSize(width: 720, height: 560), appearance: appearance,
+      settle: .seconds(1))
   }
 
   /// PJ-S10: every project, the open one marked, the archived ones folded at the bottom.

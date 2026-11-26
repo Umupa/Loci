@@ -85,7 +85,7 @@ struct PanelGuardScenarioTests {
 
       let saved = await answer(try command(SavePanel(PanelScenarioTests.radar)), from: session, on: host)
 
-      #expect(saved == .failed(.invalidRequest(PanelKeeper.stopped)))
+      #expect(saved == .failed(.invalidRequest(ToolGateway.over)))
       #expect(try await host.panelColumn(of: .chat).slots.map(\.place) == [.panel("radar")])
     }
   }

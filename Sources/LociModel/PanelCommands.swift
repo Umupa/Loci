@@ -37,15 +37,26 @@ public struct PanelEntry: Hashable, Codable, Sendable {
 public struct WatchPanelColumn: Subscription {
   public static let name = "panels"
   public let project: Project.ID?
+  /// The panels this Mac can draw: `nil` from a Mac older than pinned panels and chart rows, which is sent a
+  /// column without them so it can still read the rest.
+  public let shape: Int?
 
   public init(of home: Home = .chat) {
-    project = home.project
+    self.init(home.project, shape: PanelColumn.shape)
   }
+
+  private init(_ project: Project.ID?, shape: Int?) {
+    self.project = project
+    self.shape = shape
+  }
+
+  public var keptAs: WatchPanelColumn { WatchPanelColumn(project, shape: nil) }
 
   public var home: Home { Home(project) }
 
   public func value(from handler: any CommandHandler) async throws(HostError) -> PanelColumn {
-    try await handler.panelColumn(of: home)
+    let column = try await handler.panelColumn(of: home)
+    return shape == nil ? column.forOlderMacs : column
   }
 
   /// 「接着读」 lists items read partway, by their titles.

@@ -21,7 +21,7 @@ struct TalkLayout: Codable, Equatable {
   static let conversationLeast: CGFloat = 320
 
   static let standard = TalkLayout(
-    leading: [], conversationWidth: 600, trailing: [PanelLane(id: "right", width: 380, keys: [])])
+    leading: [], conversationWidth: 600, trailing: [PanelLane(id: "right", width: 360, keys: [])])
 
   /// Every lane left to right, the conversation among them.
   var lanes: [Lane] {
@@ -116,10 +116,10 @@ struct TalkLayout: Codable, Equatable {
     let keys = panelLanes.flatMap(\.keys)
     switch arrangement {
     case .panelsRight:
-      return TalkLayout(leading: [], conversationWidth: 600, trailing: [PanelLane(id: "right", width: 380, keys: keys)])
+      return TalkLayout(leading: [], conversationWidth: 600, trailing: [PanelLane(id: "right", width: 360, keys: keys)])
         .withoutEmptyLanes()
     case .panelsLeft:
-      return TalkLayout(leading: [PanelLane(id: "left", width: 380, keys: keys)], conversationWidth: 600, trailing: [])
+      return TalkLayout(leading: [PanelLane(id: "left", width: 360, keys: keys)], conversationWidth: 600, trailing: [])
         .withoutEmptyLanes()
     case .panelsBothSides:
       let half = (keys.count + 1) / 2

@@ -9,11 +9,9 @@ import os
 enum ToolGateway {
   /// The commands run as any caller runs them. The three that put an item into the library, `AddLink`,
   /// `AddTextItem` and `ImportMediaFile`, are run as Loci's; `SavePanel` goes through the panels, which know
-  /// which run may still save; `AddFollowUp` is told the conversation it was set in.
-  static let reading: [any Command.Type] = [
-    Search.self, ListItems.self, ListPanels.self, ListTimers.self, CancelFollowUp.self, RemoveSchedule.self,
-    ChangeSchedule.self,
-  ]
+  /// which run may still save; `AddFollowUp` is told the conversation it was set in; listing and changing
+  /// timers sees only the session's own home (`runTimer`).
+  static let reading: [any Command.Type] = [Search.self, ListItems.self, ListPanels.self]
   static let subscriptions: [any Subscription.Type] = [ItemJob.self]
 
   private static let log = Logger(subsystem: "com.loci.native.dev", category: "tool")
@@ -67,16 +65,26 @@ enum ToolGateway {
     }
   }
 
-  /// Why a run's session may not make the call; `nil` when it may. A run that is over is held to what any run
-  /// may do, and its panel saves are refused by the panels.
+  /// Why a run's session may not make the call; `nil` when it may. A run that is over, or waits to be tried
+  /// again, may do nothing, so what its session still sends never lands anywhere; one stopped under way is held
+  /// to what any run may do, and its panel saves are refused by the panels.
   static func refusal(of request: LocalCall.Request, in run: Run.ID, on host: LocalHost) async -> String? {
-    let policy = await host.worker.policy(of: run) ?? .timers
+    if await host.worker.isClosed(run) { return Self.stopped }
+    let access = await host.worker.access(of: run)
+    if access == nil, await host.worker.home(of: run) == nil, (try? host.database.run(run)) != nil {
+      return Self.over
+    }
+    let policy = access?.policy ?? .timers
     switch request {
     case .command(let name, let body) where policy == .repair:
-      guard repairCommands.contains(name) else { return policy.refusal(name) }
-      guard name == SaveDataSource.name, let mending = await host.worker.repairing(in: run) else { return nil }
-      let saving = (try? WireCodec.decode(SaveDataSource.self, from: body))?.source.name
-      return saving == mending.name ? nil : "This repair mends only the source \(mending.name); save that one."
+      guard repairCommands.contains(name), let grant = access?.repair else { return policy.refusal(name) }
+      let named =
+        switch name {
+        case SaveDataSource.name: (try? WireCodec.decode(SaveDataSource.self, from: body))?.source.name
+        case TestDataSource.name: (try? WireCodec.decode(TestDataSource.self, from: body))?.source
+        default: grant.source.name
+        }
+      return named == grant.source.name ? nil : "This repair mends only the source \(grant.source.name); use that one."
     case .command(let name, _):
       if name == AddNextUp.name, policy == .review { return policy.refusal("next add") }
       return runCommands.contains(name) ? nil : policy.refusal(name)
@@ -85,6 +93,9 @@ enum ToolGateway {
     case .follow, .itemFolder, .course: return nil
     }
   }
+
+  static let stopped = "This run's project was archived, deleted or kept out of memory; loci does nothing more for it."
+  static let over = "This run is over; loci does nothing more for it."
 
   /// What a run's session may run: what reads, setting follow-ups, saving the panels it is for, and putting a
   /// card on the deck (not in the daily review).
@@ -99,6 +110,14 @@ enum ToolGateway {
 
   /// What a repair's session may run: show, test and save sources.
   static let repairCommands: Set<String> = [ListDataSources.name, TestDataSource.name, SaveDataSource.name]
+
+  /// The repair the run under way may save under; refused once the run is over or is no repair.
+  private static func grant(of run: Run.ID, _ host: LocalHost) async throws(HostError) -> RepairGrant {
+    guard let grant = await host.worker.access(of: run)?.repair else {
+      throw .invalidRequest("This run may not change sources: only a repair under way may save the source it mends.")
+    }
+    return grant
+  }
 
   /// The home a session works in: a project's conversation and runs are the project's, everything else the chat's.
   static func home(of session: LocalSession?, on host: LocalHost) async -> Home {
@@ -148,12 +167,17 @@ enum ToolGateway {
     }
     if name == SaveDataSource.name {
       let command = try WireCodec.decode(SaveDataSource.self, from: body)
+      if case .run(let run) = call.session {
+        return try WireCodec.encode(
+          try await host.saveDataSource(command.source, repairing: try await grant(of: run, host)))
+      }
       return try WireCodec.encode(try await host.saveDataSource(SaveDataSource(command.source, in: home)))
     }
     if name == TestDataSource.name {
       let command = try WireCodec.decode(TestDataSource.self, from: body)
+      let place = if case .run(let run) = call.session { try await grant(of: run, host).source.home } else { home }
       return try WireCodec.encode(
-        try await host.testDataSource(TestDataSource(command.source, script: command.script, in: home)))
+        try await host.testDataSource(TestDataSource(command.source, script: command.script, in: place)))
     }
     if name == PickPanelEntries.name {
       let command = try WireCodec.decode(PickPanelEntries.self, from: body)
@@ -161,7 +185,9 @@ enum ToolGateway {
       return try WireCodec.encode(Done())
     }
     if name == ListDataSources.name {
-      return try WireCodec.encode(try await host.dataSources(of: home))
+      let repair: RepairGrant? =
+        if case .run(let run) = call.session { await host.worker.access(of: run)?.repair } else { nil }
+      return try WireCodec.encode(try await host.dataSources(of: home, named: repair?.source.name))
     }
     if name == NameProject.name || name == DescribeProject.name {
       guard case .project(let project) = home else { throw .invalidRequest(NameProject.outside) }
@@ -173,6 +199,7 @@ enum ToolGateway {
       return try WireCodec.encode(try await host.describeProject(DescribeProject(command.summary, of: project)))
     }
     if let reply = try await runNextUp(name, body, in: home, on: host) { return reply }
+    if let reply = try await runTimer(name, body, in: home, on: host) { return reply }
     if let command = Wire.toolCommands.first(where: { $0.name == name }) {
       return try await WireCodec.run(command, body: body, on: host)
     }

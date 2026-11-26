@@ -64,7 +64,7 @@ enum ConversationMirror {
         return ("You", prompt.text)
       case .review, .panel, .run, .course: return ("App", prompt.text)
       }
-    case .reply(let text):
+    case .reply(let text), .told(let text):
       return ("Companion", text)
     case .tool(let tool):
       return ("Companion", "- \(tool.kind.rawValue): \(tool.subject ?? tool.name)")

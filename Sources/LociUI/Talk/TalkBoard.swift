@@ -22,6 +22,8 @@ struct TalkBoard<Conversation: View>: View {
   let showsPanels: Bool
   var building: PanelSources?
   var making = false
+  /// How far the panel lanes rise over the top of the board, into room the conversation keeps for its grip.
+  var panelRise: CGFloat = 0
   let actions: PanelActions
   @ViewBuilder var conversation: Conversation
   @Environment(\.reducesMotion) private var reduceMotion
@@ -152,16 +154,21 @@ struct TalkBoard<Conversation: View>: View {
         RailLane(
           lane: panels, slots: panels.keys.compactMap { slots[$0] }, refreshing: column?.refreshing ?? [],
           actions: actions, side: shown.leading.contains(panels) ? .leading : .trailing,
-          open: Binding(get: { openRail == panels.id }, set: { openRail = $0 ? panels.id : nil }))
+          deck: panels.id == foot(in: shown),
+          open: Binding(get: { openRail == panels.id }, set: { openRail = $0 ? panels.id : nil })
+        )
+        .frame(height: height + panelRise)
+        .offset(y: -panelRise)
       } else {
         PanelLaneView(
           slots: panels.keys.compactMap { slots[$0] }, refreshing: column?.refreshing ?? [],
           foot: panels.id == foot(in: shown), building: building, making: making, actions: actions,
           hollow: carried.map { ($0.key, $0.size.height) }
         )
-        .frame(width: fit.width(of: lane), height: height)
+        .frame(width: fit.width(of: lane), height: height + panelRise)
         .boardFrame(lane: panels.id)
         .gesture(carry(in: panels))
+        .offset(y: -panelRise)
       }
     }
   }

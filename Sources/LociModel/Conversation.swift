@@ -30,6 +30,18 @@ public struct Conversation: Hashable, Codable, Sendable {
     self.context = context
   }
 
+  /// The shape a Mac asks for when it can show what the companion says on its own.
+  public static let shape = 2
+
+  /// The conversation as a Mac older than `told` can read it: each such message as a reply.
+  public var forOlderMacs: Conversation {
+    let shown = entries.map { entry -> Entry in
+      guard case .message(let message) = entry, case .told(let text) = message.body else { return entry }
+      return .message(Message(id: message.id, at: message.at, body: .reply(text)))
+    }
+    return Conversation(ref: ref, entries: shown, turn: turn, context: context)
+  }
+
   public enum Entry: Hashable, Codable, Sendable, Identifiable {
     case message(Message)
     /// Only received from older hosts.
@@ -88,6 +100,8 @@ public struct Message: Hashable, Codable, Sendable, Identifiable {
     case prompt(Prompt)
     /// Part of Loci's reply. A reply interrupted by tool calls is several messages.
     case reply(String)
+    /// What Loci says on its own, not in answer to anything, such as what it mended in the background.
+    case told(String)
     case thinking(String)
     case tool(ToolActivity)
     /// The question and its answer were saved in this note on the passage the question was about.

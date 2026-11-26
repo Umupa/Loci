@@ -10,6 +10,9 @@ struct AgentContext: Sendable {
   let prompts: Prompts
   let agents: HostAgents
   let feelings: FeelingsKeeper
+  let life: HomeLife
+  /// Where every fetch of a source is kept, and every repair's grant opened and closed.
+  let commits = SourceCommits()
 
   /// What Loci runs on now.
   var runtime: Runtime { agents.provisionalRuntime }

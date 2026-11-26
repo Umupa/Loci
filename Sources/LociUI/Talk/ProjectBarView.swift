@@ -33,14 +33,15 @@ struct ProjectBarView: View {
     HStack(spacing: 2) {
       tab(for: .chat, label: Text(.loci("projects.chat"))) { LociAvatar(size: Size.seal) }
       Rectangle().fill(Palette.lineStrong).frame(width: Size.hairline, height: 18).padding(.horizontal, 4)
-      if starting {
-        tab(for: nil, label: Text(.loci("projects.new")).foregroundStyle(Palette.inkFaint)) {
-          ProjectSeal(seal: "", ghost: true)
+      ViewThatFits(in: .horizontal) {
+        seals(nameWidest: Size.projectNameWidest)
+        seals(nameWidest: Size.projectNameNarrow)
+        ScrollViewReader { reader in
+          ScrollView(.horizontal) { seals(nameWidest: Size.projectNameNarrow) }
+            .scrollIndicators(.never)
+            .onAppear { reader.scrollTo(home.project, anchor: .center) }
+            .onChange(of: home) { reader.scrollTo(home.project, anchor: .center) }
         }
-      }
-      ForEach(bar.projects, id: \.id) { project in
-        projectTab(project)
-          .transition(reduceMotion ? .identity : .scale(scale: 1.6).combined(with: .opacity))
       }
       iconButton("plus", help: .loci("projects.new"), action: actions.start)
         .disabled(!changesAllowed)
@@ -63,8 +64,28 @@ struct ProjectBarView: View {
     .animation(reduceMotion ? nil : Motion.standard, value: starting)
   }
 
-  private func projectTab(_ project: Project) -> some View {
-    tab(for: .project(project.id), label: Text(verbatim: project.shownName), dot: bar.unseen.contains(project.id)) {
+  /// The project being started and each project's seal; when they do not fit the bar, the open one's name
+  /// narrows, then they scroll within it, with the open one in view.
+  private func seals(nameWidest: CGFloat) -> some View {
+    HStack(spacing: 2) {
+      if starting {
+        tab(for: nil, label: Text(.loci("projects.new")).foregroundStyle(Palette.inkFaint), nameWidest: nameWidest) {
+          ProjectSeal(seal: "", ghost: true)
+        }
+      }
+      ForEach(bar.projects, id: \.id) { project in
+        projectTab(project, nameWidest: nameWidest)
+          .id(Optional(project.id))
+          .transition(reduceMotion ? .identity : .scale(scale: 1.6).combined(with: .opacity))
+      }
+    }
+  }
+
+  private func projectTab(_ project: Project, nameWidest: CGFloat) -> some View {
+    tab(
+      for: .project(project.id), label: Text(verbatim: project.shownName), dot: bar.unseen.contains(project.id),
+      nameWidest: nameWidest
+    ) {
       ProjectSeal(seal: project.seal, locked: !project.remembered)
     }
     .help(Text(verbatim: project.shownName))
@@ -101,7 +122,8 @@ struct ProjectBarView: View {
 
   /// One item of the bar; `nil` is the project being started, which cannot be chosen.
   private func tab<Mark: View>(
-    for target: Home?, label: Text, dot: Bool = false, @ViewBuilder mark: () -> Mark
+    for target: Home?, label: Text, dot: Bool = false, nameWidest: CGFloat = Size.projectNameWidest,
+    @ViewBuilder mark: () -> Mark
   ) -> some View {
     let open = target.map { $0 == home && !starting } ?? starting
     return Button {
@@ -117,13 +139,16 @@ struct ProjectBarView: View {
             SpringKeyframe(1.0, duration: 0.45, spring: .bouncy)
           }
         if open {
-          label
-            .font(.system(size: 13.5, weight: .semibold))
-            .foregroundStyle(Palette.ink)
-            .lineLimit(1)
-            .padding(.leading, 8)
-            .padding(.trailing, 4)
-            .transition(reduceMotion ? .identity : .opacity.combined(with: .scale(scale: 0.9, anchor: .leading)))
+          CappedWidth(share: 1, widest: nameWidest) {
+            label
+              .font(.system(size: 13.5, weight: .semibold))
+              .foregroundStyle(Palette.ink)
+              .lineLimit(1)
+              .truncationMode(.tail)
+          }
+          .padding(.leading, 8)
+          .padding(.trailing, 4)
+          .transition(reduceMotion ? .identity : .opacity.combined(with: .scale(scale: 0.9, anchor: .leading)))
         }
       }
       .padding(.horizontal, 5)

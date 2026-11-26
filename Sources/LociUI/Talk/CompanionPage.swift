@@ -14,6 +14,8 @@ struct CompanionPage: View {
   @Binding var columnPreferred: Bool
   let memory: WindowMemory
   let visits: ConversationVisits
+  /// Opens on a new project's field, for a snapshot.
+  var opening: Starting?
   @State private var project: Project.ID?
   @State private var recalled = false
   @State private var bar: Feed<ProjectBar>?
@@ -23,6 +25,8 @@ struct CompanionPage: View {
   @State private var flight: NextUp?
   /// How many cards each seal caught, to stamp it once more.
   @State private var stamps: [Home: Int] = [:]
+  /// The chat's layout, for the layout button over a new project's field.
+  @AppStorage(TalkLayout.key) private var storedLayout = Data()
 
   /// A project being started: the words, once sent, and the project they started.
   struct Starting: Equatable {
@@ -34,10 +38,17 @@ struct CompanionPage: View {
   enum Notice: Equatable {
     case archived(Project.ID, serial: UUID = UUID())
     case deleted(serial: UUID = UUID())
-    case card(EntityID, later: Bool, serial: UUID = UUID())
+    /// The card as it was put off or declined, to bring back if it is still so.
+    case card(NextUp, later: Bool, serial: UUID = UUID())
   }
 
   private var home: Home { project.map(Home.project) ?? .chat }
+
+  private var chatLayout: Binding<TalkLayout> {
+    Binding(
+      get: { (try? JSONDecoder().decode(TalkLayout.self, from: storedLayout)) ?? .standard },
+      set: { storedLayout = (try? JSONEncoder().encode($0)) ?? storedLayout })
+  }
   private var shownBar: ProjectBar { bar?.value ?? ProjectBar(projects: []) }
 
   var body: some View {
@@ -47,6 +58,9 @@ struct CompanionPage: View {
           NewProjectStage(sent: starting.sent, send: start)
             .padding(.top, Size.projectBarRoom)
             .padding(.horizontal, Spacing.m)
+            .overlay(alignment: .topTrailing) {
+              CornerButtons(layout: chatLayout, panelsShown: $columnPreferred)
+            }
         } else {
           TalkScreen(
             home: home, pinned: Set(openProject?.pinned ?? []), focusRequest: focusRequest, attach: attach,
@@ -60,6 +74,7 @@ struct CompanionPage: View {
       }
       ProjectBarView(bar: shownBar, home: home, starting: starting != nil, stamps: stamps, actions: actions)
         .padding(.top, 11)
+        .padding(.horizontal, Size.projectBarClearance)
     }
     .overlayPreferenceValue(NextUpAnchors.self) { anchors in
       GeometryReader { proxy in
@@ -92,6 +107,7 @@ struct CompanionPage: View {
       guard !recalled else { return }
       recalled = true
       project = memory.recallProject()
+      if let opening { starting = opening }
     }
     .onChange(of: project) { memory.rememberProject(project) }
     .onChange(of: bar?.value) { settle() }
@@ -171,7 +187,7 @@ struct CompanionPage: View {
     switch notice {
     case .archived(let id, _): send(ArchiveProject(id, archived: false))
     case .deleted: send(RestoreDeletedProject())
-    case .card(let id, _, _): send(SetNextUp(id, .restore))
+    case .card(let card, _, _): send(SetNextUp(card.id, .restore, version: card.version))
     }
   }
 
@@ -184,15 +200,21 @@ struct CompanionPage: View {
           if reduceMotion { land(card) } else { flight = card }
         },
         set: { card, choice in
-          send(SetNextUp(card.id, choice))
-          switch choice {
-          case .decline: notice = .card(card.id, later: false)
-          case .later: notice = .card(card.id, later: true)
-          case .keep, .restore: break
+          Task {
+            do throws(HostError) {
+              let after = try await host.run(SetNextUp(card.id, choice, version: card.version))
+              switch choice {
+              case .decline: notice = .card(after, later: false)
+              case .later: notice = .card(after, later: true)
+              case .keep, .restore: break
+              }
+            } catch {
+              failed(error)
+            }
           }
         },
-        approve: { card in send(ApproveNextUp(card.id)) },
-        undo: { card in send(UndoApproval(card.id)) }))
+        approve: { card, step in send(ApproveNextUp(card.id, version: card.version, step)) },
+        undo: { card, made in send(UndoApproval(card.id, version: card.version, made: made.identifier)) }))
   }
 
   private func project(of card: NextUp) -> Project? {
@@ -206,7 +228,7 @@ struct CompanionPage: View {
     starting = nil
     withAnimation(reduceMotion ? nil : Motion.standard) { project = card.home.project }
     if let id = card.home.project { send(SeeProject(id)) }
-    send(StartNextUp(card.id))
+    send(StartNextUp(card.id, version: card.version))
   }
 
   private func send<C: Command>(_ command: C) {

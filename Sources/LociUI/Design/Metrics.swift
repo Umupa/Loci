@@ -160,10 +160,22 @@ enum Size {
   /// A project's seal in the project bar, and the large one over a new project's field.
   static let seal: CGFloat = 22
   static let sealLarge: CGFloat = 64
-  /// A next-up card until it has laid out at its own height.
-  static let nextUpCard: CGFloat = 76
+  /// How far above the middle of the page a new project's field sits.
+  static let newProjectLift: CGFloat = 76
+  /// The room kept on each side of the project bar for the buttons in the page's corners.
+  static let projectBarClearance: CGFloat = 84
+  /// The widest an open project's name spreads in the project bar.
+  static let projectNameWidest: CGFloat = 180
+  /// The widest it spreads when the bar is short of room.
+  static let projectNameNarrow: CGFloat = 96
+  /// The least a question card is tall, its button at its foot; any card is taken as this tall until it has
+  /// laid out at its own height.
+  static let nextUpCard: CGFloat = 96
   /// The room over the lanes when the project bar is there: the bar, then the conversation's grip.
   static let projectBarRoom: CGFloat = 72
+  /// The room over the panel lanes when the project bar is there: only the bar, so the first card or panel
+  /// starts just under it, as panels have no grip above them.
+  static let panelRoom: CGFloat = 53
   static let railSheetTallest: CGFloat = 640
   /// A site's small round mark before a panel's title.
   static let siteMark: CGFloat = 22

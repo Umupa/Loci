@@ -41,6 +41,13 @@ public protocol Subscription: Codable, Hashable, Sendable {
   func value(from handler: any CommandHandler) async throws(HostError) -> Value
   /// Whether these changes on disk could change the value.
   func isAffected(by changes: Set<ContentChange>) -> Bool
+  /// What another Mac keeps the value under for when it is offline: the subscription without what only says
+  /// what that Mac can show, so what an older version kept is still found after it updates.
+  var keptAs: Self { get }
+}
+
+extension Subscription {
+  public var keptAs: Self { self }
 }
 
 /// What a subscription delivers. A value is sent first and again only when it differs from the last one.
@@ -192,7 +199,7 @@ public protocol CommandHandler: Sendable {
   func nextUpConditions(of home: Home) async throws(HostError) -> [NextUpCondition]
   func removeNextUpCondition(_ command: RemoveNextUpCondition) async throws(HostError) -> Done
   func startNextUp(_ command: StartNextUp) async throws(HostError) -> Done
-  func setNextUp(_ command: SetNextUp) async throws(HostError) -> Done
+  func setNextUp(_ command: SetNextUp) async throws(HostError) -> NextUp
   func approveNextUp(_ command: ApproveNextUp) async throws(HostError) -> Done
   func undoApproval(_ command: UndoApproval) async throws(HostError) -> Done
   func listCourses() async throws(HostError) -> [CourseEntry]

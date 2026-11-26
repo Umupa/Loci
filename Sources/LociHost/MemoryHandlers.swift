@@ -6,11 +6,11 @@ extension LocalHost {
     try await recall(command, from: .chat)
   }
 
-  /// What a session in `home` may find: never a project kept out of memory but its own. Paths are given as
-  /// the session sees them from its folder.
+  /// What a session in `home` may find: only what was said in its own home. The chat knows a project only by
+  /// its line, and a project reads the chat's index but never its words. Paths are given as the session sees
+  /// them from its folder.
   func recall(_ command: Recall, from home: Home) async throws(HostError) -> [RecallHit] {
-    let hidden = loci.context.hiddenFromRecall(in: home)
-    let hits = try attempt { try database.recall(command.text, limit: min(max(1, command.limit), 50), hiding: hidden) }
+    let hits = try attempt { try database.recall(command.text, limit: min(max(1, command.limit), 50), in: home) }
     guard home != .chat else { return hits }
     return hits.map { hit in
       let path = hit.path.hasPrefix(home.folder) ? String(hit.path.dropFirst(home.folder.count)) : "../../" + hit.path

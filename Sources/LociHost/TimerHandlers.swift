@@ -18,6 +18,20 @@ extension LocalHost {
     return Timers(schedules: entries, followUps: followUps, next: next)
   }
 
+  /// The timers of one home only, as a session working in it sees them.
+  func timers(of home: Home) async throws(HostError) -> Timers {
+    let all = try await timers()
+    let schedules = all.schedules.filter { entry in
+      switch entry.ref {
+      case .schedule(let id): ((try? database.schedule(id)) ?? nil)?.home == home
+      case .panel(_, let project): Home(project) == home
+      }
+    }
+    let followUps = all.followUps.filter { $0.home == home }
+    let next = (schedules.compactMap(\.next) + followUps.map(\.due)).min()
+    return Timers(schedules: schedules, followUps: followUps, next: next)
+  }
+
   public func runs(of schedule: ScheduleRef, limit: Int) async throws(HostError) -> [Run] {
     try attempt { try database.runs(of: schedule, limit: max(1, limit)) }
   }

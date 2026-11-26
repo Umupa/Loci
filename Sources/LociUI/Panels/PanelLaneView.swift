@@ -27,7 +27,7 @@ struct PanelLaneView: View {
   var body: some View {
     if slots.isEmpty, building == nil {
       VStack(spacing: Spacing.s) {
-        if foot, let deck { NextUpDeck(state: deck) }
+        if foot, let deck, !deck.cards.isEmpty { NextUpDeck(state: deck) }
         NewPanelButton(action: actions.create).opacity(making ? 0.35 : 1).disabled(making).changesData()
       }
       .padding(Spacing.s)
@@ -40,7 +40,7 @@ struct PanelLaneView: View {
   private var lane: some View {
     ScrollView {
       VStack(spacing: Spacing.s) {
-        if foot, let deck { NextUpDeck(state: deck) }
+        if foot, let deck, !deck.cards.isEmpty { NextUpDeck(state: deck) }
         ForEach(slots, id: \.key) { slot in
           if let hollow, hollow.key == slot.key {
             Hollow(height: hollow.height).boardFrame(panel: slot.key)

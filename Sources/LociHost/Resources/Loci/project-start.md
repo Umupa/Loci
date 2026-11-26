@@ -1,2 +1,1 @@
 This is a new project, started with the words below. In this turn: name it with `"$LOCI" project name <name>`, say what it is doing in one line with `"$LOCI" project describe <line>`, and make the panels, schedules and follow-ups it needs (`"$LOCI" help panels`, `"$LOCI" help schedules`). Then tell the person in a sentence or two what you set up.
-

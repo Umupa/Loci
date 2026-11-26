@@ -152,6 +152,25 @@ struct ProjectScenarioTests {
     }
   }
 
+  @Test func theChatNeverRecallsAProjectsWordsNorAProjectTheChats() async throws {
+    try await withHost(agent: Self.agent) { host, _, _ in
+      let project = try await Self.start(host)
+      _ = try await host.run(SendMessage(to: .project(project), text: "项目口令是蓝玻璃四九三"))
+      _ = try #require(await settled(host, .project(project), prompts: 2))
+      _ = try await host.run(SendMessage(to: .main, text: "主对话口令是红陶罐"))
+      _ = try #require(await settled(host))
+
+      let fromMain = await Background.call(Recall("蓝玻璃四九三"), from: .conversation(.main), on: host)
+      let chatsFromProject = await Background.call(Recall("红陶罐"), from: .conversation(.project(project)), on: host)
+      let ownFromProject = await Background.call(
+        Recall("蓝玻璃四九三"), from: .conversation(.project(project)), on: host)
+
+      #expect(try Self.hits(fromMain).isEmpty)
+      #expect(try Self.hits(chatsFromProject).isEmpty)
+      #expect(try !Self.hits(ownFromProject).isEmpty)
+    }
+  }
+
   static func hits(_ reply: LocalReply?) throws -> [RecallHit] {
     guard case .value(let data)? = reply else { throw HostError.invalidRequest("\(String(describing: reply))") }
     return try JSONDecoder().decode([RecallHit].self, from: data)

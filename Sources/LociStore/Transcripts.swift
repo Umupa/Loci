@@ -56,32 +56,27 @@ extension StoreDatabase {
     try queue.write { db in try update.write(db) }
   }
 
-  /// Forgets every transcript of a home, as when a project is deleted for good.
-  public func forgetTranscripts(of home: Home) throws {
-    let pattern = home.folder + "%"
-    try queue.write { db in
-      try db.execute(
-        sql: "DELETE FROM transcript WHERE rowid IN (SELECT transcript_rowid FROM transcript_file WHERE path LIKE ?)",
-        arguments: [pattern])
-      try db.execute(sql: "DELETE FROM transcript_file WHERE path LIKE ?", arguments: [pattern])
-    }
-  }
-
-  /// Passages of conversations and run records that hold every word, best first, leaving out those of the
-  /// homes in `hidden`.
-  public func recall(_ text: String, limit: Int = 20, hiding hidden: Set<Home> = []) throws -> [RecallHit] {
+  /// Passages of conversations and run records that hold every word, best first: of one home only, or of
+  /// every home when `home` is `nil`. The chat's never include a project's words.
+  public func recall(_ text: String, limit: Int = 20, in home: Home? = nil) throws -> [RecallHit] {
     guard let query = SearchText.query(text) else { return [] }
     let terms = text.split(whereSeparator: \.isWhitespace).map(String.init)
+    let (scope, arguments): (String, [String]) =
+      switch home {
+      case nil: ("", [])
+      case .chat?: ("AND transcript_file.path NOT LIKE ? ", ["\(Store.projectsFolder)/%"])
+      case .project?: ("AND transcript_file.path LIKE ? ", [(home?.folder ?? "") + "%"])
+      }
     let rows = try queue.read { db in
       try Row.fetchAll(
         db,
         sql: """
           SELECT transcript.original AS original, transcript_file.path AS path FROM transcript
           JOIN transcript_file ON transcript_file.transcript_rowid = transcript.rowid
-          WHERE transcript MATCH ? \(hidden.map { _ in "AND transcript_file.path NOT LIKE ? " }.joined())
+          WHERE transcript MATCH ? \(scope)
           ORDER BY bm25(transcript) LIMIT ?
           """,
-        arguments: StatementArguments([query] + hidden.map { $0.folder + "%" } + [limit]))
+        arguments: StatementArguments([query] + arguments + [limit]))
     }
     return rows.map { row in
       let path: String = row["path"]

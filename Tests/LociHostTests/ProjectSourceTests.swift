@@ -34,6 +34,25 @@ struct ProjectSourceTests {
     }
   }
 
+  @Test func newNumbersInAProjectsChartPutTheDotOnItsSeal() async throws {
+    let runner = FakeSources(records: ["513870": ["premium": .number(0.159)]])
+    try await withHost(agent: FakeAgent(provider: .codex), sources: runner) { host, _, world in
+      let project = try await ProjectScenarioTests.start(host)
+      let session = LocalSession.conversation(.project(project))
+      _ = await Background.call(SavePanel(DataSourceScenarioTests.panel), from: session, on: host)
+      _ = await Background.call(SaveDataSource(DataSourceScenarioTests.source), from: session, on: host)
+      world.advance(minutes: 1)
+      _ = try await host.run(SeeProject(project))
+      #expect(try await host.projectBar().unseen.isEmpty)
+
+      runner.set(["513870": ["premium": .number(0.2)]])
+      world.advance(minutes: 1)
+      #expect(await SourceLineTests.look(host) == 1)
+
+      #expect(await ProjectScenarioTests.bar(host) { $0.unseen.contains(project) } != nil)
+    }
+  }
+
   @Test func aDeletedProjectsSourcesGoWithIt() async throws {
     let runner = FakeSources(records: ["513870": ["premium": .number(0.159)]])
     try await withHost(agent: FakeAgent(provider: .codex), sources: runner) { host, _, _ in

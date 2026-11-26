@@ -62,21 +62,22 @@ public struct RemoteHost: LociModel.Host {
   public func subscribe<S: Subscription>(_ subscription: S) -> AsyncStream<Feed<S.Value>> {
     let (feeds, continuation) = AsyncStream.makeStream(of: Feed<S.Value>.self)
     let following = Task { [link, keep, folder, machine] in
-      guard let request = try? WireCodec.encode(subscription) else {
+      guard let request = try? WireCodec.encode(subscription), let key = try? WireCodec.encode(subscription.keptAs)
+      else {
         continuation.yield(.unavailable(.invalidRequest("cannot encode \(S.name)")))
         continuation.finish()
         return
       }
-      let kept = folder.cached(S.name, request: request, on: machine)
+      let kept = folder.cached(S.name, request: key, on: machine)
       guard let current = await link() else {
         continuation.yield(
-          RemoteFollower<S>.missingCourse(request, in: folder, on: machine)
+          RemoteFollower<S>.missingCourse(key, in: folder, on: machine)
             ?? kept.flatMap(RemoteFollower<S>.decode) ?? .unavailable(.offline))
         continuation.finish()
         return
       }
       let follower = RemoteFollower<S>(
-        request: request, machine: machine, folder: folder, link: current, keep: keep,
+        request: request, key: key, machine: machine, folder: folder, link: current, keep: keep,
         deliver: { continuation.yield($0) })
       await follower.follow()
       continuation.finish()
@@ -141,6 +142,8 @@ public struct RemoteHost: LociModel.Host {
 /// One subscription on another Mac, across reconnections.
 struct RemoteFollower<S: Subscription>: Sendable {
   let request: Data
+  /// What the value is kept under: `request` without what only says what this Mac can show.
+  let key: Data
   let machine: MachineID
   let folder: MachineFolder
   let link: PeerLink
@@ -149,8 +152,8 @@ struct RemoteFollower<S: Subscription>: Sendable {
 
   func follow() async {
     let kept =
-      Self.missingCourse(request, in: folder, on: machine)
-      ?? folder.cached(S.name, request: request, on: machine).flatMap(Self.decode)
+      Self.missingCourse(key, in: folder, on: machine)
+      ?? folder.cached(S.name, request: key, on: machine).flatMap(Self.decode)
     if let kept { deliver(kept) }
     var shown = kept != nil
     while !Task.isCancelled {
@@ -160,16 +163,19 @@ struct RemoteFollower<S: Subscription>: Sendable {
       }
       guard let session = await link.nextControl() else { return }
       let (id, frames) = await session.subscribe(S.name, body: request)
-      await withTaskCancellationHandler {
+      let refused = await withTaskCancellationHandler {
         await receive(frames, id: id, on: session)
       } onCancel: {
         Task { await session.unsubscribe(id) }
       }
       shown = true
+      if refused { await session.ended() }
     }
   }
 
-  private func receive(_ frames: AsyncStream<FeedFrame>, id: UInt32, on session: CallerSession) async {
+  /// Whether the other Mac refused the subscription: an older one that does not know it refuses it on every
+  /// try, so it is asked again only on the next connection.
+  private func receive(_ frames: AsyncStream<FeedFrame>, id: UInt32, on session: CallerSession) async -> Bool {
     var current: JSONValue?
     for await frame in frames {
       switch frame {
@@ -184,17 +190,17 @@ struct RemoteFollower<S: Subscription>: Sendable {
         current = next
       case .refused(let error):
         deliver(.unavailable(error))
-        return
+        return true
       }
       guard let current, let body = try? current.data(), let feed = Self.decode(body) else { continue }
       if S.name == WatchCourses.name || S.name == WatchCourse.name {
         await RemoteCourseCache.observe(
-          body, as: S.name, request: request, previous: folder.cached(S.name, request: request, on: machine), keep: keep
-        )
+          body, as: S.name, request: key, previous: folder.cached(S.name, request: key, on: machine), keep: keep)
       }
-      await keep(body, S.name, request)
+      await keep(body, S.name, key)
       deliver(feed)
     }
+    return false
   }
 
   static func missingCourse(_ request: Data, in folder: MachineFolder, on machine: MachineID) -> Feed<S.Value>? {

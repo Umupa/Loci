@@ -33,9 +33,10 @@ struct NewProjectStage: View {
         .transition(reduceMotion ? .identity : .opacity.combined(with: .offset(y: Spacing.m)))
       }
     }
-    .frame(maxWidth: 560)
+    .frame(maxWidth: 530)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: sent == nil ? .center : .top)
     .padding(.top, sent == nil ? 0 : Spacing.m)
+    .padding(.bottom, sent == nil ? Size.newProjectLift : 0)
     .animation(reduceMotion ? nil : .spring(response: 0.7, dampingFraction: 0.85), value: sent)
     .task(id: sent == nil) {
       guard sent == nil else { return }
@@ -50,7 +51,7 @@ struct NewProjectStage: View {
   private var field: some View {
     HStack(spacing: 8) {
       Button(action: next) {
-        Image(systemName: "arrow.triangle.2.circlepath")
+        Image(systemName: "shuffle")
           .font(.system(size: 14, weight: .medium))
           .foregroundStyle(Palette.inkMuted)
           .frame(width: 38, height: 38)

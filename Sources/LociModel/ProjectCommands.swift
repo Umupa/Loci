@@ -44,8 +44,9 @@ public struct WatchProjects: Subscription {
     changes.contains { change in
       switch change {
       case .projects, .turnEnded, .everything, .loci(.panels): true
+      case .source(let key): key.home != .chat
       case .item, .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .review, .loci, .runtime,
-        .timers, .connectors, .source, .nextUps:
+        .timers, .connectors, .nextUps:
         false
       }
     }

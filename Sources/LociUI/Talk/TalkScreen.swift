@@ -48,7 +48,7 @@ struct TalkScreen: View {
   var body: some View {
     TalkBoard(
       layout: layout, column: column, showsPanels: columnPreferred, building: building, making: newPanel == .asking,
-      actions: actions
+      panelRise: Size.projectBarRoom - Size.panelRoom, actions: actions
     ) {
       ConversationScreen(
         ref: home.conversation, draft: $draft, revealPassage: { if let page = Page($0.content) { openPage(page) } },
@@ -60,14 +60,7 @@ struct TalkScreen: View {
     .padding(.horizontal, Spacing.m)
     .padding(.bottom, Spacing.s)
     .overlay(alignment: .topTrailing) {
-      if column != nil {
-        HStack(spacing: Spacing.xxs) {
-          LayoutButton(layout: layout, panelsShown: $columnPreferred)
-          PanelButton(title: .loci(columnPreferred ? "panels.hideColumn" : "panels.showColumn"), action: toggleColumn)
-            .glassEffect(columnPreferred ? .identity : .regular, in: .capsule)
-        }
-        .padding(Spacing.s)
-      }
+      if column != nil { CornerButtons(layout: layout, panelsShown: $columnPreferred) }
     }
     .onChange(of: column?.panelNames) { settle() }
     .onChange(of: working) { settle() }
@@ -89,10 +82,6 @@ struct TalkScreen: View {
   /// What marks the skeleton of the panel being made, while one is.
   private var building: PanelSources? {
     if case .building(_, _, let sources) = newPanel { sources } else { nil }
-  }
-
-  private func toggleColumn() {
-    withAnimation(reduceMotion ? nil : Motion.standard) { columnPreferred.toggle() }
   }
 
   private func settle() {
@@ -181,5 +170,23 @@ struct TalkScreen: View {
     } else if url.isWebLink {
       peekLink?(url)
     }
+  }
+}
+
+/// The layout button and the one that shows or hides the panels, in the top right corner of the companion's page.
+struct CornerButtons: View {
+  @Binding var layout: TalkLayout
+  @Binding var panelsShown: Bool
+  @Environment(\.reducesMotion) private var reduceMotion
+
+  var body: some View {
+    HStack(spacing: Spacing.xxs) {
+      LayoutButton(layout: $layout, panelsShown: $panelsShown)
+      PanelButton(title: .loci(panelsShown ? "panels.hideColumn" : "panels.showColumn")) {
+        withAnimation(reduceMotion ? nil : Motion.standard) { panelsShown.toggle() }
+      }
+      .glassEffect(panelsShown ? .identity : .regular, in: .capsule)
+    }
+    .padding(Spacing.s)
   }
 }

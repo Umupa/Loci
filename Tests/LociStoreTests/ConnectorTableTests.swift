@@ -54,4 +54,17 @@ struct ConnectorTableTests {
     #expect(try database.connectorCalls(since: calls[1].at) == [calls[1], calls[2]])
     #expect(try database.connectorCalls(by: .run(run)) == [calls[1], calls[2]])
   }
+
+  @Test func aProjectDeletedForGoodTakesItsSourcesCallsButNotTheChatsOrAnotherProjects() throws {
+    let database = try StoreDatabase.inMemory()
+    let project = Fixture.id(40)
+    let other = Fixture.id(41)
+    try database.logConnectorCall(Self.call(10, minutes: 0, .source(SourceKey(.project(project), "prem")), .read))
+    try database.logConnectorCall(Self.call(11, minutes: 1, .source(SourceKey(.project(other), "prem")), .read))
+    try database.logConnectorCall(Self.call(12, minutes: 2, .source(SourceKey(.chat, "prem")), .read))
+
+    try database.forgetProject(project)
+
+    #expect(try database.connectorCalls(limit: 10).map(\.id).sorted() == [Fixture.id(11), Fixture.id(12)])
+  }
 }

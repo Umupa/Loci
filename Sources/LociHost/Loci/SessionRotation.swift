@@ -21,6 +21,9 @@ enum SessionRotation {
     case runtimeChanged
     /// `AGENTS.md` changed: the soul, the person, or the rules.
     case instructionsChanged
+    /// The projects kept out of the chat's memory changed: what was said before may name one, so none of it is
+    /// told again.
+    case projectsKeptOut
     case full
     /// The agent could not find the session to continue.
     case lost
@@ -28,7 +31,7 @@ enum SessionRotation {
     /// Whether the new session is told what was said just before, so the person sees no seam.
     var carriesOver: Bool {
       switch self {
-      case .first, .startedOver: false
+      case .first, .startedOver, .projectsKeptOut: false
       case .runtimeChanged, .instructionsChanged, .full, .lost: true
       }
     }
@@ -48,9 +51,20 @@ enum SessionRotation {
     current: SessionRecord?, startedOver: Bool, wear: Wear, runtime: Runtime, instructions: String
   ) -> Reason? {
     guard let current else { return startedOver ? .startedOver : .first }
+    if keptOut(in: current.instructions) != keptOut(in: instructions) { return .projectsKeptOut }
     if current.runtime != runtime { return .runtimeChanged }
     if current.instructions != instructions { return .instructionsChanged }
     return isFull(wear) ? .full : nil
+  }
+
+  /// What a session is opened with, as kept with it: the fingerprint of its instructions, then, when any project
+  /// is kept out of memory, that of those projects.
+  static func fingerprint(of instructions: String, keptOut projects: String) -> String {
+    Fingerprint.of(instructions) + (projects.isEmpty ? "" : "|" + Fingerprint.of(projects))
+  }
+
+  private static func keptOut(in fingerprint: String) -> Substring {
+    fingerprint.split(separator: "|", maxSplits: 1).dropFirst().first ?? ""
   }
 
   static func isFull(_ wear: Wear) -> Bool {

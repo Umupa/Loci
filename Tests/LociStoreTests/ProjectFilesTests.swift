@@ -85,7 +85,7 @@ struct ProjectFilesTests {
     }
   }
 
-  @Test func aProjectsTranscriptsAreFoundUnlessItsHomeIsHidden() throws {
+  @Test func aProjectsTranscriptsAreFoundInItsHomeAndNeverFromTheChat() throws {
     try withStore { store in
       try store.saveProject(Self.project)
       let database = try StoreDatabase.inMemory()
@@ -97,7 +97,9 @@ struct ProjectFilesTests {
       #expect(run == "projects/\(Self.id)/runs/2026-11-25/\(Fixture.id(41)).md")
       #expect(try database.recall("二十日线").map(\.path) == [run])
       #expect(try database.recall("二十日线").first?.day == Day("2026-11-25"))
-      #expect(try database.recall("二十日线", hiding: [.project(Self.id)]).isEmpty)
+      #expect(try database.recall("二十日线", in: .project(Self.id)).map(\.path) == [run])
+      #expect(try database.recall("二十日线", in: .chat).isEmpty)
+      #expect(try database.recall("二十日线", in: .project(Fixture.id(42))).isEmpty)
     }
   }
 }

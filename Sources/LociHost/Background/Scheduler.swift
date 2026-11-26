@@ -44,9 +44,12 @@ struct Scheduler {
       _ = try? database.endFollowUp(followUp.id, at: now)
     }
     var cameBack = false
-    for card in (try? database.nextUpsDue(at: now)) ?? [] {
-      guard case .later(let until) = card.state else { continue }
-      if (try? database.saveNextUp(card.with(state: .new, shownAt: until))) != nil { cameBack = true }
+    for card in (try? database.nextUpsDue(at: now)) ?? [] where homes.contains(card.home) {
+      let back = try? database.changeNextUp(card.id) { stored in
+        guard case .later(let until) = stored.place, until <= now else { return nil }
+        return stored.with(place: .new, shownAt: until)
+      }
+      if let result = back.flatMap({ $0 }), result.after != nil { cameBack = true }
     }
     if cameBack { await context.follower.follow([.nextUps]) }
     if let day = DailyReview.due(reviewSituation(now: now)) { raise(.review(day, project: nil), due: now) }

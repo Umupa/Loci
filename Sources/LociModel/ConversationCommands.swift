@@ -60,13 +60,24 @@ public struct StartOver: RemoteCommand {
 public struct OneConversation: Subscription {
   public static let name = "conversation"
   public let conversation: ConversationRef
+  /// The messages this Mac can show: `nil` from a Mac older than what the companion says on its own, which is
+  /// sent those as ordinary replies so it can still read the conversation.
+  public let shape: Int?
 
   public init(_ conversation: ConversationRef) {
-    self.conversation = conversation
+    self.init(conversation, shape: Conversation.shape)
   }
 
+  private init(_ conversation: ConversationRef, shape: Int?) {
+    self.conversation = conversation
+    self.shape = shape
+  }
+
+  public var keptAs: OneConversation { OneConversation(conversation, shape: nil) }
+
   public func value(from handler: any CommandHandler) async throws(HostError) -> Conversation {
-    try await handler.conversation(conversation)
+    let whole = try await handler.conversation(conversation)
+    return shape == nil ? whole.forOlderMacs : whole
   }
 
   public func isAffected(by changes: Set<ContentChange>) -> Bool {

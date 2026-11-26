@@ -17,12 +17,16 @@ extension LocalHost {
       panels: Dictionary(panels, uniquingKeysWith: { first, _ in first }))
   }
 
-  /// A reply or a panel's refresh came after the person last opened it.
+  /// A reply, a panel's refresh, or new numbers in a chart of its panels came after the person last opened it.
   private func isUnseen(_ project: Project) -> Bool {
-    let files = store.home(.project(project.id))
+    let home = Home.project(project.id)
+    let files = store.home(home)
+    let panels = files.panels().compactMap(\.panel)
     let refreshed = files.panelState().refreshed.values.max()
-    let replied = try? database.latestReply(in: .project(project.id))
-    guard let latest = [refreshed, replied].compactMap(\.self).max() else { return false }
+    let replied = try? database.latestReply(in: home.conversation)
+    let charted = ((try? database.sourceSnapshots(Set(panels.flatMap { $0.sources(of: home) }))) ?? [:])
+      .values.map(\.fetched).max()
+    guard let latest = [refreshed, replied, charted].compactMap(\.self).max() else { return false }
     return project.seen.map { latest > $0 } ?? true
   }
 
@@ -48,10 +52,10 @@ extension LocalHost {
     return project
   }
 
+  /// Named in the same edit that finds it unnamed, so a name the companion gave meanwhile always stays.
   private func nameIfUnnamed(_ id: Project.ID, from text: String) async {
-    guard let project = try? store.project(id), project.name == nil else { return }
-    _ = try? store.changeProject(id) { $0.with(name: .some(Self.provisionalName(from: text))) }
-    await follow([.projects])
+    let name = Self.provisionalName(from: text)
+    _ = try? await changeProject(id) { $0.name == nil ? $0.with(name: .some(name)) : $0 }
   }
 
   /// The first few characters of what the person said, to a word's end when there are spaces.
@@ -75,18 +79,34 @@ extension LocalHost {
     return try await changeProject(id) { $0.with(summary: line) }
   }
 
+  /// Kept out of memory, the project's review under way stops and its reviews wait until it is remembered again;
+  /// the rest of its work goes on.
   public func setProjectRemembered(_ command: SetProjectRemembered) async throws(HostError) -> Done {
     _ = try await changeProject(command.project) { $0.with(remembered: command.remembered) }
+    if command.remembered {
+      await worker.consider()
+    } else {
+      await worker.reviewStopped(in: .project(command.project))
+    }
     return Done()
   }
 
-  /// Archiving leaves everything on disk; its timers stop coming due, and its events waiting in the inbox are
-  /// dropped by the worker.
+  /// Archiving leaves everything on disk; its timers stop coming due, the run under way there stops, and its
+  /// events wait in the inbox until it is opened again.
   public func archiveProject(_ command: ArchiveProject) async throws(HostError) -> Done {
-    _ = try await changeProject(command.project) { $0.with(archived: command.archived) }
-    await follow([.timers, .loci(.panels)])
+    try await loci.context.steadily { () async throws(HostError) in
+      _ = try await changeProject(command.project) { $0.with(archived: command.archived) }
+      if command.archived { await close(command.project) } else { await loci.context.life.moved(command.project) }
+    }
+    await follow([.timers, .loci(.panels), .nextUps])
     await worker.consider()
     return Done()
+  }
+
+  /// Whatever began in the project may no longer write there, and the run under way there stops.
+  func close(_ project: Project.ID) async {
+    await loci.context.life.moved(project)
+    await worker.homeClosed(.project(project))
   }
 
   public func seeProject(_ command: SeeProject) async throws(HostError) -> Done {
@@ -112,10 +132,10 @@ extension LocalHost {
     return Done()
   }
 
-  private func changeProject(_ id: Project.ID, _ change: @escaping (Project) -> Project)
+  private func changeProject(_ id: Project.ID, _ change: @escaping @Sendable (Project) -> Project)
     async throws(HostError) -> Project
   {
-    let changed = try attempt { try store.changeProject(id, change) }
+    let changed = try await loci.context.changeProject(id, change)
     await follow([.projects])
     return changed
   }
@@ -129,13 +149,21 @@ extension LocalHost {
       let id = command.project
       _ = try attempt { try store.project(id) }
       let previous = store.setAsideProjects()
+      let life = loci.context.life
+      await loci.context.steadily {
+        await life.leave(id)
+        await worker.homeClosed(.project(id))
+      }
+      await worker.quiet(.project(id))
       await loci.forget(.project(id))
       do throws(HostError) {
-        try attempt { try store.setAsideProject(id) }
+        try await loci.context.steadily { () throws(HostError) in try attempt { try store.setAsideProject(id) } }
       } catch {
+        await life.stayed(id)
         await loci.forgotten(.project(id))
         throw error
       }
+      await life.stayed(id)
       await loci.forgotten(.project(id))
       await discardSetAsideProjects(previous)
       await follow([.projects, .timers, .loci(.panels), .conversation(.project(id))])
@@ -146,31 +174,26 @@ extension LocalHost {
   public func restoreDeletedProject() async throws(HostError) -> Project? {
     try await deletions.through { () async throws(HostError) in
       guard let id = store.setAsideProjects().first else { return nil }
-      try attempt { try store.restoreProject(id) }
+      try await loci.context.steadily { () async throws(HostError) in
+        try attempt { try store.restoreProject(id) }
+        await loci.context.life.moved(id)
+      }
       try? store.home(.project(id)).setMemoryWritable(false)
       await follow([.projects, .timers, .loci(.panels), .conversation(.project(id))])
       return try? store.project(id)
     }
   }
 
-  /// Gets rid of projects set aside, for good: their folders, conversations, timers and what the inbox and
-  /// the search still hold of them.
+  /// Gets rid of projects set aside, for good, once their run under way has stopped: first everything the
+  /// database keeps of them in one write, then their folders. Until both are done the project stays set aside,
+  /// so the next deletion tries again.
   func discardSetAsideProjects(_ projects: [Project.ID]? = nil) async {
     for id in projects ?? store.setAsideProjects() {
+      await worker.quiet(.project(id))
       do {
-        try store.discardSetAsideProject(id)
-        try database.deleteConversation(.project(id))
-        try database.forgetTranscripts(of: .project(id))
-        try database.forgetSources(of: id)
-        try database.forgetNextUps(of: id)
-        for schedule in try database.schedules() where schedule.project == id {
-          try database.removeSchedule(schedule.id)
-        }
-        for followUp in try database.followUps() where followUp.home == .project(id) {
-          _ = try database.endFollowUp(followUp.id, at: environment.now())
-        }
-        for event in try database.openEvents() where event.source.home == .project(id) {
-          if case .waiting = event.state { try database.update(event.with(.dropped)) }
+        try await loci.context.steadily { () throws in
+          try database.forgetProject(id)
+          try store.discardSetAsideProject(id)
         }
       } catch {
         await hub.failed("could not discard a deleted project: \(error)")

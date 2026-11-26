@@ -323,6 +323,41 @@ public struct PanelColumn: Hashable, Codable, Sendable {
     self.marks = marks
     self.readings = readings
   }
+
+  /// A column from a Mac older than data sources has no readings.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    slots = try container.decode([PanelSlot].self, forKey: .slots)
+    refreshing = try container.decodeIfPresent(Set<String>.self, forKey: .refreshing) ?? []
+    marks = try container.decodeIfPresent([String: [PanelLineKey: PanelLineMark]].self, forKey: .marks) ?? [:]
+    readings = try container.decodeIfPresent(PanelReadings.self, forKey: .readings) ?? PanelReadings()
+  }
+
+  /// The shape a Mac asks for when it can draw pinned panels and chart rows.
+  public static let shape = 2
+
+  /// The column as a Mac older than pinned panels and chart rows can read it: without those.
+  public var forOlderMacs: PanelColumn {
+    let kept = slots.compactMap { slot -> PanelSlot? in
+      switch slot {
+      case .reading: slot
+      case .panel(let panel): .panel(panel.withoutCharts)
+      case .pinned: nil
+      }
+    }
+    return PanelColumn(slots: kept, refreshing: refreshing, marks: marks)
+  }
+}
+
+extension Panel {
+  /// The panel without the chart rows a Mac older than them cannot read.
+  var withoutCharts: Panel {
+    switch body {
+    case .rows(let rows): with(body: .rows(rows.filter { !$0.isChart }))
+    case .pages(let pages):
+      with(body: .pages(pages.map { PanelPage(name: $0.name, rows: $0.rows.filter { !$0.isChart }) }))
+    }
+  }
 }
 
 /// One place in the panel column: the app's own 「接着读」, or a panel Loci keeps.

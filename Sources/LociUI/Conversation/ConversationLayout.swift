@@ -55,6 +55,10 @@ enum ConversationEntry: Identifiable {
         if isLast, let hold, !hold.lets(message) { continue }
         reply = entries.count
         entries.append(.reply(message, text, streaming: isLast))
+      case .told(let text):
+        close()
+        reply = nil
+        entries.append(.reply(message, text, streaming: false))
       case .savedToNote(let note):
         close()
         entries.append(.saved(message, note: note))
@@ -113,6 +117,7 @@ extension ConversationEntry {
         default: break
         }
       case .reply(let message, let text, let going):
+        if case .told = message.body { close() }
         texts.append(AnswerButtons.removed(from: text))
         last = message.id
         streaming = going

@@ -72,7 +72,9 @@ struct CappedWidth: Layout {
     subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
   }
 
+  /// No width offered, as in a horizontal scroll, is offered the widest it may be when there is one.
   private func capped(_ proposal: ProposedViewSize) -> ProposedViewSize {
-    ProposedViewSize(width: proposal.width.map { min($0 * share, widest) }, height: proposal.height)
+    let width = proposal.width.map { min($0 * share, widest) } ?? (widest.isFinite ? widest : nil)
+    return ProposedViewSize(width: width, height: proposal.height)
   }
 }

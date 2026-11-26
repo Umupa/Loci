@@ -83,11 +83,17 @@ struct RailLane: View {
   var refreshing: Set<String> = []
   let actions: PanelActions
   let side: TalkLayout.Side
+  /// Whether this rail holds the deck of next-up cards.
+  var deck = false
   @Binding var open: Bool
   @State private var chosen: String?
+  @Environment(\.nextUpDeck) private var cards
+
+  private var showsDeck: Bool { deck && !(cards?.cards.isEmpty ?? true) }
 
   var body: some View {
     VStack(spacing: Spacing.xs) {
+      if deck { RailDeck(side: side) }
       ForEach(slots, id: \.key) { slot in
         Button {
           chosen = slot.key
@@ -104,7 +110,7 @@ struct RailLane: View {
     .padding(.vertical, Spacing.xs)
     .padding(.horizontal, 7)
     .background {
-      if !slots.isEmpty {
+      if !slots.isEmpty || showsDeck {
         let shape = RoundedRectangle(cornerRadius: Size.railMark / 2 + 7, style: .circular)
         shape.fill(Palette.surface)
           .shadow(color: Palette.liftShadow.opacity(0.3), radius: 10, y: 4)

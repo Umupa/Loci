@@ -39,6 +39,20 @@ struct ConversationTests {
     #expect(replies(at: 2) == [true])
   }
 
+  /// DS-S6: what Loci says on its own, such as what it mended, is a message of its own after the last answer.
+  @Test func whatLociSaysOnItsOwnStandsBesideTheAnswerBeforeIt() {
+    let answer = Self.message(1, .reply("好的。"))
+    let told = Self.message(2, .told("腾讯把价格挪到了第 4 段，parse 改从那里读。"))
+
+    let entries = Self.layout([Self.asked, answer, told], live: false)
+
+    let replies = entries.compactMap {
+      if case .reply(let message, let text, _) = $0 { (message.id, text) } else { nil }
+    }
+    #expect(replies.map(\.1) == ["好的。", "腾讯把价格挪到了第 4 段，parse 改从那里读。"])
+    #expect(ConversationEntry.answers(entries)[answer.id] == "好的。")
+  }
+
   @Test func whatArrivedOfAStreamingReplyIsShownASentenceAtATime() {
     #expect(ReplyText.settled("第一句。第二句还没", streaming: true) == "第一句。")
     #expect(ReplyText.settled("One. Two", streaming: true) == "One.")

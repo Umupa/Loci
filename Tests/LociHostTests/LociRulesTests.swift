@@ -65,6 +65,24 @@ struct SessionRotationTests {
     #expect(Self.reason(instructions: "b") == .instructionsChanged)
   }
 
+  @Test func aSessionOpenedBecauseAProjectWasKeptOutOfMemoryIsToldNothingSaidBefore() {
+    let kept = SessionRotation.fingerprint(of: "rules", keptOut: "")
+    let out = SessionRotation.fingerprint(of: "rules", keptOut: "project-1")
+    let current = SessionRecord(
+      id: TestWorld().nextID(), owner: .conversation(.main), runtime: Self.runtime, instructions: kept,
+      startedAt: TestWorld.instant)
+
+    let reason = SessionRotation.reason(
+      current: current, startedOver: false, wear: .init(), runtime: Self.runtime, instructions: out)
+
+    #expect(reason == .projectsKeptOut)
+    #expect(reason?.carriesOver == false)
+    #expect(
+      SessionRotation.reason(
+        current: current, startedOver: false, wear: .init(), runtime: Self.runtime,
+        instructions: SessionRotation.fingerprint(of: "rules 2", keptOut: "")) == .instructionsChanged)
+  }
+
   @Test func withoutASessionTheReasonSaysWhetherThePersonStartedOver() {
     let first = SessionRotation.reason(
       current: nil, startedOver: false, wear: .init(), runtime: Self.runtime, instructions: "a")
