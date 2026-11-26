@@ -98,17 +98,17 @@ struct SourceKeeper: Sendable {
       guard await context.holds(held) else { return nil }
       return try await attemptAsync {
         try await commits.commit(key, ticket: ticket, under: saving?.grant) { () throws -> SourceSnapshot? in
-        if let saving {
-          guard saving.still() else { return nil }
-          try store.saveDataSource(source, in: folder)
-        } else {
-          guard store.dataSource(named: source.name, in: folder) == source else { return nil }
-        }
-        try store.keepSample(result.sample, of: source.name, in: folder)
-        let snapshot = try database.recordFetch(
-          key, records: result.records, state: result.state, at: result.sample.at)
-        _ = try database.recordEntries(key, result.entries, at: result.sample.at)
-        return snapshot
+          if let saving {
+            guard saving.still() else { return nil }
+            try store.saveDataSource(source, in: folder)
+          } else {
+            guard store.dataSource(named: source.name, in: folder) == source else { return nil }
+          }
+          try store.keepSample(result.sample, of: source.name, in: folder)
+          let snapshot = try database.recordFetch(
+            key, records: result.records, state: result.state, at: result.sample.at)
+          _ = try database.recordEntries(key, result.entries, at: result.sample.at)
+          return snapshot
         } then: { snapshot in
           await refreshed.refreshed(key, snapshot)
         }
@@ -135,16 +135,17 @@ struct SourceKeeper: Sendable {
     let commits = commits
     let committed = await context.steadily { () async -> (SourceSnapshot, Task<Void, Never>)? in
       guard await context.holds(held) else { return nil }
-      return (try? await commits.commit(key, ticket: ticket) { () throws -> SourceSnapshot? in
-        guard store.dataSource(named: source.name, in: folder) == source else { return nil }
-        var script: SourceProblems?
-        if case .script(let problems, let sample) = failure {
-          script = problems
-          let before = (try database.sourceSnapshot(key))?.isBroken ?? false
-          if let sample, !before { try store.keepSample(sample, of: source.name, in: folder) }
-        }
-        return try database.recordFailure(key, script: script, at: now)
-      }) ?? nil
+      return
+        (try? await commits.commit(key, ticket: ticket) { () throws -> SourceSnapshot? in
+          guard store.dataSource(named: source.name, in: folder) == source else { return nil }
+          var script: SourceProblems?
+          if case .script(let problems, let sample) = failure {
+            script = problems
+            let before = (try database.sourceSnapshot(key))?.isBroken ?? false
+            if let sample, !before { try store.keepSample(sample, of: source.name, in: folder) }
+          }
+          return try database.recordFailure(key, script: script, at: now)
+        }) ?? nil
     }
     guard let (snapshot, _) = committed else { return }
     if snapshot.isBroken, let since = snapshot.breakage?.since { raiseRepair(of: source.name, in: home, since: since) }

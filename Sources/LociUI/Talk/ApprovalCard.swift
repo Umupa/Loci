@@ -87,7 +87,9 @@ struct ApprovalCard: View {
               .padding(.horizontal, 15)
               .padding(.vertical, 8)
               .frame(minHeight: Size.primaryHeight)
-              .background(RoundedRectangle(cornerRadius: Size.primaryHeight / 2, style: .continuous).fill(Palette.fillStrong))
+              .background(
+                RoundedRectangle(cornerRadius: Size.primaryHeight / 2, style: .continuous).fill(Palette.fillStrong)
+              )
               .contentShape(RoundedRectangle(cornerRadius: Size.primaryHeight / 2, style: .continuous))
           }
           .buttonStyle(PressStyle(scale: 0.97))

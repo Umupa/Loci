@@ -59,7 +59,8 @@ actor Worker {
   /// it is given to keep with it: see `LociAgent.say`.
   let say: Say
 
-  typealias Say = @Sendable (String, ConversationRef, EntityID, @escaping LociAgent.Closing) async throws(HostError) ->
+  typealias Say =
+    @Sendable (String, ConversationRef, EntityID, @escaping LociAgent.Closing) async throws(HostError) ->
     Void
 
   init(
@@ -323,7 +324,8 @@ actor Worker {
       if !said {
         if current.repair != nil { await tell(summary, run.kind.home.conversation) }
         try? database.close(
-          run.with(.finished(summary: summary, sources: sources)), events: current.events.map { $0.with(.done(run.id)) })
+          run.with(.finished(summary: summary, sources: sources)), events: current.events.map { $0.with(.done(run.id)) }
+        )
       }
       record += RunRecord.found(reply, summary: summary, sources: sources, tries: tries)
       if let review { try? database.endReview(of: review, .finished) }

@@ -91,7 +91,8 @@ struct NextUpSnapshots {
       Self.cards + [
         Self.card(
           5, in: .chat, .approval(.reminder(ReminderDraft(title: "交房租", due: Self.at))), "周五前交房租",
-          execution: .made(Approved(identifier: "x", marker: "m", into: ApprovalTarget(id: "l", name: "提醒", source: "iCloud")))),
+          execution: .made(
+            Approved(identifier: "x", marker: "m", into: ApprovalTarget(id: "l", name: "提醒", source: "iCloud")))),
         Self.card(
           7, in: .chat, .approval(.event(EventDraft(title: "家长会", start: Self.at, calendar: "家庭"))), "周四家长会",
           execution: .choosing([

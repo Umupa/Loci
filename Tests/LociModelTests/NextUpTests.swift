@@ -122,7 +122,8 @@ struct NextUpTests {
   @Test func anApprovalDoneOrUnderWayIsNotChangedByAProposalAgain() {
     let made = NextUp(
       id: Self.id(1), home: .chat, key: "k", kind: .approval(.reminder(ReminderDraft(title: "交房租"))), what: "x",
-      execution: .made(Approved(identifier: "a", marker: "m", into: ApprovalTarget(id: "l-1", name: "家", source: "iCloud"))),
+      execution: .made(
+        Approved(identifier: "a", marker: "m", into: ApprovalTarget(id: "l-1", name: "家", source: "iCloud"))),
       shownAt: Self.at(minutes: 0))
     let again = Approval.reminder(ReminderDraft(title: "交房租", list: "家"))
 

@@ -66,7 +66,11 @@ struct RailDeckSheet: View {
     ScrollView {
       NextUpDeck(state: deck, spread: true)
         .padding(Spacing.s)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .onGeometryChange(for: CGFloat.self) {
+          $0.size.height
+        } action: {
+          height = $0
+        }
     }
     .scrollIndicators(.never)
     .frame(width: Size.railSheet, height: min(height, Size.railSheetTallest))

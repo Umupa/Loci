@@ -75,7 +75,8 @@ struct FollowUpTellingTests {
       _ = try await host.run(SendMessage(to: .main, text: "等一下"))
 
       open.yield()
-      for _ in 0..<500 where (try? host.database.messages(of: .conversation(.main)))?.contains(where: {
+      for _ in 0..<500
+      where (try? host.database.messages(of: .conversation(.main)))?.contains(where: {
         $0.body == .told("看过了。")
       }) != true {
         try await Task.sleep(for: .milliseconds(10))

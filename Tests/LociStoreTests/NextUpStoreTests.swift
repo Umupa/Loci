@@ -77,7 +77,8 @@ struct NextUpStoreTests {
     let home = Home.project(Self.project)
     let made = Approved(identifier: "e-1", marker: "m", into: Self.target)
     for (seed, execution) in [
-      (1, NextUp.Execution.waiting), (2, .writing(marker: "m", into: Self.target)), (3, .undoing(made)), (4, .made(made)),
+      (1, NextUp.Execution.waiting), (2, .writing(marker: "m", into: Self.target)), (3, .undoing(made)),
+      (4, .made(made)),
     ] {
       try database.saveNextUp(
         NextUp(

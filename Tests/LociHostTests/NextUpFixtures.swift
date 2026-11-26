@@ -146,7 +146,8 @@ final class FakeWrites: PersonalWrites {
   func remove(_ made: Approved, for approval: Approval) async throws(WriteFailure) {
     let stuck = state.withLock { state in
       guard !state.stuck else { return true }
-      let key = state.made[made.identifier] != nil
+      let key =
+        state.made[made.identifier] != nil
         ? made.identifier : state.made.first { $0.value.marker == made.marker }?.key
       if let key { state.made.removeValue(forKey: key) }
       return false

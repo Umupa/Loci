@@ -206,7 +206,9 @@ extension LocalHost {
     for card in (try? database.allNextUps()) ?? [] {
       if case .starting(let from, let message) = card.place {
         let said = (try? database.hasMessage(message)) ?? false
-        _ = try? database.changeNextUp(card.id) { $0.place == card.place ? $0.with(place: said ? .started : from) : nil }
+        _ = try? database.changeNextUp(card.id) {
+          $0.place == card.place ? $0.with(place: said ? .started : from) : nil
+        }
       }
       var execution = card.execution
       if case .approval(let approval) = card.kind {
@@ -227,7 +229,9 @@ extension LocalHost {
         case .waiting, .choosing, .targetGone, .made: break
         }
         if execution != card.execution {
-          _ = try? database.changeNextUp(card.id) { $0.execution == card.execution ? $0.with(execution: execution) : nil }
+          _ = try? database.changeNextUp(card.id) {
+            $0.execution == card.execution ? $0.with(execution: execution) : nil
+          }
         }
       }
       if let project = card.home.project, !projects.contains(project), !execution.isUnderWay {

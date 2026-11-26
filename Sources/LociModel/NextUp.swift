@@ -187,8 +187,7 @@ public struct EventDraft: Hashable, Codable, Sendable {
   /// approves.
   public let calendar: String?
 
-  public init(title: String, start: Timestamp, end: Timestamp? = nil, allDay: Bool = false, calendar: String? = nil)
-  {
+  public init(title: String, start: Timestamp, end: Timestamp? = nil, allDay: Bool = false, calendar: String? = nil) {
     self.title = title
     self.start = start
     self.end = end ?? Timestamp(millisecondsSince1970: start.millisecondsSince1970 + 3_600_000)
