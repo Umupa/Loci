@@ -189,11 +189,18 @@ enum ToolGateway {
         if case .run(let run) = call.session { await host.worker.access(of: run)?.repair } else { nil }
       return try WireCodec.encode(try await host.dataSources(of: home, named: repair?.source.name))
     }
-    if name == NameProject.name || name == DescribeProject.name {
+    if name == NameProject.name || name == IconProject.name || name == DescribeProject.name {
       guard case .project(let project) = home else { throw .invalidRequest(NameProject.outside) }
       if name == NameProject.name {
         let command = try WireCodec.decode(NameProject.self, from: body)
-        return try WireCodec.encode(try await host.renameProject(RenameProject(project, to: command.newName)))
+        let existingIcon = (try? host.store.project(project))?.icon
+        let renamed = try await host.renameProject(RenameProject(project, to: command.newName))
+        guard let icon = command.icon, existingIcon == nil else { return try WireCodec.encode(renamed) }
+        return try WireCodec.encode(try await host.setProjectIcon(SetProjectIcon(project, icon: icon)))
+      }
+      if name == IconProject.name {
+        let command = try WireCodec.decode(IconProject.self, from: body)
+        return try WireCodec.encode(try await host.setProjectIcon(SetProjectIcon(project, icon: command.icon)))
       }
       let command = try WireCodec.decode(DescribeProject.self, from: body)
       return try WireCodec.encode(try await host.describeProject(DescribeProject(command.summary, of: project)))

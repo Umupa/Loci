@@ -60,6 +60,12 @@ extension EnvironmentValues {
   @Entry var pinnedPanels: Set<String> = []
   /// Whether the panel drawn here is a project's, pinned to the chat's column.
   @Entry var pinnedHere = false
+  /// The project a pinned panel belongs to, when shown in the chat's column.
+  @Entry var pinnedProject: Project?
+  /// Known projects by id, so pinned panels and folded rails can show their seals.
+  @Entry var projectsByID: [Project.ID: Project] = [:]
+  /// Whether the sidebar is currently shown beside the page.
+  @Entry var sidebarShown = true
 }
 
 /// A sentence with `**bold**` spans, split where the bold starts and ends. An unclosed `**` is kept as written.

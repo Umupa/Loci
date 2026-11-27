@@ -29,8 +29,8 @@ struct ApprovalCard: View {
               .font(.system(size: 14, weight: .semibold))
               .foregroundStyle(Palette.ink)
               .lineLimit(1)
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-              if let project { ProjectSeal(seal: project.seal, size: 13) }
+            HStack(spacing: 5) {
+              if let project { ProjectSeal(symbol: project.symbol, size: 16, locked: !project.remembered) }
               Text(verbatim: when)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)

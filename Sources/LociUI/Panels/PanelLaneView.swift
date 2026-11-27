@@ -89,6 +89,7 @@ struct PanelSlotView: View {
   var opened: Set<String> = []
   var pages: [String: Int] = [:]
   @Environment(\.panelLineMarks) private var marks
+  @Environment(\.projectsByID) private var projectsByID
 
   var body: some View {
     switch slot {
@@ -105,6 +106,7 @@ struct PanelSlotView: View {
       )
       .environment(\.panelHome, .project(project))
       .environment(\.pinnedHere, true)
+      .environment(\.pinnedProject, projectsByID[project])
       .transformEnvironment(\.panelData) { $0.home = .project(project) }
     }
   }

@@ -208,6 +208,23 @@ struct ToolTests {
           "Borg\nid: \(Self.id)\nkind: article\nauthors: Loci\njob: done\nfolder: ../library/borg-\(Self.id)/"))
   }
 
+  @Test func projectCommandsNameAndChangeTheProjectsIcon() async throws {
+    let project = Project(
+      id: Self.id, name: "投资", icon: "chart.pie", createdAt: Timestamp(millisecondsSince1970: 0))
+    let line = ScriptedLine { _ in [.success(Self.json(project))] }
+
+    let named = await tool(line).run(.nameProject("投资", icon: "chart.pie"), json: false)
+    let iconed = await tool(line).run(.iconProject("chart.pie"), json: false)
+
+    #expect(named == .worked("The project is named 投资."))
+    #expect(iconed == .worked("The project icon is chart.pie."))
+    #expect(
+      line.requests == [
+        .command(name: NameProject.name, body: Self.json(NameProject("投资", icon: "chart.pie"))),
+        .command(name: IconProject.name, body: Self.json(IconProject("chart.pie"))),
+      ])
+  }
+
   @Test func anErrorFromTheAppSaysWhatToDo() async {
     let line = ScriptedLine { _ in [.failure(.host(.notFound("x")))] }
 

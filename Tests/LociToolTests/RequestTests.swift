@@ -21,6 +21,11 @@ struct RequestTests {
     #expect(try Request.parse(["import", "talk.mp4"]) == (.importFile(path: "talk.mp4", title: nil), false))
     #expect(try Request.parse([]) == (.help(nil), false))
     #expect(try Request.parse(["help"]) == (.help(nil), false))
+    #expect(try Request.parse(["project", "name", "投资"]) == (.nameProject("投资", icon: nil), false))
+    #expect(
+      try Request.parse(["project", "name", "投资", "--icon", "chart.pie"])
+        == (.nameProject("投资", icon: "chart.pie"), false))
+    #expect(try Request.parse(["project", "icon", "airplane"]) == (.iconProject("airplane"), false))
   }
 
   @Test func sourceCommandsTakeAWebLinkAndAnOptionalFullCommit() throws {
@@ -47,6 +52,8 @@ struct RequestTests {
   @Test(arguments: [
     ["search"], ["show"], ["show", "not-an-id"], ["wait", "a", "b"], ["save", "example.com"], ["save", "ftp://x/y"],
     ["import"], ["import", "a.md", "--title"], ["import", "talk.mp4", "--title", "Talk"], ["delete", "x"],
+    ["project", "name"], ["project", "name", "投资", "--icon"], ["project", "name", "投资", "--icon", "sparkles"],
+    ["project", "icon"], ["project", "icon", "not.a.symbol"],
   ])
   func aCommandWrittenWrongSaysHowToWriteIt(arguments: [String]) {
     #expect(throws: UsageError.self) { try Request.parse(arguments) }

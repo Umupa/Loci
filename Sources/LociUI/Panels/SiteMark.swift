@@ -74,6 +74,13 @@ extension SiteSeal where Face == Text {
   init(letter: String, side: CGFloat) {
     self.init(side: side) { Text(serif: letter.uppercased(), Serif.Face(size: side * 0.46, weight: .medium)) }
   }
+
+  /// The first letter or digit in `text`, falling back to its first non-whitespace character.
+  static func letter(for text: String) -> String {
+    let meaningful = text.first { $0.isLetter || $0.isNumber }
+    guard let chosen = meaningful ?? text.first(where: { !$0.isWhitespace }) else { return "" }
+    return String(chosen).uppercased()
+  }
 }
 
 /// What marks a panel that has no sites of its own yet: the sites a request names, and Loci's face when it

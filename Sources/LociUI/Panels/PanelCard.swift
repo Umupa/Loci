@@ -254,10 +254,14 @@ struct PanelCard: View {
       title: Text(verbatim: panel.title), time: data.readings.time(of: panel, in: data.home),
       menu: menu, open: open, choose: choose
     ) {
+      if let pinnedProject {
+        ProjectSeal(
+          symbol: pinnedProject.symbol, size: Size.siteMark, selected: true, locked: !pinnedProject.remembered)
+      }
       if let progress = CheckProgress(shown) {
         CheckRing(progress: progress)
         if !panel.sources.isEmpty { SiteBadges(sites: panel.sources) }
-      } else {
+      } else if !panel.sources.isEmpty {
         SiteBadges(sites: panel.sources)
       }
     } content: {
@@ -303,6 +307,7 @@ struct PanelCard: View {
   }
 
   @Environment(\.pinnedHere) private var pinnedHere
+  @Environment(\.pinnedProject) private var pinnedProject
 
   private func editing(_ shown: Panel) -> PanelEditing {
     let name = ref

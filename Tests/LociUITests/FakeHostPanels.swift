@@ -33,6 +33,9 @@ extension FakeHost {
   }
 
   func renameProject(_ command: RenameProject) async throws(HostError) -> Project { try project(command.project) }
+  func setProjectIcon(_ command: SetProjectIcon) async throws(HostError) -> Project {
+    try project(command.project).with(icon: .some(command.icon))
+  }
   func describeProject(_ command: DescribeProject) async throws(HostError) -> Project {
     guard let id = command.project else { throw .invalidRequest(NameProject.outside) }
     return try project(id)

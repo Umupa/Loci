@@ -7,6 +7,7 @@ import SwiftUI
 struct CompanionPage: View {
   @Environment(\.host) private var host
   @Environment(\.reducesMotion) private var reduceMotion
+  @Environment(\.sidebarShown) private var sidebarShown
   let focusRequest: Int
   let attach: () -> Void
   let opened: (WindowState) -> Void
@@ -28,6 +29,7 @@ struct CompanionPage: View {
   /// Asks the chat's input field for the keyboard; only while the chat shows, since it stays made under a
   /// project.
   @State private var chatFocus = 0
+  @State private var pageWidth: CGFloat = 0
   /// The chat's layout, for the layout button over a new project's field.
   @AppStorage(TalkLayout.key) private var storedLayout = Data()
 
@@ -68,9 +70,20 @@ struct CompanionPage: View {
         talk(.project(project), shown: true, focusRequest: focusRequest)
           .id(project)
       }
-      ProjectBarView(bar: shownBar, home: home, starting: starting != nil, stamps: stamps, actions: actions)
-        .padding(.top, 11)
-        .padding(.horizontal, Size.projectBarClearance)
+      let leadingClearance = sidebarShown ? Spacing.m : Size.projectBarClearance
+      let barBudget =
+        pageWidth > 0 ? max(240, pageWidth - leadingClearance - Size.projectBarClearance) : Size.projectBarWidest
+      BarClearance(leading: leadingClearance, trailing: Size.projectBarClearance) {
+        ProjectBarView(
+          bar: shownBar, home: home, maxWidth: barBudget, starting: starting != nil,
+          startingSent: starting?.sent != nil, stamps: stamps, actions: actions)
+      }
+      .padding(.top, 11)
+    }
+    .onGeometryChange(for: CGFloat.self) {
+      $0.size.width
+    } action: {
+      pageWidth = $0
     }
     .overlayPreferenceValue(NextUpAnchors.self) { anchors in
       GeometryReader { proxy in
@@ -125,6 +138,7 @@ struct CompanionPage: View {
       columnPreferred: $columnPreferred
     )
     .environment(\.projectName, shownHome == home ? openProject?.name : nil)
+    .environment(\.projectsByID, projectsMap)
     .environment(\.nextUpDeck, deck)
     .opacity(shown ? 1 : 0)
     .allowsHitTesting(shown)
@@ -162,6 +176,7 @@ struct CompanionPage: View {
       },
       start: { starting = Starting() },
       rename: { id, name in send(RenameProject(id, to: name)) },
+      reicon: { id, icon in send(SetProjectIcon(id, icon: icon)) },
       pin: { id, panel, pinned in send(PinPanel(panel, of: id, pinned: pinned)) },
       remember: { id, remembered in send(SetProjectRemembered(id, remembered: remembered)) },
       archive: { id in
@@ -176,11 +191,11 @@ struct CompanionPage: View {
       })
   }
 
-  private func start(_ words: String) {
+  private func start(_ words: String, icon: String?) {
     starting?.sent = words
     Task {
       do throws(HostError) {
-        starting?.project = try await host.run(StartProject(words)).id
+        starting?.project = try await host.run(StartProject(words, icon: icon)).id
         settle()
       } catch {
         starting = nil
@@ -206,10 +221,13 @@ struct CompanionPage: View {
     }
   }
 
+  private var projectsMap: [Project.ID: Project] {
+    Dictionary((shownBar.projects + shownBar.archived).map { ($0.id, $0) }) { first, _ in first }
+  }
+
   private var deck: NextUpDeckState {
-    let projects = Dictionary((shownBar.projects + shownBar.archived).map { ($0.id, $0) }) { first, _ in first }
-    return NextUpDeckState(
-      cards: nextUps?.value ?? [], projects: projects, flying: flight?.id,
+    NextUpDeckState(
+      cards: nextUps?.value ?? [], projects: projectsMap, flying: flight?.id,
       actions: NextUpActions(
         start: { card in
           if reduceMotion { land(card) } else { flight = card }

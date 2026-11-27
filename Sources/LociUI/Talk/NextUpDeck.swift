@@ -139,7 +139,7 @@ struct NextUpSource: View {
   var body: some View {
     HStack(spacing: 6) {
       if let project {
-        ProjectSeal(seal: project.seal, size: 16, locked: !project.remembered)
+        ProjectSeal(symbol: project.symbol, size: 16, locked: !project.remembered)
         Text(verbatim: project.shownName)
       } else {
         LociAvatar(size: 16)

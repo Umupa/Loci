@@ -3,7 +3,7 @@
 public enum Wire {
   public static let toolCommands: [any LocalToolCommand.Type] = [
     ReadSource.self, FetchSourceRepository.self, AddSchedule.self, AddFollowUp.self, ListConnectors.self,
-    CallConnector.self, Recall.self, NameProject.self, DescribeProject.self,
+    CallConnector.self, Recall.self, NameProject.self, IconProject.self, DescribeProject.self,
     SaveDataSource.self, TestDataSource.self, ListDataSources.self, PickPanelEntries.self,
     AddNextUp.self, ProposeApproval.self, AddNextUpCondition.self, ListNextUpConditions.self,
     RemoveNextUpCondition.self,
@@ -44,7 +44,8 @@ public enum Wire {
     .writes(PickKeyPoints.self),
     .reads(ListPanels.self), .writes(SavePanel.self), .writes(RefreshPanel.self), .writes(MovePanelToTop.self),
     .writes(RemovePanel.self), .writes(EditPanel.self), .writes(MarkPanelLine.self),
-    .writes(StartProject.self), .writes(RenameProject.self), .writes(SetProjectRemembered.self),
+    .writes(StartProject.self), .writes(RenameProject.self), .writes(SetProjectIcon.self),
+    .writes(SetProjectRemembered.self),
     .writes(ArchiveProject.self), .writes(DeleteProject.self), .writes(RestoreDeletedProject.self),
     .writes(SeeProject.self), .writes(PinPanel.self),
     .reads(ListCourses.self), .writes(StartCourse.self), .writes(AnswerCourseQuestion.self),

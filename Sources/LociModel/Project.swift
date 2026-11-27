@@ -12,6 +12,8 @@ public struct Project: Hashable, Codable, Sendable, Identifiable {
   /// Whether the daily review, the main conversation and `loci recall` elsewhere may know of it.
   public let remembered: Bool
   public let archived: Bool
+  /// Optional SF Symbol chosen for its icon; when `nil`, inferred from `name`.
+  public let icon: String?
   /// The project's panels shown in the chat's column too, by name.
   public let pinned: [String]
   /// When the person last had it open; `nil` before they ever did.
@@ -20,32 +22,32 @@ public struct Project: Hashable, Codable, Sendable, Identifiable {
 
   public init(
     id: ID, name: String?, summary: String = "", remembered: Bool = true, archived: Bool = false,
-    pinned: [String] = [], seen: Timestamp? = nil, createdAt: Timestamp
+    icon: String? = nil, pinned: [String] = [], seen: Timestamp? = nil, createdAt: Timestamp
   ) {
     self.id = id
     self.name = name
     self.summary = summary
     self.remembered = remembered
     self.archived = archived
+    self.icon = icon
     self.pinned = pinned
     self.seen = seen
     self.createdAt = createdAt
   }
 
-  /// The character on its seal: the first of its name, upper case.
-  public var seal: String {
-    guard let first = name?.first(where: { !$0.isWhitespace }) else { return "" }
-    return String(first).uppercased()
+  /// The monochrome SF Symbol shown on its seal: the chosen `icon`, or one inferred from its name.
+  public var symbol: String {
+    icon ?? name.map(ProjectIcon.inferred(from:)) ?? ProjectIcon.fallback
   }
 
   public func with(
     name: String?? = nil, summary: String? = nil, remembered: Bool? = nil, archived: Bool? = nil,
-    pinned: [String]? = nil, seen: Timestamp?? = nil
+    icon: String?? = nil, pinned: [String]? = nil, seen: Timestamp?? = nil
   ) -> Project {
     Project(
       id: id, name: name ?? self.name, summary: summary ?? self.summary, remembered: remembered ?? self.remembered,
-      archived: archived ?? self.archived, pinned: pinned ?? self.pinned, seen: seen ?? self.seen,
-      createdAt: createdAt)
+      archived: archived ?? self.archived, icon: icon ?? self.icon, pinned: pinned ?? self.pinned,
+      seen: seen ?? self.seen, createdAt: createdAt)
   }
 }
 

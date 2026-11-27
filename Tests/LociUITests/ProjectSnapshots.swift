@@ -74,6 +74,7 @@ struct ProjectSnapshots {
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
       .background(Palette.canvas)
+      .environment(\.sidebarShown, false)
       .lociHost(FakeHost(try Sample(problems: false), projects: Self.bar))
       .defaultAppStorage(PanelSnapshots.defaults(columnShown: true, sidebarShown: false, layout: nil))
       try await Snapshot.render(
@@ -105,14 +106,42 @@ struct ProjectSnapshots {
   /// PJ-S10: every project, the open one marked, the archived ones folded at the bottom.
   @Test(arguments: Snapshot.Appearance.allCases)
   func list(appearance: Snapshot.Appearance) async throws {
-    let view = ProjectList(bar: Self.bar, home: .project(Self.investing.id), open: { _ in }, start: {})
-      .background(Palette.surface)
-      .lociHost(FakeHost(try Sample(problems: false)))
+    let view = ProjectList(
+      bar: Self.bar, home: .project(Self.investing.id), actions: Self.actions, open: { _ in }, start: {}
+    )
+    .background(Palette.surface)
+    .lociHost(FakeHost(try Sample(problems: false)))
     try await Snapshot.render(
       view, named: "projects-list", size: CGSize(width: 232, height: 260), appearance: appearance)
   }
 
+  /// PJ-S1: when more projects exist than fit the narrow window, overflow projects fold cleanly into `⌄`
+  /// while the open project stays in view and hidden unseen news lights an amber dot on `⌄`.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func overflowFoldsCleanly(appearance: Snapshot.Appearance) async throws {
+    let extras = (4...9).map { idx in
+      Project(
+        id: Self.id(idx), name: "项目 \(idx)",
+        icon: ["book.closed", "house", "target", "cpu", "globe", "leaf"][idx - 4],
+        createdAt: Timestamp(millisecondsSince1970: Int64(idx)))
+    }
+    let bar = ProjectBar(
+      projects: [Self.investing, Self.trip, Self.interview] + extras,
+      unseen: [extras.last!.id])
+    let host = FakeHost(
+      try Sample(problems: false), projects: bar,
+      projectPanels: [Self.investing.id: PanelColumn(slots: [.panel(Self.rules)])])
+    let memory = WindowMemory(
+      recall: { WindowState() }, remember: { _ in }, recallProject: { extras[4].id }, rememberProject: { _ in })
+    let view = MachineWindow(memory: memory)
+      .lociHost(host)
+      .defaultAppStorage(PanelSnapshots.defaults(columnShown: true, sidebarShown: true, layout: nil))
+    try await Snapshot.render(
+      view, named: "projects-overflow", size: CGSize(width: 720, height: 560), appearance: appearance,
+      settle: .seconds(1))
+  }
+
   static let actions = ProjectBarActions(
-    open: { _ in }, start: {}, rename: { _, _ in }, pin: { _, _, _ in }, remember: { _, _ in }, archive: { _ in },
-    delete: { _ in })
+    open: { _ in }, start: {}, rename: { _, _ in }, reicon: { _, _ in }, pin: { _, _, _ in },
+    remember: { _, _ in }, archive: { _ in }, delete: { _ in })
 }

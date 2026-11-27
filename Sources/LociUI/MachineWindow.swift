@@ -229,6 +229,7 @@ struct MachineWindow: View {
         failed: { dialogs.failure = $0 }, columnPreferred: $panelColumnPreferred, memory: memory,
         visits: conversationVisits
       )
+      .environment(\.sidebarShown, sidebarShown)
       .onAppear(perform: talkShown)
     case .loci:
       LociScreen()

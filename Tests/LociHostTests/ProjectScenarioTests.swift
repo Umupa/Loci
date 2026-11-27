@@ -43,10 +43,11 @@ struct ProjectScenarioTests {
       #expect(instructions.contains("# This project") && instructions.contains("agent/projects/\(project.id)/"))
       #expect(instructions.contains("../../../library/"))
 
-      _ = await Background.call(NameProject("投资"), from: .conversation(.project(project.id)), on: host)
+      _ = await Background.call(
+        NameProject("投资", icon: "chart.pie"), from: .conversation(.project(project.id)), on: host)
 
       let bar = try #require(await Self.bar(host) { $0.projects.map(\.name) == ["投资"] })
-      #expect(bar.projects.first?.seal == "投")
+      #expect(bar.projects.first?.symbol == "chart.pie")
     }
   }
 
@@ -138,14 +139,27 @@ struct ProjectScenarioTests {
     }
   }
 
-  @Test func renamingAProjectChangesItsSeal() async throws {
+  @Test func settingAndChangingAProjectsIconFromTheBarOrTheAgent() async throws {
     try await withHost(agent: Self.agent) { host, _, _ in
-      let project = try await Self.start(host)
+      let started = try await host.run(StartProject(Self.words, icon: "globe"))
+      _ = try #require(await settled(host, .project(started.id)))
 
-      let renamed = try await host.run(RenameProject(project, to: "Nasdaq"))
+      _ = await Background.call(
+        NameProject("Nasdaq", icon: "chart.line.uptrend.xyaxis"), from: .conversation(.project(started.id)), on: host)
+      let afterNamed = try #require(await Self.bar(host) { $0.projects.first?.name == "Nasdaq" }?.projects.first)
+      #expect(afterNamed.symbol == "globe")
 
-      #expect(renamed.seal == "N")
-      await #expect(throws: HostError.self) { try await host.run(RenameProject(project, to: "  ")) }
+      let viaIconCommand = await Background.call(
+        IconProject("terminal"), from: .conversation(.project(started.id)), on: host)
+      #expect(RunToolScenarioTests.worked(viaIconCommand))
+      let afterAgentIcon = try #require(
+        await Self.bar(host) { $0.projects.first?.symbol == "terminal" }?.projects.first)
+      #expect(afterAgentIcon.icon == "terminal")
+
+      let updated = try await host.run(SetProjectIcon(started.id, icon: "airplane"))
+      #expect(updated.symbol == "airplane")
+      await #expect(throws: HostError.self) { try await host.run(SetProjectIcon(started.id, icon: "not.real")) }
+      await #expect(throws: HostError.self) { try await host.run(RenameProject(started.id, to: "  ")) }
     }
   }
 

@@ -7,13 +7,17 @@ import SwiftUI
 struct NewProjectStage: View {
   /// What was sent, once it was.
   let sent: String?
-  let send: (String) -> Void
+  let send: (String, String?) -> Void
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.locale) private var locale
   @Environment(\.changesAllowed) private var changesAllowed
   @State private var text = ""
+  @State private var chosenIcon: String?
+  @State private var pickingIcon = false
+  @State private var hoveringIcon = false
   @State private var example = 0
   @State private var turns = 0.0
+  @State private var breathing = false
   @FocusState private var focused: Bool
 
   static let examples: [LocalizedStringResource] = [
@@ -21,9 +25,45 @@ struct NewProjectStage: View {
     .loci("projects.exampleBook"), .loci("projects.exampleLearn"),
   ]
 
+  private var previewSymbol: String {
+    chosenIcon ?? ProjectIcon.inferred(from: text)
+  }
+
   var body: some View {
     VStack(spacing: 26) {
-      if sent == nil { ProjectSeal(seal: "", size: Size.sealLarge, ghost: true).transition(.opacity) }
+      if sent == nil {
+        Button {
+          pickingIcon.toggle()
+        } label: {
+          ProjectSeal(
+            symbol: previewSymbol, size: Size.sealLarge, selected: !text.isEmpty || chosenIcon != nil, ghost: false
+          )
+          .background(
+            RoundedRectangle(cornerRadius: Size.sealLarge * 0.28, style: .continuous)
+              .fill(hoveringIcon ? Palette.fill : .clear)
+          )
+          .scaleEffect(breathing && text.isEmpty && chosenIcon == nil && !reduceMotion ? 1.04 : 1)
+          .opacity(breathing && text.isEmpty && chosenIcon == nil && !reduceMotion ? 0.65 : 1)
+          .contentShape(RoundedRectangle(cornerRadius: Size.sealLarge * 0.28, style: .continuous))
+        }
+        .buttonStyle(PressStyle(scale: 0.94))
+        .onHover { hoveringIcon = $0 }
+        .disabled(!changesAllowed)
+        .popover(isPresented: $pickingIcon, arrowEdge: .bottom) {
+          ProjectIconPicker(selected: previewSymbol) { icon in
+            chosenIcon = icon
+            pickingIcon = false
+          }
+        }
+        .animation(reduceMotion ? nil : Motion.quick, value: previewSymbol)
+        .animation(
+          text.isEmpty && chosenIcon == nil && !reduceMotion
+            ? .easeInOut(duration: 2.2).repeatForever(autoreverses: true) : Motion.quick,
+          value: breathing
+        )
+        .onAppear { breathing = true }
+        .transition(.opacity)
+      }
       field
       if sent != nil {
         HStack(alignment: .top, spacing: Spacing.m) {
@@ -114,6 +154,6 @@ struct NewProjectStage: View {
 
   private func submit() {
     guard ready else { return }
-    send(text.trimmingCharacters(in: .whitespacesAndNewlines))
+    send(text.trimmingCharacters(in: .whitespacesAndNewlines), chosenIcon)
   }
 }

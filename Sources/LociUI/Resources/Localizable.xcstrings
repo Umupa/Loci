@@ -4632,6 +4632,23 @@
         }
       }
     },
+    "projects.changeIcon": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change Icon…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "换图标…"
+          }
+        }
+      }
+    },
     "projects.chat": {
       "extractionState": "manual",
       "localizations": {

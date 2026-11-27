@@ -43,11 +43,16 @@ struct Tool: Sendable {
       let hits = try Failure.decoding([RecallHit].self, from: reply)
       guard !hits.isEmpty else { return .worked("Nothing said in a conversation or a run matches \"\(text)\".") }
       return .worked(hits.map { "\($0.path)\n    \($0.snippet)" }.joined(separator: "\n"))
-    case .nameProject(let name):
-      let reply = try await line.run(NameProject(name))
+    case .nameProject(let name, let icon):
+      let reply = try await line.run(NameProject(name, icon: icon))
       if json { return .worked(Self.text(reply)) }
       let project = try Failure.decoding(Project.self, from: reply)
       return .worked("The project is named \(project.name ?? name).")
+    case .iconProject(let icon):
+      let reply = try await line.run(IconProject(icon))
+      if json { return .worked(Self.text(reply)) }
+      let project = try Failure.decoding(Project.self, from: reply)
+      return .worked("The project icon is \(project.symbol).")
     case .describeProject(let line):
       let reply = try await self.line.run(DescribeProject(line))
       if json { return .worked(Self.text(reply)) }

@@ -35,8 +35,11 @@ extension LocalHost {
   public func startProject(_ command: StartProject) async throws(HostError) -> Project {
     let text = command.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { throw .invalidRequest("say what the project is for") }
+    if let icon = command.icon, !ProjectIcon.isValid(icon) {
+      throw .invalidRequest("unknown project icon: \(icon)")
+    }
     let now = environment.now()
-    let project = Project(id: environment.newID(), name: nil, seen: now, createdAt: now)
+    let project = Project(id: environment.newID(), name: nil, icon: command.icon, seen: now, createdAt: now)
     try attempt {
       try store.saveProject(project)
       try store.home(.project(project.id)).setMemoryWritable(false)
@@ -70,6 +73,14 @@ extension LocalHost {
     let name = command.newName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !name.isEmpty else { throw .invalidRequest("a project needs a name") }
     return try await changeProject(command.project) { $0.with(name: .some(name)) }
+  }
+
+  public func setProjectIcon(_ command: SetProjectIcon) async throws(HostError) -> Project {
+    guard ProjectIcon.isValid(command.icon) else {
+      throw .invalidRequest(
+        "unknown project icon \"\(command.icon)\"; available: \(ProjectIcon.symbols.joined(separator: ", "))")
+    }
+    return try await changeProject(command.project) { $0.with(icon: .some(command.icon)) }
   }
 
   public func describeProject(_ command: DescribeProject) async throws(HostError) -> Project {

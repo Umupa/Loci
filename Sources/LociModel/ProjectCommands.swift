@@ -58,9 +58,11 @@ public struct WatchProjects: Subscription {
 public struct StartProject: RemoteCommand {
   public static let name = "projects.start"
   public let text: String
+  public let icon: String?
 
-  public init(_ text: String) {
+  public init(_ text: String, icon: String? = nil) {
     self.text = text
+    self.icon = icon
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Project {
@@ -68,7 +70,7 @@ public struct StartProject: RemoteCommand {
   }
 }
 
-/// Renames a project, and so changes its seal. Refused for an empty name.
+/// Renames a project. Refused for an empty name.
 public struct RenameProject: RemoteCommand {
   public static let name = "projects.rename"
   public let project: Project.ID
@@ -81,6 +83,22 @@ public struct RenameProject: RemoteCommand {
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Project {
     try await handler.renameProject(self)
+  }
+}
+
+/// Sets a project's monochrome SF Symbol icon.
+public struct SetProjectIcon: RemoteCommand {
+  public static let name = "projects.setIcon"
+  public let project: Project.ID
+  public let icon: String
+
+  public init(_ project: Project.ID, icon: String) {
+    self.project = project
+    self.icon = icon
+  }
+
+  public func run(on handler: any CommandHandler) async throws(HostError) -> Project {
+    try await handler.setProjectIcon(self)
   }
 }
 
@@ -175,23 +193,45 @@ public struct PinPanel: RemoteCommand {
   }
 }
 
-/// `loci project name`: names the project the session is in. The app fills the project in from the session.
+/// `loci project name`: names the project the session is in, and optionally sets its icon. The app fills the
+/// project in from the session.
 public struct NameProject: LocalToolCommand {
   public static let name = "projects.name"
   public let newName: String
+  public let icon: String?
   public let project: Project.ID?
 
-  public init(_ name: String, of project: Project.ID? = nil) {
+  public init(_ name: String, icon: String? = nil, of project: Project.ID? = nil) {
     newName = name
+    self.icon = icon
     self.project = project
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Project {
     guard let project else { throw .invalidRequest(Self.outside) }
-    return try await handler.renameProject(RenameProject(project, to: newName))
+    let renamed = try await handler.renameProject(RenameProject(project, to: newName))
+    guard let icon else { return renamed }
+    return try await handler.setProjectIcon(SetProjectIcon(project, icon: icon))
   }
 
   public static let outside = "this session is in no project; `loci project` works only inside one"
+}
+
+/// `loci project icon`: sets the SF Symbol worn by the project this session is in.
+public struct IconProject: LocalToolCommand {
+  public static let name = "projects.icon"
+  public let icon: String
+  public let project: Project.ID?
+
+  public init(_ icon: String, of project: Project.ID? = nil) {
+    self.icon = icon
+    self.project = project
+  }
+
+  public func run(on handler: any CommandHandler) async throws(HostError) -> Project {
+    guard let project else { throw .invalidRequest(NameProject.outside) }
+    return try await handler.setProjectIcon(SetProjectIcon(project, icon: icon))
+  }
 }
 
 /// `loci project describe`: says in a line what the project the session is in is doing, all the main

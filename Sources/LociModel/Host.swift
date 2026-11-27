@@ -180,6 +180,7 @@ public protocol CommandHandler: Sendable {
   func projectBar() async throws(HostError) -> ProjectBar
   func startProject(_ command: StartProject) async throws(HostError) -> Project
   func renameProject(_ command: RenameProject) async throws(HostError) -> Project
+  func setProjectIcon(_ command: SetProjectIcon) async throws(HostError) -> Project
   func describeProject(_ command: DescribeProject) async throws(HostError) -> Project
   func setProjectRemembered(_ command: SetProjectRemembered) async throws(HostError) -> Done
   func archiveProject(_ command: ArchiveProject) async throws(HostError) -> Done

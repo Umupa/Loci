@@ -50,12 +50,25 @@ struct ProjectTests {
     #expect(try Fixture.roundTrip(command).ref == command.ref)
   }
 
-  @Test func aProjectsSealIsTheFirstCharacterOfItsName() {
-    let made = Project(id: Self.project, name: " investing", createdAt: Fixture.instant)
+  @Test func aProjectsSymbolComesFromItsChosenIconOrInfersFromItsName() throws {
+    let made = Project(id: Self.project, name: "投资", createdAt: Fixture.instant)
 
-    #expect(made.seal == "I")
-    #expect(made.with(name: "投资").seal == "投")
-    #expect(made.with(name: .some(nil)).seal == "")
+    #expect(made.symbol == "chart.line.uptrend.xyaxis")
+    #expect(made.with(name: "东京五日").symbol == "airplane")
+    #expect(made.with(name: "AI Infra 面试").symbol == "terminal")
+    #expect(made.with(name: "搬家").symbol == "house")
+    #expect(made.with(name: "未命名话题").symbol == ProjectIcon.fallback)
+    #expect(made.with(icon: .some("globe")).symbol == "globe")
+    #expect(made.with(name: .some(nil)).symbol == ProjectIcon.fallback)
+
+    let legacy = try Fixture.decode(
+      Project.self,
+      #"{"id":"\#(Self.project)","name":"投资","summary":"","remembered":true,"archived":false,"pinned":[],"createdAt":"\#(Fixture.instant)"}"#
+    )
+    #expect(legacy.icon == nil)
+    #expect(legacy.symbol == "chart.line.uptrend.xyaxis")
+    #expect(ProjectIcon.isValid("airplane"))
+    #expect(!ProjectIcon.isValid("not.a.symbol"))
   }
 
   @Test func aProjectsConversationNotesUnderItsOwnTag() {

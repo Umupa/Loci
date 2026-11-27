@@ -164,18 +164,20 @@ enum Size {
   static let newProjectLift: CGFloat = 76
   /// The room kept on each side of the project bar for the buttons in the page's corners.
   static let projectBarClearance: CGFloat = 84
+  /// The widest the project bar spreads on wide windows before folding overflow into its list.
+  static let projectBarWidest: CGFloat = 580
   /// The widest an open project's name spreads in the project bar.
   static let projectNameWidest: CGFloat = 180
-  /// The widest it spreads when the bar is short of room.
-  static let projectNameNarrow: CGFloat = 96
+  /// The narrowest it yields to before overflow projects fold out of the bar.
+  static let projectNameNarrow: CGFloat = 76
   /// The least a question card is tall, its button at its foot; any card is taken as this tall until it has
   /// laid out at its own height.
   static let nextUpCard: CGFloat = 96
   /// The room over the lanes when the project bar is there: the bar, then the conversation's grip.
-  static let projectBarRoom: CGFloat = 72
+  static let projectBarRoom: CGFloat = 78
   /// The room over the panel lanes when the project bar is there: only the bar, so the first card or panel
   /// starts just under it, as panels have no grip above them.
-  static let panelRoom: CGFloat = 53
+  static let panelRoom: CGFloat = 56
   static let railSheetTallest: CGFloat = 640
   /// A site's small round mark before a panel's title.
   static let siteMark: CGFloat = 22
@@ -186,6 +188,8 @@ enum Size {
 enum Motion {
   static let standard = Animation.spring(duration: 0.35, bounce: 0.12)
   static let quick = Animation.snappy(duration: 0.2)
+  /// The slider pill gliding between tabs in the project bar.
+  static let slider = Animation.spring(duration: 0.28, bounce: 0.08)
   /// Opening and closing the sidebar, or the panel beside the text.
   static let fold = Animation.spring(duration: 0.3, bounce: 0.1)
   /// A new message or card rising into place.

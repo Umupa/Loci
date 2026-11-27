@@ -11,8 +11,8 @@ import Testing
 @Suite(.onStage(alone: true))
 struct ProjectSwitchTests {
   private static let size = CGSize(width: 1400, height: 860)
-  private static let investingSeal = CGPoint(x: 675, y: 31)
-  private static let chatTab = CGPoint(x: 588, y: 31)
+  private static let investingSeal = CGPoint(x: 662, y: 31)
+  private static let chatTab = CGPoint(x: 590, y: 31)
 
   @Test func goingBackToTheChatFromAProjectKeepsTheChatAsItWas() async throws {
     let activity = Activity()
@@ -34,6 +34,35 @@ struct ProjectSwitchTests {
 
     try await Task.sleep(for: .milliseconds(300))
     #expect(activity.watches(of: OneConversation(.main)) == 1)
+  }
+
+  @Test func theProjectBarYieldsNameWidthSmoothlyBeforeFoldingOverflowIntoTheList() {
+    let projects = (1...8).map { index in
+      Project(
+        id: ProjectSnapshots.id(index), name: index == 8 ? "系统设计深度精读与架构实践" : "项目 \(index)",
+        createdAt: Timestamp(millisecondsSince1970: Int64(index)))
+    }
+    let last = projects[7]
+    let wide = ProjectBarPlan.compute(
+      projects: projects, home: .project(last.id), starting: false, availableWidth: 720, chatLabel: "聊天",
+      newProjectLabel: "新项目")
+    #expect(wide.visible.count == 8)
+    #expect(wide.hidden.isEmpty)
+    #expect(wide.openNameWidth > Size.projectNameNarrow)
+
+    let squeezed = ProjectBarPlan.compute(
+      projects: projects, home: .project(last.id), starting: false, availableWidth: 500, chatLabel: "聊天",
+      newProjectLabel: "新项目")
+    #expect(squeezed.visible.count == 8)
+    #expect(squeezed.openNameWidth < wide.openNameWidth)
+    #expect(squeezed.openNameWidth >= Size.projectNameNarrow)
+
+    let folded = ProjectBarPlan.compute(
+      projects: projects, home: .project(last.id), starting: false, availableWidth: 320, chatLabel: "聊天",
+      newProjectLabel: "新项目")
+    #expect(folded.visible.count < 8)
+    #expect(folded.visible.contains { $0.id == last.id })
+    #expect(folded.hidden.count == 8 - folded.visible.count)
   }
 
   private static func show(_ activity: Activity) throws -> (NSWindow, NSView) {

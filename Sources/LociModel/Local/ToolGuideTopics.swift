@@ -216,6 +216,20 @@ extension ToolGuide {
       table: {"title","lede"*,"lessons"*,"columns":[2 to 5],"rows":[{"label","cells":[text or null],"key"*,"lessons"*}]}
     """
 
+  /// `loci help projects`: naming, describing and choosing an icon for the project.
+  static let projects = """
+    The project commands work only during a turn inside a project conversation. The session supplies
+    the project ID.
+
+    - name <name> [--icon <symbol>]: set the project's short name and, optionally, pick one monochrome
+      SF Symbol from the catalog below (`--icon` keeps an icon the person already chose).
+    - icon <symbol>: change the project's icon at any time.
+    - describe <line>: summarize in one line what the project is doing; all the main conversation knows.
+
+    Available project icons:
+    \(ProjectIcon.symbols.joined(separator: ", "))
+    """
+
   /// `loci help locators`: reading the library and pointing into it.
   static let locators = """
     Each item in ../library/ is a folder named after its title and id, with item.json (id, kind, title,

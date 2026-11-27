@@ -179,14 +179,29 @@ private struct RailMark: View {
   let slot: PanelSlot
   var refreshing = false
   @Environment(\.reducesMotion) private var reduceMotion
+  @Environment(\.projectsByID) private var projectsByID
   @State private var pointed = false
 
   var body: some View {
     Group {
       switch slot {
       case .reading: LociAvatar(size: Size.railMark)
-      case .panel(let panel), .pinned(_, let panel):
-        SiteBadges(sites: Array(panel.sources.prefix(1)), size: Size.railMark, ring: .clear)
+      case .panel(let panel):
+        if panel.sources.isEmpty {
+          SiteSeal(letter: SiteSeal.letter(for: panel.title), side: Size.railMark)
+            .background(Circle().fill(Palette.paper))
+        } else {
+          SiteBadges(sites: Array(panel.sources.prefix(1)), size: Size.railMark, ring: .clear)
+        }
+      case .pinned(let project, let panel):
+        if !panel.sources.isEmpty {
+          SiteBadges(sites: Array(panel.sources.prefix(1)), size: Size.railMark, ring: .clear)
+        } else if let owner = projectsByID[project] {
+          ProjectSeal(symbol: owner.symbol, size: Size.railMark * 0.82, selected: true, locked: !owner.remembered)
+        } else {
+          SiteSeal(letter: SiteSeal.letter(for: panel.title), side: Size.railMark)
+            .background(Circle().fill(Palette.paper))
+        }
       }
     }
     .frame(width: Size.railMark, height: Size.railMark)

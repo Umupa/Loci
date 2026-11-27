@@ -6,48 +6,70 @@ struct ProjectBarActions {
   let open: (Home) -> Void
   let start: () -> Void
   let rename: (Project.ID, String) -> Void
+  let reicon: (Project.ID, String) -> Void
   let pin: (Project.ID, String, Bool) -> Void
   let remember: (Project.ID, Bool) -> Void
   let archive: (Project.ID) -> Void
   let delete: (Project.ID) -> Void
 }
 
-/// The glass bar centred over the companion's page: the chat with the companion's face, a seal for each
-/// project, then `+` and `⌄`. The open one spreads out to its name, and the slider under it follows; a project
-/// with something new carries an amber dot, one kept out of memory a lock.
+/// The glass bar centred over the companion's page: the chat, each project's symbol, then `+` and `⌄`. The
+/// open one expands smoothly to its name under a single gliding slider; excess projects fold into `⌄`.
 struct ProjectBarView: View {
   let bar: ProjectBar
   let home: Home
-  /// A project being started shows as a dashed seal until it has its name.
+  /// Width available to the bar before overflow projects fold into the list.
+  var maxWidth: CGFloat = Size.projectBarWidest
+  /// A project being started shows as a dashed symbol until it has its name.
   var starting = false
+  /// Whether the new project's words have already been sent to the companion.
+  var startingSent = false
   /// How many next-up cards each seal caught; a new one stamps it.
   var stamps: [Home: Int] = [:]
   let actions: ProjectBarActions
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.changesAllowed) private var changesAllowed
-  @Namespace private var slider
+  @Environment(\.locale) private var locale
   @State private var listing = false
   @State private var renaming: Project.ID?
+  @State private var reiconing: Project.ID?
+
+  private var plan: ProjectBarPlan {
+    ProjectBarPlan.compute(
+      projects: bar.projects, home: home, starting: starting, availableWidth: maxWidth,
+      chatLabel: localized("projects.chat"), newProjectLabel: localized("projects.new"))
+  }
+
+  private var hiddenUnseen: Bool {
+    plan.hidden.contains { bar.unseen.contains($0.id) }
+  }
 
   var body: some View {
-    HStack(spacing: 2) {
-      tab(for: .chat, label: Text(.loci("projects.chat"))) { LociAvatar(size: Size.seal) }
-      Rectangle().fill(Palette.lineStrong).frame(width: Size.hairline, height: 18).padding(.horizontal, 4)
-      ViewThatFits(in: .horizontal) {
-        seals(nameWidest: Size.projectNameWidest)
-        seals(nameWidest: Size.projectNameNarrow)
-        ScrollViewReader { reader in
-          ScrollView(.horizontal) { seals(nameWidest: Size.projectNameNarrow) }
-            .scrollIndicators(.never)
-            .onAppear { reader.scrollTo(home.project, anchor: .center) }
-            .onChange(of: home) { reader.scrollTo(home.project, anchor: .center) }
-        }
+    let plan = self.plan
+    HStack(spacing: ProjectBarPlan.spacing) {
+      chatTab
+      barDivider
+      if starting {
+        ghostTab
       }
-      iconButton("plus", help: .loci("projects.new"), action: actions.start)
-        .disabled(!changesAllowed)
-      iconButton("chevron.down", help: .loci("projects.all")) { listing.toggle() }
+      ForEach(plan.visible, id: \.id) { project in
+        let open = home == .project(project.id) && !starting
+        ProjectTab(
+          bar: bar, project: project, open: open, unseen: !open && bar.unseen.contains(project.id),
+          nameWidth: plan.openNameWidth, stamp: stamps[.project(project.id)] ?? 0, actions: actions
+        )
+        .id(project.id)
+        .transition(reduceMotion ? .identity : .opacity)
+      }
+      if starting || !plan.visible.isEmpty {
+        barDivider
+      }
+      BarIconButton(symbol: Symbols.add, help: .loci("projects.new"), action: actions.start)
+        .disabled(!changesAllowed || starting)
+        .opacity(starting ? 0.45 : 1)
+      UnfoldButton(overflow: plan.overflowCount, unseen: hiddenUnseen) { listing.toggle() }
         .popover(isPresented: $listing, arrowEdge: .bottom) {
-          ProjectList(bar: bar, home: home) { chosen in
+          ProjectList(bar: bar, home: home, actions: actions) { chosen in
             listing = false
             actions.open(chosen)
           } start: {
@@ -56,236 +78,259 @@ struct ProjectBarView: View {
           }
         }
     }
-    .padding(4)
-    .glassEffect(.regular, in: Capsule(style: .circular))
-    .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
-    .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.72), value: home)
-    .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.6), value: bar.projects.map(\.id))
-    .animation(reduceMotion ? nil : Motion.standard, value: starting)
-  }
-
-  /// The project being started and each project's seal; when they do not fit the bar, the open one's name
-  /// narrows, then they scroll within it, with the open one in view.
-  private func seals(nameWidest: CGFloat) -> some View {
-    HStack(spacing: 2) {
-      if starting {
-        tab(for: nil, label: Text(.loci("projects.new")).foregroundStyle(Palette.inkFaint), nameWidest: nameWidest) {
-          ProjectSeal(seal: "", ghost: true)
+    .backgroundPreferenceValue(ActiveTabAnchor.self) { anchor in
+      GeometryReader { proxy in
+        if let anchor {
+          let rect = proxy[anchor]
+          Capsule(style: .circular)
+            .fill(Palette.surface)
+            .shadow(color: .black.opacity(0.14), radius: 1.5, y: 1)
+            .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+            .overlay { if starting && startingSent { TurningCapsule() } }
+            .frame(width: rect.width, height: rect.height)
+            .offset(x: rect.minX, y: rect.minY)
         }
       }
-      ForEach(bar.projects, id: \.id) { project in
-        projectTab(project, nameWidest: nameWidest)
-          .id(Optional(project.id))
-          .transition(reduceMotion ? .identity : .scale(scale: 1.6).combined(with: .opacity))
-      }
+      .allowsHitTesting(false)
     }
+    .padding(ProjectBarPlan.outerPadding)
+    .glassEffect(.regular, in: Capsule(style: .circular))
+    .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+    .animation(reduceMotion ? nil : Motion.slider, value: home)
+    .animation(reduceMotion ? nil : Motion.slider, value: plan.visible.map(\.id))
+    .animation(reduceMotion ? nil : Motion.quick, value: starting)
   }
 
-  private func projectTab(_ project: Project, nameWidest: CGFloat) -> some View {
-    tab(
-      for: .project(project.id), label: Text(verbatim: project.shownName), dot: bar.unseen.contains(project.id),
-      nameWidest: nameWidest
-    ) {
-      ProjectSeal(seal: project.seal, locked: !project.remembered)
-    }
-    .help(Text(verbatim: project.shownName))
-    .contextMenu { if changesAllowed { menu(for: project) } }
-    .popover(
-      isPresented: Binding(get: { renaming == project.id }, set: { if !$0 { renaming = nil } }), arrowEdge: .bottom
-    ) {
-      RenameField(name: project.shownName) { name in
-        renaming = nil
-        actions.rename(project.id, name)
-      }
-    }
+  private var barDivider: some View {
+    Rectangle()
+      .fill(Palette.lineStrong)
+      .frame(width: Size.hairline, height: 16)
+      .padding(.horizontal, 4)
   }
 
-  @ViewBuilder private func menu(for project: Project) -> some View {
-    Button(.loci("projects.rename"), systemImage: "pencil") { renaming = project.id }
-    Menu(.loci("projects.pin")) {
-      ForEach(bar.panels[project.id] ?? [], id: \.name) { panel in
-        Toggle(
-          panel.title,
-          isOn: Binding(
-            get: { project.pinned.contains(panel.name) },
-            set: { actions.pin(project.id, panel.name, $0) }))
-      }
+  private var chatTab: some View {
+    let open = home == .chat && !starting
+    return TabPill(open: open, action: { actions.open(.chat) }) { hovering in
+      Text(.loci("projects.chat"))
+        .font(.system(size: 13.5, weight: open ? .semibold : .medium))
+        .foregroundStyle(open || hovering ? Palette.ink : Palette.inkMuted)
+        .lineLimit(1)
+        .padding(.horizontal, 7)
+        .keyframeAnimator(initialValue: 1.0, trigger: stamps[.chat] ?? 0) { label, scale in
+          label.scaleEffect(scale)
+        } keyframes: { _ in
+          SpringKeyframe(1.3, duration: 0.16)
+          SpringKeyframe(1.0, duration: 0.45, spring: .bouncy)
+        }
     }
-    .disabled((bar.panels[project.id] ?? []).isEmpty)
-    Toggle(
-      String(localized: .loci("projects.forget")),
-      isOn: Binding(get: { !project.remembered }, set: { actions.remember(project.id, !$0) }))
-    Divider()
-    Button(.loci("projects.archive"), systemImage: "archivebox") { actions.archive(project.id) }
-    Button(.loci("projects.delete"), systemImage: "trash", role: .destructive) { actions.delete(project.id) }
+    .sealAnchor(.chat)
   }
 
-  /// One item of the bar; `nil` is the project being started, which cannot be chosen.
-  private func tab<Mark: View>(
-    for target: Home?, label: Text, dot: Bool = false, nameWidest: CGFloat = Size.projectNameWidest,
-    @ViewBuilder mark: () -> Mark
-  ) -> some View {
-    let open = target.map { $0 == home && !starting } ?? starting
-    return Button {
-      if let target { actions.open(target) }
-    } label: {
+  private var ghostTab: some View {
+    TabPill(open: true, action: {}) { _ in
       HStack(spacing: 0) {
-        mark()
-          .sealAnchor(target)
-          .keyframeAnimator(initialValue: 1.0, trigger: target.flatMap { stamps[$0] } ?? 0) { seal, scale in
+        ProjectSeal(symbol: "", ghost: true)
+        Text(.loci("projects.new"))
+          .font(.system(size: 13.5, weight: .semibold))
+          .foregroundStyle(Palette.inkFaint)
+          .lineLimit(1)
+          .padding(.horizontal, 6)
+      }
+    }
+  }
+
+  private func localized(_ key: String.LocalizationValue) -> String {
+    var resource = LocalizedStringResource.loci(key)
+    resource.locale = locale
+    return String(localized: resource)
+  }
+}
+
+private struct ProjectTab: View {
+  let bar: ProjectBar
+  let project: Project
+  let open: Bool
+  let unseen: Bool
+  let nameWidth: CGFloat
+  let stamp: Int
+  let actions: ProjectBarActions
+  @Environment(\.reducesMotion) private var reduceMotion
+  @Environment(\.changesAllowed) private var changesAllowed
+  @State private var heldWidth: CGFloat?
+  @State private var renaming = false
+  @State private var reiconing = false
+
+  var body: some View {
+    let revealWidth =
+      (open ? max(nameWidth, 1) : (heldWidth ?? Size.projectNameWidest)) + ProjectBarPlan.openLabelPadding
+    TabPill(open: open, action: { actions.open(.project(project.id)) }) { hovering in
+      HStack(spacing: 0) {
+        ProjectSeal(symbol: project.symbol, selected: open || hovering, locked: !project.remembered, unseen: unseen)
+          .scaleEffect(!open && hovering && !reduceMotion ? 1.06 : 1)
+          .sealAnchor(.project(project.id))
+          .keyframeAnimator(initialValue: 1.0, trigger: stamp) { seal, scale in
             seal.scaleEffect(scale)
           } keyframes: { _ in
             SpringKeyframe(1.3, duration: 0.16)
             SpringKeyframe(1.0, duration: 0.45, spring: .bouncy)
           }
-        if open {
-          CappedWidth(share: 1, widest: nameWidest) {
-            label
-              .font(.system(size: 13.5, weight: .semibold))
-              .foregroundStyle(Palette.ink)
-              .lineLimit(1)
-              .truncationMode(.tail)
-          }
-          .padding(.leading, 8)
-          .padding(.trailing, 4)
-          .transition(reduceMotion ? .identity : .opacity.combined(with: .scale(scale: 0.9, anchor: .leading)))
+        RevealWidth(fraction: open ? 1 : 0, maxWidth: revealWidth) {
+          Text(verbatim: project.shownName)
+            .font(.system(size: 13.5, weight: .semibold))
+            .foregroundStyle(Palette.ink)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .padding(.horizontal, 6)
+        }
+        .opacity(open ? 1 : 0)
+        .clipped()
+        .accessibilityHidden(!open)
+      }
+    }
+    .accessibilityLabel(Text(verbatim: project.shownName))
+    .help(Text(verbatim: project.shownName))
+    .onAppear { if open, nameWidth > 0 { heldWidth = nameWidth } }
+    .onChange(of: open) { if open, nameWidth > 0 { heldWidth = nameWidth } }
+    .onChange(of: nameWidth) { if open, nameWidth > 0 { heldWidth = nameWidth } }
+    .contextMenu {
+      if changesAllowed {
+        ProjectMenuItems(bar: bar, project: project, actions: actions) {
+          renaming = true
+        } reicon: {
+          reiconing = true
         }
       }
-      .padding(.horizontal, 5)
-      .frame(minWidth: 32, minHeight: 32)
-      .background {
-        if open {
-          Capsule(style: .circular).fill(Palette.surface)
-            .shadow(color: .black.opacity(0.14), radius: 1.5, y: 1)
-            .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
-            .matchedGeometryEffect(id: "slider", in: slider)
-        }
+    }
+    .popover(isPresented: $renaming, arrowEdge: .bottom) {
+      RenameField(name: project.shownName) { name in
+        renaming = false
+        actions.rename(project.id, name)
       }
-      .overlay(alignment: .topLeading) {
-        if dot && !open {
-          Circle().fill(Palette.accent).frame(width: 7, height: 7)
-            .overlay(Circle().strokeBorder(Palette.canvas, lineWidth: 2).padding(-2))
-            .offset(x: 22, y: 4)
-        }
+    }
+    .popover(isPresented: $reiconing, arrowEdge: .bottom) {
+      ProjectIconPicker(selected: project.symbol) { icon in
+        reiconing = false
+        actions.reicon(project.id, icon)
       }
-      .contentShape(Capsule(style: .circular))
+    }
+  }
+}
+
+private struct ActiveTabAnchor: PreferenceKey {
+  static let defaultValue: Anchor<CGRect>? = nil
+
+  static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+    value = nextValue() ?? value
+  }
+}
+
+/// One tab in the project bar: reports its bounds to the sliding capsule when open, and shows a quiet hover
+/// wash otherwise.
+private struct TabPill<Face: View>: View {
+  let open: Bool
+  let action: () -> Void
+  @ViewBuilder let face: (Bool) -> Face
+  @State private var hovering = false
+
+  var body: some View {
+    Button(action: action) {
+      face(hovering)
+        .padding(.horizontal, 3)
+        .frame(minWidth: ProjectBarPlan.sealTabWidth, minHeight: ProjectBarPlan.tabHeight)
+        .background {
+          Capsule(style: .circular)
+            .fill(Palette.fill)
+            .opacity(!open && hovering ? 1 : 0)
+        }
+        .contentShape(Capsule(style: .circular))
     }
     .buttonStyle(PressStyle(scale: 0.95))
+    .onHover { hovering = $0 }
+    .anchorPreference(key: ActiveTabAnchor.self, value: .bounds) { open ? $0 : nil }
   }
+}
 
-  private func iconButton(_ symbol: String, help: LocalizedStringResource, action: @escaping () -> Void) -> some View {
+private struct BarIconButton: View {
+  let symbol: String
+  let help: LocalizedStringResource
+  let action: () -> Void
+  @State private var hovering = false
+
+  var body: some View {
     Button(action: action) {
       Image(systemName: symbol)
         .font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(Palette.inkMuted)
-        .frame(width: 32, height: 32)
+        .foregroundStyle(hovering ? Palette.ink : Palette.inkMuted)
+        .frame(width: ProjectBarPlan.addButtonWidth, height: ProjectBarPlan.tabHeight)
+        .background(Circle().fill(hovering ? Palette.fill : .clear))
         .contentShape(.circle)
     }
     .buttonStyle(PressStyle(scale: 0.92))
+    .onHover { hovering = $0 }
     .help(Text(help))
   }
 }
 
-/// A project's new name, typed where its seal is.
-private struct RenameField: View {
-  @State var name: String
-  let done: (String) -> Void
-  @FocusState private var focused: Bool
-
-  init(name: String, done: @escaping (String) -> Void) {
-    _name = State(initialValue: name)
-    self.done = done
-  }
+/// Opens the full project list; shows a compact count and amber dot when overflow projects are folded off the bar.
+private struct UnfoldButton: View {
+  let overflow: Int
+  let unseen: Bool
+  let action: () -> Void
+  @State private var hovering = false
 
   var body: some View {
-    TextField(String(localized: .loci("projects.rename")), text: $name)
-      .textFieldStyle(.roundedBorder)
-      .frame(width: 180)
-      .padding(10)
-      .focused($focused)
-      .onSubmit {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        if !trimmed.isEmpty { done(trimmed) }
+    Button(action: action) {
+      HStack(spacing: 3) {
+        if overflow > 0 {
+          Text(verbatim: "+\(overflow)")
+            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+        }
+        Image(systemName: Symbols.unfold)
+          .font(.system(size: overflow > 0 ? 10.5 : 12, weight: .semibold))
       }
-      .onAppear { focused = true }
+      .foregroundStyle(hovering ? Palette.ink : Palette.inkMuted)
+      .padding(.horizontal, overflow > 0 ? 7 : 0)
+      .frame(
+        minWidth: overflow > 0 ? nil : ProjectBarPlan.unfoldButtonWidth,
+        minHeight: ProjectBarPlan.tabHeight
+      )
+      .frame(height: ProjectBarPlan.tabHeight)
+      .background(Capsule(style: .circular).fill(hovering ? Palette.fill : .clear))
+      .overlay(alignment: .topTrailing) {
+        if unseen {
+          Circle()
+            .fill(Palette.accent)
+            .frame(width: 5.5, height: 5.5)
+            .offset(x: -3, y: 4)
+        }
+      }
+      .contentShape(Capsule(style: .circular))
+    }
+    .buttonStyle(PressStyle(scale: 0.92))
+    .onHover { hovering = $0 }
+    .help(Text(.loci("projects.all")))
   }
 }
 
-/// Every project, the open one marked, the archived ones folded at the bottom; choosing an archived one opens
-/// and restores it.
-struct ProjectList: View {
-  let bar: ProjectBar
-  let home: Home
-  let open: (Home) -> Void
-  let start: () -> Void
-  @State private var showsArchived = false
+/// An amber light circling the ghost capsule while the companion sets up a new project.
+private struct TurningCapsule: View {
   @Environment(\.reducesMotion) private var reduceMotion
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      ForEach(bar.projects, id: \.id) { project in
-        row(project, dot: bar.unseen.contains(project.id))
-      }
-      if !bar.archived.isEmpty {
-        Divider().padding(.vertical, 5).padding(.horizontal, 8)
-        Button {
-          withAnimation(reduceMotion ? nil : Motion.fold) { showsArchived.toggle() }
-        } label: {
-          HStack(spacing: 6) {
-            Image(systemName: "chevron.right")
-              .font(.system(size: 8, weight: .bold))
-              .rotationEffect(.degrees(showsArchived ? 90 : 0))
-            Text(.loci("projects.archivedSection"))
-          }
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(Palette.inkMuted)
-          .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-          .padding(.horizontal, 8)
-          .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        if showsArchived {
-          ForEach(bar.archived, id: \.id) { project in row(project, dot: false).opacity(0.6) }
-        }
-      }
-      Divider().padding(.vertical, 5).padding(.horizontal, 8)
-      Button(action: start) {
-        HStack(spacing: 10) {
-          Image(systemName: "plus")
-            .font(.system(size: 10, weight: .semibold))
-            .frame(width: Size.seal, height: Size.seal)
-            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Palette.lineStrong, lineWidth: 1.2))
-          Text(.loci("projects.new"))
-        }
-        .foregroundStyle(Palette.inkMuted)
-        .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
-        .padding(.horizontal, 8)
-        .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
+    TimelineView(.animation(paused: reduceMotion)) { context in
+      let turns = reduceMotion ? 0.14 : context.date.timeIntervalSinceReferenceDate / Self.period
+      Capsule(style: .circular)
+        .strokeBorder(
+          AngularGradient(
+            stops: [
+              .init(color: .clear, location: 0), .init(color: .clear, location: 0.58),
+              .init(color: Palette.accent, location: 0.78), .init(color: Palette.Glow.gold, location: 0.85),
+              .init(color: Palette.accent, location: 0.92), .init(color: .clear, location: 1),
+            ], center: .center, angle: .degrees(turns.truncatingRemainder(dividingBy: 1) * 360)),
+          lineWidth: 1.5)
     }
-    .font(.system(size: 13.5))
-    .padding(6)
-    .frame(width: 232)
+    .allowsHitTesting(false)
   }
 
-  private func row(_ project: Project, dot: Bool) -> some View {
-    Button {
-      open(.project(project.id))
-    } label: {
-      HStack(spacing: 10) {
-        ProjectSeal(seal: project.seal, locked: !project.remembered)
-        Text(verbatim: project.shownName).foregroundStyle(Palette.ink).lineLimit(1)
-        Spacer(minLength: 0)
-        if dot { Circle().fill(Palette.accent).frame(width: 6, height: 6) }
-      }
-      .padding(.horizontal, 8)
-      .frame(minHeight: 34)
-      .background(
-        RoundedRectangle(cornerRadius: 8).fill(home == .project(project.id) ? Palette.lineStrong : Color.clear)
-      )
-      .contentShape(Rectangle())
-    }
-    .buttonStyle(.plain)
-  }
+  static let period = 2.4
 }

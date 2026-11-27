@@ -19,7 +19,8 @@ enum Request: Hashable, Sendable {
   case next(NextRequest)
   case connector(ConnectorRequest)
   case recall(String)
-  case nameProject(String)
+  case nameProject(String, icon: String? = nil)
+  case iconProject(String)
   case describeProject(String)
   /// The overview, or one topic of it.
   case help(String?)
@@ -76,12 +77,39 @@ enum Request: Hashable, Sendable {
   }
 
   private static func project(_ words: [String]) throws(UsageError) -> Request {
-    let text = words.dropFirst().joined(separator: " ").trimmingCharacters(in: .whitespaces)
-    switch words.first {
-    case "name" where !text.isEmpty: return .nameProject(text)
-    case "describe" where !text.isEmpty: return .describeProject(text)
-    default: throw UsageError("loci project needs: loci project name <name> | loci project describe <line>")
+    let usage =
+      "loci project needs: loci project name <name> [--icon <symbol>] | loci project icon <symbol>"
+      + " | loci project describe <line>"
+    guard let subcommand = words.first else { throw UsageError(usage) }
+    var rest = Array(words.dropFirst())
+    switch subcommand {
+    case "name":
+      var icon: String?
+      if let flag = rest.firstIndex(of: "--icon") {
+        guard rest.indices.contains(flag + 1) else { throw UsageError("--icon needs a symbol name: --icon <symbol>") }
+        icon = try validProjectIcon(rest[flag + 1])
+        rest.removeSubrange(flag...(flag + 1))
+      }
+      let text = rest.joined(separator: " ").trimmingCharacters(in: .whitespaces)
+      guard !text.isEmpty else { throw UsageError(usage) }
+      return .nameProject(text, icon: icon)
+    case "icon":
+      guard rest.count == 1 else { throw UsageError("loci project icon takes one symbol: loci project icon <symbol>") }
+      return .iconProject(try validProjectIcon(rest[0]))
+    case "describe":
+      let text = rest.joined(separator: " ").trimmingCharacters(in: .whitespaces)
+      guard !text.isEmpty else { throw UsageError(usage) }
+      return .describeProject(text)
+    default:
+      throw UsageError(usage)
     }
+  }
+
+  private static func validProjectIcon(_ symbol: String) throws(UsageError) -> String {
+    guard ProjectIcon.isValid(symbol) else {
+      throw UsageError("Unknown project icon \"\(symbol)\". Available: \(ProjectIcon.symbols.joined(separator: ", ")).")
+    }
+    return symbol
   }
 
   private static func repository(_ words: [String]) throws(UsageError) -> Request {
