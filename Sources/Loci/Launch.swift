@@ -30,7 +30,7 @@ final class Launch {
   /// without a relay or when the device key cannot be kept.
   let machines: any Machines
   let folder: URL
-  let updater = AppUpdater(environment: .system())
+  let updater: AppUpdater
   /// This Mac's other browsers, for the built-in browser to start signed in.
   let signIns = LocalSignIns.onThisMac()
   private var reportedStart = false
@@ -39,6 +39,11 @@ final class Launch {
 
   init() {
     companion = MenuBarCompanion(host: host)
+    updater = AppUpdater(
+      environment: .system(
+        variables: ProcessInfo.processInfo.environment,
+        foreground: Self.comingToFront, busy: { [host] in HostBusy.of(host) },
+        quit: { await MainActor.run { NSApplication.shared.terminate(nil) } }))
     let service: MachinesService?
     let unavailability: RemoteAvailability
     let choice = DataFolder.choose(environment: ProcessInfo.processInfo.environment, home: URL.homeDirectory)
@@ -71,6 +76,19 @@ final class Launch {
   private enum RelaySetup {
     case ready(MachinesService)
     case unavailable(RemoteAvailability)
+  }
+
+  /// Each time Loci becomes the active app.
+  private nonisolated static func comingToFront() -> AsyncStream<Void> {
+    AsyncStream { continuation in
+      let watching = Task { @MainActor in
+        for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
+          continuation.yield()
+        }
+        continuation.finish()
+      }
+      continuation.onTermination = { _ in watching.cancel() }
+    }
   }
 
   /// The relay's address and key are written into the app's Info.plist when it is built.

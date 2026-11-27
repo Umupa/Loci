@@ -9,13 +9,18 @@ import Testing
 @MainActor
 @Suite(.serialized, .onStage)
 struct UpdateSnapshots {
-  static let release = AppRelease(
+  nonisolated static let release = AppRelease(
     version: ReleaseVersion("1.2.0")!, image: URL(string: "https://example.com/Loci-Beta-1.2.0.dmg")!,
     checksum: String(repeating: "0", count: 64))
 
   @Test(arguments: Snapshot.Appearance.allCases)
   func manualChecksShowTheVersionAndNextAction(appearance: Snapshot.Appearance) async throws {
-    for (name, state) in [("current", AppUpdate.current), ("available", .available(Self.release))] {
+    let states: [(String, AppUpdate)] = [
+      ("current", .current), ("downloading", .downloading(Self.release, Fraction(0.4))),
+      ("ready", .ready(Self.release)), ("waiting", .waiting(Self.release, for: .answering)),
+      ("failed", .failed(Self.release, .checksum)),
+    ]
+    for (name, state) in states {
       try await Snapshot.render(
         AppUpdateWindow(updates: FixedUpdates(state: state), version: "1.1.1"),
         named: "update-check-\(name)", size: CGSize(width: 352, height: 128), appearance: appearance)
@@ -25,15 +30,15 @@ struct UpdateSnapshots {
   @Test(arguments: Snapshot.Appearance.allCases)
   func sidebarWithAnUpdate(appearance: Snapshot.Appearance) async throws {
     let window = ScreenSnapshots.root(try Sample(problems: false), at: WindowState(place: .library(nil)))
-      .environment(\.updates, FixedUpdates(state: .available(Self.release)))
+      .environment(\.updates, FixedUpdates(state: .ready(Self.release)))
     try await ScreenSnapshots.shoot("update", window, appearance: appearance)
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
   func everyState(appearance: Snapshot.Appearance) async throws {
     let states: [AppUpdate] = [
-      .available(Self.release), .downloading(Self.release, Fraction(0.4)), .ready(Self.release),
-      .failed(Self.release, reason: "offline"),
+      .ready(Self.release), .waiting(Self.release, for: .answering), .waiting(Self.release, for: .library),
+      .failed(Self.release, .signature),
     ]
     let row = HStack(spacing: Spacing.m) {
       ForEach(states, id: \.self) { UpdateMark(state: $0, act: {}) }
@@ -45,9 +50,10 @@ struct UpdateSnapshots {
     #expect(try Data(contentsOf: file).count > 1_000)
   }
 
-  @Test func noButtonWithoutANewerRelease() async throws {
+  @Test(arguments: [AppUpdate.current, .downloading(release, Fraction(0.4)), .downloading(release, nil)])
+  func noButtonUntilTheUpdateIsReady(state: AppUpdate) async throws {
     let file = try await Snapshot.render(
-      UpdateMark(state: .current, act: {}).frame(width: 40, height: 40).background(Palette.canvas),
+      UpdateMark(state: state, act: {}).frame(width: 40, height: 40).background(Palette.canvas),
       named: "update-none", size: CGSize(width: 40, height: 40), appearance: .light)
     let other = try await Snapshot.render(
       Color.clear.frame(width: 40, height: 40).background(Palette.canvas), named: "update-empty",
@@ -65,7 +71,9 @@ private struct FixedUpdates: Updates {
     AsyncStream { $0.yield(state) }
   }
 
-  func download() async {}
+  func retry() async {}
 
-  func install() async -> Bool { false }
+  func restart() async {}
+
+  func finishOnQuit() async {}
 }

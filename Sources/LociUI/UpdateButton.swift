@@ -2,8 +2,8 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// A round button at the foot of the sidebar that appears only when a newer Loci is out. Clicking it downloads
-/// the release, a ring fills while it does, and once it is ready clicking again quits and opens the new copy.
+/// A round button at the foot of the sidebar that appears once a newer Loci has downloaded by itself. Clicking
+/// it restarts into the new copy, or waits while Loci is busy; clicking again while it waits restarts at once.
 struct UpdateButton: View {
   @Environment(\.updates) private var updates
   @State private var state = AppUpdate.current
@@ -17,19 +17,13 @@ struct UpdateButton: View {
 
   private func act() {
     switch state {
-    case .available, .failed:
-      Task { await updates.download() }
-    case .ready:
-      Task { await updates.installAndRestart() }
+    case .failed:
+      Task { await updates.retry() }
+    case .ready, .waiting:
+      Task { await updates.restart() }
     case .current, .downloading:
       break
     }
-  }
-}
-
-extension Updates {
-  @MainActor func installAndRestart() async {
-    if await install() { NSApplication.shared.terminate(nil) }
   }
 }
 
@@ -40,63 +34,65 @@ struct UpdateMark: View {
   @State private var hovering = false
 
   var body: some View {
-    if let release {
+    if let symbol {
       Button(action: act) {
         ZStack {
-          Circle().fill(ready ? Palette.accent : hovering ? Palette.fillStrong : Palette.fill)
-          if case .downloading(_, let share) = state {
-            Circle().stroke(Palette.line, lineWidth: 2)
-            Circle()
-              .trim(from: 0, to: max(share?.value ?? 0, 0.04))
-              .stroke(Palette.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-              .rotationEffect(.degrees(-90))
-          }
+          Circle().fill(amber ? Palette.accent : hovering ? Palette.fillStrong : Palette.fill)
           Image(systemName: symbol)
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(ready ? Palette.onAccent : Palette.ink)
+            .foregroundStyle(amber ? Palette.onAccent : Palette.ink)
         }
         .frame(width: Size.updateButton, height: Size.updateButton)
         .contentShape(Circle())
       }
       .buttonStyle(PressStyle())
-      .disabled(downloading)
       .onHover { hovering = $0 }
-      .help(Text(title(release)))
-      .accessibilityLabel(Text(title(release)))
+      .help(Text(title))
+      .accessibilityLabel(Text(title))
     }
   }
 
-  private var release: AppRelease? {
-    switch state {
-    case .current: nil
-    case .available(let release), .downloading(let release, _), .ready(let release), .failed(let release, _): release
-    }
-  }
-
-  private var ready: Bool {
-    if case .ready = state { true } else { false }
-  }
-
-  private var downloading: Bool {
-    if case .downloading = state { true } else { false }
-  }
-
-  private var symbol: String {
+  /// `nil` while there is nothing to click: no newer release, or one still on its way in.
+  private var symbol: String? {
     switch state {
     case .ready: Symbols.restart
+    case .waiting: Symbols.waiting
     case .failed: Symbols.retry
-    case .downloading: Symbols.download
-    case .current, .available: Symbols.update
+    case .current, .downloading: nil
     }
   }
 
-  private func title(_ release: AppRelease) -> LocalizedStringResource {
-    let version = release.version.description
-    return switch state {
-    case .ready: .loci("update.ready")
-    case .failed(_, let reason): .loci("update.failed \(reason)")
-    case .downloading: .loci("update.downloading \(version)")
-    case .current, .available: .loci("update.available \(version)")
+  private var amber: Bool {
+    switch state {
+    case .ready, .waiting: true
+    case .current, .downloading, .failed: false
+    }
+  }
+
+  private var title: LocalizedStringResource {
+    switch state {
+    case .waiting(_, let busy): UpdateWords.waiting(for: busy)
+    case .failed(_, let failure): UpdateWords.failed(failure)
+    case .current, .downloading, .ready: .loci("update.ready")
+    }
+  }
+}
+
+enum UpdateWords {
+  static func failed(_ failure: UpdateFailure) -> LocalizedStringResource {
+    switch failure {
+    case .download: .loci("update.failedDownload")
+    case .checksum: .loci("update.failedChecksum")
+    case .signature: .loci("update.failedSignature")
+    case .install: .loci("update.failedInstall")
+    }
+  }
+
+  static func waiting(for busy: Busy) -> LocalizedStringResource {
+    switch busy {
+    case .answering: .loci("update.waitingAnswering")
+    case .running: .loci("update.waitingRunning")
+    case .library: .loci("update.waitingLibrary")
     }
   }
 }

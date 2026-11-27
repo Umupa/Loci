@@ -8746,23 +8746,6 @@
         }
       }
     },
-    "update.available %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Update to %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更新到 %@"
-          }
-        }
-      }
-    },
     "update.check": {
       "extractionState": "manual",
       "localizations": {
@@ -8831,23 +8814,6 @@
         }
       }
     },
-    "update.download": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Download"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下载"
-          }
-        }
-      }
-    },
     "update.downloading %@": {
       "extractionState": "manual",
       "localizations": {
@@ -8865,19 +8831,70 @@
         }
       }
     },
-    "update.failed %@": {
+    "update.failedChecksum": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn’t update: %@. Click to try again."
+            "value": "The downloaded update didn’t pass its checksum"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没能更新：%@。点按重试。"
+            "value": "下载的更新没有通过校验"
+          }
+        }
+      }
+    },
+    "update.failedDownload": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t download the update"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法下载更新"
+          }
+        }
+      }
+    },
+    "update.failedInstall": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t put the new version in place"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法换上新版本"
+          }
+        }
+      }
+    },
+    "update.failedSignature": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The new version isn’t signed like this one"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新版本的签名和当前版本不一致"
           }
         }
       }
@@ -8899,23 +8916,6 @@
         }
       }
     },
-    "update.installFailed": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn’t update Loci"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法更新 Loci"
-          }
-        }
-      }
-    },
     "update.menu": {
       "extractionState": "manual",
       "localizations": {
@@ -8929,6 +8929,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "检查更新…"
+          }
+        }
+      }
+    },
+    "update.now": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update Now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即更新"
           }
         }
       }
@@ -8963,6 +8980,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "此构建不支持应用内更新"
+          }
+        }
+      }
+    },
+    "update.waitingAnswering": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates when your companion finishes answering"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伙伴回答完就更新"
+          }
+        }
+      }
+    },
+    "update.waitingLibrary": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates when the library finishes processing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "资料处理完就更新"
+          }
+        }
+      }
+    },
+    "update.waitingRunning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates when the background work finishes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后台任务做完就更新"
           }
         }
       }

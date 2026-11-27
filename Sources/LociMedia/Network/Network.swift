@@ -9,4 +9,18 @@ public protocol Network: Sendable {
   /// done so far, or `nil` when the size is unknown.
   func download(_ request: URLRequest, progress: @escaping @Sendable (Fraction?) -> Void) async throws(FetchError)
     -> URL
+  /// A large file written to `part`, carrying on after the bytes already there when the server can send the
+  /// rest. When it fails, what arrived stays in `part` for the next try. Returns the finished file.
+  func download(
+    _ request: URLRequest, keepingPartAt part: URL, progress: @escaping @Sendable (Fraction?) -> Void
+  ) async throws(FetchError) -> URL
+}
+
+extension Network {
+  /// A network that cannot carry on downloads the whole file each time.
+  public func download(
+    _ request: URLRequest, keepingPartAt part: URL, progress: @escaping @Sendable (Fraction?) -> Void
+  ) async throws(FetchError) -> URL {
+    try await download(request, progress: progress)
+  }
 }

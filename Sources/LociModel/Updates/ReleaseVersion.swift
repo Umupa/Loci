@@ -2,7 +2,7 @@ import Foundation
 
 /// A version as releases are numbered: three numbers, optionally followed by a pre-release such as `-alpha.1`.
 /// A pre-release comes before the release it leads to.
-public struct ReleaseVersion: Hashable, Comparable, Sendable, CustomStringConvertible {
+public struct ReleaseVersion: Hashable, Comparable, Codable, Sendable, CustomStringConvertible {
   public let major: Int
   public let minor: Int
   public let patch: Int
