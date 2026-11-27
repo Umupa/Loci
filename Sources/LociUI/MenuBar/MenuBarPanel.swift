@@ -1,4 +1,5 @@
 import AppKit
+import LociModel
 import SwiftUI
 
 /// What opens from the menu bar icon: the companion's face and name with what it is busy with, then opening the
@@ -147,12 +148,34 @@ public enum MainWindow {
   }
 }
 
-/// Keeps Loci running with every window closed, so the companion goes on working and the menu bar stays, and
-/// hands the files the Finder opens with Loci to the window.
+/// Keeps Loci running with every window closed, so the companion goes on working and the menu bar stays,
+/// hands the files the Finder opens with Loci to the window, and puts a downloaded update in place on quitting.
 public final class LociAppDelegate: NSObject, NSApplicationDelegate {
   @MainActor public let opened = OpenedFiles()
+  @MainActor public var updates: any Updates = NoUpdates()
 
   public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+  @MainActor public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    finishUpdate { sender.reply(toApplicationShouldTerminate: true) }
+    return .terminateLater
+  }
+
+  /// Puts a downloaded update in place, then calls `reply`. Quitting from code happens inside a main-actor job,
+  /// and AppKit waits for the reply in a modal loop that runs no other main-actor work while that job lasts, so
+  /// the update is put in place off the main actor and the reply arrives as a run loop block.
+  @MainActor func finishUpdate(then reply: @escaping @MainActor () -> Void) {
+    Self.finish(updates) {
+      RunLoop.main.perform(inModes: [.default, .modalPanel, .eventTracking]) { MainActor.assumeIsolated(reply) }
+    }
+  }
+
+  private nonisolated static func finish(_ updates: any Updates, then reply: @escaping @Sendable () -> Void) {
+    Task {
+      await updates.finishOnQuit()
+      reply()
+    }
+  }
 
   @MainActor public func application(_ application: NSApplication, open urls: [URL]) {
     opened.open(urls)

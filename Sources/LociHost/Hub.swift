@@ -39,8 +39,11 @@ actor Hub {
     tasks.append(task)
   }
 
-  /// Cancels the background work and returns once it has ended, so nothing writes to the database after.
+  /// Cancels the background work and returns once it has ended, so nothing writes to the database after, and
+  /// ends every subscription, whose values would no longer change.
   func stop() async {
+    for watcher in watchers.values { watcher.finish() }
+    watchers = [:]
     let stopping = tasks
     tasks = []
     for task in stopping { task.cancel() }
@@ -99,6 +102,8 @@ extension ContentChange {
 protocol Refreshing: Actor {
   nonisolated func isAffected(by changes: Set<ContentChange>) -> Bool
   func refresh() async
+  /// Ends the subscription; its stream finishes.
+  nonisolated func finish()
 }
 
 /// One subscriber: computes the value again when asked and sends it on only if it changed.
@@ -117,6 +122,10 @@ actor Watcher<S: Subscription>: Refreshing {
 
   nonisolated func isAffected(by changes: Set<ContentChange>) -> Bool {
     subscription.isAffected(by: changes)
+  }
+
+  nonisolated func finish() {
+    continuation.finish()
   }
 
   /// A refresh that finishes after a later one started is dropped, so an old value never follows a new one.

@@ -54,7 +54,7 @@ enum Symbols {
   static let chapterPlaying = "waveform"
   static let download = "arrow.down.to.line"
   static let layout = "rectangle.split.3x1"
-  static let update = "arrow.up"
+  static let waiting = "hourglass"
   static let translate = "translate"
   static let restart = "arrow.clockwise"
   static let retry = "exclamationmark"

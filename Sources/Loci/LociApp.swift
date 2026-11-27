@@ -4,7 +4,13 @@ import SwiftUI
 @main
 struct LociApp: App {
   @NSApplicationDelegateAdaptor private var delegate: LociAppDelegate
-  @State private var launch = Launch()
+  @State private var launch: Launch
+
+  init() {
+    let launch = Launch()
+    _launch = State(initialValue: launch)
+    delegate.updates = launch.updater
+  }
 
   var body: some Scene {
     WindowGroup(id: MainWindow.id) {

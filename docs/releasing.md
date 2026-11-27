@@ -86,6 +86,8 @@
 
 仓库是私有的，GitHub release 的附件匿名下载不到，所以下载和更新只走 Cloudflare R2：`loci-releases` 桶，自定义域名 `dl.umupa.fun`。应用读 `https://dl.umupa.fun/loci/latest.json`（`Sources/LociMedia/Updates/ReleaseFeed.swift`），它写版本、dmg 的 SHA-256 和下载地址；应用下载后核对校验和，再核对签名。R2 上 dmg 永久缓存，`latest.json` 缓存五分钟，并且最后上传。
 
+环境变量 `LOCI_UPDATE_FEED` 给测试副本换成本地的 `latest.json` 地址（`UpdateEnvironment.system`），签名照样核对。
+
 ## 在本机
 
 ```sh

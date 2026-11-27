@@ -2,40 +2,68 @@ import Foundation
 import LociMedia
 import LociModel
 import LociStore
+import os
 
-/// Keeps this copy of Loci up to date with the published releases. A release is offered only when it is newer
-/// than the one running, and installed only when it is signed by the same certificate, so macOS keeps the
-/// permissions it gave.
+/// Keeps this copy of Loci up to date with the published releases. A newer release downloads by itself and
+/// is put in place when Loci quits or restarts; a restart waits while Loci is busy. A release is offered only
+/// when it is newer than the one running, and installed only when it is signed by the same certificate, so
+/// macOS keeps the permissions it gave.
 public actor AppUpdater: Updates {
   /// The name of the app inside each release's disk image.
   static let packagedName = "Loci (Beta).app"
+  /// Coming to the front looks again once the last look is older than this.
+  static let staleness: TimeInterval = 5 * 60
+  /// A failed download tries again after this long.
+  static let retryDelay = Duration.seconds(30 * 60)
 
-  private let environment: UpdateEnvironment
-  private var requirement: String?
+  let environment: UpdateEnvironment
+  var requirement: String?
+  var staged: Support.StagedUpdate?
+  /// The release on its way in. It shows while nothing is ready; beside a ready one it downloads quietly.
+  var fetching: (release: AppRelease, task: Task<Void, Never>)?
   private var checking: Task<Result<Void, UpdateCheckError>, Never>?
-  private var staged: URL?
+  private var retrying: Task<Void, Never>?
+  private(set) var busy: Busy?
+  private var lastChecked: Date?
   private var listeners: [UUID: AsyncStream<AppUpdate>.Continuation] = [:]
-  private var state = AppUpdate.current {
+  var state = AppUpdate.current {
     didSet { for listener in listeners.values { listener.yield(state) } }
   }
+
+  private static let log = Logger(subsystem: "com.loci.native.dev", category: "updates")
 
   public init(environment: UpdateEnvironment) {
     self.environment = environment
   }
 
-  /// Looks for a newer release now and whenever the environment's ticks say, until the task is cancelled. A
-  /// copy that does not know its version, or is not signed with a certificate, never looks.
+  var support: Support { Support(root: environment.support) }
+
+  /// Takes up a copy staged before, looks for a newer release, and goes on looking when the ticks say and
+  /// when Loci comes to the front, until the task is cancelled. A copy that does not know its version, or is
+  /// not signed with a certificate, never looks.
   public func watch() async {
-    do {
-      try await check()
-    } catch {
-      if error == .unsupported { return }
+    guard await prepared() else { return }
+    await restoreStaged()
+    try? await check()
+    let environment = environment
+    await withDiscardingTaskGroup { group in
+      group.addTask { for await _ in environment.ticks() { try? await self.check() } }
+      group.addTask { for await _ in environment.foreground() { await self.cameToFront() } }
+      group.addTask { for await now in environment.busy() { await self.busyChanged(now) } }
     }
-    for await _ in environment.ticks() { try? await check() }
+  }
+
+  /// Whether this copy can update: it knows its version and the requirement the next copy must meet.
+  private func prepared() async -> Bool {
+    guard environment.running != nil else { return false }
+    if requirement != nil { return true }
+    guard let found = try? await AppImage(runner: environment.runner).requirement(of: environment.installed)
+    else { return false }
+    requirement = found
+    return true
   }
 
   public func check() async throws(UpdateCheckError) {
-    guard isIdle else { return }
     if let checking {
       return try await checking.value.get()
     }
@@ -49,22 +77,60 @@ public actor AppUpdater: Updates {
   }
 
   private func look() async -> Result<Void, UpdateCheckError> {
-    guard let running = environment.running else { return .failure(.unsupported) }
-    if requirement == nil {
-      guard let found = try? await AppImage(runner: environment.runner).requirement(of: environment.installed)
-      else { return .failure(.unsupported) }
-      requirement = found
-    }
+    guard let running = environment.running, await prepared() else { return .failure(.unsupported) }
     guard let latest = try? await ReleaseFeed(network: environment.network, address: environment.feed).latest()
     else { return .failure(.unavailable) }
-    if isIdle { state = latest.version > running ? .available(latest) : .current }
+    lastChecked = environment.now()
+    if latest.version > running {
+      offer(latest)
+    } else if staged == nil, fetching == nil {
+      retrying?.cancel()
+      state = .current
+    }
     return .success(())
   }
 
-  private var isIdle: Bool {
-    switch state {
-    case .current, .available: true
-    case .downloading, .ready, .failed: false
+  private func offer(_ latest: AppRelease) {
+    if let staged, staged.release.version >= latest.version { return }
+    if let fetching, fetching.release.version >= latest.version { return }
+    if case .failed(let failed, _) = state, failed == latest { return }
+    startFetching(latest)
+  }
+
+  func startFetching(_ release: AppRelease) {
+    fetching?.task.cancel()
+    retrying?.cancel()
+    retrying = nil
+    if staged == nil { state = .downloading(release, nil) }
+    fetching = (release, Task { await self.fetch(release) })
+  }
+
+  /// Tries a failed download again after `retryDelay`, unless something else starts one first.
+  func retryLater() {
+    let environment = environment
+    retrying = Task {
+      guard (try? await environment.sleep(Self.retryDelay)) != nil else { return }
+      self.retryNow()
+    }
+  }
+
+  private func retryNow() {
+    retrying = nil
+    if case .failed(let release, _) = state { startFetching(release) }
+  }
+
+  func cameToFront() async {
+    if let lastChecked, environment.now().timeIntervalSince(lastChecked) <= Self.staleness { return }
+    try? await check()
+  }
+
+  private func busyChanged(_ now: Busy?) async {
+    busy = now
+    guard case .waiting(let release, _) = state else { return }
+    if let now {
+      state = .waiting(release, for: now)
+    } else {
+      await installAndQuit()
     }
   }
 
@@ -85,97 +151,79 @@ public actor AppUpdater: Updates {
     listeners[id] = nil
   }
 
-  public func download() async {
-    let release: AppRelease
+  public func retry() async {
+    guard case .failed(let release, _) = state else { return }
+    startFetching(release)
+    await fetching?.task.value
+  }
+
+  /// Returns once no download is on its way in.
+  func settle() async {
+    while let task = fetching?.task { await task.value }
+  }
+
+  public func restart() async {
     switch state {
-    case .available(let offered), .failed(let offered, _): release = offered
-    case .current, .downloading, .ready: return
-    }
-    state = .downloading(release, nil)
-    do throws(FetchError) {
-      staged = try await fetch(release)
-      state = .ready(release)
-    } catch {
-      state = .failed(release, reason: error.reason)
-    }
-  }
-
-  private func fetch(_ release: AppRelease) async throws(FetchError) -> URL {
-    guard let requirement else { throw FetchError(reason: "this copy of Loci cannot be updated") }
-    let support = Support(root: environment.support)
-    let tools = AppImage(runner: environment.runner)
-    let image = try await downloaded(release, into: support)
-    defer { support.discard(image) }
-    let folder: URL
-    do {
-      folder = try support.scratchFolder()
-    } catch {
-      throw FetchError(reason: error.localizedDescription)
-    }
-    let mountPoint = folder.appending(path: "image", directoryHint: .isDirectory)
-    let staged = folder.appending(path: Self.packagedName, directoryHint: .isDirectory)
-    do throws(FetchError) {
-      try await tools.mount(image, at: mountPoint)
-      do throws(FetchError) {
-        let packaged = mountPoint.appending(path: Self.packagedName, directoryHint: .isDirectory)
-        try await tools.verify(packaged, meets: requirement)
-        try await tools.copy(packaged, to: staged)
-      } catch {
-        await tools.unmount(mountPoint)
-        throw error
+    case .ready(let release):
+      if let busy {
+        state = .waiting(release, for: busy)
+      } else {
+        await installAndQuit()
       }
-      await tools.unmount(mountPoint)
-      try await tools.verify(staged, meets: requirement)
-    } catch {
-      support.discard(folder)
-      throw error
+    case .waiting:
+      await installAndQuit()
+    case .current, .downloading, .failed:
+      break
     }
-    return staged
   }
 
-  /// The disk image from the first place that serves one matching the release's checksum.
-  private func downloaded(_ release: AppRelease, into support: Support) async throws(FetchError) -> URL {
-    var failure = FetchError(reason: "the release has nowhere to download from")
-    for address in release.images {
-      state = .downloading(release, nil)
-      do throws(FetchError) {
-        let image = try await environment.network.download(URLRequest(url: address)) { [weak self] share in
-          Task { await self?.progress(release, share) }
-        }
-        guard (try? support.sha256(of: image)) == release.checksum else {
-          support.discard(image)
-          throw FetchError(reason: "the download from \(address.host() ?? "the mirror") did not match its checksum")
-        }
-        return image
-      } catch {
-        failure = error
-      }
-    }
-    throw failure
-  }
-
-  private func progress(_ release: AppRelease, _ share: Fraction?) {
-    guard case .downloading(release, let before) = state, Equipment.moved(from: before, to: share) else { return }
-    state = .downloading(release, share)
-  }
-
-  public func install() async -> Bool {
-    guard case .ready(let release) = state, let staged else { return false }
-    self.staged = nil
-    let support = Support(root: environment.support)
-    defer { support.discard(staged.deletingLastPathComponent()) }
+  private func installAndQuit() async {
+    guard let staged else { return }
+    stopFetching()
     do {
-      try support.replaceApp(environment.installed, with: staged)
+      try put(staged)
     } catch {
-      state = .failed(release, reason: error.localizedDescription)
-      return false
+      self.staged = nil
+      support.discardStaged(staged)
+      fail(staged.release, UpdateError(.install, error.localizedDescription))
+      return
     }
     do throws(FetchError) {
       try await AppImage(runner: environment.runner).open(environment.installed, after: environment.processID)
     } catch {
-      state = .failed(release, reason: error.reason)
-      return false
+      fail(staged.release, UpdateError(.install, error.reason))
+      return
     }
-    return true
+    await environment.quit()
+  }
+
+  private func fail(_ release: AppRelease, _ error: UpdateError) {
+    error.log(release)
+    state = .failed(release, error.failure)
+  }
+
+  public func finishOnQuit() async {
+    guard let staged else { return }
+    stopFetching()
+    do {
+      try put(staged)
+    } catch {
+      Self.log.error("the update could not be put in place: \(error.localizedDescription, privacy: .public)")
+    }
+  }
+
+  /// Puts the staged copy where this one is. When that fails the staged copy stays, so quitting can leave it
+  /// for the next launch.
+  private func put(_ update: Support.StagedUpdate) throws {
+    try support.replaceApp(environment.installed, with: update.app)
+    staged = nil
+    support.discardStaged(update)
+  }
+
+  private func stopFetching() {
+    fetching?.task.cancel()
+    fetching = nil
+    retrying?.cancel()
+    retrying = nil
   }
 }

@@ -1,7 +1,7 @@
 import Foundation
 
 /// A published copy of Loci newer than the one running.
-public struct AppRelease: Hashable, Sendable {
+public struct AppRelease: Hashable, Codable, Sendable {
   public let version: ReleaseVersion
   /// The disk image, at its first place and then at each mirror, tried in this order.
   public let images: [URL]
@@ -15,29 +15,53 @@ public struct AppRelease: Hashable, Sendable {
   }
 }
 
+/// What Loci is busy with that a restart would cut short.
+public enum Busy: Hashable, Sendable {
+  /// Loci is answering in a conversation.
+  case answering
+  /// A run in the background: refreshing a panel, looking back on a day, or a schedule or follow-up.
+  case running
+  /// The library is downloading, transcribing or taking in items.
+  case library
+}
+
 /// Where updating this copy of Loci stands.
 public enum AppUpdate: Hashable, Sendable {
   /// No newer release is known.
   case current
-  case available(AppRelease)
-  /// `nil` while the size is unknown.
+  /// A newer release on its way in by itself; the share is `nil` while the size is unknown.
   case downloading(AppRelease, Fraction?)
-  /// Downloaded and checked; installing it quits Loci and opens the new copy.
+  /// Downloaded and checked. Restarting puts it in place and opens it; quitting puts it in place.
   case ready(AppRelease)
-  case failed(AppRelease, reason: String)
+  /// Ready, asked to restart, and holding off while Loci is busy; it restarts by itself once Loci is not.
+  case waiting(AppRelease, for: Busy)
+  case failed(AppRelease, UpdateFailure)
+}
+
+/// Why an update did not go through, in the few kinds the person is told about.
+public enum UpdateFailure: Hashable, Sendable {
+  /// No place served the disk image, or it could not be unpacked.
+  case download
+  /// The disk image did not match the release's checksum.
+  case checksum
+  /// The new copy is not signed by the certificate this one is.
+  case signature
+  /// The new copy could not be put in place of this one, or opened.
+  case install
 }
 
 /// Updating the copy of Loci that is running on this Mac.
 public protocol Updates: Sendable {
-  /// Looks for a newer release and offers it unless an update is already in progress.
+  /// Looks for a newer release and downloads it in the background. Returns once it has looked.
   func check() async throws(UpdateCheckError)
   /// The state now, then again whenever it changes.
   func states() -> AsyncStream<AppUpdate>
-  /// Downloads and checks an available or failed release. Returns when it is ready or has failed.
-  func download() async
-  /// Puts a ready release in place of this copy and arranges for it to open once this one quits. Returns
-  /// whether Loci should quit now; on failure the state says why.
-  func install() async -> Bool
+  /// Downloads a failed release again. Returns when it is ready or has failed.
+  func retry() async
+  /// Puts a ready release in place and quits so it opens, once nothing is busy; a waiting one goes at once.
+  func restart() async
+  /// Puts a ready release in place without opening it, as Loci quits. A failure leaves it ready for next time.
+  func finishOnQuit() async
 }
 
 public enum UpdateCheckError: Error {
@@ -55,7 +79,9 @@ public struct NoUpdates: Updates {
     AsyncStream { $0.yield(.current) }
   }
 
-  public func download() async {}
+  public func retry() async {}
 
-  public func install() async -> Bool { false }
+  public func restart() async {}
+
+  public func finishOnQuit() async {}
 }

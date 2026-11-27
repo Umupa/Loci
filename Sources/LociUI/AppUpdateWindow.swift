@@ -52,22 +52,22 @@ public struct AppUpdateWindow: View {
     case .checked(.current):
       Text(.loci("update.current \(version)"))
       action(Self.title) { attempt += 1 }
-    case .checked(.available(let release)):
-      Text(.loci("update.found \(release.version.description)"))
-      action(.loci("update.download")) { Task { await updates.download() } }
     case .checked(.downloading(let release, let progress)):
       Text(.loci("update.downloading \(release.version.description)"))
       if let progress {
         ProgressView(value: progress.value)
       } else {
-        ProgressView()
+        ProgressView().progressViewStyle(.linear)
       }
     case .checked(.ready(let release)):
       Text(.loci("update.found \(release.version.description)"))
-      action(.loci("update.ready")) { Task { await updates.installAndRestart() } }
-    case .checked(.failed):
-      Text(.loci("update.installFailed"))
-      action(.loci("job.retry")) { Task { await updates.download() } }
+      action(.loci("update.ready")) { Task { await updates.restart() } }
+    case .checked(.waiting(_, let busy)):
+      Text(UpdateWords.waiting(for: busy))
+      action(.loci("update.now")) { Task { await updates.restart() } }
+    case .checked(.failed(_, let failure)):
+      Text(UpdateWords.failed(failure))
+      action(.loci("job.retry")) { Task { await updates.retry() } }
     }
   }
 
