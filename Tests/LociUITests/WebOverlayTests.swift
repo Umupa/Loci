@@ -62,8 +62,10 @@ struct WebOverlayTests {
     try await eventually("the page to open over the conversation") {
       !browser.peeks.isEmpty && Self.conversation(in: window) != nil
     }
+    try await eventually("the conversation to settle") {
+      (Self.conversation(in: window)?.contentView.bounds.minY ?? 0) > 0
+    }
     let scroll = try #require(Self.conversation(in: window))
-    try await eventually("the conversation to settle") { scroll.contentView.bounds.minY > 0 }
     let scrolled = scroll.contentView.bounds.minY
 
     Self.click(window, at: try Self.point(side, in: window))

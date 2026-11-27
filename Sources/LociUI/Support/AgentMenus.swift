@@ -9,10 +9,13 @@ enum RuntimeTarget {
 
 /// Chooses what a conversation, or with `kind` every conversation of a kind, runs on. The bundled Pi, before it is
 /// ready, opens the model services when none offers a model yet, else the agents' settings, where it downloads.
+/// Nothing is sent while `changesAllowed` is false, as when the Mac behind the window is offline.
 @MainActor
 func chooseRuntime(
-  _ runtime: Runtime, for target: RuntimeTarget, on host: any LociModel.Host, openPlace: OpenPlace
+  _ runtime: Runtime, for target: RuntimeTarget, on host: any LociModel.Host, changesAllowed: Bool,
+  openPlace: OpenPlace
 ) async {
+  guard changesAllowed else { return }
   let set: Runtime?
   switch target {
   case .conversation(let conversation): set = try? await host.run(SetConversationRuntime(runtime, for: conversation))

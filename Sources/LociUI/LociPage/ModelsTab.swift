@@ -6,6 +6,7 @@ import SwiftUI
 struct ModelsTab: View {
   @Environment(\.host) private var host
   @Environment(\.openPlace) private var openPlace
+  @Environment(\.changesAllowed) private var changesAllowed
   @State private var defaults: Feed<RuntimeDefaults>?
   @State private var options: Feed<ModelOptions>?
   @State private var installations: [AgentInstallation] = []
@@ -60,7 +61,7 @@ struct ModelsTab: View {
   }
 
   private func choose(_ runtime: Runtime, for target: RuntimeTarget) {
-    Task { await chooseRuntime(runtime, for: target, on: host, openPlace: openPlace) }
+    Task { await chooseRuntime(runtime, for: target, on: host, changesAllowed: changesAllowed, openPlace: openPlace) }
   }
 }
 

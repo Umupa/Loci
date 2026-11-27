@@ -213,6 +213,7 @@ private struct RuntimeIslandHost: ViewModifier {
   let conversation: ConversationRef?
   @Environment(\.host) private var host
   @Environment(\.openPlace) private var openPlace
+  @Environment(\.changesAllowed) private var changesAllowed
   @Environment(\.standIns) private var standIns
   @Environment(\.reducesMotion) private var reduceMotion
   @State private var use: Feed<RuntimeInUse>?
@@ -243,7 +244,11 @@ private struct RuntimeIslandHost: ViewModifier {
               conversation: conversation, use: use, installations: installations, width: layout.width,
               initialTab: standIns?.runtimeIsland ?? .model, close: close,
               choose: { runtime in
-                Task { await chooseRuntime(runtime, for: .conversation(conversation), on: host, openPlace: openPlace) }
+                Task {
+                  await chooseRuntime(
+                    runtime, for: .conversation(conversation), on: host, changesAllowed: changesAllowed,
+                    openPlace: openPlace)
+                }
               }
             )
             .modifier(IslandShellStyle(shape: shape, snapshot: standIns != nil))

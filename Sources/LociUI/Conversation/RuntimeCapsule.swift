@@ -111,6 +111,7 @@ struct RuntimeOverrideFooter: View {
   let own: Runtime
   @Environment(\.host) private var host
   @Environment(\.openPlace) private var openPlace
+  @Environment(\.changesAllowed) private var changesAllowed
 
   var body: some View {
     HStack(spacing: 6) {
@@ -129,7 +130,10 @@ struct RuntimeOverrideFooter: View {
       .help(Text(.loci("runtime.followDefault")))
       Spacer(minLength: 4)
       Button(.loci("runtime.makeDefault")) {
-        Task { await chooseRuntime(own, for: .kind(conversation.kind), on: host, openPlace: openPlace) }
+        Task {
+          await chooseRuntime(
+            own, for: .kind(conversation.kind), on: host, changesAllowed: changesAllowed, openPlace: openPlace)
+        }
       }
       .buttonStyle(QuietFootButtonStyle())
     }
