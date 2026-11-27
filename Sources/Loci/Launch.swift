@@ -30,6 +30,7 @@ final class Launch {
   /// without a relay or when the device key cannot be kept.
   let machines: any Machines
   let folder: URL
+  let secrets = Secrets.onThisMac(support: URL.applicationSupportDirectory.appending(path: DataFolder.name))
   let updater: AppUpdater
   /// This Mac's other browsers, for the built-in browser to start signed in.
   let signIns = LocalSignIns.onThisMac()
@@ -50,7 +51,7 @@ final class Launch {
     switch choice {
     case .use(let root):
       folder = root
-      switch Self.service(serving: host) {
+      switch Self.service(serving: host, secrets: secrets) {
       case .ready(let started):
         service = started
         unavailability = .available
@@ -92,14 +93,14 @@ final class Launch {
   }
 
   /// The relay's address and key are written into the app's Info.plist when it is built.
-  private static func service(serving host: DeferredHost) -> RelaySetup {
+  private static func service(serving host: DeferredHost, secrets: Secrets) -> RelaySetup {
     guard let address = (Bundle.main.object(forInfoDictionaryKey: "LociRelayURL") as? String).flatMap(URL.init),
       let key = Bundle.main.object(forInfoDictionaryKey: "LociRelayKey") as? String, !key.isEmpty
     else { return .unavailable(.missingRelay) }
     guard
       let service = MachinesService.onThisMac(
         relay: address, registrationKey: key, local: host,
-        support: URL.applicationSupportDirectory.appending(path: DataFolder.name))
+        support: URL.applicationSupportDirectory.appending(path: DataFolder.name), secrets: secrets)
     else { return .unavailable(.unavailable) }
     return .ready(service)
   }
@@ -150,7 +151,7 @@ final class Launch {
       in: .cachesDirectory, appName: Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)
     let returns = signInReturns
     let environment = HostEnvironment.system(
-      defaultRuntime: Runtime(provider: .pi), tool: Self.tool(root: root), sourceCache: cache,
+      defaultRuntime: Runtime(provider: .pi), secrets: secrets, tool: Self.tool(root: root), sourceCache: cache,
       browserReturned: { await returns.returned(from: $0) })
     do throws(HostStartError) {
       let started =

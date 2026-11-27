@@ -6082,13 +6082,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Key saved in Keychain"
+            "value": "Key saved"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Key 已存入钥匙串"
+            "value": "Key 已保存"
           }
         }
       }

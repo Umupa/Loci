@@ -3,8 +3,8 @@ import LociConnect
 import LociModel
 import LociStore
 
-/// The connectors: connecting them in the browser, keeping their credentials in the keychain, and making
-/// the companion's calls with them. The companion never holds a credential: the app adds it to each call.
+/// The connectors: connecting them in the browser, keeping their credentials, and making the companion's
+/// calls with them. The companion never holds a credential: the app adds it to each call.
 actor ConnectorKeeper {
   let database: StoreDatabase
   let environment: HostEnvironment
@@ -85,7 +85,7 @@ actor ConnectorKeeper {
       do throws(KeyVaultError) {
         try vault.setSecret(nil, for: id)
       } catch {
-        throw .storage("the keychain would not let go of the credentials (\(error.status))")
+        throw .storage("the credentials could not be deleted: \(error.reason)")
       }
     }
     let record = try attempt { try database.connectorRecord(id) }
@@ -121,7 +121,7 @@ actor ConnectorKeeper {
           try save(offer, server: server, account: nil, tools: tools, signedIn: false)
           return .connected
         case .signIn(let discovery):
-          guard connect.vault != nil else { throw .unsupported("this Loci has no keychain to keep a sign-in in") }
+          guard connect.vault != nil else { throw .unsupported("this Loci has nowhere to keep a sign-in") }
           let wait = try await connect.receiver.open(for: offer.name)
           let pending: PendingAuthorization
           do throws(ConnectError) {
@@ -214,11 +214,11 @@ actor ConnectorKeeper {
   }
 
   func keep(_ credential: MCPCredential, for id: ConnectorID) throws(ConnectError) {
-    guard let vault = connect.vault else { throw .unsupported("this Loci has no keychain to keep a sign-in in") }
+    guard let vault = connect.vault else { throw .unsupported("this Loci has nowhere to keep a sign-in") }
     do {
       try vault.setSecret(try JSONEncoder().encode(credential), for: id)
     } catch {
-      throw .server("the keychain would not keep the sign-in")
+      throw .server("the sign-in could not be kept")
     }
   }
 

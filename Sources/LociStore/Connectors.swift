@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 import LociModel
 
-/// What the app keeps about a connected connector, beside its credentials in the keychain: every tool it
+/// What the app keeps about a connected connector, beside its credentials: every tool it
 /// listed, with what each says about writing, so a call is checked without asking the server.
 public struct ConnectorRecord: Hashable, Codable, Sendable {
   public let id: ConnectorID
@@ -13,7 +13,7 @@ public struct ConnectorRecord: Hashable, Codable, Sendable {
   public let status: Connector.Status
   public let connectedAt: Timestamp
   public let tools: [Tool]
-  /// Whether it has credentials in the keychain; an address that needs no sign-in has none.
+  /// Whether it has credentials; an address that needs no sign-in has none.
   public let signedIn: Bool
 
   public struct Tool: Hashable, Codable, Sendable {

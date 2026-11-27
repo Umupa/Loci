@@ -49,7 +49,7 @@ actor ModelServices {
     do {
       try keys.setKey(value, account: provider.keyAccount)
     } catch {
-      throw .storage("Keychain (\(error.status))")
+      throw .storage("Loci could not keep the key: \(error.reason)")
     }
     known[provider.keyAccount] = value
     piCredentialRevision += 1
@@ -171,7 +171,7 @@ actor ModelServices {
     do {
       key = Self.cleaned(try keys?.key(account: account))
     } catch {
-      throw .storage("The keychain did not let Loci read the key (\(error.status)).")
+      throw .storage("Loci could not read the key: \(error.reason)")
     }
     known[account] = key
     return key

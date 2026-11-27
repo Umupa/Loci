@@ -36,7 +36,7 @@ public struct AuthorizationCode: Hashable, Sendable {
   let code: String
 }
 
-/// What a connector signs in with: kept in the keychain, never given to the companion.
+/// What a connector signs in with: kept by the app, never given to the companion.
 public struct MCPCredential: Hashable, Codable, Sendable {
   public let mcp: URL
   public let resource: String

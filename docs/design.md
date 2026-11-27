@@ -189,6 +189,8 @@
 
 组件和语音模型不在这里，在 `~/Library/Application Support/Loci/`。
 
+密钥也不在这里，在 `~/Library/Application Support/Loci-Beta/secrets/`：设备私钥、模型服务的 key、连接器的凭据，一份一个文件，文件夹 0700、文件 0600。不用钥匙串：自签名的应用每次更新二进制都变，钥匙串会在每个版本重新要登录密码。代价是以你的身份运行的程序（包括伙伴的 agent CLI）都读得到这些文件；应用只是不把它们放进伙伴的提示和环境变量。第一次启动时把旧版本存在钥匙串里的密钥搬过来，之后不再碰钥匙串（[SecretFolder](../Sources/LociStore/SecretFolder.swift)）。
+
 - 划线按资料分文件，放在资料之外：资料可以重新取回，划线不受影响；删除资料时划线一起进入撤销区。
 - 一条划线：定位符、划线的原文、你的想法、问答（问题、回答、时间）、时间。修改和删除也是追加一行。
 - 一门课程用 UUIDv7 作 id，课时用课程内稳定的短 ID。改写课文后，目录、读过的标记和划线继续沿用该 ID。课程资料留在课程的链接列表，仓库链接固定到提交。每门课程有一条对话，沿用 agent 会话和对话副本。课程和它的划线一起进入撤销区，对话随课程恢复。废纸篓成功接收课程后，才清理随课对话。
@@ -389,7 +391,7 @@ loci://library/<id>#chapter=3&node=1.0.8&char=51&share=4231  书：第几章、�
 |---|---|
 | `LociModel` | 界面看得到的契约：`Machine`（id 是公钥指纹、名字、机型决定图标）、`Machines` 协议（名单与状态的流、附近的 Mac、配对的步骤、邀请、处理配对请求、移除、打开一台 Mac 得到它的 `Host`）、连接状态。命令和订阅的线路注册表：每个 `Command` 和 `Subscription` 都要登记，架构检查拦住漏登记的 |
 | `LociRemote` | alma-relay 的 agent 端（`/agent?th=`、register、协议 3 的帧与按 stream 的流量控制、4000 不循环重连）与客户端（`/c/<token>/__loci__`）；Noise_IK_25519_ChaChaPoly_SHA256，配对用同一个握手加 PSK（IKpsk2），用官方测试向量验证；帧格式；Bonjour 广播与发现；邀请链接的编码。只用 CryptoKit、Network 里现成的原语 |
-| `LociStore` | 配对名单与客户端缓存的文件（按 Mac 分开），磁盘仍只归 Store；设备私钥放钥匙串 |
+| `LociStore` | 配对名单与客户端缓存的文件（按 Mac 分开），磁盘仍只归 Store；设备私钥和其他密钥一样放密钥文件夹（见「数据 › 目录」） |
 | `LociHost` | `Gateway`：把远程请求交给 `LocalHost`，主机只接受 `/__loci__`，其他一律拒绝；`RemoteHost`：实现 `Host`，命令在一条连接上并发、订阅先发整值再发 JSON 增量、断线自动重连、看过的值落盘供离线读；`MachinesService` 实现 `Machines` |
 | `LociUI` | 当前 Mac 的切换：换掉界面背后的 `Host`，每台 Mac 各自记住上次的页面；侧边栏底部、菜单、设置 › 远程、添加 Mac、配对与邀请弹层、离线态 |
 | `Loci` | 启动时接上 `Machines`；官方中继的地址和注册密钥从构建注入的值读 |
