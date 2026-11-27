@@ -126,9 +126,10 @@ struct ConversationView<Tail: View>: View {
   /// Starts keeping the newest line in view.
   @State var follow = Following()
   @State private var scrolling = false
-  @State private var visibleRow: TalkRow.ID?
+  /// The first row in view, kept out of what draws the conversation so scrolling does not draw it again.
+  @State private var visibleRow = VisibleRow()
   @State private var localVisit = ConversationVisit()
-  @State private var pointedAnswer: EntityID?
+  @State private var pointedAnswer = PointedAnswer()
   @State private var settled = Remembered(TalkRow.settled)
   /// The running turn's rows, which moving through the conversation leaves as they are.
   @State private var going = Remembered<LiveSoFar, [TalkRow]>(TalkRow.live)
@@ -190,8 +191,8 @@ struct ConversationView<Tail: View>: View {
     }
     .onScrollTargetVisibilityChange(idType: TalkRow.ID.self, threshold: 0.01) { ids in
       let visible = Set(ids)
-      visibleRow = rows.first { visible.contains($0.id) }?.id
-      if scrolling, !follow.isOn, let visibleRow { currentVisit.reading = visibleRow }
+      visibleRow.id = rows.first { visible.contains($0.id) }?.id
+      if scrolling, !follow.isOn, let first = visibleRow.id { currentVisit.reading = first }
     }
     .onScrollGeometryChange(for: Bool.self, of: { $0.contentOffset.y + $0.contentInsets.top < 1 }) { _, atTop in
       let said = said
@@ -285,11 +286,13 @@ struct ConversationView<Tail: View>: View {
   }
 
   private func read(at distance: CGFloat) {
-    follow.scrolled(to: distance)
+    var next = follow
+    next.scrolled(to: distance)
+    if next != follow { follow = next }
     if follow.isOn {
       currentVisit.reading = nil
-    } else if let visibleRow {
-      currentVisit.reading = visibleRow
+    } else if let first = visibleRow.id {
+      currentVisit.reading = first
     }
   }
 
@@ -314,10 +317,10 @@ struct ConversationView<Tail: View>: View {
           VStack(alignment: .leading, spacing: 0) { ReplyText(text: words, streaming: false, size: scale.fontSize) }
         },
         beside: {
-          if let answer { AnswerActions(text: answer, shown: pointedAnswer == row.reply) }
+          if let answer, let reply = row.reply { AnswerActions(text: answer, reply: reply, pointed: pointedAnswer) }
         }
       )
-      .onHover { pointedAnswer = $0 ? row.reply : nil }
+      .onHover { [pointedAnswer] in pointedAnswer.hovering($0, over: row.reply) }
     case .doing(let doing):
       DoingLine(doing: doing, size: scale.fontSize)
     case .ended(let ending):
