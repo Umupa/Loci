@@ -99,6 +99,12 @@ enum Palette {
   static let menuFace = Color(nsColor: Tones.menuFace)
   /// Over the window behind a sheet.
   static let scrim = Color(nsColor: Tones.scrim)
+  /// Over a conversation behind the runtime island: deep enough that the island reads as lifted above it.
+  static let islandScrim = Color(nsColor: Tones.islandScrim)
+  /// The tiles that ripple under Extra High thinking.
+  static let effortExtraHigh = Color(nsColor: Tones.effortExtraHigh)
+  /// The tiles that ripple under Max thinking.
+  static let effortMax = Color(nsColor: Tones.effortMax)
   /// Over a conversation behind a web page opened on it: dark enough that the page stands apart even where the
   /// blur under it is not drawn.
   static let pageScrim = Color(nsColor: Tones.pageScrim)
@@ -200,6 +206,9 @@ enum Tones {
   static let coverPlaceholder = NSColor(dark: 0x2A2420, light: 0xEFEAE2)
   static let menuFace = NSColor(dark: 0x2C2824, light: 0xFDFBF8)
   static let scrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.32, light: 0.10))
+  static let islandScrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.36, light: 0.12))
+  static let effortExtraHigh = NSColor(dark: 0xB57BF8, light: 0xA855F7)
+  static let effortMax = NSColor(dark: 0xF4B942, light: 0xF4B942)
   static let pageScrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.45, light: 0.22))
   static let floating = NSColor(dark: 0x2C2824, light: 0xFDFBF8, alpha: (dark: 0.96, light: 0.96))
   static let codeKeyword = NSColor(dark: 0xE09A6A, light: 0x9C4524)

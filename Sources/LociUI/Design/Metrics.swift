@@ -218,6 +218,15 @@ enum Motion {
   static let breathLow = 0.3
   /// A rebuild finishing sooner than this is not shown at all, so nothing flickers.
   static let quietDelay = Duration.milliseconds(300)
+  /// The runtime island growing out of its trigger, or sliding between its halves.
+  static let islandOpen = Animation.spring(response: 0.42, dampingFraction: 0.74)
+  /// The runtime island folding back into its trigger.
+  static let islandClose = Animation.spring(response: 0.32, dampingFraction: 0.84)
+  /// A trigger giving under the press.
+  static let islandTouch = Animation.spring(response: 0.26, dampingFraction: 0.72)
+  /// How long the pointer rests on a rail tab before it opens, so crossing the rail on the way to a list does not
+  /// switch tabs.
+  static let railDwell = Duration.milliseconds(140)
 }
 
 extension EnvironmentValues {

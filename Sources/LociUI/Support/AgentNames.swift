@@ -54,6 +54,17 @@ enum Agents {
     return model.split(separator: "/").last.map(String.init) ?? model
   }
 
+  /// Splits a trailing capability suffix such as `Claude Sonnet 4.6 (Thinking)` from its title.
+  static func splitModelTag(_ display: String) -> (title: String, tag: String?) {
+    guard display.hasSuffix(")"), let open = display.range(of: " (", options: .backwards) else {
+      return (display, nil)
+    }
+    let title = String(display[..<open.lowerBound])
+    let tag = String(display[open.upperBound..<display.index(before: display.endIndex)])
+    guard !title.isEmpty, !tag.isEmpty else { return (display, nil) }
+    return (title, tag)
+  }
+
   static func effortName(_ effort: ThinkingEffort) -> LocalizedStringResource {
     switch effort {
     case .off: .loci("effort.off")

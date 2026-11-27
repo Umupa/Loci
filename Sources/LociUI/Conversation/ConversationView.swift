@@ -138,6 +138,7 @@ struct ConversationView<Tail: View>: View {
   /// When a reply held back last came due, so the conversation is drawn again to show it.
   @State private var cameDue = Date.distantPast
   @State private var cover = ConversationCover()
+  @State private var runtimeIsland = false
 
   private enum End: Hashable { case latest }
 
@@ -236,8 +237,10 @@ struct ConversationView<Tail: View>: View {
         conversation: ref ?? conversation?.ref, busy: conversation?.turn != nil, draft: $draft, send: send, stop: stop,
         startOver: startOver,
         style: scale == .main ? .talk : .companion, attach: scale == .main ? attach : nil, focusRequest: focusRequest,
-        making: panelRequest.making, made: panelRequest.made, fill: panelRequest.fill
+        making: panelRequest.making, made: panelRequest.made, fill: panelRequest.fill,
+        islandOpen: $runtimeIsland
       )
+      .transformAnchorPreference(key: RuntimeIslandAnchors.self, value: .bounds) { $0.composer = $1 }
       .overlay(alignment: .top) {
         if follow.offersLatest {
           LatestButton {
@@ -268,6 +271,7 @@ struct ConversationView<Tail: View>: View {
         cover.area = $0
       }
     }
+    .runtimeIsland(open: $runtimeIsland, conversation: ref ?? conversation?.ref)
     .environment(\.conversationCover, cover)
     .background(Palette.canvas)
   }
