@@ -31,15 +31,14 @@ public struct AgentProbe: Sendable {
 
   private func installation(of cli: AgentCLI) async -> AgentInstallation {
     guard let executable = search.executable(named: cli.names) else { return .missing(cli.provider) }
-    let version = await version(of: executable, listed: cli.versionArguments)
+    let version = await version(of: executable)
     return .installed(
       .init(provider: cli.provider, executable: HostPath(executable), version: version, signIn: .unknown))
   }
 
-  private func version(of executable: URL, listed arguments: [String]?) async -> String? {
-    guard let arguments else { return nil }
+  private func version(of executable: URL) async -> String? {
     let said = await OneShot(launcher: launcher, clock: clock).output(
-      Invocation(executable: executable, arguments: arguments, workingDirectory: workingDirectory),
+      Invocation(executable: executable, arguments: ["--version"], workingDirectory: workingDirectory),
       within: patience)
     return said.flatMap(AgentVersion.text(in:))
   }

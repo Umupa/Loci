@@ -12,8 +12,8 @@ struct AntigravityReplayTests {
     let launcher = try ScriptedLauncher("Antigravity/\(name)", folder: folder)
     let stage = Stage(
       driver: AcpDriver.antigravity(
-        executable: URL(filePath: "/server/agy_acp_server.par"), environment: ["LOCI_TEST": "antigravity"],
-        launcher: LaunchCheck(replay: launcher)),
+        executable: URL(filePath: "/bin/agy"), environment: ["LOCI_TEST": "antigravity"],
+        launcher: LaunchCheck(replay: launcher, folder: folder)),
       folder: folder)
     try await scenario(stage)
     launcher.verify()
@@ -27,12 +27,6 @@ struct AntigravityReplayTests {
     try await replay("resume-missing", AntigravityScenario.resumedMissing)
   }
   @Test func anUnknownModelFails() async throws { try await replay("bad-model", AntigravityScenario.unknownModel) }
-
-  @Test func aRefusedPermissionModeClosesTheProgramBeforeAnyPrompt() async throws {
-    try await replay("synthetic-mode-refused") { stage in
-      await #expect(throws: AgentError.rejected("Internal error: Mode change refused")) { _ = try await stage.open() }
-    }
-  }
 
   @Test func aSelectedModelUsesTheAdvertisedConfigurationOption() async throws {
     try await replay("synthetic-selected-model") { stage in
@@ -70,11 +64,12 @@ struct AntigravityReplayTests {
 
 private struct LaunchCheck: ProgramLauncher {
   let replay: ScriptedLauncher
+  let folder: URL
 
   func launch(_ invocation: Invocation) throws(AgentError) -> RunningProgram {
-    #expect(invocation.executable == URL(filePath: "/server/agy_acp_server.par"))
-    #expect(invocation.workingDirectory.path == "/server")
-    #expect(invocation.arguments == [])
+    #expect(invocation.executable == URL(filePath: "/bin/agy"))
+    #expect(invocation.workingDirectory == folder)
+    #expect(invocation.arguments == ["acp", "--dangerously-skip-permissions"])
     #expect(invocation.environment == ["LOCI_TEST": "antigravity"])
     return try replay.launch(invocation)
   }

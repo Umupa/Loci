@@ -124,23 +124,6 @@ struct AgentProbeTests {
     #expect(launcher.launched.filter { $0 == "opencode --version" }.count == 1)
   }
 
-  @Test func aProgramWithoutAVersionFlagIsNotAskedForOne() async throws {
-    let folder = try probeFolder()
-    defer { try? FileManager.default.removeItem(at: folder) }
-    _ = try probeProgram("agy_acp_server.par", in: folder)
-    let launcher = ProbeLauncher()
-    let probe = AgentProbe(
-      launcher: launcher, search: AgentSearch(directories: [folder]), workingDirectory: folder)
-
-    let installation = try #require(await probe.installations().first { $0.provider == .antigravity })
-    guard case .installed(let installed) = installation else {
-      Issue.record("the Antigravity server is installed in \(folder.path)")
-      return
-    }
-    #expect(installed.version == nil)
-    #expect(launcher.launched.isEmpty)
-  }
-
   @Test func everyExternalProviderHasAProgramToLookFor() {
     #expect(AgentCLI.all.map(\.provider) == Provider.allCases.filter { $0 != .bundledPi })
   }

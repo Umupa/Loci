@@ -54,7 +54,7 @@ public struct AgentSearch: Hashable, Sendable {
     let perUser = [
       ".local/bin", ".local/share/claude", ".claude/local", ".cargo/bin", ".bun/bin", ".npm-global/bin",
       ".opencode/bin", ".fx/bin", ".grok/bin", ".hermes/hermes-agent/venv/bin", ".hermes/hermes-agent/.venv/bin",
-      ".local/share/agy-acp", "n/bin",
+      "n/bin",
     ]
     let shared = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/snap/bin"]
     return perUser.map { home.appending(path: $0) } + shared.map { URL(filePath: $0, directoryHint: .isDirectory) }

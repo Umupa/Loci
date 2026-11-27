@@ -37,6 +37,18 @@ struct ModelListTests {
     #expect(await list.models(of: .codex) == ["gpt-6.1-sol", "gpt-6-luna"])
   }
 
+  @Test func antigravityListsTheModelIDsAgyPrints() async throws {
+    let rows = """
+      gemini-4-hydrogen-high\tGemini 4 Hydrogen (High)
+      claude-sonnet-4-6\tClaude Sonnet 4.6 (Thinking)
+
+      """
+    let (list, folder) = try list("agy", ["agy models": .init(output: rows)])
+    defer { try? FileManager.default.removeItem(at: folder) }
+
+    #expect(await list.models(of: .antigravity) == ["gemini-4-hydrogen-high", "claude-sonnet-4-6"])
+  }
+
   @Test func claudeCodeOffersTheAliasesItDocuments() async throws {
     let (list, folder) = try list("claude", [:])
     defer { try? FileManager.default.removeItem(at: folder) }

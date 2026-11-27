@@ -33,7 +33,9 @@ public struct ModelList: Sendable {
       return Self.codexModels(in: await output(of: executable, ["debug", "models"]))
     case .pi:
       return Self.piModels(in: await output(of: executable, ["--list-models"]))
-    case .bundledPi, .omp, .grok, .antigravity, .cursor, .fx, .hermes, .opencode:
+    case .antigravity:
+      return Self.antigravityModels(in: await output(of: executable, ["models"]))
+    case .bundledPi, .omp, .grok, .cursor, .fx, .hermes, .opencode:
       return []
     }
   }
@@ -50,6 +52,15 @@ public struct ModelList: Sendable {
       let columns = line.split(whereSeparator: \.isWhitespace)
       guard columns.count >= 2 else { return nil }
       return "\(columns[0])/\(columns[1])"
+    }
+  }
+
+  /// The first column of each `id<TAB>name` row `agy models` prints.
+  static func antigravityModels(in rows: String) -> [String] {
+    rows.split(whereSeparator: \.isNewline).compactMap { line in
+      let columns = line.split(separator: "\t", omittingEmptySubsequences: false)
+      guard columns.count >= 2, !columns[0].isEmpty else { return nil }
+      return String(columns[0])
     }
   }
 

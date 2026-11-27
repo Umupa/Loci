@@ -1,25 +1,23 @@
 import LociModel
 
-/// One agent command-line program: the names it is installed under, and how it says its version.
+/// One agent command-line program and the names it is installed under. Each one prints its version for `--version`.
 struct AgentCLI: Hashable, Sendable {
   let provider: Provider
   /// The names the program is installed under, the likeliest first.
   let names: [String]
-  /// The arguments that make the program print its version; `nil` when it has no such flag.
-  let versionArguments: [String]?
 
   /// The ten programs Loci can run on, in the order `Provider` lists them.
   static let all: [AgentCLI] = [
-    AgentCLI(provider: .pi, names: ["pi-coding-agent", "pi"], versionArguments: ["--version"]),
-    AgentCLI(provider: .omp, names: ["omp"], versionArguments: ["--version"]),
-    AgentCLI(provider: .grok, names: ["grok"], versionArguments: ["--version"]),
-    AgentCLI(provider: .antigravity, names: ["agy_acp_server.par"], versionArguments: nil),
-    AgentCLI(provider: .cursor, names: ["cursor-agent"], versionArguments: ["--version"]),
-    AgentCLI(provider: .fx, names: ["fx"], versionArguments: ["--version"]),
-    AgentCLI(provider: .hermes, names: ["hermes"], versionArguments: ["--version"]),
-    AgentCLI(provider: .claudeCode, names: ["claude"], versionArguments: ["--version"]),
-    AgentCLI(provider: .codex, names: ["codex"], versionArguments: ["--version"]),
-    AgentCLI(provider: .opencode, names: ["opencode"], versionArguments: ["--version"]),
+    AgentCLI(provider: .pi, names: ["pi-coding-agent", "pi"]),
+    AgentCLI(provider: .omp, names: ["omp"]),
+    AgentCLI(provider: .grok, names: ["grok"]),
+    AgentCLI(provider: .antigravity, names: ["agy"]),
+    AgentCLI(provider: .cursor, names: ["cursor-agent"]),
+    AgentCLI(provider: .fx, names: ["fx"]),
+    AgentCLI(provider: .hermes, names: ["hermes"]),
+    AgentCLI(provider: .claudeCode, names: ["claude"]),
+    AgentCLI(provider: .codex, names: ["codex"]),
+    AgentCLI(provider: .opencode, names: ["opencode"]),
   ]
 }
 
