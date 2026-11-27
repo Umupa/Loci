@@ -17,24 +17,9 @@ public struct PanelState: Hashable, Codable, Sendable {
   public var fed: [String: Int64] = [:]
   /// For a panel that follows a source's entries, what the run under way was offered.
   public var offers: [String: PanelOffer] = [:]
-  /// For a panel that follows a source's entries, the runs in a row that failed to get past what they were
+  /// The entries watch triage chose for each panel that follows a source, newest first: all a refresh of it is
   /// offered.
-  public var stuck: [String: PanelStuck] = [:]
-
-  /// Runs of a panel that failed in a row: the panel is woken again only by entries that came after the last
-  /// of them was offered, and after `mostRuns` only when the person refreshes it.
-  public struct PanelStuck: Hashable, Codable, Sendable {
-    /// The `seq` of the last entry the last of them was offered.
-    public let through: Int64
-    public let runs: Int
-
-    public static let mostRuns = 3
-
-    public init(through: Int64, runs: Int) {
-      self.through = through
-      self.runs = runs
-    }
-  }
+  public var shownEntries: [String: [String]] = [:]
 
   /// The entries one run of a panel that follows a source was shown: only these may be picked in it.
   public struct PanelOffer: Hashable, Codable, Sendable {
@@ -85,7 +70,7 @@ public struct PanelState: Hashable, Codable, Sendable {
   }
 
   private enum CodingKeys: String, CodingKey {
-    case order, refreshed, marks, removals, paused, fed, offers, stuck
+    case order, refreshed, marks, removals, paused, fed, offers, shownEntries
   }
 
   /// A file that cannot be read is an empty state: the column falls back to its first order.
@@ -98,7 +83,7 @@ public struct PanelState: Hashable, Codable, Sendable {
     paused = (try? container.decodeIfPresent(Set<String>.self, forKey: .paused)) ?? []
     fed = (try? container.decodeIfPresent([String: Int64].self, forKey: .fed)) ?? [:]
     offers = (try? container.decodeIfPresent([String: PanelOffer].self, forKey: .offers)) ?? [:]
-    stuck = (try? container.decodeIfPresent([String: PanelStuck].self, forKey: .stuck)) ?? [:]
+    shownEntries = (try? container.decodeIfPresent([String: [String]].self, forKey: .shownEntries)) ?? [:]
   }
 }
 

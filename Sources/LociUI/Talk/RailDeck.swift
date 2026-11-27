@@ -36,6 +36,7 @@ struct RailDeck: View {
       .buttonStyle(PressStyle(scale: 0.9))
       .help(Text(.loci("deck.cards")))
       .accessibilityLabel(Text(.loci("deck.cards")))
+      .onChange(of: deck.focused, initial: true) { if deck.focused != nil { open = true } }
       .popover(isPresented: $open, arrowEdge: side == .leading ? .trailing : .leading) {
         RailDeckSheet(deck: closing(deck))
       }

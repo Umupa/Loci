@@ -48,6 +48,7 @@ extension LocalHost: ModelSettingsAccess {
   /// Once there is a model to use: the bundled Pi becomes what every kind of conversation not chosen for yet
   /// starts on when no CLI is installed, and what waited for the model services goes on.
   private func modelsChanged() async {
+    await watchTriage.modelsChanged()
     let offered = !((try? await library.context.models.options().groups.isEmpty) ?? true)
     if offered, environment.bundledPi != nil, await agents.detected().provider == .bundledPi {
       _ = try? attempt {

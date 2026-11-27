@@ -249,6 +249,23 @@ enum Schema {
           );
           """)
     }
+    migrator.registerMigration("16 watch batches") { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE watch_batch (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            body TEXT NOT NULL,
+            tries INTEGER NOT NULL DEFAULT 0,
+            not_before TEXT
+          );
+          """)
+    }
+    migrator.registerMigration("17 watch batch failures") { db in
+      try db.execute(sql: "ALTER TABLE watch_batch ADD COLUMN failures INTEGER NOT NULL DEFAULT 0")
+      try db.execute(sql: "ALTER TABLE watch_batch ADD COLUMN problem TEXT")
+      try db.execute(sql: "ALTER TABLE watch_batch ADD COLUMN tried TEXT")
+    }
     return migrator
   }
 

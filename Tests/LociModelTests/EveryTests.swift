@@ -17,6 +17,29 @@ struct EveryTests {
 
   static func clock(_ time: String) throws -> TimeOfDay { try #require(TimeOfDay(time)) }
 
+  @Test func aTradingScheduleSkipsAnnouncedClosuresAndUsesWeekdaysOutsideCoverage() throws {
+    let holiday = try #require(Day("2025-11-17"))
+    let data = TradingCalendar(closures: [.cn: [holiday]], years: [.cn: [2025]])
+    let every = Every.tradingDay(.cn, at: try Self.clock("09:15"))
+    let last = Self.at("15:00", days: -3)
+    #expect(every.due(last: last, now: Self.at("09:15"), in: .gmt, trading: data) == nil)
+    #expect(every.next(last: last, now: Self.at("10:00"), in: .gmt, trading: data) == Self.at("09:15", days: 1))
+    #expect(every.due(last: last, now: Self.at("09:15"), in: .gmt, trading: .init()) == Self.at("09:15"))
+    #expect(!TradingCalendar().covers(Self.at("09:15"), in: .cn))
+  }
+
+  @Test func anIntervalStartsAtItsWindowAndADatedScheduleRunsOnce() throws {
+    let interval = try JSONDecoder().decode(
+      Every.self, from: Data(#"{"every":"interval","minutes":10,"from":"09:30","to":"15:00"}"#.utf8))
+    #expect(interval.next(last: Self.at("09:10"), now: Self.at("09:12"), in: Self.zone) == Self.at("09:30"))
+    #expect(interval.due(last: Self.at("09:10"), now: Self.at("09:44"), in: Self.zone) == Self.at("09:40"))
+    #expect(interval.next(last: Self.at("14:50"), now: Self.at("15:00"), in: Self.zone) == Self.at("09:30", days: 1))
+    let once = try JSONDecoder().decode(
+      Every.self, from: Data(#"{"every":"once","at":"2025-11-17T12:24:00+08:00"}"#.utf8))
+    #expect(once.due(last: Self.at("12:20"), now: Self.at("12:30"), in: .gmt) == Self.at("12:24"))
+    #expect(once.next(last: Self.at("12:24"), now: Self.at("12:30"), in: .gmt) == nil)
+  }
+
   @Test func aDailyScheduleIsDueAtItsTimeAndSaysWhen() throws {
     let daily = Every.day(at: try Self.clock("21:00"))
     let set = Self.at("20:00")
@@ -80,6 +103,19 @@ struct EveryTests {
 
 /// WK-S7: the inbox keeps one event for each timer that came due.
 struct EventTests {
+  @Test func anEventCarriesItsDeadlineAndParentAcrossAStateChange() throws {
+    let due = Timestamp(millisecondsSince1970: 100)
+    let deadline = Timestamp(millisecondsSince1970: 200)
+    let event = Event(
+      id: Fixture.id(1), source: .followUp(Fixture.id(2), project: nil), due: due,
+      deadline: deadline, parent: Fixture.id(3), depth: 2)
+    let dropped = event.with(.dropped)
+    #expect(dropped.deadline == deadline)
+    #expect(dropped.parent == Fixture.id(3))
+    #expect(dropped.depth == 2)
+    #expect(try HostCodingTests.roundTrips(dropped))
+  }
+
   @Test func anEventsKeyNamesItsTimerAndWhenItCameDue() {
     let due = Timestamp(millisecondsSince1970: 1_763_337_600_000)
     let later = Timestamp(millisecondsSince1970: 1_763_337_660_000)

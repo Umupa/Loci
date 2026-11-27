@@ -5,8 +5,7 @@ public enum Wire {
     ReadSource.self, FetchSourceRepository.self, AddSchedule.self, AddFollowUp.self, ListConnectors.self,
     CallConnector.self, Recall.self, NameProject.self, IconProject.self, DescribeProject.self,
     SaveDataSource.self, TestDataSource.self, ListDataSources.self, PickPanelEntries.self,
-    AddNextUp.self, ProposeApproval.self, AddNextUpCondition.self, ListNextUpConditions.self,
-    RemoveNextUpCondition.self,
+    AddNextUp.self, ProposeApproval.self,
   ]
 
   /// Commands only the Mac the companion lives on runs; another Mac is refused them.

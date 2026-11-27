@@ -10,9 +10,10 @@ enum PanelSchedule {
   }
 
   /// The moment it came due at, when it is due.
-  static func due(_ refresh: PanelRefresh, last: Timestamp?, now: Timestamp, timeZone: TimeZone) -> Timestamp? {
-    guard let last else { return now }
-    return Every(refresh)?.due(last: last, now: now, in: timeZone)
+  static func due(
+    _ refresh: PanelRefresh, last: Timestamp?, now: Timestamp, timeZone: TimeZone, trading: TradingCalendar = .bundled
+  ) -> Timestamp? {
+    Every(refresh)?.due(last: last, now: now, in: timeZone, trading: trading)
   }
 
   /// The last moment up to `now` the panel was meant to be refreshed at.

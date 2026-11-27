@@ -7,12 +7,36 @@ public struct Event: Hashable, Codable, Sendable, Identifiable {
   /// When it came due; events due in the same minute share a run.
   public let due: Timestamp
   public let state: State
+  /// When it stops being worth doing: the worker takes the earliest first, even while the person talks, and
+  /// drops it once it passes.
+  public let deadline: Timestamp?
+  /// The event whose run set it, for a follow-up a run set.
+  public let parent: EntityID?
+  /// When it started a run, for one that counts toward its home's watch budget (`depth` above 0).
+  public let wokeAt: Timestamp?
+  private let generation: Int?
+  /// How far it descends from what nobody set off in the background: 0 for a schedule, a panel or what the person
+  /// set; 1 for a watch finding or a follow-up of one of those; never more than `deepest`.
+  public var depth: Int { generation ?? 0 }
 
-  public init(id: EntityID, source: Source, due: Timestamp, state: State = .waiting(nil)) {
+  public static let deepest = 2
+
+  public func isExpired(at now: Timestamp) -> Bool {
+    deadline.map { $0 <= now } ?? false
+  }
+
+  public init(
+    id: EntityID, source: Source, due: Timestamp, state: State = .waiting(nil), deadline: Timestamp? = nil,
+    parent: EntityID? = nil, depth: Int = 0, wokeAt: Timestamp? = nil
+  ) {
     self.id = id
     self.source = source
     self.due = due
     self.state = state
+    self.deadline = deadline
+    self.parent = parent
+    self.wokeAt = wokeAt
+    generation = depth == 0 ? nil : depth
   }
 
   /// The inbox keeps one event for each key: a timer that came due at a moment is raised once, and a source
@@ -25,18 +49,22 @@ public struct Event: Hashable, Codable, Sendable, Identifiable {
     case .followUp(let id, _): folder + "follow-up/\(id)"
     case .panel(let name, let asked, _): folder + "panel/\(name)/\(asked ? "asked/" : "")\(due)"
     case .review(let day, _): folder + "review/\(day)"
+    case .watch(let finding, _): folder + "watch/\(finding.key)"
     case .source(let name, let project): "source/\(SourceKey(Home(project), name))/broken/\(due)"
     }
   }
 
-  public func with(_ state: State) -> Event {
-    Event(id: id, source: source, due: due, state: state)
+  public func with(_ state: State, wokeAt: Timestamp? = nil) -> Event {
+    Event(
+      id: id, source: source, due: due, state: state, deadline: deadline, parent: parent, depth: depth,
+      wokeAt: self.wokeAt ?? wokeAt)
   }
 
   /// What raised the event, and the project it belongs to; `nil` for the chat's, as an event written before
   /// projects reads.
   public enum Source: Hashable, Codable, Sendable {
     case schedule(EntityID, project: Project.ID?)
+    case watch(WatchFinding, project: Project.ID?)
     case followUp(EntityID, project: Project.ID?)
     /// A panel's refresh; `asked` when the person asked for it, which does not wait for the companion to be free.
     case panel(String, asked: Bool, project: Project.ID?)
@@ -53,7 +81,7 @@ public struct Event: Hashable, Codable, Sendable, Identifiable {
     public var home: Home {
       switch self {
       case .schedule(_, let project), .followUp(_, let project), .panel(_, _, let project), .review(_, let project),
-        .source(_, let project):
+        .source(_, let project), .watch(_, let project):
         Home(project)
       }
     }
@@ -68,7 +96,7 @@ public struct Event: Hashable, Codable, Sendable, Identifiable {
       switch self {
       case .schedule(let id, _): .schedule(id)
       case .panel(let name, _, let project): .panel(name, project: project)
-      case .followUp, .review, .source: nil
+      case .followUp, .review, .source, .watch: nil
       }
     }
 

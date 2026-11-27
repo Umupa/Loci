@@ -7,6 +7,7 @@ struct MachineWindow: View {
   @Environment(\.host) private var host
   @Environment(\.machineChoice) private var machineChoice
   @Environment(\.changesAllowed) private var changesAllowed
+  @Environment(\.cardDelivery) private var cardDelivery
   @Environment(\.openedFiles) private var openedFiles
   @Environment(\.signInReturns) private var signInReturns
   @State private var window = WindowState()
@@ -112,6 +113,7 @@ struct MachineWindow: View {
     }
     .onChange(of: width) { refit() }
     .onChange(of: reading) { refit() }
+    .onChange(of: cardDelivery?.waiting, initial: true) { openNotifiedCard() }
     .overlayPreferenceValue(WindowCornerItems.self, alignment: .topLeading) { placeButtons in
       HStack(spacing: Spacing.xxs) {
         if !sidebarShown {
@@ -316,6 +318,13 @@ struct MachineWindow: View {
   }
 
   /// Takes in the books the Finder opened with Loci and opens the last one.
+  /// A card notification was clicked: the companion's page, with the panel column the deck is in.
+  private func openNotifiedCard() {
+    guard cardDelivery?.waiting != nil else { return }
+    panelColumnPreferred = true
+    window = WindowState(place: .talk)
+  }
+
   private func openBooks() {
     guard changesAllowed, let files = openedFiles?.take().filter(Dropped.isBook), !files.isEmpty else { return }
     Task {

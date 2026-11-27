@@ -21,14 +21,6 @@ struct NextUpTests {
       shownAt: at(minutes: minutes))
   }
 
-  static func snapshot(_ premium: Double) -> SourceSnapshot {
-    SourceSnapshot(fetched: at(minutes: 0), records: ["513100": ["premium": .number(premium)]])
-  }
-
-  static let condition = NextUpCondition(
-    id: id(9), home: .chat, field: SourceField("prem.513100.premium")!, comparison: .below, threshold: 0.03,
-    say: "513100 溢价回到 {value}", ask: "要不要现在申购？", createdAt: at(minutes: 0))
-
   @Test func theDeckShowsNewCardsAboveKeptOnesTheLatestFirst() {
     let cards = [
       Self.card(1, shown: 1), Self.card(2, .kept, shown: 5), Self.card(3, shown: 3), Self.card(4, .declined, shown: 9),
@@ -45,44 +37,14 @@ struct NextUpTests {
     #expect(NextUp.deck(cards, at: Self.at(minutes: 60)).map(\.what) == ["1", "2"])
   }
 
-  @Test func aConditionFiresOnlyWhenItTurnsTrue() {
-    var condition = Self.condition
-    var fired: [String] = []
-    for (minutes, premium) in [(0, 0.034), (10, 0.028), (20, 0.027), (30, 0.025)] as [(Int64, Double)] {
-      let step = condition.step(Self.snapshot(premium), at: Self.at(minutes: minutes))
-      condition = step.0
-      if let words = step.fired { fired.append(words) }
-    }
-
-    #expect(fired == ["513100 溢价回到 0.028"])
-    #expect(condition.holds == true)
-  }
-
-  @Test func aConditionAlreadyTrueWhenSetDoesNotFire() {
-    let step = Self.condition.step(Self.snapshot(0.02), at: Self.at(minutes: 0))
-
-    #expect(step.fired == nil)
-    #expect(step.0.holds == true)
-  }
-
-  @Test func aConditionFiresAgainAfterRisingAndFallingOnceRested() {
-    var condition = Self.condition.with(holds: false, firedAt: nil)
-    var fired: [Int64] = []
-    for (minutes, premium) in [(0, 0.028), (60, 0.031), (120, 0.029), (300, 0.032), (301, 0.029)] as [(Int64, Double)] {
-      let step = condition.step(Self.snapshot(premium), at: Self.at(minutes: minutes))
-      condition = step.0
-      if step.fired != nil { fired.append(minutes) }
-    }
-
-    #expect(fired == [0, 301])
-  }
-
-  @Test func aMissingValueLeavesAConditionAsItWas() {
-    let condition = Self.condition.with(holds: false, firedAt: nil)
-    let empty = SourceSnapshot(fetched: Self.at(minutes: 0), records: [:])
-
-    #expect(condition.step(empty, at: Self.at(minutes: 1)).0 == condition)
-    #expect(condition.step(empty, at: Self.at(minutes: 1)).fired == nil)
+  @Test func anExpiredCardLeavesTheDeckEvenIfKept() {
+    let deadline = Self.at(minutes: 5)
+    let card = NextUp(
+      id: Self.id(1), home: .chat, key: "policy", kind: .ask(question: "?"), what: "Policy", place: .kept,
+      shownAt: Self.at(minutes: 1), deadline: deadline)
+    #expect(card.isShown(at: Self.at(minutes: 4)))
+    #expect(!card.isShown(at: deadline))
+    #expect(card.with(place: .new).deadline == deadline)
   }
 
   @Test func anApprovalCanOnlyBeAnEventOrAReminder() throws {

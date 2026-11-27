@@ -199,9 +199,6 @@ public protocol CommandHandler: Sendable {
   func nextUps(of home: Home) async throws(HostError) -> [NextUp]
   func addNextUp(_ command: AddNextUp) async throws(HostError) -> NextUp
   func proposeApproval(_ command: ProposeApproval) async throws(HostError) -> NextUp
-  func addNextUpCondition(_ command: AddNextUpCondition) async throws(HostError) -> NextUpCondition
-  func nextUpConditions(of home: Home) async throws(HostError) -> [NextUpCondition]
-  func removeNextUpCondition(_ command: RemoveNextUpCondition) async throws(HostError) -> Done
   func startNextUp(_ command: StartNextUp) async throws(HostError) -> Done
   func setNextUp(_ command: SetNextUp) async throws(HostError) -> NextUp
   func approveNextUp(_ command: ApproveNextUp) async throws(HostError) -> Done

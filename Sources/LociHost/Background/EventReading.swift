@@ -26,7 +26,7 @@ extension AgentContext {
       guard let schedule = try? database.schedule(id) else { return false }
       return !schedule.paused
     case .panel(let name, _, _): return store.home(home).panel(named: name)?.panel != nil
-    case .followUp: return true
+    case .followUp, .watch: return true
     case .review: return true
     case .source(let name, _):
       guard store.dataSource(named: name, in: DataSourceFolder(home)) != nil else { return false }
@@ -39,9 +39,10 @@ extension AgentContext {
     case now, later, never
   }
 
-  /// The panels of the run's home that its run may save, by name.
+  /// The panels of the run's home that its run may save, by name: a watch finding's may save any of them.
   func panels(of kind: Run.Kind) -> Set<String> {
     guard case .timers(let timed) = kind else { return [] }
+    if timed.first.isWatch { return Set(store.home(kind.home).panels().compactMap(\.panel?.name)) }
     return Set(
       timed.sources.compactMap { source in
         switch source {
@@ -49,7 +50,7 @@ extension AgentContext {
         case .schedule(let id, _):
           guard case .panel(let name)? = (try? database.schedule(id))??.destination else { return nil }
           return name
-        case .followUp, .review, .source: return nil
+        case .followUp, .review, .source, .watch: return nil
         }
       })
   }
@@ -58,6 +59,7 @@ extension AgentContext {
     switch source {
     case .panel(let name, _, _): store.home(source.home).panel(named: name)?.panel?.title ?? name
     case .schedule(let id, _): ((try? database.schedule(id)) ?? nil)?.title ?? id.description
+    case .watch(let finding, _): finding.summary
     case .followUp(let id, _): ((try? database.followUp(id)) ?? nil)?.what ?? id.description
     case .review(let day, _): "\(day)"
     case .source(let name, _): store.dataSource(named: name, in: DataSourceFolder(source.home))?.title ?? name
@@ -71,6 +73,7 @@ extension AgentContext {
     case .schedule(let id, _):
       let name = ((try? database.schedule(id)) ?? nil)?.name ?? id.description
       return "schedule \(name), due \(due): \(title(of: event.source))"
+    case .watch(let finding, _): return "watch: \(finding.summary)"
     case .followUp: return "follow-up due \(due): \(title(of: event.source))"
     case .review(let day, nil): return "the review of \(day)"
     case .review(let day, _?): return "the review of this project's \(day)"
@@ -100,6 +103,12 @@ extension Event {
   /// conversation it was set in, and only its own.
   var runsAlone: Bool {
     if case .followUp = source { return true }
-    return isReview || source.repair != nil
+    return deadline != nil || isReview || source.repair != nil
+  }
+}
+
+extension Event.Source {
+  var isWatch: Bool {
+    if case .watch = self { true } else { false }
   }
 }

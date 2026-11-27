@@ -25,6 +25,7 @@ extension Store {
       try FileManager.default.createDirectory(
         at: agentFolder.appending(path: folder, directoryHint: .isDirectory), withIntermediateDirectories: true)
     }
+    try home(.chat).prepareWatch()
     let core = Soul(parsing: soul).core
     let previousCore = previous.map { Soul(parsing: $0).core }
     if let saved = try? agentText(.soul) {

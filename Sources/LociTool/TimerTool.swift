@@ -29,7 +29,7 @@ enum ScheduleRequest: Hashable, Sendable {
 
 /// `loci followup …`: a timer the companion sets for itself, to come due once.
 enum FollowUpRequest: Hashable, Sendable {
-  case add(FollowUpTime, String)
+  case add(FollowUpTime, String, deadline: Timestamp? = nil)
   case list
   case cancel(EntityID)
 
@@ -60,9 +60,17 @@ enum FollowUpRequest: Hashable, Sendable {
     } else {
       throw UsageError(usage)
     }
+    var deadline: Timestamp?
+    if let flag = rest.firstIndex(of: "--deadline") {
+      guard rest.distance(from: flag, to: rest.endIndex) == 2,
+        let parsed = Timestamp.parseISO8601(rest[rest.index(after: flag)])
+      else { throw UsageError("--deadline needs one ISO-8601 time with an offset") }
+      deadline = parsed
+      rest = rest[..<flag]
+    }
     let what = rest.joined(separator: " ").trimmingCharacters(in: .whitespaces)
     guard !what.isEmpty else { throw UsageError("Say what to follow up on: \(usage)") }
-    return .add(time, what)
+    return .add(time, what, deadline: deadline)
   }
 
   /// `90m`, `3h`, `2d`.
@@ -124,8 +132,8 @@ extension Tool {
 
   func followUp(_ request: FollowUpRequest, json: Bool) async throws(Failure) -> Outcome {
     switch request {
-    case .add(let time, let what):
-      let reply = try await line.run(AddFollowUp(time, what))
+    case .add(let time, let what, let deadline):
+      let reply = try await line.run(AddFollowUp(time, what, deadline: deadline))
       if json { return .worked(Self.text(reply)) }
       let followUp = try Failure.decoding(FollowUp.self, from: reply)
       return .worked("Set for \(TimerWords.moment(followUp.due, in: timeZone)): \(followUp.what)  (\(followUp.id))")
@@ -152,7 +160,7 @@ enum TimerWords {
 
   static func changed(_ entry: ScheduleEntry, in timeZone: TimeZone) -> String {
     "Changed \(entry.name): \(PanelWords.every(entry.every.refresh)), \(place(entry.destination))."
-      + (entry.next.map { " It next runs \(moment($0, in: timeZone))." } ?? " It is paused.")
+      + (entry.next.map { " It next runs \(moment($0, in: timeZone))." } ?? (entry.paused ? " It is paused." : ""))
   }
 
   static func none(_ name: String) -> String {

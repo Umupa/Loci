@@ -14,6 +14,8 @@ enum ModelWork {
     case repair(SourceKey)
     /// The daily review of the chat's memory, or of a project's.
     case review(Home)
+    /// A watch finding, judged by the companion of its home; what it says is said in that home's conversation.
+    case watch(Home)
     /// Panels' refreshes and schedules, which only update panels and notes.
     case refresh
 
@@ -21,7 +23,7 @@ enum ModelWork {
       switch self {
       case .turn(let conversation), .followUp(let conversation): .conversation(conversation)
       case .repair(let source): .conversation(source.home.conversation)
-      case .review(let home): .conversation(home.conversation)
+      case .review(let home), .watch(let home): .conversation(home.conversation)
       case .refresh: .toolModel
       }
     }
@@ -29,19 +31,19 @@ enum ModelWork {
 
   /// Calls that ask a model service once, with no agent.
   enum Request: Sendable {
-    case translation, chapters, keyPoints, tidying, speakerNames
+    case translation, chapters, keyPoints, tidying, speakerNames, watch
 
     var model: ModelUse {
       switch self {
       case .translation: .translation
-      case .chapters, .keyPoints, .tidying, .speakerNames: .tool
+      case .chapters, .keyPoints, .tidying, .speakerNames, .watch: .tool
       }
     }
 
     /// What happens while the model services offer no model for it.
     var withoutModel: WithoutModel {
       switch self {
-      case .translation, .chapters, .keyPoints, .tidying: .waitForSetup
+      case .translation, .chapters, .keyPoints, .tidying, .watch: .waitForSetup
       case .speakerNames: .mainConversation
       }
     }

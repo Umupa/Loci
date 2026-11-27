@@ -127,6 +127,9 @@ enum PanelWords {
     switch refresh.every {
     case .hour: return "every hour"
     case .day: return "every day\(at)"
+    case .interval: return "every \(refresh.minutes ?? 0) minutes"
+    case .tradingDay: return "on trading days\(at)"
+    case .once: return "once\(at)"
     case .week:
       let days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
       let day = refresh.weekday.flatMap { days.indices.contains($0 - 1) ? days[$0 - 1] : nil } ?? "week"

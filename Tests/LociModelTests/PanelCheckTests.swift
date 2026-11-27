@@ -37,7 +37,7 @@ struct PanelCheckTests {
     let feed = #"{ "source": "news", "skip": ["广告"] }"#
     let following = #"{ "title": "快讯", "follow": "x", "feed": \#(feed), "rows": [\#(Self.sentence)] }"#
 
-    #expect(try PanelCheck.read(Data(following.utf8), name: "flash").feed == PanelFeed(source: "news", skip: ["广告"]))
+    #expect(try PanelCheck.read(Data(following.utf8), name: "flash").feed == PanelFeed(source: "news"))
     #expect(
       Self.problems(
         #"{ "title": "快讯", "follow": "x", "feed": { "source": "News" }, "refresh": { "every": "hour" }, "rows": [\#(Self.sentence)] }"#

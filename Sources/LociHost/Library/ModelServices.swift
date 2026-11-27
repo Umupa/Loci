@@ -117,6 +117,22 @@ actor ModelServices {
     return (settings.translation, service, agent)
   }
 
+  /// One answer of the model `request` runs on, through the shared gate; `nil` while no model is set up for it.
+  func answer(_ prompt: String, for request: ModelWork.Request) async throws(HostError) -> String? {
+    let settings = try configuration()
+    guard let chosen = try options().model(preferring: nil, for: request.model),
+      let service = settings.service(for: chosen), let key = try storedKey(account: service.keyAccount)
+    else { return nil }
+    let client = client
+    return try await gate.through { () async throws(HostError) in
+      do throws(FetchError) {
+        return try await client.answer(prompt, using: service, key: key)
+      } catch {
+        throw .invalidRequest(error.reason)
+      }
+    }
+  }
+
   struct PiCredential: Sendable {
     let service: ModelService
     let key: String?

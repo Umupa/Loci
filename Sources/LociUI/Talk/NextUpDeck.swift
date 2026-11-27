@@ -8,6 +8,7 @@ struct NextUpDeckState {
   let projects: [Project.ID: Project]
   /// The card flying into its seal, hidden in the deck meanwhile.
   var flying: EntityID?
+  var focused: EntityID? = nil
   let actions: NextUpActions
 }
 

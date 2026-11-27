@@ -23,11 +23,13 @@ extension StoreDatabase {
     }
   }
 
-  /// Keeps what a fetch got: the snapshot is written over and its failures forgotten, and each record's
-  /// numbers are added to the series.
+  /// Keeps what a fetch got: the snapshot is written over and its failures forgotten, each record's numbers are
+  /// added to the series, and the entries not kept before are kept. With `watching`, the source's title, what
+  /// is new (entries never seen, or records that changed) waits for watch triage, kept in the same write.
   @discardableResult
   public func recordFetch(
-    _ source: SourceKey, records: [String: SourceRecord], state: JSONValue?, at moment: Timestamp
+    _ source: SourceKey, records: [String: SourceRecord], state: JSONValue?, at moment: Timestamp,
+    entries: [SourceEntry] = [], watching title: String? = nil
   ) throws -> SourceSnapshot {
     let snapshot = SourceSnapshot(fetched: moment, records: records, state: state)
     let body = try MirrorUpdate.json(snapshot)
@@ -36,6 +38,12 @@ extension StoreDatabase {
       return numbers.isEmpty ? nil : (record, try MirrorUpdate.json(numbers))
     }
     try queue.write { db in
+      let previous = try Self.snapshot(source, in: db)
+      let fresh = try Self.recordEntries(source, entries, at: moment, in: db)
+      if let title, !fresh.isEmpty || previous?.records != records {
+        try Self.keepWatchBatch(
+          WatchBatch(source: source, title: title, entries: fresh, previous: previous, snapshot: snapshot), in: db)
+      }
       try Self.put(source, body, in: db)
       for (record, numbers) in rows {
         try db.execute(

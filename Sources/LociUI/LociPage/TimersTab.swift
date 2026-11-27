@@ -2,7 +2,8 @@ import LociModel
 import SwiftUI
 
 /// The companion's timers: the schedules it keeps, panels' refreshes among them, beside the follow-ups it
-/// promised (WK-S2, WK-S6).
+/// promised (WK-S2, WK-S6). A source whose new data watch triage keeps failing to sort stands first among the
+/// schedules, as a failed run does, with why.
 struct TimersTab: View {
   /// The schedule shown open with its runs, as when it was clicked.
   var opened: ScheduleRef?
@@ -14,12 +15,16 @@ struct TimersTab: View {
       VStack(alignment: .leading, spacing: 6) {
         PageLabel(title: Text(.loci("timers.schedules")))
         if let schedules = timers?.value?.schedules {
-          if schedules.isEmpty {
+          let troubles = timers?.value?.triage ?? []
+          if schedules.isEmpty && troubles.isEmpty {
             EmptyTimers(symbol: Symbols.schedule, height: 118)
           } else {
             TimerCard {
+              ForEach(Array(troubles.enumerated()), id: \.element.id) { index, trouble in
+                TriageTroubleRow(trouble: trouble).rule(index > 0)
+              }
               ForEach(Array(schedules.enumerated()), id: \.element.id) { index, entry in
-                ScheduleRow(entry: entry, panels: panels, open: entry.ref == opened).rule(index > 0)
+                ScheduleRow(entry: entry, panels: panels, open: entry.ref == opened).rule(index + troubles.count > 0)
               }
             }
           }
@@ -144,5 +149,38 @@ private struct FollowUpRow: View {
     .changesData()
     .help(Text(.loci("timers.cancel")))
     .accessibilityLabel(Text(.loci("timers.cancel")))
+  }
+}
+
+/// Sorting a source's new data that keeps failing: the failed run's hollow red ring, the source, and under it
+/// when it last failed and why.
+struct TriageTroubleRow: View {
+  @Environment(\.fixedNow) private var fixedNow
+  let trouble: TriageTrouble
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack(spacing: 10) {
+        Circle().strokeBorder(Palette.failure, lineWidth: 1.5).frame(width: 8, height: 8).frame(width: 10)
+        Text(.loci("timers.triageFailed \(trouble.title)"))
+          .font(.system(size: 13.5, weight: .medium))
+          .foregroundStyle(Palette.ink)
+          .lineLimit(1)
+      }
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        TimerTime.label(trouble.tried.date, now: fixedNow ?? Date())
+          .font(.system(size: 11.5).monospaced())
+          .foregroundStyle(Palette.inkFaint)
+          .fixedSize()
+        Text(verbatim: trouble.problem)
+          .font(.system(size: 12.5))
+          .foregroundStyle(Palette.inkMuted)
+          .lineLimit(2)
+      }
+      .padding(.leading, 20)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.vertical, 11)
+    .padding(.horizontal, 14)
   }
 }

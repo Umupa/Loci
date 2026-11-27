@@ -37,7 +37,7 @@ extension AgentContext {
         case .schedule(let id, _): ((try? database.schedule(id)) ?? nil)?.name
         case .panel(let name, _, _): "panel \(name)"
         case .source(let name, _): "source \(name)"
-        case .followUp, .review: nil
+        case .followUp, .review, .watch: nil
         }
       }
       return "- \(when(run)) \(names.joined(separator: ", ")): \(outcome(of: run)) (\(files.local(run.record)))"

@@ -151,8 +151,7 @@ final class Launch {
     let returns = signInReturns
     let environment = HostEnvironment.system(
       defaultRuntime: Runtime(provider: .pi), tool: Self.tool(root: root), sourceCache: cache,
-      browserReturned: { await returns.returned(from: $0) },
-      inFront: { await MainActor.run { NSApplication.shared.isActive } })
+      browserReturned: { await returns.returned(from: $0) })
     do throws(HostStartError) {
       let started =
         replacingDatabase

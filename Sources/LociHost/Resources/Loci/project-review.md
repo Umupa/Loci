@@ -10,4 +10,8 @@ What happened in the project: its notes in `notes/{{day}}.md`, and the day's tra
 4. If what the project is doing changed, say it in one line with `"$LOCI" project describe <line>`.
 5. Add one line to `notes/{{day}}.md`: `- HH:MM [review] Looked back on the day.`
 
+Read this folder's WATCH.md. Use the card feedback above as examples: declined cards are noise, started cards
+show what was useful. If a person reported a missed item, use the transcript to add an example of what to catch.
+Keep the rest of the existing preferences and only change what the feedback or transcript supports.
+
 When the files are written, reply with one short line saying so.

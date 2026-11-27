@@ -19,19 +19,14 @@ struct SourceFetchingTests {
     DataSource(name: "quote", title: "行情", every: SourceEvery(minutes: minutes)!, window: window, script: "x")
   }
 
-  @Test func aSourceIsDueAsOftenAsItSaysInFrontAndAtMostHourlyBehind() {
-    func due(_ source: DataSource, after minutes: Int64, inFront: Bool) -> Bool {
-      SourceSchedule.due(
-        source, tried: Self.monday, now: Self.at(minutes: minutes), inFront: inFront, timeZone: Self.shanghai)
+  @Test func aSourceIsDueAtItsDeclaredFrequency() {
+    func due(_ source: DataSource, after minutes: Int64) -> Bool {
+      SourceSchedule.due(source, tried: Self.monday, now: Self.at(minutes: minutes), timeZone: Self.shanghai)
     }
-
-    #expect(due(Self.source(every: 1), after: 1, inFront: true))
-    #expect(!due(Self.source(every: 15), after: 14, inFront: true))
-    #expect(!due(Self.source(every: 1), after: 59, inFront: false))
-    #expect(due(Self.source(every: 1), after: 60, inFront: false))
-    #expect(!due(Self.source(every: 120), after: 60, inFront: false))
-    #expect(
-      SourceSchedule.due(Self.source(every: 60), tried: nil, now: Self.monday, inFront: false, timeZone: Self.shanghai))
+    #expect(!due(Self.source(every: 2), after: 1))
+    #expect(due(Self.source(every: 2), after: 2))
+    #expect(!due(Self.source(every: 120), after: 60))
+    #expect(SourceSchedule.due(Self.source(every: 60), tried: nil, now: Self.monday, timeZone: Self.shanghai))
   }
 
   @Test func aSourceWithAWindowIsDueOnlyInIt() {
@@ -44,7 +39,7 @@ struct SourceFetchingTests {
     #expect(!window.contains(Self.at(minutes: 300), in: Self.shanghai))
     #expect(!window.contains(saturday, in: Self.shanghai))
     #expect(SourceWindow("09:30-15:00")!.contains(saturday, in: Self.shanghai))
-    #expect(!SourceSchedule.due(source, tried: nil, now: saturday, inFront: true, timeZone: Self.shanghai))
+    #expect(!SourceSchedule.due(source, tried: nil, now: saturday, timeZone: Self.shanghai))
   }
 
   @Test func requestsMayAlsoBeAPageOrAConnectorsReadOnlyTool() throws {
@@ -119,13 +114,6 @@ struct SourceFetchingTests {
     #expect(thrice.records == got.records && thrice.failures == 4)
   }
 
-  @Test func aPanelLetsThroughOnlyEntriesWithNoSkippedWord() {
-    let feed = PanelFeed(source: "news", skip: ["广告", "Sponsored"])
-
-    #expect(feed.admits(SourceEntry(id: "1", title: "纳指走高")))
-    #expect(!feed.admits(SourceEntry(id: "2", title: "某券商开户广告")))
-    #expect(!feed.admits(SourceEntry(id: "3", title: "A sponsored post")))
-  }
 }
 
 /// A time a script gives is read only when it is a moment; anything else is named where it is.

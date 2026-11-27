@@ -43,6 +43,11 @@ struct TimerToolTests {
       ))
     #expect(try Request.parse(["followup", "in", "3h", "再看"]) == (.followUp(.add(.after(minutes: 180), "再看")), false))
     #expect(try Request.parse(["followup", "in", "2d", "再看"]) == (.followUp(.add(.after(minutes: 2880), "再看")), false))
+    let deadline = try #require(Timestamp.parseISO8601("2026-11-27T13:00:00+08:00"))
+    #expect(
+      try Request.parse(["followup", "in", "10m", "再看", "--deadline", "2026-11-27T13:00:00+08:00"])
+        == (.followUp(.add(.after(minutes: 10), "再看", deadline: deadline)), false))
+    #expect(throws: UsageError.self) { try Request.parse(["followup", "in", "10m", "再看", "--deadline", "13:00"]) }
     #expect(try Request.parse(["followup", "list"]) == (.followUp(.list), false))
     #expect(try Request.parse(["followup", "cancel", Self.id.description]) == (.followUp(.cancel(Self.id)), false))
   }

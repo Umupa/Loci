@@ -1,7 +1,7 @@
 import Foundation
 
-/// Something the companion or a reminder condition thinks the person should deal with, waiting at the top of
-/// the panel column until they do. It belongs to one home and is kept in the database. Where it sits on the deck
+/// Something the companion thinks the person should deal with, waiting at the top of the panel column until they
+/// do, or until its deadline passes. It belongs to one home and is kept in the database. Where it sits on the deck
 /// (`place`) and what its approval did (`execution`) are kept apart, so putting a done approval away and back
 /// never makes it ask again.
 public struct NextUp: Hashable, Codable, Sendable, Identifiable {
@@ -22,6 +22,25 @@ public struct NextUp: Hashable, Codable, Sendable, Identifiable {
   /// When it last came to the top; the newest is shown first.
   public let shownAt: Timestamp
   public let createdAt: Timestamp
+  /// When it stops being worth acting on: past it the deck folds it away, unless its approval was written.
+  public let deadline: Timestamp?
+  /// What the person did with it that the daily review has not read yet.
+  public let feedback: [Feedback]?
+
+  /// Starting a card says it was worth telling; declining it, that it was noise.
+  public struct Feedback: Codable, Hashable, Sendable {
+    public enum Kind: String, Codable, Hashable, Sendable {
+      case started, declined
+    }
+
+    public let kind: Kind
+    public let at: Timestamp
+
+    public init(_ kind: Kind, at: Timestamp) {
+      self.kind = kind
+      self.at = at
+    }
+  }
 
   public enum Kind: Hashable, Codable, Sendable {
     /// Starting it says `question` in the home's conversation, as the person.
@@ -68,7 +87,8 @@ public struct NextUp: Hashable, Codable, Sendable, Identifiable {
 
   public init(
     id: EntityID, home: Home, key: String, kind: Kind, what: String, version: Int = 1, place: Place = .new,
-    execution: Execution = .waiting, shownAt: Timestamp, createdAt: Timestamp? = nil
+    execution: Execution = .waiting, shownAt: Timestamp, createdAt: Timestamp? = nil, deadline: Timestamp? = nil,
+    feedback: [Feedback]? = nil
   ) {
     self.id = id
     self.home = home
@@ -80,40 +100,57 @@ public struct NextUp: Hashable, Codable, Sendable, Identifiable {
     self.execution = execution
     self.shownAt = shownAt
     self.createdAt = createdAt ?? shownAt
+    self.deadline = deadline
+    self.feedback = feedback
   }
 
   public func with(
     kind: Kind? = nil, what: String? = nil, version: Int? = nil, place: Place? = nil, execution: Execution? = nil,
-    shownAt: Timestamp? = nil
+    shownAt: Timestamp? = nil, deadline: Timestamp? = nil, adding given: Feedback? = nil
   ) -> NextUp {
     NextUp(
       id: id, home: home, key: key, kind: kind ?? self.kind, what: what ?? self.what, version: version ?? self.version,
       place: place ?? self.place, execution: execution ?? self.execution, shownAt: shownAt ?? self.shownAt,
-      createdAt: createdAt)
+      createdAt: createdAt, deadline: deadline ?? self.deadline,
+      feedback: given.map { (feedback ?? []) + [$0] } ?? feedback)
   }
 
-  /// Whether the deck shows it at `now`.
+  /// The same card once a daily review read `read` of its feedback.
+  public func reviewed(_ read: [Feedback]) -> NextUp {
+    let left = (feedback ?? []).filter { !read.contains($0) }
+    return NextUp(
+      id: id, home: home, key: key, kind: kind, what: what, version: version, place: place, execution: execution,
+      shownAt: shownAt, createdAt: createdAt, deadline: deadline, feedback: left.isEmpty ? nil : left)
+  }
+
+  public func isExpired(at now: Timestamp) -> Bool {
+    deadline.map { $0 <= now } ?? false
+  }
+
+  /// Whether the deck shows it at `now`: not once its deadline passed, unless its approval was written.
   public func isShown(at now: Timestamp) -> Bool {
-    switch place {
+    if isExpired(at: now), isOpen { return false }
+    return switch place {
     case .new, .kept: true
     case .later(let until): until <= now
     case .declined, .starting, .started: false
     }
   }
 
-  /// The same card with new words or a new proposal, put again by the companion or a condition: it keeps the
+  /// The same card with new words or a new proposal, put again by the companion: it keeps the
   /// place the person gave it unless it was started. `nil` when the person declined it. An approval already
   /// done or under way keeps what it was; one waiting for the person to confirm where it goes asks again.
-  public func putAgain(_ kind: Kind, what: String, at now: Timestamp) -> NextUp? {
+  public func putAgain(_ kind: Kind, what: String, at now: Timestamp, deadline: Timestamp? = nil) -> NextUp? {
     if place == .declined { return nil }
     if !isOpen { return self }
     let execution: Execution = kind == self.kind && !isTargetGone ? execution : .waiting
     switch place {
-    case .kept: return with(kind: kind, what: what, execution: execution)
-    case .later(let until) where until > now: return with(kind: kind, what: what, execution: execution)
+    case .kept: return with(kind: kind, what: what, execution: execution, deadline: deadline)
+    case .later(let until) where until > now:
+      return with(kind: kind, what: what, execution: execution, deadline: deadline)
     case .starting: return self
     case .new, .later, .started, .declined:
-      return with(kind: kind, what: what, place: .new, execution: execution, shownAt: now)
+      return with(kind: kind, what: what, place: .new, execution: execution, shownAt: now, deadline: deadline)
     }
   }
 

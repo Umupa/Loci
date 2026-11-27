@@ -10,11 +10,12 @@ struct RunPrompts {
   private var store: Store { context.store }
   private var timeZone: TimeZone { context.environment.timeZone }
 
-  /// `brief` is what the app worked out for a daily review.
-  func text(for run: Run, redo: Bool, brief: ReviewBrief? = nil) throws(HostError) -> String {
+  /// `brief` is what the app worked out for a daily review; `event` is the run's first, whose deadline an event
+  /// with one, which runs alone, is told.
+  func text(for run: Run, redo: Bool, brief: ReviewBrief? = nil, event: Event? = nil) throws(HostError) -> String {
     let today = Day(containing: context.environment.now(), in: timeZone)
     let parts = try run.kind.sources.map { source throws(HostError) in
-      try text(for: source, run: run, today: today, brief: brief)
+      try text(for: source, run: run, today: today, brief: brief, deadline: event?.deadline)
     }
     var text =
       parts.count == 1
@@ -22,6 +23,9 @@ struct RunPrompts {
       : "Several things came due together. Do each in turn, in this one session.\n\n"
         + parts.joined(separator: "\n\n---\n\n")
         + "\n\nWhen all are done, end with one sentence that sums up everything you found."
+    if let deadline = event?.deadline, run.kind.sources.first?.isWatch == false {
+      text += "\n\nThis is worth doing only until \(moment(deadline)); a follow-up or card cannot go past it."
+    }
     if redo {
       text +=
         "\n\nAn earlier try of this run stopped partway. Lines tagged [run/\(run.id)] in today's notes are from it:"
@@ -30,7 +34,9 @@ struct RunPrompts {
     return text
   }
 
-  private func text(for source: Event.Source, run: Run, today: Day, brief: ReviewBrief?) throws(HostError) -> String {
+  private func text(for source: Event.Source, run: Run, today: Day, brief: ReviewBrief?, deadline: Timestamp?)
+    throws(HostError) -> String
+  {
     switch source {
     case .panel(let name, _, _):
       let files = store.home(source.home)
@@ -40,6 +46,15 @@ struct RunPrompts {
         return context.prompts.feed(panel, source: feed.source, entries: offered, timeZone: timeZone)
       }
       return try context.prompts.panel(panel, hidden: files.panelState().marks[name] ?? [:])
+    case .watch(let finding, _):
+      return context.prompts.watch
+        .replacing(
+          "{{finding}}", with: ExternalContent.wrap(try Prompts.json(finding), from: "watch triage", tool: "watch")
+        )
+        .replacing("{{deadline}}", with: deadline.map(moment) ?? "it is dealt with")
+        .replacing("{{today}}", with: today.description)
+        .replacing("{{run}}", with: run.id.description)
+        .replacing("{{silent}}", with: Worker.silent)
     case .source(let name, _):
       let folder = DataSourceFolder(source.home)
       guard let definition = store.dataSource(named: name, in: folder),
@@ -96,6 +111,11 @@ struct RunPrompts {
       .replacing("{{run}}", with: run.id.description)
       .replacing("{{previous}}", with: previous)
       .replacing("{{panel}}", with: panelText)
+  }
+
+  /// A moment as the person's clock reads it, with the offset, as `loci` takes deadlines.
+  private func moment(_ at: Timestamp) -> String {
+    at.iso8601(in: timeZone)
   }
 
   private func text(for followUp: FollowUp, run: Run, today: Day) -> String {

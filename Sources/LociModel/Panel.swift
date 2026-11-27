@@ -87,26 +87,12 @@ public struct PanelPage: Hashable, Codable, Sendable {
   }
 }
 
-/// The entries a panel follows: a source of its home, less the ones whose title has a word in `skip`.
+/// The entries a panel follows: a source of its home. Watch triage chooses which of them it shows.
 public struct PanelFeed: Hashable, Codable, Sendable {
   public let source: String
-  /// Words that keep an entry from ever reaching Loci, matched in its title whatever the case.
-  public let skip: [String]
 
-  public init(source: String, skip: [String] = []) {
+  public init(source: String) {
     self.source = source
-    self.skip = skip
-  }
-
-  public init(from decoder: any Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    source = try container.decode(String.self, forKey: .source)
-    skip = try container.decodeIfPresent([String].self, forKey: .skip) ?? []
-  }
-
-  /// Whether the entry is let through to Loci.
-  public func admits(_ entry: SourceEntry) -> Bool {
-    !skip.contains { !$0.isEmpty && entry.title.localizedCaseInsensitiveContains($0) }
   }
 }
 
@@ -119,13 +105,26 @@ public struct PanelRefresh: Hashable, Codable, Sendable {
   public let weekday: Int?
 
   public enum Every: String, Hashable, Codable, Sendable {
-    case hour, day, week
+    case hour, day, week, interval, once
+    case tradingDay = "trading-day"
   }
 
-  public init(every: Every, at: String? = nil, weekday: Int? = nil) {
+  public let from: TimeOfDay?
+  public let to: TimeOfDay?
+  public let minutes: Int?
+  public let market: Market?
+
+  public init(
+    every: Every, at: String? = nil, weekday: Int? = nil, from: TimeOfDay? = nil, to: TimeOfDay? = nil,
+    minutes: Int? = nil, market: Market? = nil
+  ) {
     self.every = every
     self.at = at
     self.weekday = weekday
+    self.from = from
+    self.to = to
+    self.minutes = minutes
+    self.market = market
   }
 }
 

@@ -3,7 +3,7 @@ import LociConnect
 import LociModel
 import LociStore
 
-/// The next-up cards: what the companion and the reminder conditions put on a home's deck, and what the
+/// The next-up cards: what the companion puts on a home's deck, and what the
 /// person does with them. Each action claims the card in one write of the database, so a card started or
 /// approved from two Macs at once is acted on once.
 extension LocalHost {
@@ -15,11 +15,17 @@ extension LocalHost {
   }
 
   public func addNextUp(_ command: AddNextUp) async throws(HostError) -> NextUp {
+    try await addNextUp(command, fromWatch: false)
+  }
+
+  /// A watch finding's card is put once for the finding's key: the same event again never brings it back.
+  func addNextUp(_ command: AddNextUp, fromWatch: Bool) async throws(HostError) -> NextUp {
     let what = command.what.trimmingCharacters(in: .whitespacesAndNewlines)
     let question = command.question.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !what.isEmpty, !question.isEmpty else { throw .invalidRequest("a card needs what happened and a question") }
     let key = command.key ?? NextUp.key(of: what)
-    return try await loci.context.put(.ask(question: question), what: what, key: key, in: command.home)
+    return try await loci.context.put(
+      .ask(question: question), what: what, key: key, in: command.home, deadline: command.deadline, once: fromWatch)
   }
 
   /// The card keeps only the name the companion gave, if any: which calendar or list that is, the app finds once
@@ -33,7 +39,8 @@ extension LocalHost {
       throw .invalidRequest("the event ends before it starts")
     }
     return try await loci.context.put(
-      .approval(approval), what: command.why ?? approval.title, key: approval.key, in: command.home)
+      .approval(approval), what: command.why ?? approval.title, key: approval.key, in: command.home,
+      deadline: command.deadline)
   }
 
   /// Claims the card as it was shown with the message its question will be, says it, and only then lets it go.
@@ -55,6 +62,7 @@ extension LocalHost {
       let context = loci.context
       try await context.steadily { () async throws(HostError) in
         guard await context.holds(ticket) else { throw .invalidRequest(NextUp.closed) }
+        guard !claimed.isExpired(at: context.environment.now()) else { throw .invalidRequest(NextUp.expired) }
         try await run.send(Prompt(text: question, purpose: .chat), saying: question, as: message)
       }
     } catch {
@@ -64,8 +72,11 @@ extension LocalHost {
       await follow([.nextUps])
       throw error
     }
+    let startedAt = environment.now()
     _ = try? attempt {
-      try database.changeNextUp(claimed.id) { $0.place == claimed.place ? $0.with(place: .started) : nil }
+      try database.changeNextUp(claimed.id) {
+        $0.place == claimed.place ? $0.with(place: .started, adding: .init(.started, at: startedAt)) : nil
+      }
     }
     await follow([.nextUps])
     return Done()
@@ -81,12 +92,13 @@ extension LocalHost {
       case .restore: .new
       }
     let after = try claim(command.card) { card in
-      guard card.version == command.version else { return nil }
+      guard card.version == command.version, !card.isExpired(at: now) else { return nil }
       switch (card.place, command.choice) {
       case (.starting, _), (.started, _): return nil
       case (.declined, .restore), (.later, .restore): return card.with(place: place, shownAt: now)
       case (.kept, .restore): return card.with(place: place)
       case (_, .restore): return nil
+      case (_, .decline): return card.with(place: place, adding: .init(.declined, at: now))
       default: return card.with(place: place)
       }
     }
@@ -120,8 +132,11 @@ extension LocalHost {
     let found = await writes.targets(named: name, of: approval.personalKind)
     guard !found.isEmpty || name != nil else { throw .invalidRequest(Self.noDefault(approval)) }
     let execution: NextUp.Execution = found.isEmpty ? .targetGone(name ?? "") : .choosing(found)
-    _ = try claim(card.id) { now in
-      now.version == card.version && now.execution == card.execution ? now.with(execution: execution) : nil
+    let confirmedAt = environment.now()
+    _ = try claim(card.id) { stored in
+      guard stored.version == card.version, stored.execution == card.execution, !stored.isExpired(at: confirmedAt)
+      else { return nil }
+      return stored.with(execution: execution)
     }
     await follow([.nextUps])
   }
@@ -206,8 +221,10 @@ extension LocalHost {
     for card in (try? database.allNextUps()) ?? [] {
       if case .starting(let from, let message) = card.place {
         let said = (try? database.hasMessage(message)) ?? false
+        let now = environment.now()
         _ = try? database.changeNextUp(card.id) {
-          $0.place == card.place ? $0.with(place: said ? .started : from) : nil
+          $0.place == card.place
+            ? $0.with(place: said ? .started : from, adding: said ? .init(.started, at: now) : nil) : nil
         }
       }
       var execution = card.execution
@@ -278,14 +295,21 @@ extension LocalHost {
 
 extension AgentContext {
   /// Puts a card on the home's deck in one write. The same key again keeps where the person put it, unless they
-  /// started it; one they declined stays declined, and the call is refused.
-  func put(_ kind: NextUp.Kind, what: String, key: String, in home: Home) async throws(HostError) -> NextUp {
+  /// started it; one they declined stays declined, and the call is refused. With `once`, as for a watch finding's
+  /// card, a key that was ever put leaves its card as it is. A deadline that passed is refused.
+  func put(
+    _ kind: NextUp.Kind, what: String, key: String, in home: Home, deadline: Timestamp?, once: Bool = false
+  ) async throws(HostError) -> NextUp {
     let now = environment.now()
+    if let deadline, deadline <= now { throw .invalidRequest(NextUp.expired) }
     let id = environment.newID()
     let result = try attempt {
       try database.putNextUp(withKey: key, in: home) { existing in
-        guard let existing else { return NextUp(id: id, home: home, key: key, kind: kind, what: what, shownAt: now) }
-        return existing.putAgain(kind, what: what, at: now)
+        guard let existing else {
+          return NextUp(id: id, home: home, key: key, kind: kind, what: what, shownAt: now, deadline: deadline)
+        }
+        if once { return existing }
+        return existing.putAgain(kind, what: what, at: now, deadline: deadline)
       }
     }
     guard let card = result.after else { throw .invalidRequest(NextUp.declinedBefore) }
@@ -295,6 +319,7 @@ extension AgentContext {
 }
 
 extension NextUp {
+  static let expired = "This card has passed its deadline."
   static let declinedBefore = "The person declined this card before; it does not come back."
   static let changed = "This card changed or was dealt with since it was shown; look at it again."
   static let closed = "This card's project is archived or deleted."

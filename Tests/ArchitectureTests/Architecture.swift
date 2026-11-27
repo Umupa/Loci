@@ -45,7 +45,7 @@ enum Architecture {
       uses: ["LociModel"],
       frameworks: [
         "Foundation", "Observation", "SwiftUI", "AppKit", "PDFKit", "AVKit", "AVFoundation", "MediaPlayer",
-        "WebKit", "UniformTypeIdentifiers", "ImageIO", "ServiceManagement", "Charts", "os",
+        "WebKit", "UserNotifications", "UniformTypeIdentifiers", "ImageIO", "ServiceManagement", "Charts", "os",
       ],
       packages: ["Markdown", "Textual", "HighlightSwift", "SwiftMath"]),
     "Loci": Module(
@@ -119,9 +119,14 @@ enum Architecture {
         + "`PersonalWrites` in Sources/LociConnect/PersonalWrites.swift, reached through `ApproveNextUp`. "
         + "Propose an approval card instead."),
     Restriction(
-      pattern: #"\bUNUserNotificationCenter\b|\bNSSound\b|\bbadgeLabel\b|requestUserAttention"#,
-      fix: "Loci does not notify, sound or badge the Dock: what needs the person waits as a card on the deck "
-        + "(`NextUp`) until they look."),
+      pattern: #"\bUNUserNotificationCenter\b"#,
+      allowedFiles: ["Sources/LociUI/MenuBar/CardDelivery.swift"],
+      fix: "Loci notifies only of a card the person has to deal with, through `CardDelivery` in "
+        + "Sources/LociUI/MenuBar/CardDelivery.swift. Put a card on the deck (`NextUp`) instead."),
+    Restriction(
+      pattern: #"\bNSSound\b|\bbadgeLabel\b|requestUserAttention"#,
+      fix: "Loci does not sound or badge the Dock: what needs the person waits as a card on the deck "
+        + "(`NextUp`), notified once by `CardDelivery`."),
     Restriction(
       pattern: #"swift-format-ignore"#,
       fix:

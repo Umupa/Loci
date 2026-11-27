@@ -37,6 +37,7 @@ struct ApprovalCard: View {
             }
             .font(.system(size: 12.5))
             .foregroundStyle(Palette.inkMuted)
+            if !approved, let deadline = card.deadline { NextUpDeadline(deadline: deadline) }
             if let only = confirming {
               Label {
                 Text(verbatim: Self.place(only))

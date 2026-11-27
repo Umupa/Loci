@@ -5,6 +5,7 @@ struct RunAccess: Equatable, Sendable {
   let policy: RunPolicy
   let home: Home
   let repair: RepairGrant?
+  let event: Event?
 }
 
 /// What a repair may save: the one source it mends, as it was when the repair started. It is opened as the

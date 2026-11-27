@@ -39,6 +39,7 @@ public struct HomeFiles: Sendable {
     if !FileManager.default.fileExists(atPath: index.path(percentEncoded: false)) {
       try store.write(Data("# Memory\n".utf8), to: index)
     }
+    try prepareWatch()
   }
 
   /// `notes/<day>.md`, empty when nothing was noted that day.

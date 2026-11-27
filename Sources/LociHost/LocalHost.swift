@@ -27,6 +27,8 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   /// Keeps what each fetch of a data source got.
   let sourceKeeper: SourceKeeper
   let sourceLine: SourceLine
+  let watchTriage: WatchTriage
+  let nextUpExpiry: NextUpExpiry
   /// Previews of the links Loci's replies show as cards.
   let links: LinkPreviewReader
   /// The CLIs' session files, read for the usage page.
@@ -59,6 +61,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     let context = AgentContext(
       store: store, database: database, environment: environment, follower: follower, prompts: prompts, agents: agents,
       feelings: FeelingsKeeper(store: store, environment: environment, follower: follower), life: HomeLife())
+    nextUpExpiry = NextUpExpiry(context: context)
     let loci = LociAgent(context: context)
     self.loci = loci
     courses = CourseKeeper(context: context, loci: loci)
@@ -71,14 +74,20 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     self.worker = worker
     let scheduler = Scheduler(context: context)
     self.scheduler = scheduler
-    panels = PanelKeeper(context: context, worker: worker, scheduler: scheduler)
+    let panels = PanelKeeper(context: context, worker: worker, scheduler: scheduler)
+    self.panels = panels
+    let models = library.context.models
+    let watchTriage = WatchTriage(context: context, panels: panels, worker: worker) { prompt in
+      try await models.answer(prompt, for: .watch)
+    }
+    self.watchTriage = watchTriage
     let connectorKeeper = ConnectorKeeper(database: database, environment: environment, follower: follower)
     self.connectorKeeper = connectorKeeper
     let sources = SourceService(context: library.context)
     self.sources = sources
     let keeper = SourceKeeper(
       context: context, connectors: connectorKeeper,
-      refreshed: refreshed ?? NextUpConditions(context: context))
+      refreshed: refreshed, watch: watchTriage)
     sourceKeeper = keeper
     sourceLine = SourceLine(keeper: keeper)
     links = LinkPreviewReader(network: environment.media.network)
@@ -93,8 +102,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     try await start(root: root, database: url, environment: environment, refreshed: nil)
   }
 
-  /// As `start`, with `refreshed` told of each fetch of a source that worked in place of the reminder
-  /// conditions.
+  /// As `start`, with `refreshed` observing each accepted source fetch.
   static func start(root: URL, database url: URL, environment: HostEnvironment, refreshed: (any SourceRefreshed)?)
     async throws(HostStartError) -> LocalHost
   {
@@ -142,6 +150,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     do {
       prompts = try Prompts.bundled()
       try store.prepareAgent(soul: prompts.soul, replacing: prompts.previousSoul)
+      try store.migrateWatch(in: database)
     } catch {
       throw .storage(String(describing: error))
     }
@@ -157,6 +166,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     try? database.recoverRunning()
     host.agents.settleUpgradedRuntimes()
     await host.recoverNextUps()
+    await host.nextUpExpiry.look()
     for home in [Home.chat] + store.projects().map({ .project($0.id) }) {
       try? store.home(home).setMemoryWritable(false)
     }
@@ -171,6 +181,8 @@ public final class LocalHost: LociModel.Host, CommandHandler {
         {
           lastPurge = today
         }
+        await host.nextUpExpiry.look()
+        await host.watchTriage.look()
         await host.scheduler.look()
         await host.worker.consider()
       }
@@ -203,6 +215,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     await courses.close()
     await discardSetAside()
     await discardSetAsideProjects()
+    await watchTriage.close()
     await worker.close()
     await connectorKeeper.close()
     await loci.close()

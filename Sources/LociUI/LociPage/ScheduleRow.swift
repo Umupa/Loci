@@ -95,6 +95,11 @@ struct ScheduleRow: View {
   /// How often and where to: each keeps its own width and never wraps.
   private var tags: some View {
     HStack(spacing: 10) {
+      if entry.calendarUncovered == true {
+        Circle().strokeBorder(Palette.accent, lineWidth: 1.4).frame(width: 6, height: 6)
+          .help(Text(.loci("timers.calendarUncovered")))
+          .accessibilityLabel(Text(.loci("timers.calendarUncovered")))
+      }
       entry.every.words
         .font(.system(size: 11.5).monospaced())
         .foregroundStyle(Palette.inkMuted)

@@ -17,12 +17,6 @@ struct NextUpStoreTests {
       shownAt: Fixture.instant)
   }
 
-  static func condition(_ seed: UInt64, in home: Home) -> NextUpCondition {
-    NextUpCondition(
-      id: Fixture.id(seed), home: home, field: SourceField("prem.513100.premium")!, comparison: .below,
-      threshold: 0.03, say: "溢价 {value}", ask: "要不要申购", createdAt: Fixture.instant)
-  }
-
   @Test func cardsAreFoundByHomeAndByKey() throws {
     let database = try StoreDatabase.inMemory()
     try database.saveNextUp(Self.card(1, in: .chat, key: "a"))
@@ -102,26 +96,4 @@ struct NextUpStoreTests {
     #expect(try database.nextUpsDue(at: later).map(\.id) == [Fixture.id(1)])
   }
 
-  @Test func conditionsAreFoundByHomeAndBySource() throws {
-    let database = try StoreDatabase.inMemory()
-    try database.saveNextUpCondition(Self.condition(1, in: .chat))
-    try database.saveNextUpCondition(Self.condition(2, in: .project(Self.project)))
-
-    #expect(try database.nextUpConditions(of: .chat).map(\.id) == [Fixture.id(1)])
-    #expect(try database.nextUpConditions(on: SourceKey(.project(Self.project), "prem")).map(\.id) == [Fixture.id(2)])
-    #expect(try database.removeNextUpCondition(Fixture.id(1)))
-    #expect(try database.nextUpConditions(of: .chat).isEmpty)
-  }
-
-  @Test func aDeletedProjectsCardsAndConditionsGoWithIt() throws {
-    let database = try StoreDatabase.inMemory()
-    try database.saveNextUp(Self.card(1, in: .chat, key: "a"))
-    try database.saveNextUp(Self.card(2, in: .project(Self.project), key: "a"))
-    try database.saveNextUpCondition(Self.condition(3, in: .project(Self.project)))
-
-    try database.forgetProject(Self.project)
-
-    #expect(try database.nextUps(of: [.chat, .project(Self.project)]).map(\.id) == [Fixture.id(1)])
-    #expect(try database.nextUpConditions(of: .project(Self.project)).isEmpty)
-  }
 }

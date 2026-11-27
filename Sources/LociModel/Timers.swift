@@ -18,13 +18,15 @@ public struct Schedule: Hashable, Codable, Sendable, Identifiable {
   public let every: Every
   public let destination: Destination
   public let paused: Bool
+  /// How long after each time it comes due its event stays worth doing.
+  public let deadlineMinutes: Int?
   public let createdAt: Timestamp
   /// The project it was set in; `nil` for the chat's. Its panel is that project's.
   public let project: Project.ID?
 
   public init(
     id: EntityID, name: String, title: String, follow: String, every: Every, destination: Destination,
-    paused: Bool = false, createdAt: Timestamp, in home: Home
+    paused: Bool = false, createdAt: Timestamp, in home: Home, deadlineMinutes: Int? = nil
   ) {
     self.id = id
     self.name = name
@@ -33,8 +35,13 @@ public struct Schedule: Hashable, Codable, Sendable, Identifiable {
     self.every = every
     self.destination = destination
     self.paused = paused
+    self.deadlineMinutes = deadlineMinutes
     self.createdAt = createdAt
     project = home.project
+  }
+
+  public func deadline(for due: Timestamp) -> Timestamp? {
+    deadlineMinutes.map { Timestamp(millisecondsSince1970: due.millisecondsSince1970 + Int64($0) * 60_000) }
   }
 
   public var ref: ScheduleRef { .schedule(id) }
@@ -47,18 +54,20 @@ public struct ScheduleDraft: Hashable, Sendable {
   public let follow: String
   public let every: Every
   public let destination: Destination
+  public let deadlineMinutes: Int?
 
-  public init(title: String, follow: String, every: Every, destination: Destination) {
+  public init(title: String, follow: String, every: Every, destination: Destination, deadlineMinutes: Int? = nil) {
     self.title = title
     self.follow = follow
     self.every = every
     self.destination = destination
+    self.deadlineMinutes = deadlineMinutes
   }
 }
 
 extension ScheduleDraft: Codable {
   private enum CodingKeys: String, CodingKey {
-    case title, follow, every, panel
+    case title, follow, every, panel, deadlineMinutes
   }
 
   /// `{"title", "follow", "every": {"every": "day", "at": "21:00"}, "panel"?}`; without a panel, only notes.
@@ -67,6 +76,7 @@ extension ScheduleDraft: Codable {
     title = try container.decode(String.self, forKey: .title)
     follow = try container.decode(String.self, forKey: .follow)
     every = try container.decode(Every.self, forKey: .every)
+    deadlineMinutes = try container.decodeIfPresent(Int.self, forKey: .deadlineMinutes)
     destination = try container.decodeIfPresent(String.self, forKey: .panel).map(Destination.panel) ?? .notes
   }
 
@@ -75,6 +85,7 @@ extension ScheduleDraft: Codable {
     try container.encode(title, forKey: .title)
     try container.encode(follow, forKey: .follow)
     try container.encode(every, forKey: .every)
+    try container.encodeIfPresent(deadlineMinutes, forKey: .deadlineMinutes)
     if case .panel(let panel) = destination { try container.encode(panel, forKey: .panel) }
   }
 }
@@ -158,16 +169,30 @@ public struct FollowUp: Hashable, Codable, Sendable, Identifiable {
   /// Where it was set; what came of it is told in the main conversation, or in the project's when it was set in one.
   public let conversation: ConversationRef?
   public let createdAt: Timestamp
+  /// For one a run set, the run's event; its own event is one level deeper (`Event.depth`).
+  public let parent: EntityID?
+  public let depth: Int?
+  /// Its event's deadline: the parent's unless an earlier one was given.
+  public let deadline: Timestamp?
+  /// For one a run set, the same for the same words from the same event: setting it again keeps the first.
+  public let key: String?
 
   /// The project it was set in, where its run works and what came of it is told.
   public var home: Home { conversation?.home ?? .chat }
 
-  public init(id: EntityID, due: Timestamp, what: String, conversation: ConversationRef?, createdAt: Timestamp) {
+  public init(
+    id: EntityID, due: Timestamp, what: String, conversation: ConversationRef?, createdAt: Timestamp,
+    parent: EntityID? = nil, depth: Int? = nil, deadline: Timestamp? = nil, key: String? = nil
+  ) {
     self.id = id
     self.due = due
     self.what = what
     self.conversation = conversation
     self.createdAt = createdAt
+    self.parent = parent
+    self.depth = depth
+    self.deadline = deadline
+    self.key = key
   }
 }
 
@@ -202,11 +227,35 @@ public struct Timers: Hashable, Codable, Sendable {
   public let followUps: [FollowUp]
   /// When the next timer comes due; `nil` when none will.
   public let next: Timestamp?
+  /// The sources whose new entries and numbers watch triage failed to sort more than once in a row; `nil` from
+  /// an older Mac.
+  public let triage: [TriageTrouble]?
 
-  public init(schedules: [ScheduleEntry], followUps: [FollowUp], next: Timestamp?) {
+  public init(schedules: [ScheduleEntry], followUps: [FollowUp], next: Timestamp?, triage: [TriageTrouble] = []) {
     self.schedules = schedules
     self.followUps = followUps
     self.next = next
+    self.triage = triage
+  }
+}
+
+/// A source whose oldest waiting batch watch triage keeps failing to sort: why it failed last, and when.
+public struct TriageTrouble: Hashable, Codable, Sendable, Identifiable {
+  public let source: SourceKey
+  public let title: String
+  public let problem: String
+  public let tried: Timestamp
+  /// Tries that failed in a row.
+  public let failed: Int
+
+  public var id: String { source.description }
+
+  public init(source: SourceKey, title: String, problem: String, tried: Timestamp, failed: Int) {
+    self.source = source
+    self.title = title
+    self.problem = problem
+    self.tried = tried
+    self.failed = failed
   }
 }
 
@@ -226,12 +275,15 @@ public struct ScheduleEntry: Hashable, Codable, Sendable, Identifiable {
   public let lastSummary: String?
   /// When that run started; `nil` from an older Mac, or before any run finished.
   public let lastRun: Timestamp?
+  /// Its market's trading calendar does not reach its next run, which goes by weekdays; `nil` from an older Mac
+  /// or for one that follows no market.
+  public let calendarUncovered: Bool?
 
   public var id: String { ref.key }
 
   public init(
     ref: ScheduleRef, name: String, title: String, every: Every, destination: Destination, paused: Bool,
-    next: Timestamp?, lastSummary: String?, lastRun: Timestamp? = nil
+    next: Timestamp?, lastSummary: String?, lastRun: Timestamp? = nil, calendarUncovered: Bool? = nil
   ) {
     self.ref = ref
     self.name = name
@@ -242,5 +294,6 @@ public struct ScheduleEntry: Hashable, Codable, Sendable, Identifiable {
     self.next = next
     self.lastSummary = lastSummary
     self.lastRun = lastRun
+    self.calendarUncovered = calendarUncovered
   }
 }

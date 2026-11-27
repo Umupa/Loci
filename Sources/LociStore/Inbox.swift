@@ -8,12 +8,23 @@ extension StoreDatabase {
   /// Puts the event in the inbox unless one with its key is there. Whether it was put.
   @discardableResult
   public func raise(_ event: Event) throws -> Bool {
-    let body = try MirrorUpdate.json(event)
-    return try queue.write { db in
-      try db.execute(
-        sql: "INSERT OR IGNORE INTO inbox (id, key, open, body) VALUES (?, ?, ?, ?)",
-        arguments: [event.id.description, event.key, event.state.isOpen, body])
-      return db.changesCount > 0
+    try queue.write { db in try Self.raise(event, in: db) }
+  }
+
+  static func raise(_ event: Event, in db: Database) throws -> Bool {
+    try db.execute(
+      sql: "INSERT OR IGNORE INTO inbox (id, key, open, body) VALUES (?, ?, ?, ?)",
+      arguments: [event.id.description, event.key, event.state.isOpen, try MirrorUpdate.json(event)])
+    return db.changesCount > 0
+  }
+
+  /// How many of the home's events that count toward its watch budget started a run after `cutoff`.
+  public func wakeUps(in home: Home, since cutoff: Timestamp) throws -> Int {
+    try queue.read { db in
+      try String.fetchAll(
+        db, sql: "SELECT body FROM inbox WHERE json_extract(body, '$.wokeAt') > ?",
+        arguments: [cutoff.description]
+      ).lazy.compactMap { try? Self.decoded(Event.self, $0) }.filter { $0.source.home == home }.count
     }
   }
 

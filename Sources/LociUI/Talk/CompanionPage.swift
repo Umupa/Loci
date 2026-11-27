@@ -8,6 +8,7 @@ struct CompanionPage: View {
   @Environment(\.host) private var host
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.sidebarShown) private var sidebarShown
+  @Environment(\.cardDelivery) private var cardDelivery
   @Environment(\.machineChoice) private var machineChoice
   let focusRequest: Int
   let attach: () -> Void
@@ -23,6 +24,7 @@ struct CompanionPage: View {
   @State private var bar: Feed<ProjectBar>?
   @State private var starting: Starting?
   @State private var notice: Notice?
+  @State private var focusedCard: EntityID?
   @State private var nextUps: Feed<[NextUp]>?
   @State private var flight: NextUp?
   /// How many cards each seal caught, to stamp it once more.
@@ -122,14 +124,18 @@ struct CompanionPage: View {
     .onAppear {
       guard !recalled else { return }
       recalled = true
-      project = memory.recallProject()
+      project = cardDelivery?.waiting.map { $0.home.project } ?? memory.recallProject()
       if let opening { starting = opening }
     }
     .onChange(of: project) {
       memory.rememberProject(project)
       madeProjects = keptProjects
     }
-    .onChange(of: bar?.value) { settle() }
+    .onChange(of: bar?.value) {
+      settle()
+      openNotifiedCard()
+    }
+    .onChange(of: cardDelivery?.waiting, initial: true) { openNotifiedCard() }
     .task(id: notice) {
       guard let shown = notice else { return }
       try? await Task.sleep(for: .seconds(6))
@@ -212,6 +218,7 @@ struct CompanionPage: View {
   /// Times the turn when the page will change: to another home, or to the one a new project's field covers.
   private func turn(to chosen: Home) {
     guard chosen != home || starting != nil else { return }
+    focusedCard = nil
     timing?.turned(to: chosen, kept: chosen.project.map(madeProjects.contains) ?? true)
   }
 
@@ -249,9 +256,25 @@ struct CompanionPage: View {
     Dictionary((shownBar.projects + shownBar.archived).map { ($0.id, $0) }) { first, _ in first }
   }
 
+  private func openNotifiedCard() {
+    guard let route = cardDelivery?.waiting, let bar = bar?.value else { return }
+    starting = nil
+    let projects = bar.projects + bar.archived
+    let exists = route.home.project.map { id in projects.contains { $0.id == id } } ?? true
+    if exists {
+      turn(to: route.home)
+      project = route.home.project
+      focusedCard = route.card
+    }
+    cardDelivery?.waiting = nil
+  }
+
   private var deck: NextUpDeckState {
-    NextUpDeckState(
-      cards: nextUps?.value ?? [], projects: projectsMap, flying: flight?.id,
+    let cards = nextUps?.value ?? []
+    let target = cards.first { $0.id == focusedCard }
+    let shown = target.map { [$0] + cards.filter { $0.id != focusedCard } } ?? cards
+    return NextUpDeckState(
+      cards: shown, projects: projectsMap, flying: flight?.id, focused: target?.id,
       actions: NextUpActions(
         start: { card in
           if reduceMotion { land(card) } else { flight = card }

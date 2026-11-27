@@ -16,7 +16,10 @@ struct NextUpCard: View {
     NextUpFace {
       HStack(alignment: .bottom, spacing: 12) {
         VStack(alignment: .leading, spacing: 4) {
-          NextUpSource(project: project)
+          HStack(spacing: 8) {
+            NextUpSource(project: project)
+            if let deadline = card.deadline { NextUpDeadline(deadline: deadline) }
+          }
           Text(verbatim: card.what)
             .font(.system(size: 14))
             .foregroundStyle(Palette.ink)
@@ -106,5 +109,22 @@ struct NextUpChoiceFace: View {
       .background(Capsule(style: .circular).fill(pointed ? Palette.fill : .clear))
       .contentShape(Capsule(style: .circular))
       .onHover { pointed = $0 }
+  }
+}
+
+struct NextUpDeadline: View {
+  let deadline: Timestamp
+  @Environment(\.fixedNow) private var fixedNow
+
+  var body: some View {
+    Label {
+      TimerTime.label(deadline.date, now: fixedNow ?? Date())
+    } icon: {
+      Image(systemName: "clock")
+    }
+    .font(.system(size: 11.5)).monospacedDigit()
+    .foregroundStyle(Palette.accentInk)
+    .lineLimit(1)
+    .help(Text(.loci("deck.deadline")))
   }
 }

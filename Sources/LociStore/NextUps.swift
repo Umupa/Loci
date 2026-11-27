@@ -3,7 +3,7 @@ import GRDB
 import LociModel
 
 /// The next-up cards (`next_up`), one per key in each home and kept after they leave the deck so a declined
-/// one stays declined, and the reminder conditions (`next_up_condition`). They live in the database only.
+/// one stays declined. They live in the database only.
 extension StoreDatabase {
   public func nextUps(of homes: [Home]) throws -> [NextUp] {
     try queue.read { db in
@@ -88,41 +88,14 @@ extension StoreDatabase {
     }
   }
 
-  public func nextUpConditions(of home: Home) throws -> [NextUpCondition] {
-    try queue.read { db in
-      try String.fetchAll(
-        db, sql: "SELECT body FROM next_up_condition WHERE home = ? ORDER BY id", arguments: [Self.column(home)]
-      ).compactMap { try? Self.decoded(NextUpCondition.self, $0) }
-    }
-  }
-
-  /// The conditions that watch the source.
-  public func nextUpConditions(on source: SourceKey) throws -> [NextUpCondition] {
-    try queue.read { db in
-      try String.fetchAll(
-        db, sql: "SELECT body FROM next_up_condition WHERE source = ? ORDER BY id", arguments: [source.description]
-      ).compactMap { try? Self.decoded(NextUpCondition.self, $0) }
-    }
-  }
-
-  public func saveNextUpCondition(_ condition: NextUpCondition) throws {
-    let body = try MirrorUpdate.json(condition)
+  /// Forgets the feedback a daily review read; what came after it waits for the next review.
+  public func forgetFeedback(_ read: [EntityID: [NextUp.Feedback]]) throws {
     try queue.write { db in
-      try db.execute(
-        sql: """
-          INSERT INTO next_up_condition (id, home, source, body) VALUES (?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET body = excluded.body
-          """,
-        arguments: [condition.id.description, Self.column(condition.home), condition.source.description, body])
-    }
-  }
-
-  /// `false` when there was no such condition.
-  @discardableResult
-  public func removeNextUpCondition(_ id: EntityID) throws -> Bool {
-    try queue.write { db in
-      try db.execute(sql: "DELETE FROM next_up_condition WHERE id = ?", arguments: [id.description])
-      return db.changesCount > 0
+      for (id, feedback) in read {
+        let body = try String.fetchOne(db, sql: "SELECT body FROM next_up WHERE id = ?", arguments: [id.description])
+        guard let body, let card = try? Self.decoded(NextUp.self, body) else { continue }
+        try Self.put(card, try MirrorUpdate.json(card.reviewed(feedback)), in: db)
+      }
     }
   }
 
