@@ -20,7 +20,6 @@ struct ModelServicesPage: View {
     SettingsPage(symbol: Symbols.models, title: .loci("settings.models")) {
       if let model, model.state != nil {
         providers(model)
-        toolModel(model)
         TranslationGroup(model: model)
       } else if let failure = model?.failure {
         Text(failure).font(.system(size: 12)).foregroundStyle(Palette.inkMuted)
@@ -63,22 +62,6 @@ struct ModelServicesPage: View {
       AddProviderRow { adding = true }
     }
     .animation(Motion.standard, value: model.settings.providers.map(\.enabled))
-  }
-
-  private func toolModel(_ model: ModelServicesModel) -> some View {
-    SettingsGroup(title: nil) {
-      SettingsRow {
-        Text(.loci("models.toolModel"))
-      } trailing: {
-        ModelChoiceMenu(
-          groups: model.groups,
-          selection: Binding {
-            model.settings.toolModel
-          } set: { choice in
-            model.change { $0.toolModel = choice }
-          })
-      }
-    }
   }
 }
 

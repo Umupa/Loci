@@ -21,8 +21,8 @@ public struct HostEnvironment: Sendable {
   /// What each provider is on this Mac. `again` looks afresh, so a program installed since is found and
   /// can be driven; otherwise what was found last may be given.
   public let detectAgents: @Sendable (_ again: Bool) async -> [AgentInstallation]
-  /// The models a provider's program offers, in the names it takes.
-  public let models: @Sendable (Provider) async -> [String]
+  /// The models a provider's program offers now, asking it; empty when it cannot list them.
+  public let models: @Sendable (Provider) async -> [AgentModel]
   /// When to see whether the daily review is due: every minute in the app.
   public let ticks: @Sendable () -> AsyncStream<Void>
   /// The programs, network and recognizer the library uses to fetch and transcribe.
@@ -56,7 +56,7 @@ public struct HostEnvironment: Sendable {
     defaultRuntime: Runtime, discard: Discard, agents: @escaping @Sendable (Provider) async -> (any AgentDriver)?,
     unavailability: @escaping @Sendable (Provider) async -> AgentStartFailure = { _ in .notInstalled },
     detectAgents: @escaping @Sendable (_ again: Bool) async -> [AgentInstallation] = { _ in [] },
-    models: @escaping @Sendable (Provider) async -> [String] = { _ in [] },
+    models: @escaping @Sendable (Provider) async -> [AgentModel] = { _ in [] },
     ticks: @escaping @Sendable () -> AsyncStream<Void> = { AsyncStream { $0.finish() } },
     media: MediaEnvironment = .disconnected,
     wait: (@Sendable (Duration) async -> Void)? = nil,
@@ -136,18 +136,13 @@ actor InstalledAgents {
   private let tool: AgentTool?
   private var search: Task<AgentSearch, Never>?
   private var found: [AgentInstallation]?
-  private var listed: [Provider: [String]] = [:]
 
   init(tool: AgentTool?) {
     self.tool = tool
   }
 
-  /// Asked once per provider; a program that listed nothing is asked again next time.
-  func models(of provider: Provider) async -> [String] {
-    if let models = listed[provider] { return models }
-    let models = await ModelList(search: await currentSearch()).models(of: provider)
-    if !models.isEmpty { listed[provider] = models }
-    return models
+  func models(of provider: Provider) async -> [AgentModel] {
+    await ModelList(search: await currentSearch()).models(of: provider)
   }
 
   func driver(for provider: Provider) async -> (any AgentDriver)? {
@@ -168,10 +163,7 @@ actor InstalledAgents {
 
   func detect(again: Bool) async -> [AgentInstallation] {
     if !again, let found { return found }
-    if again {
-      search = nil
-      listed = [:]
-    }
+    if again { search = nil }
     let probe = AgentProbe(search: await currentSearch())
     let installations = await probe.installations()
     found = installations

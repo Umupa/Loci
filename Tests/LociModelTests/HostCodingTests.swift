@@ -188,12 +188,13 @@ struct HostCodingTests {
       ReadItemText.name, Search.name, ReadReadingState.name,
       SaveReadingPosition.name, MarkRead.name, SendMessage.name, StopTurn.name, StartOver.name,
       ReadConversationRuntime.name,
-      SetConversationRuntime.name, DetectAgents.name, AgentModels.name, DataLocation.name, SaveSoul.name, Forget.name,
+      SetConversationRuntime.name, SetDefaultRuntime.name, DetectAgents.name, DataLocation.name, SaveSoul.name,
+      Forget.name,
       SetAvatar.name, ResetAvatar.name,
     ]
     let subscriptions = [
       AllItems.name, OneItem.name, HealthReport.name, OneConversation.name, ConversationRuntime.name, LociWorking.name,
-      LociHome.name, OneDiary.name, LociAvatar.name,
+      LociHome.name, OneDiary.name, LociAvatar.name, AgentModelList.name, RuntimeOverview.name,
     ]
 
     #expect(Set(commands).count == commands.count)

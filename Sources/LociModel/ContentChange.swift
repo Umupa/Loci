@@ -23,8 +23,10 @@ public enum ContentChange: Hashable, Codable, Sendable {
   case loci(LociFile)
   /// A project was started, changed, archived, deleted or brought back, or something new happened in one.
   case projects
-  /// What a conversation runs on, or what new conversations of a kind start on, changed.
+  /// What a conversation runs on, or a kind's default, changed.
   case runtime
+  /// An agent listed its models anew and they differ from before.
+  case agentModels
   /// A schedule or follow-up, the inbox, or a run changed. They live in the database only.
   case timers
   /// A connector, a connection under way, or the record of calls changed. They live in the database and

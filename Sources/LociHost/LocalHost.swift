@@ -22,6 +22,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   let deletions = Gate(limit: 1)
   let library: LibraryRuntime
   let agents: HostAgents
+  let agentModels: AgentModelCatalog
   let sources: SourceService
   /// Keeps what each fetch of a data source got.
   let sourceKeeper: SourceKeeper
@@ -46,6 +47,15 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     self.library = library
     let agents = HostAgents(store: store, environment: environment, library: library.context)
     self.agents = agents
+    agentModels = AgentModelCatalog(
+      database: database, list: environment.models,
+      version: { provider in
+        await environment.detectAgents(false).lazy.compactMap { installation -> String? in
+          guard case .installed(let found) = installation, found.provider == provider else { return nil }
+          return found.version
+        }.first
+      },
+      now: environment.now, changed: { await follower.follow([.agentModels]) })
     let context = AgentContext(
       store: store, database: database, environment: environment, follower: follower, prompts: prompts, agents: agents,
       feelings: FeelingsKeeper(store: store, environment: environment, follower: follower), life: HomeLife())
@@ -145,6 +155,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       for await batch in changes { await host.follow(batch) }
     }
     try? database.recoverRunning()
+    host.agents.settleUpgradedRuntimes()
     await host.recoverNextUps()
     for home in [Home.chat] + store.projects().map({ .project($0.id) }) {
       try? store.home(home).setMemoryWritable(false)
@@ -181,6 +192,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       await host.hub.hold(Task { await host.library.context.backfillCovers(in: coverFolders) })
     }
     await host.provisionPiIfSelected(retry: false)
+    await host.hub.hold(Task { await host.warmAgentModels() })
     return host
   }
 

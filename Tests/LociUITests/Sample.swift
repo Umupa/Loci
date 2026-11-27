@@ -12,6 +12,8 @@ struct Sample: Sendable {
   /// Borg in Chinese, when the reader should see it translated.
   var translation: ArticleTranslation?
   let runtime = Runtime(provider: .codex, model: "gpt-6.1-sol", effort: .high)
+  /// Conversations that chose their own runtime.
+  var ownRuntimes: [RuntimeDefaults.OwnRuntime] = []
   let text = """
     Large-scale cluster management at Google with Borg
 

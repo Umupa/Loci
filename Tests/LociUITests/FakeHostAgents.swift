@@ -28,15 +28,38 @@ extension FakeHost {
 
   func detectAgents(again: Bool) async -> [AgentInstallation] { Self.installations }
 
-  func agentModels(of provider: Provider) async -> [String] {
+  func agentModels(of provider: Provider) async -> [AgentModel] {
     switch provider {
-    case .claudeCode: ["fable", "opus", "sonnet", "haiku"]
-    case .codex: ["gpt-6.1-sol", "gpt-6-luna"]
+    case .claudeCode: ["fable", "opus", "sonnet", "haiku"].map { AgentModel(id: $0, name: $0.capitalized) }
+    case .codex: [AgentModel(id: "gpt-6.1-sol", name: "GPT-6.1-Sol"), AgentModel(id: "gpt-6-luna", name: "GPT-6 Luna")]
+    case .antigravity: [AgentModel(id: "gemini-4-hydrogen", name: "Gemini 4 Hydrogen")]
     default: []
     }
   }
 
-  func runtime(of conversation: ConversationRef) async throws(HostError) -> Runtime { sample.runtime }
-  func setRuntime(_ command: SetConversationRuntime) async throws(HostError) -> Runtime { command.runtime }
+  func runtime(of conversation: ConversationRef) async throws(HostError) -> Runtime {
+    sample.ownRuntimes.first { $0.conversation == conversation }?.runtime ?? sample.runtime
+  }
+
+  func runtimeInUse(of conversation: ConversationRef) async throws(HostError) -> RuntimeInUse {
+    let own = sample.ownRuntimes.first { $0.conversation == conversation }?.runtime
+    return RuntimeInUse(runtime: own ?? sample.runtime, kindDefault: sample.runtime, isOwn: own != nil)
+  }
+
+  func runtimeDefaults() async throws(HostError) -> RuntimeDefaults {
+    RuntimeDefaults(
+      kinds: ConversationKind.allCases.map { kind in
+        .init(
+          kind: kind,
+          runtime: kind == .item ? Runtime(provider: .claudeCode, model: "opus", effort: .medium) : sample.runtime)
+      },
+      own: sample.ownRuntimes)
+  }
+
+  func setRuntime(_ command: SetConversationRuntime) async throws(HostError) -> Runtime {
+    command.runtime ?? sample.runtime
+  }
+
+  func setDefaultRuntime(_ command: SetDefaultRuntime) async throws(HostError) -> Runtime { command.runtime }
   func dataLocation() async -> HostPath { HostPath(URL(filePath: "/Users/someone/Loci-Beta")) }
 }

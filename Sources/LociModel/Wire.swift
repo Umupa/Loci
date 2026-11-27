@@ -16,8 +16,8 @@ public enum Wire {
 
   public static let commands: [CommandRoute] = [
     .writes(SendMessage.self), .writes(StopTurn.self), .writes(StartOver.self),
-    .reads(ReadConversationRuntime.self), .writes(SetConversationRuntime.self), .reads(DetectAgents.self),
-    .reads(AgentModels.self),
+    .reads(ReadConversationRuntime.self), .writes(SetConversationRuntime.self), .writes(SetDefaultRuntime.self),
+    .reads(DetectAgents.self),
     .writes(RenameCompanion.self),
     .writes(SaveSoul.self), .writes(Forget.self), .writes(ForgetWikiLine.self), .writes(SetAvatar.self, lane: .data),
     .writes(ResetAvatar.self),
@@ -65,7 +65,8 @@ public enum Wire {
     ItemMedia.self, WatchCourses.self, WatchCourse.self, WatchLesson.self,
     MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self, WatchPanelColumn.self,
     WatchTimers.self, WatchScheduleRuns.self, WatchWikiPage.self, WatchConnectors.self, WatchConnectorCalls.self,
-    AvailableModels.self, WatchProjects.self, WatchSourceHistory.self, WatchNextUps.self,
+    AvailableModels.self, WatchProjects.self, WatchSourceHistory.self, WatchNextUps.self, AgentModelList.self,
+    RuntimeOverview.self,
   ]
 
   /// The route of a command type, or `nil` when it is not registered.

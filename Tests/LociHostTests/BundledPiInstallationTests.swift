@@ -27,12 +27,12 @@ struct BundledPiInstallationTests {
           atPath: active.executable.deletingLastPathComponent().appending(path: "LICENSE").path))
       #expect(await host.needsModelSetup() == false)
       #expect(
-        try Store(root: support.root.deletingLastPathComponent(), discard: .permanently).settings().latestRuntimes[
+        try Store(root: support.root.deletingLastPathComponent(), discard: .permanently).settings().defaultRuntimes[
           .main]?.provider
           == .bundledPi)
       let model = ModelChoice(provider: provider.id, model: "test-model").runtimeModel
       #expect(try await host.runtime(of: .main).model == model)
-      #expect(await host.agentModels(of: .bundledPi) == [model, provider.id.rawValue + "/other-model"])
+      #expect(await host.agentModels(of: .bundledPi).map(\.id) == [model, provider.id.rawValue + "/other-model"])
 
       _ = try await host.run(SendMessage(to: .main, text: "Reply."))
       _ = try #require(

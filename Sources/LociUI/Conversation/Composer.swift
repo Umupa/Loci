@@ -87,7 +87,8 @@ struct Composer: View {
         }
         field.padding(.vertical, (Size.composerHeight - Self.lineHeight) / 2)
         Group {
-          RuntimeMenu(conversation: conversation, attach: attach)
+          if let conversation { RuntimeCapsule(conversation: conversation).padding(.trailing, 4) }
+          if let attach { AttachButton(attach: attach) }
           sendOrStop
         }
         .padding(.bottom, inset)

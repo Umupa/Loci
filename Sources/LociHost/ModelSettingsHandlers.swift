@@ -52,8 +52,8 @@ extension LocalHost: ModelSettingsAccess {
     if offered, environment.bundledPi != nil, await agents.detected().provider == .bundledPi {
       _ = try? attempt {
         try store.changeSettings { settings in
-          for kind in ConversationKind.allCases where settings.latestRuntimes[kind] == nil {
-            settings.latestRuntimes[kind] = Runtime(provider: .bundledPi)
+          for kind in ConversationKind.allCases where settings.defaultRuntimes[kind] == nil {
+            settings.defaultRuntimes[kind] = Runtime(provider: .bundledPi)
           }
         }
       }

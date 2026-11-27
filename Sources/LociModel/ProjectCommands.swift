@@ -46,6 +46,7 @@ public struct WatchProjects: Subscription {
       case .projects, .turnEnded, .everything, .loci(.panels): true
       case .source(let key): key.home != .chat
       case .item, .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .review, .loci, .runtime,
+        .agentModels,
         .timers, .connectors, .nextUps:
         false
       }

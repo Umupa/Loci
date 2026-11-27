@@ -65,7 +65,8 @@ public struct WatchPanelColumn: Subscription {
       switch change {
       case .loci(let file): file == .panels
       case .reading, .item, .everything, .projects, .source: true
-      case .course, .courseActivity, .notes, .job, .media, .conversation, .turnEnded, .review, .runtime, .timers,
+      case .course, .courseActivity, .notes, .job, .media, .conversation, .turnEnded, .review, .runtime, .agentModels,
+        .timers,
         .connectors, .nextUps:
         false
       }

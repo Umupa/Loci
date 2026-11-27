@@ -12,7 +12,8 @@ public struct LociWorking: Subscription {
     changes.contains { change in
       switch change {
       case .conversation, .turnEnded, .review, .job, .loci(.panels), .timers, .everything: true
-      case .course, .courseActivity, .item, .notes, .reading, .media, .loci, .runtime, .connectors, .projects, .source,
+      case .course, .courseActivity, .item, .notes, .reading, .media, .loci, .runtime, .agentModels, .connectors,
+        .projects, .source,
         .nextUps:
         false
       }
@@ -36,7 +37,8 @@ public struct LociHome: Subscription {
       switch change {
       case .loci(let file): file != .avatar && file != .panels && file != .name && file != .wiki
       case .turnEnded, .item, .everything: true
-      case .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .review, .runtime, .timers,
+      case .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .review, .runtime, .agentModels,
+        .timers,
         .connectors, .projects, .source, .nextUps:
         false
       }

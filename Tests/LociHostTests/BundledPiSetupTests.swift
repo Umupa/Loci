@@ -33,14 +33,14 @@ struct BundledPiSetupTests {
     #expect(
       try await host.run(SetConversationRuntime(Runtime(provider: .bundledPi), for: .main)).provider == .bundledPi)
     #expect(await host.detectAgents(again: false) == [.missing(.bundledPi), codex])
-    #expect(try place.store.settings().latestRuntimes[.main]?.provider == .bundledPi)
+    #expect(try place.store.settings().defaultRuntimes[.main]?.provider == .bundledPi)
     await host.close()
   }
 
   @Test func aSavedSystemPiStillMeansTheExternalProgram() async throws {
     let place = Place()
     defer { place.remove() }
-    try place.store.changeSettings { $0.latestRuntimes[.main] = Runtime(provider: .pi) }
+    try place.store.changeSettings { $0.defaultRuntimes[.main] = Runtime(provider: .pi) }
     let host = try await LocalHost.start(
       root: place.root, database: place.database, environment: environment(installations: []))
     #expect(await host.needsModelSetup() == false)

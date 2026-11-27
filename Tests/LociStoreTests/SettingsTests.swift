@@ -16,12 +16,12 @@ struct SettingsTests {
   @Test func settingsReadBackAfterSaving() throws {
     try withStore { store in
       try store.changeSettings { settings in
-        settings.latestRuntimes[.item] = Runtime(provider: .codex, model: "gpt-5", effort: .high)
+        settings.defaultRuntimes[.item] = Runtime(provider: .codex, model: "gpt-5", effort: .high)
         settings.speechModel = .recommended
       }
 
       let read = try store.settings()
-      #expect(read.latestRuntimes == [.item: Runtime(provider: .codex, model: "gpt-5", effort: .high)])
+      #expect(read.defaultRuntimes == [.item: Runtime(provider: .codex, model: "gpt-5", effort: .high)])
       #expect(read.speechModel == .recommended)
     }
   }
@@ -33,7 +33,7 @@ struct SettingsTests {
         "settings.json", #"{"agent":"grok","models":{"grok":"grok-4"},"lessonLanguage":"en","browserLogin":"chrome"}"#)
 
       let read = try store.settings()
-      #expect(read.latestRuntimes.isEmpty)
+      #expect(read.defaultRuntimes.isEmpty)
       #expect(read.browserLogin == .chrome)
     }
   }
@@ -42,19 +42,34 @@ struct SettingsTests {
     try withStore { store in
       try store.writeFile("settings.json", #"{"runtime":{"provider":"nobody"}}"#)
 
-      #expect(try store.settings().latestRuntimes.isEmpty)
+      #expect(try store.settings().defaultRuntimes.isEmpty)
     }
   }
 
-  @Test func theOneRuntimeOfEarlierVersionsIsWhatEveryKindOfConversationLastChose() throws {
+  @Test func theOneRuntimeOfEarlierVersionsIsEveryKindsDefault() throws {
     try withStore { store in
       try store.writeFile("settings.json", #"{"runtime":{"provider":"codex","model":"gpt-5"}}"#)
 
       let old = Runtime(provider: .codex, model: "gpt-5")
-      #expect(try store.settings().latestRuntimes == [.main: old, .item: old, .course: old, .project: old])
-      try store.changeSettings { $0.latestRuntimes[.item] = Runtime(provider: .antigravity) }
+      #expect(try store.settings().defaultRuntimes == [.main: old, .item: old, .course: old, .project: old])
+      try store.changeSettings { $0.defaultRuntimes[.item] = Runtime(provider: .antigravity) }
       #expect(try !store.readFile("settings.json").contains(#""runtime""#))
-      #expect(try store.settings().latestRuntimes[.project] == old)
+      #expect(try store.settings().defaultRuntimes[.project] == old)
+    }
+  }
+
+  /// L-S26: what each kind last chose up to 1.8.7 is its default, and the file says it came from then until it
+  /// is written again.
+  @Test func whatEachKindLastChoseBeforeIsItsDefault() throws {
+    try withStore { store in
+      try store.writeFile("settings.json", #"{"latestRuntimes":{"item":{"provider":"codex","model":"gpt-5"}}}"#)
+
+      let read = try store.settings()
+      #expect(read.defaultRuntimes == [.item: Runtime(provider: .codex, model: "gpt-5")])
+      #expect(read.keptEveryRuntime)
+      try store.changeSettings { _ in }
+      #expect(try !store.settings().keptEveryRuntime)
+      #expect(try store.settings().defaultRuntimes == [.item: Runtime(provider: .codex, model: "gpt-5")])
     }
   }
 
@@ -70,9 +85,9 @@ struct SettingsTests {
     try withStore { store in
       try store.writeFile("settings.json", "{ not json")
 
-      try store.changeSettings { $0.latestRuntimes[.main] = Runtime(provider: .pi) }
+      try store.changeSettings { $0.defaultRuntimes[.main] = Runtime(provider: .pi) }
 
-      #expect(try store.settings().latestRuntimes[.main] == Runtime(provider: .pi))
+      #expect(try store.settings().defaultRuntimes[.main] == Runtime(provider: .pi))
     }
   }
 }

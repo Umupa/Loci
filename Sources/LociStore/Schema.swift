@@ -237,6 +237,18 @@ enum Schema {
           );
           """)
     }
+    migrator.registerMigration("15 own runtimes and agent models") { db in
+      try db.execute(
+        sql: """
+          ALTER TABLE conversation_runtime ADD COLUMN chosen INTEGER NOT NULL DEFAULT 0;
+          CREATE TABLE agent_models (
+            provider TEXT PRIMARY KEY NOT NULL,
+            version TEXT,
+            listed INTEGER NOT NULL,
+            models TEXT NOT NULL
+          );
+          """)
+    }
     return migrator
   }
 

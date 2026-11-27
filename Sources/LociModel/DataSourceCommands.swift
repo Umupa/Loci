@@ -113,7 +113,7 @@ public struct WatchSourceHistory: Subscription {
       case .source(let key): key == source
       case .everything: true
       case .item, .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .turnEnded, .review,
-        .loci, .runtime, .timers, .connectors, .projects, .nextUps:
+        .loci, .runtime, .agentModels, .timers, .connectors, .projects, .nextUps:
         false
       }
     }

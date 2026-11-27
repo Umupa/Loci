@@ -20,7 +20,8 @@ public enum Provider: String, CaseIterable, Codable, CodingKeyRepresentable, Has
     case .claudeCode: [.low, .medium, .high, .xhigh, .max]
     case .codex: [.low, .medium, .high, .xhigh, .max]
     case .pi, .bundledPi: [.off, .minimal, .low, .medium, .high, .xhigh, .max]
-    case .omp, .grok, .antigravity, .cursor, .fx, .hermes, .opencode: []
+    case .antigravity: [.low, .medium, .high, .xhigh]
+    case .omp, .grok, .cursor, .fx, .hermes, .opencode: []
     }
   }
 }
@@ -30,7 +31,8 @@ public enum ThinkingEffort: String, CaseIterable, Codable, Hashable, Sendable {
   case off, minimal, low, medium, high, xhigh, max
 }
 
-/// What a conversation runs on: each conversation keeps its own. Soul and memory are files every runtime shares.
+/// What a conversation runs on: its kind's default, unless it chose its own. Soul and memory are files every
+/// runtime shares.
 public struct Runtime: Hashable, Sendable {
   public let provider: Provider
   /// `nil` leaves the choice to the provider.
@@ -68,8 +70,7 @@ extension Runtime: Codable {
   }
 }
 
-/// What a conversation runs on now: its own choice, else what was last chosen in a conversation of its kind,
-/// else the first agent that can run.
+/// What a conversation runs on now: its own choice, else its kind's default, else the first agent that can run.
 public struct ReadConversationRuntime: RemoteCommand {
   public static let name = "conversation.runtime.read"
   public let conversation: ConversationRef
@@ -83,20 +84,37 @@ public struct ReadConversationRuntime: RemoteCommand {
   }
 }
 
-/// Changes what one conversation runs on, and what new conversations of its kind start on. Its next turn opens
-/// a new session on it; a turn already running finishes as it began.
+/// Gives one conversation a runtime of its own, or with `nil` lets it follow its kind's default again. A choice
+/// equal to the default is the default. Its next turn opens a new session on it; a turn already running
+/// finishes as it began.
 public struct SetConversationRuntime: RemoteCommand {
   public static let name = "conversation.runtime.set"
   public let conversation: ConversationRef
-  public let runtime: Runtime
+  public let runtime: Runtime?
 
-  public init(_ runtime: Runtime, for conversation: ConversationRef) {
+  public init(_ runtime: Runtime?, for conversation: ConversationRef) {
     self.conversation = conversation
     self.runtime = runtime
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Runtime {
     try await handler.setRuntime(self)
+  }
+}
+
+/// Changes what conversations of a kind run on, except the ones that chose their own.
+public struct SetDefaultRuntime: RemoteCommand {
+  public static let name = "conversation.runtime.default"
+  public let kind: ConversationKind
+  public let runtime: Runtime
+
+  public init(_ runtime: Runtime, for kind: ConversationKind) {
+    self.kind = kind
+    self.runtime = runtime
+  }
+
+  public func run(on handler: any CommandHandler) async throws(HostError) -> Runtime {
+    try await handler.setDefaultRuntime(self)
   }
 }
 
@@ -115,35 +133,35 @@ public struct DetectAgents: RemoteCommand {
   }
 }
 
-/// The models a provider's program offers, as it names them; empty when it cannot list them. Asked once
-/// and then remembered.
-public struct AgentModels: RemoteCommand {
-  public static let name = "agents.models"
-  public let provider: Provider
-
-  public init(provider: Provider) {
-    self.provider = provider
-  }
-
-  public func run(on handler: any CommandHandler) async throws(HostError) -> [String] {
-    await handler.agentModels(of: provider)
-  }
-}
-
 /// What a conversation runs on, kept current.
 public struct ConversationRuntime: Subscription {
-  public static let name = "conversation.runtime"
+  public static let name = "conversation.runtime.use"
   public let conversation: ConversationRef
 
   public init(_ conversation: ConversationRef) {
     self.conversation = conversation
   }
 
-  public func value(from handler: any CommandHandler) async throws(HostError) -> Runtime {
-    try await handler.runtime(of: conversation)
+  public func value(from handler: any CommandHandler) async throws(HostError) -> RuntimeInUse {
+    try await handler.runtimeInUse(of: conversation)
   }
 
   public func isAffected(by changes: Set<ContentChange>) -> Bool {
     changes.contains(.runtime) || changes.contains(.everything)
+  }
+}
+
+/// What one conversation runs on, and what it would run on without a choice of its own.
+public struct RuntimeInUse: Hashable, Codable, Sendable {
+  public let runtime: Runtime
+  /// What conversations of its kind run on.
+  public let kindDefault: Runtime
+  /// Whether the conversation chose its own; `runtime` is then that choice.
+  public let isOwn: Bool
+
+  public init(runtime: Runtime, kindDefault: Runtime, isOwn: Bool) {
+    self.runtime = runtime
+    self.kindDefault = kindDefault
+    self.isOwn = isOwn
   }
 }

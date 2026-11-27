@@ -3,8 +3,11 @@ import LociModel
 
 /// `settings.json` at the top of the Loci folder: choices that belong to this host.
 public struct HostSettings: Hashable, Sendable {
-  /// What was last chosen in a conversation of each kind; a new conversation of that kind starts on it.
-  public var latestRuntimes: [ConversationKind: Runtime] = [:]
+  /// What conversations of each kind run on unless they chose their own.
+  public var defaultRuntimes: [ConversationKind: Runtime] = [:]
+  /// Whether the file came from a version up to 1.8.7, where every conversation kept the runtime it first opened
+  /// on. Written back without it.
+  public private(set) var keptEveryRuntime = false
   /// The Whisper model recognition uses; `nil` until one is chosen.
   public var speechModel: SpeechModel?
   public var browserLogin: BrowserLogin = .none
@@ -18,17 +21,21 @@ public struct HostSettings: Hashable, Sendable {
 
 extension HostSettings: Codable {
   private enum CodingKeys: String, CodingKey {
-    case latestRuntimes, runtime, speechModel, browserLogin, importChoice, keyPointChoice
+    case defaultRuntimes, latestRuntimes, runtime, speechModel, browserLogin, importChoice, keyPointChoice
   }
 
-  /// A setting that cannot be read is left unchosen rather than losing the others. The one runtime versions up to
-  /// 1.8.5 kept for the whole app is what every kind of conversation last chose.
+  /// A setting that cannot be read is left unchosen rather than losing the others. What each kind last chose up
+  /// to 1.8.7, or the one runtime versions up to 1.8.5 kept for the whole app, is each kind's default.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    if let latest = try? container.decodeIfPresent([ConversationKind: Runtime].self, forKey: .latestRuntimes) {
-      latestRuntimes = latest
+    if let defaults = try? container.decodeIfPresent([ConversationKind: Runtime].self, forKey: .defaultRuntimes) {
+      defaultRuntimes = defaults
+    } else if let latest = try? container.decodeIfPresent([ConversationKind: Runtime].self, forKey: .latestRuntimes) {
+      defaultRuntimes = latest
+      keptEveryRuntime = true
     } else if let old = try? container.decodeIfPresent(Runtime.self, forKey: .runtime) {
-      latestRuntimes = Dictionary(uniqueKeysWithValues: ConversationKind.allCases.map { ($0, old) })
+      defaultRuntimes = Dictionary(uniqueKeysWithValues: ConversationKind.allCases.map { ($0, old) })
+      keptEveryRuntime = true
     }
     speechModel = try? container.decodeIfPresent(SpeechModel.self, forKey: .speechModel)
     browserLogin = (try? container.decodeIfPresent(BrowserLogin.self, forKey: .browserLogin)) ?? BrowserLogin.none
@@ -38,7 +45,7 @@ extension HostSettings: Codable {
 
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
-    if !latestRuntimes.isEmpty { try container.encode(latestRuntimes, forKey: .latestRuntimes) }
+    if !defaultRuntimes.isEmpty { try container.encode(defaultRuntimes, forKey: .defaultRuntimes) }
     try container.encodeIfPresent(speechModel, forKey: .speechModel)
     if browserLogin != .none { try container.encode(browserLogin, forKey: .browserLogin) }
     try container.encodeIfPresent(importChoice, forKey: .importChoice)

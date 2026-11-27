@@ -238,7 +238,6 @@ actor AgentRun {
   /// The live session, or a new one when the session cannot go on. Gives why a new one was opened, or `nil`
   /// when the turn goes on in the session it had.
   private func openSession() async throws(TurnFailure) -> (any AgentSession, SessionRotation.Reason?) {
-    if case .turn(let conversation) = work { await context.agents.keep(runtimeOf: conversation) }
     let selection = await context.agents.selection(for: work.runsOn)
     let runtime = selection.runtime
     let instructions = try TurnFailure.from { () throws(HostError) in try context.instructions(for: home) }

@@ -127,7 +127,8 @@ public struct AcpDriver: AgentDriver {
           within: .seconds(20))
       }
       if setModel == .requireConfigOption {
-        try await selectModel(configuration, setup: setup, session: id, channel: channel)
+        let options = try await selectModel(configuration, setup: setup, session: id, channel: channel)
+        try await selectEffort(configuration, among: options ?? setup, session: id, channel: channel)
       }
       await channel.beginSession()
       return AcpSession(
@@ -140,20 +141,39 @@ public struct AcpDriver: AgentDriver {
     }
   }
 
+  /// What the agent answered with when the model was set through its configuration options: the options as they
+  /// are for that model. `nil` when no model was set or it was set another way.
+  @discardableResult
   private func selectModel(
     _ configuration: SessionConfiguration, setup: JSONValue, session: String, channel: AcpChannel
-  ) async throws(AgentError) {
-    guard let setModel, let model = configuration.model else { return }
+  ) async throws(AgentError) -> JSONValue? {
+    guard let setModel, let model = configuration.model else { return nil }
     if let config = try setModel.selector(in: setup) {
-      _ = try await channel.request(
+      return try await channel.request(
         "session/set_config_option",
         .object(["sessionId": .string(session), "configId": .string(config), "value": .string(model)]),
         within: setModel == .requireConfigOption ? .seconds(15) : .seconds(30))
-    } else {
-      _ = try await channel.request(
-        "session/set_model", .object(["sessionId": .string(session), "modelId": .string(model)]),
-        within: .seconds(30))
     }
+    _ = try await channel.request(
+      "session/set_model", .object(["sessionId": .string(session), "modelId": .string(model)]),
+      within: .seconds(30))
+    return nil
+  }
+
+  /// Sets the thinking level when the model offers the one asked for; a model that offers none, or not that one,
+  /// thinks as it does by default.
+  private func selectEffort(
+    _ configuration: SessionConfiguration, among answer: JSONValue, session: String, channel: AcpChannel
+  ) async throws(AgentError) {
+    guard let effort = configuration.effort?.rawValue,
+      let option = (answer["configOptions"]?.array ?? []).first(where: { $0["category"]?.string == "thought_level" }),
+      let config = option["id"]?.string,
+      (option["options"]?.array ?? []).contains(where: { $0["value"]?.string == effort })
+    else { return }
+    _ = try await channel.request(
+      "session/set_config_option",
+      .object(["sessionId": .string(session), "configId": .string(config), "value": .string(effort)]),
+      within: .seconds(15))
   }
 
   private static func isMissing(_ handle: SessionHandle, directory: URL, channel: AcpChannel) async -> Bool {

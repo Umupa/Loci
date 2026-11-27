@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The pages of Loci's own page.
 enum LociTab: Hashable {
-  case soul, memory, diary, timers, connectors, usage
+  case soul, models, memory, diary, timers, connectors, usage
 }
 
 /// Loci's own page: its face, which the person can change, its name, what they have done together, and its
@@ -36,7 +36,8 @@ struct LociScreen: View {
         CapsulePicker(
           selection: $tab,
           options: [
-            (.soul, .loci("loci.soul")), (.memory, .loci("loci.memory")), (.diary, .loci("loci.diary")),
+            (.soul, .loci("loci.soul")), (.models, .loci("loci.models")), (.memory, .loci("loci.memory")),
+            (.diary, .loci("loci.diary")),
             (.timers, .loci("loci.timers")), (.connectors, .loci("connectors.tab")),
             (.usage, .loci("usage.tab")),
           ]
@@ -47,6 +48,7 @@ struct LociScreen: View {
           Group {
             switch tab {
             case .soul: SoulTab(soul: page.soul)
+            case .models: ModelsTab()
             case .memory: MemoryTab(memory: page.memory, profile: page.profile, today: page.today, opened: wikiPage)
             case .diary: DiaryTab(diaries: page.diaries)
             case .timers: TimersTab(opened: opened)

@@ -122,9 +122,12 @@ public protocol CommandHandler: Sendable {
   func setAvatar(_ command: SetAvatar) async throws(HostError) -> Done
   func resetAvatar() async throws(HostError) -> Done
   func detectAgents(again: Bool) async -> [AgentInstallation]
-  func agentModels(of provider: Provider) async -> [String]
+  func agentModels(of provider: Provider) async -> [AgentModel]
   func runtime(of conversation: ConversationRef) async throws(HostError) -> Runtime
+  func runtimeInUse(of conversation: ConversationRef) async throws(HostError) -> RuntimeInUse
+  func runtimeDefaults() async throws(HostError) -> RuntimeDefaults
   func setRuntime(_ command: SetConversationRuntime) async throws(HostError) -> Runtime
+  func setDefaultRuntime(_ command: SetDefaultRuntime) async throws(HostError) -> Runtime
   func dataLocation() async -> HostPath
   func probeLink(_ command: ProbeLink) async throws(HostError) -> LinkProbe
   func importChoice() async throws(HostError) -> ImportChoice

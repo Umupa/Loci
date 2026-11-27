@@ -43,12 +43,12 @@ enum Agents {
   }
 
   /// The models a picker offers: what the agent lists, and the one in use even if it does not list it.
-  static func offered(_ listed: [String], keeping current: String?) -> [String] {
-    guard let current, !listed.contains(current) else { return listed }
-    return [current] + listed
+  static func offered(_ listed: [AgentModel], keeping current: String?) -> [AgentModel] {
+    guard let current, !listed.contains(where: { $0.id == current }) else { return listed }
+    return [AgentModel(id: current, name: modelName(current))] + listed
   }
 
-  /// A model as people say it: a Claude alias capitalized, and Pi's provider prefix dropped.
+  /// A model the agent did not list, as people say it: a Claude alias capitalized, and Pi's provider prefix dropped.
   static func modelName(_ model: String) -> String {
     if ["fable", "opus", "sonnet", "haiku"].contains(model) { return model.capitalized }
     return model.split(separator: "/").last.map(String.init) ?? model

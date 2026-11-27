@@ -24,14 +24,19 @@ struct HostAgents: Sendable {
     }
   }
 
-  /// What the conversation has chosen, else what was last chosen in one of its kind; `nil` before either.
+  /// What the conversation chose, else its kind's default; `nil` before either.
   func chosenRuntime(of conversation: ConversationRef) -> Runtime? {
     if let own = try? library.database.runtime(of: conversation) { return own }
-    return (try? store.settings())?.latestRuntimes[conversation.kind]
+    return (try? store.settings())?.defaultRuntimes[conversation.kind]
   }
 
-  /// What the conversation runs on: what it chose, else what was last chosen in one of its kind, else the first
-  /// agent that can run.
+  /// What conversations of the kind run on: its default, else the first agent that can run.
+  func kindDefault(_ kind: ConversationKind) async -> Runtime {
+    if let set = (try? store.settings())?.defaultRuntimes[kind] { return set }
+    return await detected()
+  }
+
+  /// What the conversation runs on: what it chose, else its kind's default, else the first agent that can run.
   func runtime(of conversation: ConversationRef) async -> Runtime {
     if let chosen = chosenRuntime(of: conversation) { return chosen }
     return await detected()
@@ -43,20 +48,40 @@ struct HostAgents: Sendable {
     chosenRuntime(of: conversation) ?? environment.defaultRuntime
   }
 
-  /// Keeps `runtime` for the conversation and for new conversations of its kind.
-  func choose(_ runtime: Runtime, for conversation: ConversationRef) throws(HostError) {
+  /// Gives the conversation `runtime` as its own, or lets it follow its kind's default when `runtime` is `nil` or
+  /// the default. The main conversation is the only one of its kind, so what it chooses is its kind's default.
+  func choose(_ runtime: Runtime?, for conversation: ConversationRef, at time: Timestamp) async throws(HostError) {
+    if conversation == .main, let runtime { return try setDefault(runtime, for: .main) }
+    let kindDefault = await kindDefault(conversation.kind)
     try attempt {
-      try library.database.setRuntime(runtime, of: conversation)
-      try store.changeSettings { $0.latestRuntimes[conversation.kind] = runtime }
+      if let runtime, runtime != kindDefault {
+        try library.database.setRuntime(runtime, of: conversation, at: time)
+      } else {
+        try library.database.clearRuntime(of: conversation)
+      }
     }
   }
 
-  /// Gives the conversation, when it has none yet, the runtime it runs on now as its own, so a choice made in
-  /// another conversation of its kind leaves it as it is.
-  func keep(runtimeOf conversation: ConversationRef) async {
-    guard (try? library.database.runtime(of: conversation)) == nil else { return }
-    let runtime = await runtime(of: conversation)
-    try? library.database.setRuntime(runtime, of: conversation)
+  /// Makes `runtime` the kind's default. Conversations of the kind that chose the same follow the default from now.
+  func setDefault(_ runtime: Runtime, for kind: ConversationKind) throws(HostError) {
+    try attempt {
+      try store.changeSettings { $0.defaultRuntimes[kind] = runtime }
+      try library.database.dropRuntimes(equalTo: [kind: runtime])
+    }
+  }
+
+  /// Up to 1.8.7 a conversation kept the runtime it first opened on. The ones still on their kind's latest choice
+  /// follow it as their default from now; the others keep theirs as their own. The main conversation's is its
+  /// kind's default.
+  func settleUpgradedRuntimes() {
+    guard let settings = try? store.settings(), settings.keptEveryRuntime else { return }
+    var defaults = settings.defaultRuntimes
+    if let main = try? library.database.runtime(of: .main) {
+      defaults[.main] = main
+      try? library.database.clearRuntime(of: .main)
+    }
+    try? library.database.dropRuntimes(equalTo: defaults)
+    _ = try? store.changeSettings { $0.defaultRuntimes = defaults }
   }
 
   /// The first agent that can run: what the host was started with when it is installed, else the first installed
@@ -148,11 +173,11 @@ struct HostAgents: Sendable {
     }
   }
 
-  /// On the bundled Pi, every model the model services offer, as `ModelChoice.runtimeModel`.
-  func models(of provider: Provider) async -> [String] {
+  /// Every model the model services offer, as `ModelChoice.runtimeModel`, for the bundled Pi.
+  func models(of provider: Provider) async -> [AgentModel] {
     guard provider == .bundledPi else { return await environment.models(provider) }
     let groups = (try? await library.models.options().groups) ?? []
-    return groups.flatMap { $0.choices() }.map(\.runtimeModel)
+    return groups.flatMap { $0.choices() }.map { AgentModel(id: $0.runtimeModel, name: $0.model) }
   }
 
   private func bundledDriver(_ selection: Selection) -> PiDriver? {
