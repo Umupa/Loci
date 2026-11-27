@@ -8,9 +8,9 @@ extension FakeHost {
 
   func conversation(_ conversation: ConversationRef) async throws(HostError) -> Conversation {
     let empty = Conversation(ref: conversation, entries: [], turn: nil)
+    if let chat, chat.ref == conversation { return chat }
     switch conversation {
     case .main:
-      if let chat { return chat }
       if let library { return library.mainConversation(working: working) }
       return (try? sample.chat()) ?? empty
     case .project:

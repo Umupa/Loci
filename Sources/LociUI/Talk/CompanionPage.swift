@@ -109,7 +109,6 @@ struct CompanionPage: View {
     }
     .animation(reduceMotion ? nil : Motion.standard, value: notice)
     .animation(reduceMotion ? nil : Motion.standard, value: starting == nil)
-    .showingDocuments(coversPanels: true)
     .subscribing(WatchProjects(), into: $bar)
     .subscribing(WatchNextUps(of: home), into: $nextUps)
     .onChange(of: home) {

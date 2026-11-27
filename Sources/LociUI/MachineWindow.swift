@@ -103,6 +103,7 @@ struct MachineWindow: View {
       .nowPlaying(nowPlaying, items: items?.value ?? [], front: window.pages.last?.itemID) {
         window = window.opening($0)
       }
+      .showingDocuments(coversPanels: true)
     }
     .onGeometryChange(for: CGFloat.self) {
       $0.size.width
