@@ -23,7 +23,7 @@ struct EpisodeHead: View {
         .shadow(color: .black.opacity(0.14), radius: 12, y: 8)
       VStack(alignment: .leading, spacing: 0) {
         if let show = item.site ?? item.authors.first {
-          Text(verbatim: show).font(Typography.bodyEmphasis).foregroundStyle(Palette.inkMuted)
+          SourceName(item: item, name: show).font(Typography.bodyEmphasis).foregroundStyle(Palette.inkMuted)
         }
         Text(serif: item.title, Typography.mediaTitle)
           .foregroundStyle(Palette.ink)

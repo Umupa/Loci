@@ -21,6 +21,7 @@ struct LinkKindTests {
     ("https://example.com/paper.pdf", .paper),
     ("https://kubernetes.io/docs/concepts/scheduling-eviction/", .article),
     ("https://www.youtube.com/@channel", .article),
+    ("https://podcasts.apple.com/cn/podcast/show/id1634356920", .article),
   ]
 
   @Test(arguments: cases)

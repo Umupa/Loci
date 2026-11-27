@@ -124,7 +124,8 @@ struct WorkerScenarioTests {
   }
 }
 
-/// WK-S10: in a run in the background, `loci` only reads, sets follow-ups and saves the run's own panel.
+/// WK-S10, FO-S8: in a run in the background, `loci` only reads, sets follow-ups and saves the run's own panel; it
+/// sees who the person follows but cannot follow anyone.
 @Suite(.timeLimit(.minutes(1)))
 struct RunToolScenarioTests {
   static func refused(_ reply: LocalReply?) -> String? {
@@ -165,6 +166,10 @@ struct RunToolScenarioTests {
         Self.refused(await Background.call(.feeling(.sleep), from: session, on: host))
           == RunPolicy.timers.refusal("mood"))
       #expect(Self.refused(await Background.call(.upload(path: "/tmp/a.mp4"), from: session, on: host)) != nil)
+      #expect(Self.worked(await call(ListFollows())))
+      #expect(
+        Self.refused(await call(AddFollow(link)))
+          == RunPolicy.timers.refusal(AddFollow.name))
       #expect(try await host.run(ListItems()).isEmpty)
       #expect(try await host.timers().followUps.map(\.conversation) == [nil])
     }

@@ -158,7 +158,7 @@ private struct PanelPicture: View {
   let url: URL
   let link: URL?
   let open: (URL) -> Void
-  @Environment(\.panelPictures) private var pictures
+  @Environment(\.webPictures) private var pictures
   @Environment(\.host) private var host
 
   var body: some View {

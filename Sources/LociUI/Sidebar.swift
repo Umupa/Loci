@@ -8,6 +8,7 @@ import SwiftUI
 /// elsewhere.
 struct Sidebar: View {
   @Environment(\.machineChoice) private var machineChoice
+  @Environment(\.flights) private var flights
   @Binding var place: Place
   /// Whether the chat or the companion's home page is on screen.
   let lociChosen: Bool
@@ -31,6 +32,17 @@ struct Sidebar: View {
       row(.library(nil), Text(.loci("sidebar.allItems")), symbol: Symbols.library)
       ForEach(LibraryCategory.allCases, id: \.self) { category in
         row(.library(category), Text(Messages.name(of: category)), symbol: Symbols.category(category))
+          .flightMark(.category(category))
+          .overlay {
+            RoundedRectangle(cornerRadius: Radius.sidebarRow, style: .continuous)
+              .fill(Palette.accent.opacity(flights?.glowing == category ? 0.32 : 0))
+              .allowsHitTesting(false)
+          }
+          .task(id: flights?.glowing == category) {
+            guard flights?.glowing == category else { return }
+            try? await Task.sleep(for: .milliseconds(420))
+            withAnimation(.easeOut(duration: 0.7)) { flights?.settled(category) }
+          }
       }
       row(.courses(nil), Text(.loci("sidebar.courses")), symbol: Symbols.course)
       row(.browser, Text(.loci("sidebar.browser")), symbol: Symbols.browser)

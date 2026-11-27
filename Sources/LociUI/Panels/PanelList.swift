@@ -189,7 +189,7 @@ private struct AskButton: View {
 /// A picture before a list line's title, read by its address.
 private struct PanelCover: View {
   let url: URL
-  @Environment(\.panelPictures) private var pictures
+  @Environment(\.webPictures) private var pictures
   @Environment(\.host) private var host
 
   var body: some View {

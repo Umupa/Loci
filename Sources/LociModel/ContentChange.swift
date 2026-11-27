@@ -36,6 +36,9 @@ public enum ContentChange: Hashable, Codable, Sendable {
   case source(SourceKey)
   /// A next-up card or a reminder condition changed. They live in the database only.
   case nextUps
+  /// A follow was added or removed, was opened, or brought new episodes. They live in `follows.json` and the
+  /// database.
+  case follows
   /// Events were lost or a change could not be placed; read everything again.
   case everything
 }

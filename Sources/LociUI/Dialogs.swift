@@ -7,6 +7,8 @@ struct Dialogs {
   var importing = false
   /// What waits in the import panel.
   var intake: PendingImport?
+  /// The channel, show or feed link the follow card is about.
+  var following: URL?
   /// What went wrong. A change refused because the Mac is offline is not told: the window already says so.
   var failure: HostError? {
     didSet { if case .offline? = failure { failure = nil } }

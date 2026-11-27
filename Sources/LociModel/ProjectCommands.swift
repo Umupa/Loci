@@ -47,7 +47,7 @@ public struct WatchProjects: Subscription {
       case .source(let key): key.home != .chat
       case .item, .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .review, .loci, .runtime,
         .agentModels,
-        .timers, .connectors, .nextUps:
+        .timers, .connectors, .nextUps, .follows:
         false
       }
     }

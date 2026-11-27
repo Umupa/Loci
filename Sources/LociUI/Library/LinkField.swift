@@ -7,19 +7,24 @@ struct LinkField: View {
   let category: LibraryCategory?
   let add: (URL) -> Void
   let chooseFiles: () -> Void
+  /// Puts the keyboard in the field each time it changes.
+  var focusRequest = 0
   @Environment(\.changesAllowed) private var changesAllowed
+  @Environment(\.followCardLink) private var followCardLink
   @State private var text = ""
+  @FocusState private var focused: Bool
 
   var body: some View {
     let prompt = Text(Self.prompt(for: category))
     HStack(spacing: Spacing.s) {
       Image(systemName: Symbols.link)
         .font(.system(size: 14, weight: .medium))
-        .foregroundStyle(Self.link(in: text) == nil ? Palette.inkFaint : Palette.accent)
+        .foregroundStyle(Self.link(in: text) == nil && followCardLink == nil ? Palette.inkFaint : Palette.accent)
         .accessibilityHidden(true)
       TextField(text: $text, prompt: prompt.foregroundStyle(Palette.inkFaint)) { prompt }
         .textFieldStyle(.plain)
         .font(.system(size: 14))
+        .focused($focused)
         .onSubmit(submit)
       Button(action: chooseFiles) {
         HStack(spacing: 6) {
@@ -40,8 +45,15 @@ struct LinkField: View {
     .padding(.trailing, 6)
     .frame(height: Size.linkField)
     .background(Capsule().fill(Palette.surface))
-    .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+    .overlay(
+      Capsule(style: .circular).strokeBorder(
+        followCardLink == nil ? Palette.lineStrong : Palette.accent,
+        lineWidth: followCardLink == nil ? Size.hairline : 1)
+    )
+    .animation(Motion.quick, value: followCardLink)
+    .flightMark(.linkField)
     .disabled(!changesAllowed)
+    .onChange(of: focusRequest) { focused = true }
   }
 
   private func submit() {

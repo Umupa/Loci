@@ -10,6 +10,7 @@ struct MachineWindow: View {
   @Environment(\.cardDelivery) private var cardDelivery
   @Environment(\.openedFiles) private var openedFiles
   @Environment(\.signInReturns) private var signInReturns
+  @Environment(\.standIns) private var standIns
   @State private var window = WindowState()
   @State private var restored = false
   @State private var items: Feed<[Item]>?
@@ -25,7 +26,8 @@ struct MachineWindow: View {
   @State private var covers = Covers()
   @State private var deletions = Deletions()
   @State private var linkPreviews = LinkPreviews()
-  @State private var panelPictures = PanelPictures()
+  @State private var webPictures = WebPictures()
+  @State private var flights = Flights()
   @State private var browser: BrowserSession
   @State private var nowPlaying = NowPlaying()
   @State private var conversationVisits = ConversationVisits()
@@ -76,10 +78,11 @@ struct MachineWindow: View {
   /// What every view in the window can reach.
   private func sharing(_ content: some View) -> some View {
     content
-      .environment(\.covers, covers)
-      .environment(\.deletions, deletions)
-      .environment(\.linkPreviews, linkPreviews)
-      .environment(\.panelPictures, panelPictures)
+      .modifier(
+        WindowShared(
+          covers: covers, deletions: deletions, linkPreviews: linkPreviews, pictures: webPictures, flights: flights,
+          followCardLink: dialogs.following)
+      )
       .environment(\.browser, browser)
       .environment(\.nowPlaying, nowPlaying)
       .environment(\.companionName, name?.value ?? "")
@@ -93,13 +96,8 @@ struct MachineWindow: View {
   /// The layout with what floats over it and the window's own buttons and keys.
   private var windowed: some View {
     layout
-      .overlay {
-        if let pending = dialogs.intake {
-          ImportSheet(pending: pending, close: { dialogs.intake = nil }, open: { window = window.opening(.item($0)) })
-            .id(pending)
-            .transition(.opacity)
-        }
-      }
+      .overlay { FlightLayer() }
+      .overlay { WindowFloating(dialogs: $dialogs) { window = window.opening(.item($0)) } }
       .animation(Motion.standard, value: dialogs.intake)
       .overlay { if (saving?.value ?? nil) != nil { WindowGlow() } }
       .animation(.easeInOut(duration: 0.6), value: (saving?.value ?? nil) != nil)
@@ -118,7 +116,7 @@ struct MachineWindow: View {
       PageStack(pages: $window.pages) {
         placeView.environment(\.openPlace, openPlace)
       } destination: { page in
-        ItemScreen(destination: page).environment(\.openPlace, openPlace)
+        PageScreen(page: page).environment(\.openPlace, openPlace)
       }
       .nowPlaying(nowPlaying, items: items?.value ?? [], front: window.pages.last?.itemID) {
         window = window.opening($0)
@@ -343,7 +341,8 @@ struct MachineWindow: View {
   }
 
   private var takeIn: TakeIn {
-    TakeIn(host: host, ask: { dialogs.intake = $0 }, failed: { dialogs.failure = $0 })
+    TakeIn(
+      host: host, ask: { dialogs.intake = $0 }, follow: { dialogs.following = $0 }, failed: { dialogs.failure = $0 })
   }
 
   /// Takes in the books the Finder opened with Loci and opens the last one.
@@ -394,5 +393,6 @@ struct MachineWindow: View {
     restored = true
     let recalled = memory.recall()
     window = itemIDs.map(recalled.keeping(items:)) ?? recalled
+    dialogs.following = standIns?.followCard
   }
 }

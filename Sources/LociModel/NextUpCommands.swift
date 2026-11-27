@@ -21,7 +21,7 @@ public struct WatchNextUps: Subscription {
       switch change {
       case .nextUps, .projects, .everything: true
       case .item, .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .turnEnded, .review, .loci,
-        .runtime, .agentModels, .timers, .connectors, .source:
+        .runtime, .agentModels, .timers, .connectors, .source, .follows:
         false
       }
     }
