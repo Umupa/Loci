@@ -226,6 +226,17 @@ enum Schema {
           CREATE INDEX next_up_condition_source ON next_up_condition(source);
           """)
     }
+    migrator.registerMigration("14 conversation runtime") { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE conversation_runtime (
+            owner TEXT PRIMARY KEY NOT NULL,
+            provider TEXT NOT NULL,
+            model TEXT,
+            effort TEXT
+          );
+          """)
+    }
     return migrator
   }
 

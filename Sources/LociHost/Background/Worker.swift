@@ -259,7 +259,8 @@ actor Worker {
     do throws(HostError) {
       guard current?.stopped != true else { throw .invalidRequest(ToolGateway.stopped) }
       let owner: SessionOwner = if case .review(let day, nil) = run.kind { .review(day) } else { .run(run.id) }
-      let agent = try AgentRun(owner: owner, home: run.kind.home, session: .run(run.id), context: context)
+      let agent = try AgentRun(
+        owner: owner, work: work(of: run), home: run.kind.home, session: .run(run.id), context: context)
       current?.agent = agent
       try await agent.startOver()
       let text = try RunPrompts(context: context).text(for: run, redo: redo, brief: current?.brief)
@@ -277,6 +278,23 @@ actor Worker {
     }
     activity.end()
     await finish(run.with(usage: usage), result)
+  }
+
+  /// What the run is for: a follow-up runs on the conversation that set it, a repair on the conversation of its
+  /// source's home, a review on its home's conversation, and panels and schedules on the tool model.
+  private func work(of run: Run) -> ModelWork.Session {
+    switch run.kind {
+    case .review(_, let project): return .review(Home(project))
+    case .timers(let timed):
+      switch timed.first {
+      case .followUp(let id, let project):
+        let set = ((try? context.database.followUp(id)) ?? nil)?.conversation
+        return .followUp(setIn: set ?? Home(project).conversation)
+      case .source(let name, let project): return .repair(SourceKey(Home(project), name))
+      case .review(_, let project): return .review(Home(project))
+      case .schedule, .panel: return .refresh
+      }
+    }
   }
 
   private func finish(_ run: Run, _ said: RunResult) async {

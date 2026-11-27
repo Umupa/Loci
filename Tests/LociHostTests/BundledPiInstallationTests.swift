@@ -27,10 +27,11 @@ struct BundledPiInstallationTests {
           atPath: active.executable.deletingLastPathComponent().appending(path: "LICENSE").path))
       #expect(await host.needsModelSetup() == false)
       #expect(
-        try Store(root: support.root.deletingLastPathComponent(), discard: .permanently).settings().runtime?.provider
+        try Store(root: support.root.deletingLastPathComponent(), discard: .permanently).settings().latestRuntimes[
+          .main]?.provider
           == .bundledPi)
       let model = ModelChoice(provider: provider.id, model: "test-model").runtimeModel
-      #expect(try await host.runtime().model == model)
+      #expect(try await host.runtime(of: .main).model == model)
       #expect(await host.agentModels(of: .bundledPi) == [model, provider.id.rawValue + "/other-model"])
 
       _ = try await host.run(SendMessage(to: .main, text: "Reply."))
@@ -60,9 +61,7 @@ struct BundledPiInstallationTests {
   @Test func theCompanionRunsOnTheModelChosenForItWhateverTranslationUses() async throws {
     try await withPiHost { host, _, platform, provider in
       var settings = ModelSettings(providers: [provider])
-      settings.uses = ModelUses(
-        translation: ModelChoice(provider: provider.id, model: "test-model"),
-        transcripts: ModelChoice(provider: provider.id, model: "test-model"))
+      settings.toolModel = ModelChoice(provider: provider.id, model: "test-model")
       _ = try await host.saveModelSettings(settings)
       _ = try await host.setModelKey("fixture-value", for: provider.id)
       _ = try await host.run(InstallComponent(.bundledPi))
@@ -72,9 +71,9 @@ struct BundledPiInstallationTests {
             && setup.components.contains { $0.component == .bundledPi && $0.installation != .missing }
         })
       let companion = ModelChoice(provider: provider.id, model: "other-model").runtimeModel
-      _ = try await host.setRuntime(SetRuntime(Runtime(provider: .bundledPi, model: companion)))
-      #expect(try await host.runtime().model == companion)
-      #expect(try await host.readModelSettings().settings.uses == settings.uses)
+      _ = try await host.setRuntime(SetConversationRuntime(Runtime(provider: .bundledPi, model: companion), for: .main))
+      #expect(try await host.runtime(of: .main).model == companion)
+      #expect(try await host.readModelSettings().settings.toolModel == settings.toolModel)
 
       _ = try await host.run(SendMessage(to: .main, text: "Reply."))
       _ = try #require(await value(host.subscribe(OneConversation(.main))) { $0.turn == nil && $0.entries.count > 1 })
@@ -82,6 +81,58 @@ struct BundledPiInstallationTests {
         platform.invocations.last { $0.arguments.contains("--mode") && !$0.arguments.contains("--no-session") })
       #expect(launch.arguments.contains("loci-model/other-model"))
     }
+  }
+
+  /// M-S15
+  @Test func aPanelRefreshRunsOnTheBundledPiWithTheToolModel() async throws {
+    try await withPiHost { host, _, platform, provider in
+      var settings = ModelSettings(providers: [provider])
+      settings.toolModel = ModelChoice(provider: provider.id, model: "other-model")
+      _ = try await host.saveModelSettings(settings)
+      _ = try await host.setModelKey("fixture-value", for: provider.id)
+      _ = try await host.run(InstallComponent(.bundledPi))
+      _ = try #require(
+        await value(host.subscribe(MediaSettings())) { setup in
+          setup.components.contains(ComponentStatus(component: .bundledPi, installation: .managed(version: "1.6.0")))
+            && !setup.componentWork.contains { $0.component == .bundledPi }
+        })
+      _ = try await host.run(SavePanel(PanelScenarioTests.radar))
+
+      _ = try await host.run(RefreshPanel(PanelRef("radar")))
+
+      let launch = try await Self.launch(on: platform) { $0.arguments.contains("loci-model/other-model") }
+      #expect(launch.environment?["LOCI_SESSION"] != nil)
+    }
+  }
+
+  /// M-S15
+  @Test func withTheBundledPiMissingARefreshStartsItsDownloadAndRunsOnTheMainConversation() async throws {
+    try await withPiHost { host, _, platform, provider in
+      _ = try await host.run(SetConversationRuntime(Runtime(provider: .codex), for: .main))
+      var settings = ModelSettings(providers: [provider])
+      settings.toolModel = ModelChoice(provider: provider.id, model: "other-model")
+      _ = try await host.saveModelSettings(settings)
+      _ = try await host.setModelKey("fixture-value", for: provider.id)
+      #expect(platform.downloads == 0)
+      _ = try await host.run(SavePanel(PanelScenarioTests.radar))
+
+      _ = try await host.run(RefreshPanel(PanelRef("radar")))
+
+      for _ in 0..<500 where platform.downloads == 0 { try await Task.sleep(for: .milliseconds(10)) }
+      #expect(platform.downloads == 1)
+    }
+  }
+
+  private static func launch(on platform: PiInstallationPlatform, where match: (Invocation) -> Bool) async throws
+    -> Invocation
+  {
+    for _ in 0..<500 {
+      if let found = platform.invocations.last(where: { $0.arguments.contains("--mode") && match($0) }) {
+        return found
+      }
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    throw HostError.notFound("launch")
   }
 
   @Test(arguments: [true, false])

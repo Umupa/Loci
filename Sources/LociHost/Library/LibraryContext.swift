@@ -31,9 +31,11 @@ struct LibraryContext: Sendable {
 
   var speechModel: SpeechModel { settings.speechModel ?? .recommended }
 
-  /// What `use` is done with, preferring `choice`; only ever a model service, `nil` when none is configured.
-  func modelWork(preferring choice: ModelChoice?, for use: ModelUse) async throws(HostError) -> TranscriptWork? {
-    guard let work = try await models.work(preferring: choice, for: use) else { return nil }
+  /// What `request` is done with, preferring `choice`; only ever a model service, `nil` when none is configured.
+  func modelWork(preferring choice: ModelChoice?, for request: ModelWork.Request) async throws(HostError)
+    -> TranscriptWork?
+  {
+    guard let work = try await models.work(preferring: choice, for: request.model) else { return nil }
     let service = work.service
     return TranscriptWork(
       agent: work.agent, parallelism: models.parallelism,
@@ -41,16 +43,22 @@ struct LibraryContext: Sendable {
       settings: work.settings, cache: models.cache)
   }
 
-  /// The agent that names speakers: whatever Loci runs on.
-  func runtimeWriter(_ preferred: Runtime?) async -> (any RuntimeTranscriptAgent, Runtime)? {
-    let agents = HostAgents(store: store, environment: environment, library: self)
-    let selection = await agents.selection(preferred)
-    let runtime = selection.runtime
-    if runtime.provider == .bundledPi {
-      guard let driver = await agents.driver(for: selection) else { return nil }
-      return (AgentTranscriptAgent(runtime: runtime, agents: { _ in driver }), runtime)
+  /// What does `request`: the model service, else, when the request does so, a one-off session on the main
+  /// conversation's runtime; `nil` when neither can.
+  func writer(for request: ModelWork.Request) async -> (any TranscriptAgent)? {
+    if let work = try? await modelWork(preferring: nil, for: request) { return work.agent }
+    switch request.withoutModel {
+    case .waitForSetup:
+      return nil
+    case .mainConversation:
+      let agents = HostAgents(store: store, environment: environment, library: self)
+      let selection = await agents.selection(for: .conversation(.main))
+      if selection.runtime.provider == .bundledPi {
+        guard let driver = await agents.driver(for: selection) else { return nil }
+        return AgentTranscriptAgent(runtime: selection.runtime, agents: { _ in driver })
+      }
+      return media.transcriptAgent.map { $0(selection.runtime) }
     }
-    return media.transcriptAgent.map { ($0(runtime), runtime) }
   }
 }
 

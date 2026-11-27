@@ -9,6 +9,20 @@ public enum ConversationRef: Hashable, Codable, Sendable {
   public var home: Home {
     if case .project(let id) = self { .project(id) } else { .chat }
   }
+
+  public var kind: ConversationKind {
+    switch self {
+    case .main: .main
+    case .item: .item
+    case .course: .course
+    case .project: .project
+    }
+  }
+}
+
+/// The kinds of conversation; a new one starts on what was last chosen in one of its kind.
+public enum ConversationKind: String, CaseIterable, Codable, CodingKeyRepresentable, Hashable, Sendable {
+  case main, item, course, project
 }
 
 /// Everything said in one conversation, oldest first, and the turn running now.

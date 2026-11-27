@@ -19,7 +19,7 @@ struct KeyPointChoiceBar: View {
         } set: {
           choice = KeyPointChoice(model: $0, count: choice.count)
         },
-        shown: model, following: .loci("keypoints.followSettings"))
+        shown: model, following: .loci("models.followToolModel"))
       Spacer(minLength: 0)
       CountSegments(
         count: Binding {

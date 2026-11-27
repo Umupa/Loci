@@ -20,6 +20,7 @@ extension StoreDatabase {
         try db.execute(
           sql: "DELETE FROM message WHERE session_id IN (SELECT id FROM session WHERE owner = ?)", arguments: [owner])
         try db.execute(sql: "DELETE FROM session WHERE owner = ?", arguments: [owner])
+        try db.execute(sql: "DELETE FROM conversation_runtime WHERE owner = ?", arguments: [owner])
       }
       for run in runs {
         try db.execute(sql: "DELETE FROM run_schedule WHERE run_id = ?", arguments: [run.description])

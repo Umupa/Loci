@@ -256,23 +256,6 @@
         }
       }
     },
-    "agents.runsOn": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion Runtime"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "伙伴运行时"
-          }
-        }
-      }
-    },
     "appearance.auto": {
       "extractionState": "manual",
       "localizations": {
@@ -3940,23 +3923,6 @@
         }
       }
     },
-    "keypoints.followSettings": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As in Settings"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "跟随设置"
-          }
-        }
-      }
-    },
     "keypoints.configureModels": {
       "extractionState": "manual",
       "localizations": {
@@ -6379,57 +6345,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "获取模型"
-          }
-        }
-      }
-    },
-    "models.uses": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Used For"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "用在"
-          }
-        }
-      }
-    },
-    "models.useTranslation": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Translation"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "翻译"
-          }
-        }
-      }
-    },
-    "models.useTranscripts": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chapters & Key Points"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "章节与重点"
           }
         }
       }
@@ -11428,6 +11343,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "翻译完再整理排版"
+          }
+        }
+      }
+    },
+    "models.toolModel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tool Model"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工具模型"
+          }
+        }
+      }
+    },
+    "models.translationModel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型"
+          }
+        }
+      }
+    },
+    "models.followToolModel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Same as Tool Model"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟工具模型"
           }
         }
       }

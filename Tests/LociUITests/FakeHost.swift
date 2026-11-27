@@ -161,8 +161,6 @@ extension ModelOptions {
     let chosen = ModelChoice(provider: ModelProviderID(.openRouter), model: "gemini-3-flash")
     return ModelOptions(
       groups: [deepSeek, openRouter],
-      uses: ModelUses(
-        translation: ModelChoice(provider: ModelProviderID(.deepSeek), model: "deepseek-chat"),
-        transcripts: chosen))
+      toolModel: chosen, translationModel: ModelChoice(provider: ModelProviderID(.deepSeek), model: "deepseek-chat"))
   }()
 }

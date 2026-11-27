@@ -14,7 +14,7 @@ struct ModelServiceTests {
       _ = try await host.saveModelSettings(ModelSettings(providers: [ModelProvider(.openAI), ModelProvider(.kimi)]))
       let state = try await host.readModelSettings()
       #expect(state.keys == [ModelProviderID(.openAI)])
-      _ = try await host.run(ReadRuntime())
+      _ = try await host.run(ReadConversationRuntime(.main))
       _ = try await host.modelOptions()
       #expect(keys.reads == 0)
     }
@@ -97,7 +97,7 @@ struct ModelServiceTests {
 
       let settings = try await configureModels(host)
       let chosen = ModelChoice(provider: ModelProviderID(.openAI), model: "fixture")
-      #expect(settings.uses == ModelUses(translation: chosen, transcripts: chosen))
+      #expect(settings.toolModel == chosen)
       #expect(try await host.modelOptions().groups.map(\.provider) == [ModelProviderID(.openAI)])
     }
   }
@@ -111,7 +111,7 @@ struct ModelServiceTests {
       let state = try await host.readModelSettings()
       #expect(state.keys == [ModelProviderID(.deepSeek)])
       let chosen = ModelChoice(provider: ModelProviderID(.deepSeek), model: "deepseek-chat")
-      #expect(state.settings.uses == ModelUses(translation: chosen, transcripts: chosen))
+      #expect(state.settings.toolModel == chosen)
       _ = try await host.testModel(nil, on: ModelProviderID(.deepSeek))
       #expect(await network.keys == ["Bearer kept-key"])
     }

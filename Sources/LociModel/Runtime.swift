@@ -30,7 +30,7 @@ public enum ThinkingEffort: String, CaseIterable, Codable, Hashable, Sendable {
   case off, minimal, low, medium, high, xhigh, max
 }
 
-/// What Loci runs on: one setting for the whole app. Soul and memory are files every runtime shares.
+/// What a conversation runs on: each conversation keeps its own. Soul and memory are files every runtime shares.
 public struct Runtime: Hashable, Sendable {
   public let provider: Provider
   /// `nil` leaves the choice to the provider.
@@ -68,24 +68,30 @@ extension Runtime: Codable {
   }
 }
 
-/// What Loci runs on now.
-public struct ReadRuntime: RemoteCommand {
-  public static let name = "runtime.read"
+/// What a conversation runs on now: its own choice, else what was last chosen in a conversation of its kind,
+/// else the first agent that can run.
+public struct ReadConversationRuntime: RemoteCommand {
+  public static let name = "conversation.runtime.read"
+  public let conversation: ConversationRef
 
-  public init() {}
+  public init(_ conversation: ConversationRef) {
+    self.conversation = conversation
+  }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Runtime {
-    try await handler.runtime()
+    try await handler.runtime(of: conversation)
   }
 }
 
-/// Changes what Loci runs on. Every conversation's next turn opens a new session on it; a turn already
-/// running finishes as it began.
-public struct SetRuntime: RemoteCommand {
-  public static let name = "runtime.set"
+/// Changes what one conversation runs on, and what new conversations of its kind start on. Its next turn opens
+/// a new session on it; a turn already running finishes as it began.
+public struct SetConversationRuntime: RemoteCommand {
+  public static let name = "conversation.runtime.set"
+  public let conversation: ConversationRef
   public let runtime: Runtime
 
-  public init(_ runtime: Runtime) {
+  public init(_ runtime: Runtime, for conversation: ConversationRef) {
+    self.conversation = conversation
     self.runtime = runtime
   }
 
@@ -124,14 +130,17 @@ public struct AgentModels: RemoteCommand {
   }
 }
 
-/// What Loci runs on, kept current.
-public struct CurrentRuntime: Subscription {
-  public static let name = "runtime"
+/// What a conversation runs on, kept current.
+public struct ConversationRuntime: Subscription {
+  public static let name = "conversation.runtime"
+  public let conversation: ConversationRef
 
-  public init() {}
+  public init(_ conversation: ConversationRef) {
+    self.conversation = conversation
+  }
 
   public func value(from handler: any CommandHandler) async throws(HostError) -> Runtime {
-    try await handler.runtime()
+    try await handler.runtime(of: conversation)
   }
 
   public func isAffected(by changes: Set<ContentChange>) -> Bool {

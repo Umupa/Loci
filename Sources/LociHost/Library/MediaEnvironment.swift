@@ -22,9 +22,8 @@ public struct MediaEnvironment: Sendable {
   public let arm: Bool
   /// Fetches articles and papers; `nil` where it is not available, and those jobs fail saying so.
   public let textFetching: (any TextFetching)?
-  /// Writes translations and outlines on what Loci runs on; `nil` leaves those stages
-  /// waiting for an agent.
-  public let transcriptAgent: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)?
+  /// Names speakers in a one-off session on a runtime while there is no tool model; `nil` names nobody then.
+  public let transcriptAgent: (@Sendable (Runtime) -> any TranscriptAgent)?
   /// Fetches sources and runs their scripts; over `sourceNetwork` unless given.
   public let dataSources: any DataSourceRunning
   /// Reads the pages data sources read as no one, apart from the library's fetching.
@@ -34,7 +33,7 @@ public struct MediaEnvironment: Sendable {
     support: URL, runner: any ProgramRunner, network: any Network, transcriber: any Transcribing,
     searchPaths: [URL], proxy: @escaping @Sendable () -> String? = { nil }, readerLanguage: String,
     arm: Bool = true, textFetching: (any TextFetching)? = nil,
-    transcriptAgent: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)? = nil, diarizer: (any Diarizing)? = nil,
+    transcriptAgent: (@Sendable (Runtime) -> any TranscriptAgent)? = nil, diarizer: (any Diarizing)? = nil,
     sourceNetwork: (any Network)? = nil, dataSources: (any DataSourceRunning)? = nil,
     sourcePages: SourcePages = SourcePages(hops: HopNetwork())
   ) {

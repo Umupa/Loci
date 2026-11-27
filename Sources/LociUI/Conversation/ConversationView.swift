@@ -35,7 +35,7 @@ struct ConversationScreen<Tail: View>: View {
 
   private var view: some View {
     ConversationView(
-      conversation: conversation?.value, draft: $draft,
+      conversation: conversation?.value, ref: ref, draft: $draft,
       revealPassage: { openPage.follow($0, in: ref, reveal: revealPassage) },
       send: { (text: String, passage: Passage?) async throws(HostError) -> Done in
         try await host.run(SendMessage(to: ref, text: text, passage: passage, lesson: lesson))
@@ -98,6 +98,8 @@ extension ConversationScreen where Tail == EmptyView {
 /// measured, not where the lazy stack guessed its rows would end.
 struct ConversationView<Tail: View>: View {
   let conversation: Conversation?
+  /// Which conversation, for what it runs on before it arrives.
+  var ref: ConversationRef?
   @Binding var draft: PassageDraft?
   let revealPassage: @MainActor (Locator) -> Void
   let send: (String, Passage?) async throws(HostError) -> Done
@@ -226,7 +228,8 @@ struct ConversationView<Tail: View>: View {
     .onChange(of: conversation?.turn != nil, initial: true) { _, working in panelRequest.working(working) }
     .safeAreaInset(edge: .bottom, spacing: 0) {
       Composer(
-        busy: conversation?.turn != nil, draft: $draft, send: send, stop: stop, startOver: startOver,
+        conversation: ref ?? conversation?.ref, busy: conversation?.turn != nil, draft: $draft, send: send, stop: stop,
+        startOver: startOver,
         style: scale == .main ? .talk : .companion, attach: scale == .main ? attach : nil, focusRequest: focusRequest,
         making: panelRequest.making, made: panelRequest.made, fill: panelRequest.fill
       )

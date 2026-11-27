@@ -24,11 +24,44 @@ struct HostAgents: Sendable {
     }
   }
 
-  var savedRuntime: Runtime? { (try? store.settings())?.runtime }
-  var provisionalRuntime: Runtime { savedRuntime ?? environment.defaultRuntime }
+  /// What the conversation has chosen, else what was last chosen in one of its kind; `nil` before either.
+  func chosenRuntime(of conversation: ConversationRef) -> Runtime? {
+    if let own = try? library.database.runtime(of: conversation) { return own }
+    return (try? store.settings())?.latestRuntimes[conversation.kind]
+  }
 
-  func chosen() async -> Runtime {
-    if let savedRuntime { return savedRuntime }
+  /// What the conversation runs on: what it chose, else what was last chosen in one of its kind, else the first
+  /// agent that can run.
+  func runtime(of conversation: ConversationRef) async -> Runtime {
+    if let chosen = chosenRuntime(of: conversation) { return chosen }
+    return await detected()
+  }
+
+  /// As `runtime(of:)` without looking for agents: what the host was started with stands in for the first that
+  /// can run.
+  func provisionalRuntime(of conversation: ConversationRef) -> Runtime {
+    chosenRuntime(of: conversation) ?? environment.defaultRuntime
+  }
+
+  /// Keeps `runtime` for the conversation and for new conversations of its kind.
+  func choose(_ runtime: Runtime, for conversation: ConversationRef) throws(HostError) {
+    try attempt {
+      try library.database.setRuntime(runtime, of: conversation)
+      try store.changeSettings { $0.latestRuntimes[conversation.kind] = runtime }
+    }
+  }
+
+  /// Gives the conversation, when it has none yet, the runtime it runs on now as its own, so a choice made in
+  /// another conversation of its kind leaves it as it is.
+  func keep(runtimeOf conversation: ConversationRef) async {
+    guard (try? library.database.runtime(of: conversation)) == nil else { return }
+    let runtime = await runtime(of: conversation)
+    try? library.database.setRuntime(runtime, of: conversation)
+  }
+
+  /// The first agent that can run: what the host was started with when it is installed, else the first installed
+  /// CLI, else the bundled Pi.
+  func detected() async -> Runtime {
     guard environment.bundledPi != nil else { return environment.defaultRuntime }
     let installed = await environment.detectAgents(false).compactMap { candidate -> Provider? in
       guard case .installed(let found) = candidate, found.provider != .fx else { return nil }
@@ -38,8 +71,40 @@ struct HostAgents: Sendable {
     return Runtime(provider: installed.first ?? .bundledPi)
   }
 
-  func selection(_ preferred: Runtime? = nil) async -> Selection {
-    let runtime = if let preferred { preferred } else { await chosen() }
+  /// What a session for `engine` opens on.
+  func selection(for engine: SessionEngine) async -> Selection {
+    switch engine {
+    case .conversation(let conversation):
+      return await selection(await runtime(of: conversation))
+    case .toolModel:
+      if let tool = await toolRuntime() { return await selection(tool) }
+      return await selection(await runtime(of: .main))
+    }
+  }
+
+  /// As `selection(for:)` without looking for agents.
+  func provisionalRuntime(for engine: SessionEngine) -> Runtime {
+    switch engine {
+    case .conversation(let conversation): provisionalRuntime(of: conversation)
+    case .toolModel: provisionalRuntime(of: .main)
+    }
+  }
+
+  /// The bundled Pi on the tool model; `nil` while there is no tool model, or the bundled Pi is not on this Mac,
+  /// when it starts downloading.
+  private func toolRuntime() async -> Runtime? {
+    guard environment.bundledPi != nil, let options = try? await library.models.options(),
+      options.offers(options.toolModel), let tool = options.toolModel
+    else { return nil }
+    guard library.equipment.support.activePi() != nil else {
+      let equipment = library.equipment
+      Task { await equipment.install(.bundledPi, retry: false) }
+      return nil
+    }
+    return Runtime(provider: .bundledPi, model: tool.runtimeModel)
+  }
+
+  func selection(_ runtime: Runtime) async -> Selection {
     guard runtime.provider == .bundledPi, let credential = try? await library.models.piCredential(for: runtime)
     else {
       return Selection(runtime: runtime)
@@ -69,7 +134,7 @@ struct HostAgents: Sendable {
     guard environment.bundledPi != nil else { return external }
     let bundled: AgentInstallation
     if let active = library.equipment.support.activePi() {
-      let credential = try? await library.models.piCredential(for: provisionalRuntime)
+      let credential = try? await library.models.piCredential(for: Runtime(provider: .bundledPi))
       bundled = .installed(
         .init(
           provider: .bundledPi, executable: HostPath(active.executable), version: active.version,

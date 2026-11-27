@@ -58,7 +58,7 @@ extension FakeHost {
 
   func keyPointsPage(_ item: EntityID) async throws(HostError) -> KeyPointsPage {
     let choice = KeyPointChoice(model: nil, count: .some)
-    let model = modelOptions.model(preferring: choice.model, for: .transcripts)
+    let model = modelOptions.model(preferring: choice.model, for: .tool)
     switch keyPoints {
     case .none: return KeyPointsPage(keyPoints: nil, picking: nil, choice: choice, model: model)
     case .picking: return KeyPointsPage(keyPoints: nil, picking: .running, choice: choice, model: model)

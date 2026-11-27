@@ -57,7 +57,7 @@ extension JobRun {
   }
 
   private func nameSpeakers(in transcript: Transcript) async -> [Int: String] {
-    guard let (agent, _) = await context.runtimeWriter(nil) else { return [:] }
+    guard let agent = await context.writer(for: .speakerNames) else { return [:] }
     let description = (try? context.store.workText(named: Self.info, of: item))
       .flatMap { try? MediaInfo(json: Data($0.utf8)).description }
     return await queue.gates.agents.through {

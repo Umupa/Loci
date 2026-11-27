@@ -12,6 +12,8 @@ import os
 /// starts; the person sees one conversation either way.
 actor AgentRun {
   let owner: SessionOwner
+  /// What the sessions are for, which says what they run on.
+  let work: ModelWork.Session
   /// Where the sessions work, and whose notes and transcripts they keep.
   let home: Home
   let toolSession: LocalSession?
@@ -40,8 +42,11 @@ actor AgentRun {
   /// shown a few words at a time.
   static let showEvery = Duration.milliseconds(50)
 
-  init(owner: SessionOwner, home: Home, session: LocalSession?, context: AgentContext) throws(HostError) {
+  init(
+    owner: SessionOwner, work: ModelWork.Session, home: Home, session: LocalSession?, context: AgentContext
+  ) throws(HostError) {
     self.owner = owner
+    self.work = work
     self.home = home
     toolSession = session
     self.context = context
@@ -233,7 +238,8 @@ actor AgentRun {
   /// The live session, or a new one when the session cannot go on. Gives why a new one was opened, or `nil`
   /// when the turn goes on in the session it had.
   private func openSession() async throws(TurnFailure) -> (any AgentSession, SessionRotation.Reason?) {
-    let selection = await context.agents.selection()
+    if case .turn(let conversation) = work { await context.agents.keep(runtimeOf: conversation) }
+    let selection = await context.agents.selection(for: work.runsOn)
     let runtime = selection.runtime
     let instructions = try TurnFailure.from { () throws(HostError) in try context.instructions(for: home) }
     let fingerprint = SessionRotation.fingerprint(
@@ -334,7 +340,8 @@ actor AgentRun {
   private func holdingSession() throws -> SessionRecord {
     if let record = session ?? holding { return record }
     let fresh = SessionRecord(
-      id: context.environment.newID(), owner: owner, runtime: context.runtime, instructions: "",
+      id: context.environment.newID(), owner: owner, runtime: context.agents.provisionalRuntime(for: work.runsOn),
+      instructions: "",
       startedAt: context.environment.now())
     try context.database.start(fresh)
     holding = fresh

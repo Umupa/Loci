@@ -81,7 +81,7 @@ struct ModelTranslationTests {
       #expect(try await article(host, paragraphs: [paragraph]).language == "ja")
 
       settings.providers[0].models.append(ProviderModel(id: "different-model", checked: true))
-      settings.uses.translation = ModelChoice(provider: settings.providers[0].id, model: "different-model")
+      settings.translation.model = ModelChoice(provider: settings.providers[0].id, model: "different-model")
       _ = try await host.saveModelSettings(settings)
       _ = try await article(host, paragraphs: [paragraph])
 

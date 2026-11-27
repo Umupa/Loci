@@ -35,7 +35,8 @@ actor LociAgent {
     }
     if let run = runs[conversation] { return run }
     let run = try AgentRun(
-      owner: .conversation(conversation), home: conversation.home, session: tool, context: context)
+      owner: .conversation(conversation), work: .turn(conversation), home: conversation.home, session: tool,
+      context: context)
     runs[conversation] = run
     return run
   }

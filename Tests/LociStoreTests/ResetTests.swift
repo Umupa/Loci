@@ -16,7 +16,7 @@ struct ResetTests {
         try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
         try FileManager.default.moveItem(at: url, to: trash.appending(path: url.lastPathComponent))
       })
-    try store.changeSettings { $0.runtime = Runtime(provider: .codex) }
+    try store.changeSettings { $0.latestRuntimes[.main] = Runtime(provider: .codex) }
     try store.writeFile("agent/MEMORY.md", "# Memory\n- 喜欢读论文\n")
     try store.writeFile("library/borg/item.json", "{}")
     try store.writeFile("loci.sqlite", "")
@@ -25,7 +25,7 @@ struct ResetTests {
 
     let left = try FileManager.default.contentsOfDirectory(atPath: root.path(percentEncoded: false))
     #expect(left == [Store.settingsFile])
-    #expect(try store.settings().runtime == Runtime(provider: .codex))
+    #expect(try store.settings().latestRuntimes[.main] == Runtime(provider: .codex))
     let discarded = trash.appending(path: root.lastPathComponent)
     #expect(try String(contentsOf: discarded.appending(path: "agent/MEMORY.md"), encoding: .utf8).contains("论文"))
     #expect(FileManager.default.fileExists(atPath: discarded.appending(path: "library/borg/item.json").path()))

@@ -2,15 +2,14 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// The plus button in the field at the foot of a conversation, opening a menu: adding a file, then what
-/// Loci runs on, the agent, the model and thinking effort, each a submenu. What Loci runs on is one setting
-/// for the whole app.
+/// The plus button in the field at the foot of a conversation, opening a menu: adding a file, then what the
+/// conversation runs on, the agent, the model and thinking effort, each a submenu. Each conversation keeps its own.
 struct RuntimeMenu: View {
   @Environment(\.host) private var host
   @Environment(\.openPlace) private var openPlace
   @Environment(\.colorScheme) private var scheme
-  /// Whether the agent can be chosen here too, or only the model and thinking.
-  let choosesAgent: Bool
+  /// `nil` until the conversation is known, when the menu only adds files.
+  let conversation: ConversationRef?
   /// What adding a file does; without it the menu has no such item.
   var attach: (() -> Void)?
   @State private var runtime: Feed<Runtime>?
@@ -38,7 +37,7 @@ struct RuntimeMenu: View {
     .fixedSize()
     .accessibilityLabel(Text(.loci("talk.add")))
     .changesData()
-    .subscribing(CurrentRuntime(), into: $runtime)
+    .subscribing(conversation.map(ConversationRuntime.init), into: $runtime)
     .subscribing(MediaSettings(), into: $equipment)
     .task(id: piInstallation) {
       installations = (try? await host.run(DetectAgents())) ?? []
@@ -65,21 +64,19 @@ struct RuntimeMenu: View {
   }
 
   @ViewBuilder private func choices(_ current: Runtime) -> some View {
-    if choosesAgent {
-      Picker(selection: provider(current)) {
-        ForEach(Agents.choosable(installations, keeping: current.provider), id: \.self) { provider in
-          Label {
-            Text(Agents.label(of: provider))
-          } icon: {
-            AgentMark.image(provider, in: scheme).map { Image(nsImage: $0).renderingMode(.original) }
-          }
-          .tag(provider)
+    Picker(selection: provider(current)) {
+      ForEach(Agents.choosable(installations, keeping: current.provider), id: \.self) { provider in
+        Label {
+          Text(Agents.label(of: provider))
+        } icon: {
+          AgentMark.image(provider, in: scheme).map { Image(nsImage: $0).renderingMode(.original) }
         }
-      } label: {
-        Text(.loci("agents.provider"))
+        .tag(provider)
       }
-      .pickerStyle(.menu)
+    } label: {
+      Text(.loci("agents.provider"))
     }
+    .pickerStyle(.menu)
     Picker(selection: model(current)) {
       if current.provider != .bundledPi { Text(.loci("agents.anyModel")).tag(String?.none) }
       ForEach(Agents.offered(models, keeping: current.model), id: \.self) { model in
@@ -135,15 +132,19 @@ struct RuntimeMenu: View {
   }
 
   private func change(_ runtime: Runtime) {
-    Task { await chooseRuntime(runtime, on: host, openPlace: openPlace) }
+    guard let conversation else { return }
+    Task { await chooseRuntime(runtime, for: conversation, on: host, openPlace: openPlace) }
   }
 }
 
-/// Chooses what Loci runs on. The bundled Pi, before it is ready, opens the model services when none offers a
-/// model yet, else the companion's settings, where it downloads.
+/// Chooses what a conversation runs on. The bundled Pi, before it is ready, opens the model services when none
+/// offers a model yet, else the agents' settings, where it downloads.
 @MainActor
-func chooseRuntime(_ runtime: Runtime, on host: any LociModel.Host, openPlace: OpenPlace) async {
-  guard (try? await host.run(SetRuntime(runtime))) != nil, runtime.provider == .bundledPi,
+func chooseRuntime(
+  _ runtime: Runtime, for conversation: ConversationRef, on host: any LociModel.Host, openPlace: OpenPlace
+) async {
+  guard (try? await host.run(SetConversationRuntime(runtime, for: conversation))) != nil,
+    runtime.provider == .bundledPi,
     let access = await host.modelSettingsAccess()
   else { return }
   let installations = (try? await host.run(DetectAgents())) ?? []

@@ -2,7 +2,7 @@ import LociModel
 import SwiftUI
 
 /// The glass capsule floating at the foot of a conversation: the passage being asked about, the field, a
-/// plus menu for adding a file and choosing what Loci runs on, and send or stop.
+/// plus menu for adding a file and choosing what this conversation runs on, and send or stop.
 struct Composer: View {
   /// The main conversation, or the one beside something read, which asks rather than talks and has no
   /// room for adding files.
@@ -10,6 +10,8 @@ struct Composer: View {
     case talk, companion
   }
 
+  /// Which conversation; the plus menu chooses its runtime once it is known.
+  let conversation: ConversationRef?
   let busy: Bool
   @Binding var draft: PassageDraft?
   let send: (String, Passage?) async throws(HostError) -> Done
@@ -85,7 +87,7 @@ struct Composer: View {
         }
         field.padding(.vertical, (Size.composerHeight - Self.lineHeight) / 2)
         Group {
-          RuntimeMenu(choosesAgent: style == .talk, attach: attach)
+          RuntimeMenu(conversation: conversation, attach: attach)
           sendOrStop
         }
         .padding(.bottom, inset)

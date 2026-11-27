@@ -25,7 +25,7 @@ struct SessionScenarioTests {
     try await withHost { host, _, world in
       try await say("Remember the word cobalt", to: host, prompts: 1)
 
-      _ = try await host.run(SetRuntime(Runtime(provider: .pi, model: "other-model")))
+      _ = try await host.run(SetConversationRuntime(Runtime(provider: .pi, model: "other-model"), for: .main))
       try await say("What was the word?", to: host, prompts: 2)
 
       #expect(world.agent.opened.map(\.model) == [nil, "other-model"])
@@ -45,7 +45,7 @@ struct SessionScenarioTests {
       #expect(await working(host))
       let session = try #require(await agent.sessions.first)
 
-      _ = try await host.run(SetRuntime(Runtime(provider: .pi, model: "other-model")))
+      _ = try await host.run(SetConversationRuntime(Runtime(provider: .pi, model: "other-model"), for: .main))
       await session.finish()
 
       #expect(await settled(host)?.bodies.last == .reply("Waiting"))

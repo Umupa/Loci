@@ -40,6 +40,8 @@ struct ModelChoiceMenu: View {
         if let face {
           ModelMark(preset: face.group.preset, name: face.group.name, size: 16)
           Text(verbatim: face.model).font(.system(size: 12).monospaced())
+        } else if selection == nil, shown == nil, let following {
+          Text(following)
         } else {
           Text(.loci("models.none")).foregroundStyle(Palette.inkMuted)
         }

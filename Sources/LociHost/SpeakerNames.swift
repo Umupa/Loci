@@ -1,8 +1,10 @@
 import Foundation
 import LociModel
 
-extension AgentTranscriptAgent {
-  public func nameSpeakers(in transcript: Transcript, description: String?) async throws(HostError) -> [Int: String] {
+extension TranscriptWriting {
+  /// A name for each numbered speaker the episode's description and opening tell for sure; an answer that does
+  /// not fit names nobody rather than asking again.
+  func nameSpeakers(in transcript: Transcript, description: String?) async throws(HostError) -> [Int: String] {
     let opening = transcript.segments.prefix(while: { $0.start < .seconds(120) }).prefix(60)
     let speakers = Set(opening.compactMap(\.speaker))
     guard !speakers.isEmpty else { return [:] }

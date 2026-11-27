@@ -35,8 +35,11 @@ struct HostCodingTests {
     #expect(try Self.roundTrips(SendMessage(to: .main, text: "在吗")))
     #expect(try Self.roundTrips(StopTurn(in: .main)))
     #expect(try Self.roundTrips(StartOver(in: .item(Fixture.item))))
-    #expect(try Self.roundTrips(SetRuntime(Runtime(provider: .codex, model: "gpt-6.1-sol", effort: .high))))
-    #expect(try Self.roundTrips(ReadRuntime()))
+    #expect(
+      try Self.roundTrips(
+        SetConversationRuntime(Runtime(provider: .codex, model: "gpt-6.1-sol", effort: .high), for: .item(Fixture.item))
+      ))
+    #expect(try Self.roundTrips(ReadConversationRuntime(.project(Fixture.id(40)))))
     #expect(try Self.roundTrips(SaveSoul(core: "# Soul\n\nYou are Loci.")))
     #expect(try Self.roundTrips(Forget("- 2026-11-02 先给结论", in: .memory)))
     #expect(try Self.roundTrips(SetAvatar(try Avatar(data: Data([1, 2, 3]), format: "PNG"))))
@@ -183,12 +186,13 @@ struct HostCodingTests {
     let commands = [
       AddTextItem.name, DeleteItems.name, RestoreDeleted.name, RenameItem.name, SetCover.name, ListItems.name,
       ReadItemText.name, Search.name, ReadReadingState.name,
-      SaveReadingPosition.name, MarkRead.name, SendMessage.name, StopTurn.name, StartOver.name, ReadRuntime.name,
-      SetRuntime.name, DetectAgents.name, AgentModels.name, DataLocation.name, SaveSoul.name, Forget.name,
+      SaveReadingPosition.name, MarkRead.name, SendMessage.name, StopTurn.name, StartOver.name,
+      ReadConversationRuntime.name,
+      SetConversationRuntime.name, DetectAgents.name, AgentModels.name, DataLocation.name, SaveSoul.name, Forget.name,
       SetAvatar.name, ResetAvatar.name,
     ]
     let subscriptions = [
-      AllItems.name, OneItem.name, HealthReport.name, OneConversation.name, CurrentRuntime.name, LociWorking.name,
+      AllItems.name, OneItem.name, HealthReport.name, OneConversation.name, ConversationRuntime.name, LociWorking.name,
       LociHome.name, OneDiary.name, LociAvatar.name,
     ]
 
@@ -209,7 +213,7 @@ struct HostCodingTests {
     #expect(!LociAvatar().isAffected(by: [.loci(.soul)]))
     #expect(OneDiary(day: Self.day).isAffected(by: [.loci(.diary)]))
     #expect(LociWorking().isAffected(by: [.review]))
-    #expect(CurrentRuntime().isAffected(by: [.runtime]))
+    #expect(ConversationRuntime(.main).isAffected(by: [.runtime]))
   }
 
   @Test func libraryActivityDoesNotRefreshTheMainConversation() {

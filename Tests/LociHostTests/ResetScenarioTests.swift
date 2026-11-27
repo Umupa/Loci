@@ -36,11 +36,12 @@ struct ResetScenarioTests {
     defer { place.remove() }
     let world = TestWorld()
     let first = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
-    _ = try await first.run(SetRuntime(Runtime(provider: .codex, model: "gpt-5", effort: .high)))
+    _ = try await first.run(
+      SetConversationRuntime(Runtime(provider: .codex, model: "gpt-5", effort: .high), for: .main))
 
     try await first.reset()
     let next = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
-    let runtime = try await next.run(ReadRuntime())
+    let runtime = try await next.run(ReadConversationRuntime(.main))
     await next.close()
 
     #expect(runtime == Runtime(provider: .codex, model: "gpt-5", effort: .high))

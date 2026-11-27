@@ -62,22 +62,58 @@ struct ModelSettingsTests {
     #expect(models.service(for: choice(.deepSeek)) == nil)
   }
 
-  @Test func aChoiceThatNoLongerResolvesFallsBackToTheUse() {
+  @Test func aChoiceThatNoLongerResolvesFallsBackToTheToolModel() {
     var models = settings(.deepSeek, models: ["deepseek-chat"])
-    models.uses.transcripts = choice(.deepSeek)
-    #expect(models.service(preferring: choice(.openAI, "gone"), for: .transcripts)?.model == "deepseek-chat")
-    #expect(models.service(preferring: nil, for: .translation) == nil)
+    #expect(models.service(preferring: nil, for: .tool) == nil)
+    models.toolModel = choice(.deepSeek)
+    #expect(models.service(preferring: choice(.openAI, "gone"), for: .tool)?.model == "deepseek-chat")
   }
 
-  @Test func usesLeftEmptyTakeTheFirstModelOnceThereIsOne() {
+  @Test func translationFollowsTheToolModelUntilChosenApart() {
+    var models = settings(.deepSeek, models: ["deepseek-chat", "deepseek-reasoner"])
+    models.toolModel = choice(.deepSeek)
+    #expect(models.service(preferring: nil, for: .translation)?.model == "deepseek-chat")
+    models.translation.model = choice(.deepSeek, "deepseek-reasoner")
+    #expect(models.service(preferring: nil, for: .translation)?.model == "deepseek-reasoner")
+    #expect(models.service(preferring: nil, for: .tool)?.model == "deepseek-chat")
+  }
+
+  @Test func theToolModelLeftEmptyTakesTheFirstModelOnceThereIsOne() {
     var models = settings(.deepSeek, models: [])
-    models.fillUses()
-    #expect(models.uses == ModelUses())
+    models.fillToolModel()
+    #expect(models.toolModel == nil)
     models.providers[0].models = [ProviderModel(id: "deepseek-chat", checked: true)]
-    models.uses.translation = choice(.openAI, "chosen-before")
-    models.fillUses()
-    #expect(models.uses.translation == choice(.openAI, "chosen-before"))
-    #expect(models.uses.transcripts == choice(.deepSeek))
+    models.fillToolModel()
+    #expect(models.toolModel == choice(.deepSeek))
+    #expect(models.translation.model == nil)
+    models.toolModel = choice(.openAI, "chosen-before")
+    models.fillToolModel()
+    #expect(models.toolModel == choice(.openAI, "chosen-before"))
+  }
+
+  @Test func chaptersAndKeyPointsFromBefore185BecomeTheToolModelAndADifferentTranslationStaysApart() throws {
+    let apart = Data(
+      #"{"providers":[],"uses":{"translation":{"provider":"kimi","model":"k3"},"transcripts":{"provider":"deepSeek","model":"chat"}},"translation":{"smart":false,"transcriptPrompt":"t","articlePrompt":"a"}}"#
+        .utf8)
+    let decoded = try JSONDecoder().decode(ModelSettings.self, from: apart)
+    #expect(decoded.toolModel == choice(.deepSeek, "chat"))
+    #expect(decoded.translation.model == choice(.kimi, "k3"))
+
+    let same = Data(
+      #"{"providers":[],"uses":{"translation":{"provider":"kimi","model":"k3"},"transcripts":{"provider":"kimi","model":"k3"}},"translation":{"smart":false,"transcriptPrompt":"t","articlePrompt":"a"}}"#
+        .utf8)
+    let followed = try JSONDecoder().decode(ModelSettings.self, from: same)
+    #expect(followed.toolModel == choice(.kimi, "k3"))
+    #expect(followed.translation.model == nil)
+  }
+
+  @Test func optionsFromAMacOn185OrBeforeReadItsUses() throws {
+    let old = Data(
+      #"{"groups":[],"uses":{"translation":{"provider":"kimi","model":"k3"},"transcripts":{"provider":"deepSeek","model":"chat"}}}"#
+        .utf8)
+    let options = try JSONDecoder().decode(ModelOptions.self, from: old)
+    #expect(options.toolModel == choice(.deepSeek, "chat"))
+    #expect(options.translationModel == choice(.kimi, "k3"))
   }
 
   @Test func aCustomProviderWithoutAnAddressOffersNothing() {
@@ -97,7 +133,8 @@ struct ModelSettingsTests {
 
   @Test func settingsRoundTripWithoutTheKey() throws {
     var models = settings(.kimi, models: ["kimi-k3"])
-    models.uses.translation = choice(.kimi, "kimi-k3")
+    models.toolModel = choice(.kimi, "kimi-k3")
+    models.translation.model = choice(.kimi, "kimi-k3")
     let data = try JSONEncoder().encode(models)
     #expect(try JSONDecoder().decode(ModelSettings.self, from: data) == models)
   }

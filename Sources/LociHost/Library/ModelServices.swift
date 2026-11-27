@@ -36,7 +36,7 @@ actor ModelServices {
 
   func save(_ settings: ModelSettings) async throws(HostError) -> ModelSettingsState {
     var settings = settings
-    settings.fillUses()
+    settings.fillToolModel()
     try attempt { try store.saveModelSettings(settings) }
     return state(settings, bytes: await cache.bytes())
   }
@@ -98,7 +98,9 @@ actor ModelServices {
   func options() throws(HostError) -> ModelOptions {
     let settings = try configuration()
     let saved = state(settings, bytes: 0).keys
-    return ModelOptions(groups: settings.groups.filter { saved.contains($0.provider) }, uses: settings.uses)
+    return ModelOptions(
+      groups: settings.groups.filter { saved.contains($0.provider) }, toolModel: settings.toolModel,
+      translationModel: settings.model(for: .translation))
   }
 
   /// What `use` is done with, preferring `choice`; `nil` when the model services are not configured for it.

@@ -44,4 +44,8 @@ struct ModelTranscriptAgent: TranscriptAgent {
   {
     try await writing.keyPoints(of: source, count: count, for: reader)
   }
+
+  func nameSpeakers(in transcript: Transcript, description: String?) async throws(HostError) -> [Int: String] {
+    try await writing.nameSpeakers(in: transcript, description: description)
+  }
 }

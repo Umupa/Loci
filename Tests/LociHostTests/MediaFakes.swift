@@ -242,7 +242,7 @@ final class FakeTranscriber: Transcribing {
 
 /// Translates by numbering lines, outlines with one chapter and picks the first sentences or passages as key
 /// points, recording what it was asked.
-final class FakeTranscriptAgent: RuntimeTranscriptAgent {
+final class FakeTranscriptAgent: TranscriptAgent {
   private let asked = Mutex<[String]>([])
   private let readers = Mutex<[KeyPointReader]>([])
   private let names = Mutex<[Int: String]>([:])

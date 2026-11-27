@@ -14,7 +14,7 @@ extension JobRun {
       throw .failed("The article has no text to tidy.")
     }
     let pieces = ArticleTidying.pieces(of: text)
-    let work = try await writer(nil, for: .translation)
+    let work = try await writer(nil, for: .tidying)
     let title = found.title
     let tidy = { @Sendable (_: Int, piece: String) async throws(StageStop) -> String? in
       for _ in 0..<2 {

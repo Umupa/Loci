@@ -40,7 +40,7 @@ private struct OldModelSettings: Decodable {
     var settings = ModelSettings(translation: translation ?? TranslationSettings())
     guard let service, let provider = Self.provider(service) else { return settings }
     settings.providers = [provider]
-    settings.fillUses()
+    settings.fillToolModel()
     return settings
   }
 

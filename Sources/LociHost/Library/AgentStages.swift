@@ -82,7 +82,7 @@ extension JobRun {
     guard let transcript = try stored({ try context.store.transcript(of: item.id) }), !transcript.segments.isEmpty,
       try stored({ try context.store.outline(of: item.id) })?.chapters.isEmpty ?? true
     else { return }
-    let work = try await writer(nil, for: .transcripts)
+    let work = try await writer(nil, for: .chapters)
     let outline: Outline
     do throws(HostError) {
       outline = try await work.agent.outline(transcript, title: item.title)
@@ -93,11 +93,11 @@ extension JobRun {
     try stored { try context.store.save(outline, of: item.id) }
   }
 
-  /// The model service `use` is done with, preferring `choice`; waits until one is configured.
-  func writer(_ choice: ModelChoice?, for use: ModelUse) async throws(StageStop) -> TranscriptWork {
+  /// The model service `request` is done with, preferring `choice`; waits until one is configured.
+  func writer(_ choice: ModelChoice?, for request: ModelWork.Request) async throws(StageStop) -> TranscriptWork {
     let work: TranscriptWork?
     do throws(HostError) {
-      work = try await context.modelWork(preferring: choice, for: use)
+      work = try await context.modelWork(preferring: choice, for: request)
     } catch {
       throw .failed(Self.describe(error))
     }

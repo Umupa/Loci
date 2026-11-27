@@ -155,7 +155,7 @@ struct ReviewScenarioTests {
     try await withHost { host, _, world in
       world.set(to: "22:00")
       try await talk(host)
-      _ = try await host.run(SetRuntime(Runtime(provider: .grok)))
+      _ = try await host.run(SetConversationRuntime(Runtime(provider: .grok), for: .main))
       world.set(to: "23:30")
 
       world.tick()

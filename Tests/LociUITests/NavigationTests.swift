@@ -143,7 +143,7 @@ struct NavigationTests {
   @Test func commandsWaitForTheHostToBeReady() async throws {
     let deferred = DeferredHost()
     let sample = try Sample()
-    async let runtime = deferred.run(ReadRuntime())
+    async let runtime = deferred.run(ReadConversationRuntime(.main))
     await deferred.resolve(FakeHost(sample))
 
     #expect(try await runtime == sample.runtime)
@@ -155,7 +155,7 @@ struct NavigationTests {
     let next = Activity()
     await deferred.resolve(FakeHost(try Sample(), activity: old))
     await deferred.suspend()
-    async let runtime = deferred.run(ReadRuntime())
+    async let runtime = deferred.run(ReadConversationRuntime(.main))
     await deferred.resolve(FakeHost(try Sample(), activity: next))
     _ = try await runtime
 

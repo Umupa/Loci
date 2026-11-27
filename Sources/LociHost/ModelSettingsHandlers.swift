@@ -45,14 +45,18 @@ extension LocalHost: ModelSettingsAccess {
     try await library.context.models.options()
   }
 
-  /// Once there is a model to use: the bundled Pi becomes the companion's runtime when nothing else was
-  /// chosen and no CLI is installed, and what waited for the model services goes on.
+  /// Once there is a model to use: the bundled Pi becomes what every kind of conversation not chosen for yet
+  /// starts on when no CLI is installed, and what waited for the model services goes on.
   private func modelsChanged() async {
     let offered = !((try? await library.context.models.options().groups.isEmpty) ?? true)
-    if offered, environment.bundledPi != nil, agents.savedRuntime == nil,
-      await agents.chosen().provider == .bundledPi
-    {
-      _ = try? attempt { try store.changeSettings { $0.runtime = $0.runtime ?? Runtime(provider: .bundledPi) } }
+    if offered, environment.bundledPi != nil, await agents.detected().provider == .bundledPi {
+      _ = try? attempt {
+        try store.changeSettings { settings in
+          for kind in ConversationKind.allCases where settings.latestRuntimes[kind] == nil {
+            settings.latestRuntimes[kind] = Runtime(provider: .bundledPi)
+          }
+        }
+      }
     }
     await provisionPiIfSelected(retry: true)
     await hub.refresh([.everything])

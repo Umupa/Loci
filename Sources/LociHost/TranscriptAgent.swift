@@ -16,9 +16,7 @@ public protocol TranscriptAgent: Sendable {
   /// Within `count.range`, or as many as there are sentences or passages when there are fewer; in order.
   func keyPoints(of source: KeyPointSource, count: KeyPointCount, for reader: KeyPointReader)
     async throws(HostError) -> [KeyPoint]
-}
-
-public protocol RuntimeTranscriptAgent: TranscriptAgent {
+  /// The names of the numbered speakers a podcast's description and opening tell for sure.
   func nameSpeakers(in transcript: Transcript, description: String?) async throws(HostError) -> [Int: String]
 }
 

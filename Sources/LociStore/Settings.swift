@@ -3,8 +3,8 @@ import LociModel
 
 /// `settings.json` at the top of the Loci folder: choices that belong to this host.
 public struct HostSettings: Hashable, Sendable {
-  /// What Loci runs on; `nil` until one is chosen.
-  public var runtime: Runtime?
+  /// What was last chosen in a conversation of each kind; a new conversation of that kind starts on it.
+  public var latestRuntimes: [ConversationKind: Runtime] = [:]
   /// The Whisper model recognition uses; `nil` until one is chosen.
   public var speechModel: SpeechModel?
   public var browserLogin: BrowserLogin = .none
@@ -18,13 +18,18 @@ public struct HostSettings: Hashable, Sendable {
 
 extension HostSettings: Codable {
   private enum CodingKeys: String, CodingKey {
-    case runtime, speechModel, browserLogin, importChoice, keyPointChoice
+    case latestRuntimes, runtime, speechModel, browserLogin, importChoice, keyPointChoice
   }
 
-  /// A setting that cannot be read is left unchosen rather than losing the others.
+  /// A setting that cannot be read is left unchosen rather than losing the others. The one runtime versions up to
+  /// 1.8.5 kept for the whole app is what every kind of conversation last chose.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    runtime = try? container.decodeIfPresent(Runtime.self, forKey: .runtime)
+    if let latest = try? container.decodeIfPresent([ConversationKind: Runtime].self, forKey: .latestRuntimes) {
+      latestRuntimes = latest
+    } else if let old = try? container.decodeIfPresent(Runtime.self, forKey: .runtime) {
+      latestRuntimes = Dictionary(uniqueKeysWithValues: ConversationKind.allCases.map { ($0, old) })
+    }
     speechModel = try? container.decodeIfPresent(SpeechModel.self, forKey: .speechModel)
     browserLogin = (try? container.decodeIfPresent(BrowserLogin.self, forKey: .browserLogin)) ?? BrowserLogin.none
     importChoice = try? container.decodeIfPresent(ImportChoice.self, forKey: .importChoice)
@@ -33,7 +38,7 @@ extension HostSettings: Codable {
 
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encodeIfPresent(runtime, forKey: .runtime)
+    if !latestRuntimes.isEmpty { try container.encode(latestRuntimes, forKey: .latestRuntimes) }
     try container.encodeIfPresent(speechModel, forKey: .speechModel)
     if browserLogin != .none { try container.encode(browserLogin, forKey: .browserLogin) }
     try container.encodeIfPresent(importChoice, forKey: .importChoice)

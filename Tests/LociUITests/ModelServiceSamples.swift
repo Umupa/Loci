@@ -65,10 +65,9 @@ final class SampleModelAccess: ModelSettingsAccess {
     openAI.enabled = false
     let settings = ModelSettings(
       providers: [deepSeek, openRouter, anthropic, openAI],
-      uses: ModelUses(
-        translation: ModelChoice(provider: deepSeek.id, model: "deepseek-chat"),
-        transcripts: ModelChoice(provider: openRouter.id, model: "gemini-3-flash")),
-      translation: TranslationSettings(language: "zh-Hans", smart: true))
+      toolModel: ModelChoice(provider: openRouter.id, model: "gemini-3-flash"),
+      translation: TranslationSettings(
+        model: ModelChoice(provider: deepSeek.id, model: "deepseek-chat"), language: "zh-Hans", smart: true))
     return ModelSettingsState(settings: settings, keys: [deepSeek.id, openRouter.id], cacheBytes: 18_400_000)
   }()
 

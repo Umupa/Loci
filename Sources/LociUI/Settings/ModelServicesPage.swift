@@ -1,8 +1,8 @@
 import LociModel
 import SwiftUI
 
-/// Settings › Model Services: the providers, one line each, opened in place; what translation, and chapters and
-/// key points, are done with; and how translations are asked for. Everything is saved as it is changed.
+/// Settings › Model Services: the providers, one line each, opened in place; the tool model; and how translations
+/// are asked for and with which model. Everything is saved as it is changed.
 struct ModelServicesPage: View {
   @Environment(\.host) private var host
   @State private var model: ModelServicesModel?
@@ -20,7 +20,7 @@ struct ModelServicesPage: View {
     SettingsPage(symbol: Symbols.models, title: .loci("settings.models")) {
       if let model, model.state != nil {
         providers(model)
-        uses(model)
+        toolModel(model)
         TranslationGroup(model: model)
       } else if let failure = model?.failure {
         Text(failure).font(.system(size: 12)).foregroundStyle(Palette.inkMuted)
@@ -65,27 +65,25 @@ struct ModelServicesPage: View {
     .animation(Motion.standard, value: model.settings.providers.map(\.enabled))
   }
 
-  private func uses(_ model: ModelServicesModel) -> some View {
-    SettingsGroup(title: .loci("models.uses")) {
-      ForEach(ModelUse.allCases, id: \.self) { use in
-        SettingsRow {
-          Text(use == .translation ? .loci("models.useTranslation") : .loci("models.useTranscripts"))
-        } trailing: {
-          ModelChoiceMenu(
-            groups: model.groups,
-            selection: Binding {
-              model.settings.uses[use]
-            } set: { choice in
-              model.change { $0.uses[use] = choice }
-            })
-        }
+  private func toolModel(_ model: ModelServicesModel) -> some View {
+    SettingsGroup(title: nil) {
+      SettingsRow {
+        Text(.loci("models.toolModel"))
+      } trailing: {
+        ModelChoiceMenu(
+          groups: model.groups,
+          selection: Binding {
+            model.settings.toolModel
+          } set: { choice in
+            model.change { $0.toolModel = choice }
+          })
       }
     }
   }
 }
 
-/// How translations are asked for: into which language, with the whole text as context or not, the prompts for
-/// transcripts and articles, and the translations kept so far.
+/// How translations are asked for: with which model, into which language, with the whole text as context or not,
+/// the prompts for transcripts and articles, and the translations kept so far.
 private struct TranslationGroup: View {
   let model: ModelServicesModel
   @State private var transcriptPrompt = ""
@@ -93,6 +91,17 @@ private struct TranslationGroup: View {
 
   var body: some View {
     SettingsGroup(title: .loci("models.translation")) {
+      SettingsRow {
+        Text(.loci("models.translationModel"))
+      } trailing: {
+        ModelChoiceMenu(
+          groups: model.groups,
+          selection: Binding {
+            model.settings.translation.model
+          } set: { choice in
+            model.change { $0.translation.model = choice }
+          }, following: .loci("models.followToolModel"))
+      }
       SettingsRow {
         Text(.loci("models.targetLanguage"))
       } trailing: {

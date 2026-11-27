@@ -14,9 +14,6 @@ struct AgentContext: Sendable {
   /// Where every fetch of a source is kept, and every repair's grant opened and closed.
   let commits = SourceCommits()
 
-  /// What Loci runs on now.
-  var runtime: Runtime { agents.provisionalRuntime }
-
   /// `AGENTS.md` of the home as it should be now. Refused for a project that is gone.
   func instructions(for home: Home) throws(HostError) -> String {
     let project: Project? =

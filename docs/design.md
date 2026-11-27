@@ -317,7 +317,7 @@ loci://library/<id>#chapter=3&node=1.0.8&char=51&share=4231  书：第几章、�
 | `LociModel` | `Item` 加封面、站点或频道、发布时间；`Transcript` 与 `Segment`（起止、文字、说话人、逐词时间）；`Job` 与阶段；命令 `AddLink`、`ImportMediaFile`、`RetryJob`、`PauseJob`；订阅任务进度与播放地址 |
 | `LociStore` | 资料文件夹加 `cover.jpg`、`media.*`、`transcript.json`、`translations/`、`outline.json`；`job` 表；接收 Media 下载好的临时文件并挪进资料库，磁盘仍只归 Store |
 | `LociMedia` | `LinkKind` 分辨视频、播客、文章、PDF；`ArticleFetcher`：WKWebView 加载页面、注入 defuddle 转 Markdown；`MediaFetcher`：`yt-dlp -J` 取元数据与字幕，选兼容格式在线播放，下载时用 FFmpeg 合成 H.264/AAC；`Transcriber` 协议；`Segmenter` 用 NaturalLanguage；`Components` 下载、检测、更新组件。每个阶段的产物是文件，重跑时跳过已有产物 |
-| `LociHost` | 媒体命令；翻译、章节、重点用一次性 agent 调用，不带 Soul 和记忆；重点可另选 runtime，默认跟随伙伴 |
+| `LociHost` | 媒体命令；翻译、章节、重点、整理排版、给说话人起名直接调工具模型，不带 Soul 和记忆；翻译和重点可另选模型 |
 | `LociUI` | 卡片墙改版；`MediaReader`：AVPlayerView 加右栏文稿，文稿复用 TextKit 阅读器；设置的「媒体」一节 |
 
 
@@ -353,7 +353,7 @@ loci://library/<id>#chapter=3&node=1.0.8&char=51&share=4231  书：第几章、�
 | 账号 | 没有账号服务，不依赖 Apple ID 和 iCloud。信任只来自两台 Mac 配对时交换的公钥，名单存在各自本机 |
 | 中继 | alma-relay 协议，优先协议 3。官方中继是 `relay.umupa.fun`，地址和注册密钥在构建时注入，不进仓库。自建中继这一版不做；以后给用户一段部署提示词交给他自己的 coding agent，agent 输出 `loci://relay?…` 链接粘回 Loci |
 | 伙伴 | 伙伴住在它的 Mac 上：主对话、资料对话、Soul、记忆、笔记、日记、头像都在那台的 `agent/` 文件夹里，会话也在那台跑。切到远程，看到和改动的就是那台的伙伴；`agent/` 文件夹只在它自己的 Mac 上能用 Finder 打开（2026-11-18，三期收敛时定） |
-| 设置跟谁走 | 外观、界面语言属于眼前这台 Mac；Agent（伙伴的 runtime）、媒体、数据文件夹属于当前的 Mac，切到远程就显示和修改远程的（数据文件夹在远程时只读） |
+| 设置跟谁走 | 外观、界面语言属于眼前这台 Mac；每条对话的 runtime、Agent、媒体、数据文件夹属于当前的 Mac，切到远程就显示和修改远程的（数据文件夹在远程时只读） |
 | 离线 | 远程的 Mac 连不上时内容照常可读（读客户端缓存），写入按钮停用，输入框的位置只剩一行「Mac Studio 离线」，不弹窗；连上后以那台 Mac 为准 |
 | 不做 | 自建中继、局域网直连、iPhone 与 iPad、推送通知 |
 

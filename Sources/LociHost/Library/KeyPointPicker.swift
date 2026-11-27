@@ -47,7 +47,7 @@ actor KeyPointPicker {
     let store = context.store
     let found = try attempt { try store.item(item) }
     let source = try attempt { try Self.source(of: found, in: store) }
-    guard let work = try await context.modelWork(preferring: choice.model, for: .transcripts) else {
+    guard let work = try await context.modelWork(preferring: choice.model, for: .keyPoints) else {
       throw .invalidRequest("No model service is configured to pick key points.")
     }
     let reader = KeyPointReader(

@@ -15,7 +15,7 @@ struct BundledPiSetupTests {
       environment: environment(installations: [.missing(.codex)]) { probes.withLock { $0 += 1 } })
     #expect(probes.withLock { $0 } == 0)
     #expect(await host.needsModelSetup())
-    #expect(try await host.run(ReadRuntime()).provider == .bundledPi)
+    #expect(try await host.run(ReadConversationRuntime(.main)).provider == .bundledPi)
     #expect(await host.detectAgents(again: false).contains(.missing(.bundledPi)))
     await host.close()
   }
@@ -29,21 +29,22 @@ struct BundledPiSetupTests {
     let host = try await LocalHost.start(
       root: place.root, database: place.database, environment: environment(installations: [codex]))
     #expect(await host.needsModelSetup() == false)
-    #expect(try await host.run(ReadRuntime()).provider == .codex)
-    #expect(try await host.run(SetRuntime(Runtime(provider: .bundledPi))).provider == .bundledPi)
+    #expect(try await host.run(ReadConversationRuntime(.main)).provider == .codex)
+    #expect(
+      try await host.run(SetConversationRuntime(Runtime(provider: .bundledPi), for: .main)).provider == .bundledPi)
     #expect(await host.detectAgents(again: false) == [.missing(.bundledPi), codex])
-    #expect(try place.store.settings().runtime?.provider == .bundledPi)
+    #expect(try place.store.settings().latestRuntimes[.main]?.provider == .bundledPi)
     await host.close()
   }
 
   @Test func aSavedSystemPiStillMeansTheExternalProgram() async throws {
     let place = Place()
     defer { place.remove() }
-    try place.store.changeSettings { $0.runtime = Runtime(provider: .pi) }
+    try place.store.changeSettings { $0.latestRuntimes[.main] = Runtime(provider: .pi) }
     let host = try await LocalHost.start(
       root: place.root, database: place.database, environment: environment(installations: []))
     #expect(await host.needsModelSetup() == false)
-    #expect(try await host.run(ReadRuntime()).provider == .pi)
+    #expect(try await host.run(ReadConversationRuntime(.main)).provider == .pi)
     await host.close()
   }
 

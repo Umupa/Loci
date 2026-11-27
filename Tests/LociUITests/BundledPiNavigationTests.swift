@@ -8,21 +8,21 @@ struct BundledPiNavigationTests {
   @Test func choosingBundledPiBeforeAnyModelIsOfferedOpensModelServices() async throws {
     let host = FakeHost(try Sample(), modelSettings: SampleModelAccess(SampleModelAccess.empty))
     var opened: Place?
-    await chooseRuntime(Runtime(provider: .bundledPi), on: host, openPlace: OpenPlace { opened = $0 })
+    await chooseRuntime(Runtime(provider: .bundledPi), for: .main, on: host, openPlace: OpenPlace { opened = $0 })
     #expect(opened == .settings(.models))
   }
 
   @Test func choosingBundledPiWithAModelButNoPiYetOpensTheCompanionsSettings() async throws {
     let host = FakeHost(try Sample(), modelSettings: SampleModelAccess())
     var opened: Place?
-    await chooseRuntime(Runtime(provider: .bundledPi), on: host, openPlace: OpenPlace { opened = $0 })
+    await chooseRuntime(Runtime(provider: .bundledPi), for: .main, on: host, openPlace: OpenPlace { opened = $0 })
     #expect(opened == .settings(.agents))
   }
 
   @Test func choosingCodexKeepsTheReaderInTheConversation() async throws {
     let host = FakeHost(try Sample(), modelSettings: SampleModelAccess())
     var opened: Place?
-    await chooseRuntime(Runtime(provider: .codex), on: host, openPlace: OpenPlace { opened = $0 })
+    await chooseRuntime(Runtime(provider: .codex), for: .main, on: host, openPlace: OpenPlace { opened = $0 })
     #expect(opened == nil)
   }
 }

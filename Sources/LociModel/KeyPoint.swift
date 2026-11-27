@@ -69,7 +69,7 @@ public struct KeyPoints: Hashable, Sendable {
 
 /// What key points are picked with: the model, and how many.
 public struct KeyPointChoice: Hashable, Codable, Sendable {
-  /// `nil`, or one no longer configured, follows the model chapters and key points are done with.
+  /// `nil`, or one no longer configured, follows the tool model.
   public let model: ModelChoice?
   public let count: KeyPointCount
 

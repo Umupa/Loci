@@ -54,7 +54,7 @@ struct MediaWorld {
       models.add(service.choice)
       return writer
     }
-    var speakers: (@Sendable (Runtime) -> any RuntimeTranscriptAgent)?
+    var speakers: (@Sendable (Runtime) -> any TranscriptAgent)?
     if agent { speakers = { _ in writer } }
     let media = MediaEnvironment(
       support: support, runner: programs, network: network, transcriber: transcriber, searchPaths: [bin],
@@ -76,7 +76,7 @@ struct MediaWorld {
       ProviderModel(id: "deepseek-chat", checked: true), ProviderModel(id: "deepseek-reasoner", checked: true),
     ]
     let settings = ModelSettings(
-      providers: [provider], uses: ModelUses(translation: Self.model, transcripts: Self.model))
+      providers: [provider], toolModel: Self.model)
     try? place.store.saveModelSettings(settings)
     keys.setKey("test-key", account: provider.keyAccount)
   }

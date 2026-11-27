@@ -16,7 +16,8 @@ public enum Wire {
 
   public static let commands: [CommandRoute] = [
     .writes(SendMessage.self), .writes(StopTurn.self), .writes(StartOver.self),
-    .reads(ReadRuntime.self), .writes(SetRuntime.self), .reads(DetectAgents.self), .reads(AgentModels.self),
+    .reads(ReadConversationRuntime.self), .writes(SetConversationRuntime.self), .reads(DetectAgents.self),
+    .reads(AgentModels.self),
     .writes(RenameCompanion.self),
     .writes(SaveSoul.self), .writes(Forget.self), .writes(ForgetWikiLine.self), .writes(SetAvatar.self, lane: .data),
     .writes(ResetAvatar.self),
@@ -57,7 +58,7 @@ public enum Wire {
   ]
 
   public static let subscriptions: [any Subscription.Type] = [
-    CompanionName.self, OneConversation.self, LociWorking.self, CurrentRuntime.self, LociHome.self, OneDiary.self,
+    CompanionName.self, OneConversation.self, LociWorking.self, ConversationRuntime.self, LociHome.self, OneDiary.self,
     LociAvatar.self,
     AllItems.self, OneItem.self, ItemCover.self, NotesOn.self, AllJobs.self, ItemJob.self, SavingNow.self,
     ItemMedia.self, WatchCourses.self, WatchCourse.self, WatchLesson.self,

@@ -11,35 +11,36 @@ extension LocalHost {
     await agents.models(of: provider)
   }
 
-  /// What is chosen in `settings.json`, falling back to what the host was started with.
-  public func runtime() async throws(HostError) -> Runtime {
-    _ = try attempt { try store.settings() }
-    return await agents.selection().runtime
+  public func runtime(of conversation: ConversationRef) async throws(HostError) -> Runtime {
+    await agents.selection(await agents.runtime(of: conversation)).runtime
   }
 
-  public func setRuntime(_ command: SetRuntime) async throws(HostError) -> Runtime {
-    _ = try attempt { try store.changeSettings { $0.runtime = command.runtime } }
-    await provisionPiIfSelected(retry: false)
+  public func setRuntime(_ command: SetConversationRuntime) async throws(HostError) -> Runtime {
+    try agents.choose(command.runtime, for: command.conversation)
+    await provisionPiIfSelected(in: command.conversation, retry: false)
     await follow([.runtime])
-    return await agents.selection().runtime
+    return try await runtime(of: command.conversation)
   }
 
+  /// Whether the main conversation runs on the bundled Pi with no model or no Pi to run it yet.
   public func needsModelSetup() async -> Bool {
-    guard environment.bundledPi != nil, await agents.chosen().provider == .bundledPi else {
+    guard environment.bundledPi != nil, await agents.runtime(of: .main).provider == .bundledPi else {
       return false
     }
-    let credential = try? await library.context.models.piCredential(for: agents.provisionalRuntime)
+    let credential = try? await library.context.models.piCredential(for: agents.provisionalRuntime(of: .main))
     return credential?.key == nil || library.context.equipment.support.activePi() == nil
   }
 
-  func provisionPiIfSelected(retry: Bool) async {
+  /// Downloads the bundled Pi when the conversation runs on it and there is a model with a key for it.
+  func provisionPiIfSelected(in conversation: ConversationRef = .main, retry: Bool) async {
     guard !Task.isCancelled, environment.bundledPi != nil,
-      let credential = try? await library.context.models.piCredential(for: agents.provisionalRuntime),
+      let credential = try? await library.context.models.piCredential(
+        for: agents.provisionalRuntime(of: conversation)),
       credential.key != nil
     else { return }
     await hub.hold(
       Task {
-        guard !Task.isCancelled, await self.agents.chosen().provider == .bundledPi else { return }
+        guard !Task.isCancelled, await self.agents.runtime(of: conversation).provider == .bundledPi else { return }
         await self.installComponent(.bundledPi, retry: retry)
       })
   }

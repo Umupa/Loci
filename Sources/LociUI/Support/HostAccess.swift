@@ -75,6 +75,27 @@ extension View {
   func subscribing<S: Subscription>(_ subscription: S, into feed: Binding<Feed<S.Value>?>) -> some View {
     modifier(Subscribing(subscription: subscription, feed: feed))
   }
+
+  /// As `subscribing(_:into:)` once there is a subscription; until then `feed` stays empty.
+  func subscribing<S: Subscription>(_ subscription: S?, into feed: Binding<Feed<S.Value>?>) -> some View {
+    modifier(OptionalSubscribing(subscription: subscription, feed: feed))
+  }
+}
+
+private struct OptionalSubscribing<S: Subscription>: ViewModifier {
+  @Environment(\.host) private var host
+  let subscription: S?
+  @Binding var feed: Feed<S.Value>?
+
+  func body(content: Content) -> some View {
+    content.task(id: subscription) {
+      guard let subscription else {
+        feed = nil
+        return
+      }
+      for await delivered in host.subscribe(subscription) { feed = delivered }
+    }
+  }
 }
 
 private struct Subscribing<S: Subscription>: ViewModifier {

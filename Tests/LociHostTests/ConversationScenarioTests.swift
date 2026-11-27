@@ -195,7 +195,7 @@ struct ConversationScenarioTests {
 
   @Test func aRuntimeThatIsNotInstalledSaysSo() async throws {
     try await withHost { host, _, _ in
-      _ = try await host.run(SetRuntime(Runtime(provider: .grok)))
+      _ = try await host.run(SetConversationRuntime(Runtime(provider: .grok), for: .main))
 
       _ = try await host.run(SendMessage(to: .main, text: "Hi"))
 

@@ -3,10 +3,10 @@ import LociAgents
 import LociModel
 import LociStore
 
-/// The app's `TranscriptAgent`: one-off turns on Loci's runtime, without Loci's soul or memory, each in an
+/// The app's `TranscriptAgent` on an agent: one-off turns on a runtime, without Loci's soul or memory, each in an
 /// empty folder so the agent sees only what it is sent. Each answer is JSON whose shape is checked, and an
 /// answer that does not fit is asked for once more before giving up.
-public struct AgentTranscriptAgent: RuntimeTranscriptAgent {
+public struct AgentTranscriptAgent: TranscriptAgent {
   private let runtime: Runtime
   private let agents: @Sendable (Provider) async -> (any AgentDriver)?
   private let folder: @Sendable () throws -> ScratchFolder
@@ -55,6 +55,10 @@ public struct AgentTranscriptAgent: RuntimeTranscriptAgent {
     async throws(HostError) -> [KeyPoint]
   {
     try await writing.keyPoints(of: source, count: count, for: reader)
+  }
+
+  public func nameSpeakers(in transcript: Transcript, description: String?) async throws(HostError) -> [Int: String] {
+    try await writing.nameSpeakers(in: transcript, description: description)
   }
 
   /// An agent that cannot answer at all is not asked again.

@@ -235,7 +235,7 @@ struct ItemConversationTests {
   @Test func aQuestionLociCouldNotStartOnLeavesTheHighlightWithoutAnAnswer() async throws {
     try await withHost { host, place, _ in
       let item = try await article(host)
-      _ = try await host.run(SetRuntime(Runtime(provider: .grok)))
+      _ = try await host.run(SetConversationRuntime(Runtime(provider: .grok), for: .item(item.id)))
 
       _ = try await host.run(SendMessage(to: .item(item.id), text: "Why?", passage: try passage(on: item)))
 
