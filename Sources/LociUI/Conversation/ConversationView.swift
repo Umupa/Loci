@@ -7,6 +7,7 @@ struct ConversationScreen<Tail: View>: View {
   @Environment(\.host) private var host
   @Environment(\.openPage) private var openPage
   @Environment(\.documents) private var documents
+  @Environment(\.homeSwitch) private var homeSwitch
   let ref: ConversationRef
   @Binding var draft: PassageDraft?
   var revealPassage: @MainActor (Locator) -> Void = { _ in }
@@ -31,6 +32,9 @@ struct ConversationScreen<Tail: View>: View {
     .id(ref)
     .modifier(FollowingLinks(ref: ref, revealPassage: revealPassage))
     .subscribing(OneConversation(ref), into: $conversation)
+    .onChange(of: conversation?.value != nil, initial: true) {
+      if conversation?.value != nil { homeSwitch?.arrived(.conversation, in: ref.home) }
+    }
   }
 
   private var view: some View {

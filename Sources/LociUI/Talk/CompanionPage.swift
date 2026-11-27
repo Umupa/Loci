@@ -8,6 +8,7 @@ struct CompanionPage: View {
   @Environment(\.host) private var host
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.sidebarShown) private var sidebarShown
+  @Environment(\.machineChoice) private var machineChoice
   let focusRequest: Int
   let attach: () -> Void
   let opened: (WindowState) -> Void
@@ -30,6 +31,7 @@ struct CompanionPage: View {
   /// project.
   @State private var chatFocus = 0
   @State private var pageWidth: CGFloat = 0
+  @State private var homeSwitch = HomeSwitch.logged()
   /// The chat's layout, for the layout button over a new project's field.
   @AppStorage(TalkLayout.key) private var storedLayout = Data()
 
@@ -111,7 +113,12 @@ struct CompanionPage: View {
     .showingDocuments(coversPanels: true)
     .subscribing(WatchProjects(), into: $bar)
     .subscribing(WatchNextUps(of: home), into: $nextUps)
-    .onChange(of: home) { nextUps = nil }
+    .onChange(of: home) {
+      nextUps = nil
+      timing?.shown(home)
+    }
+    .onDisappear { timing?.left() }
+    .environment(\.homeSwitch, timing)
     .onChange(of: chatShown) { if chatShown { chatFocus += 1 } }
     .onChange(of: focusRequest) { if chatShown { chatFocus += 1 } }
     .onAppear {
@@ -167,6 +174,7 @@ struct CompanionPage: View {
   private var actions: ProjectBarActions {
     ProjectBarActions(
       open: { chosen in
+        turn(to: chosen)
         starting = nil
         if case .project(let id) = chosen, shownBar.archived.contains(where: { $0.id == id }) {
           send(ArchiveProject(id, archived: false))
@@ -174,7 +182,10 @@ struct CompanionPage: View {
         project = chosen.project
         if let id = chosen.project { send(SeeProject(id)) }
       },
-      start: { starting = Starting() },
+      start: {
+        timing?.left()
+        starting = Starting()
+      },
       rename: { id, name in send(RenameProject(id, to: name)) },
       reicon: { id, icon in send(SetProjectIcon(id, icon: icon)) },
       pin: { id, panel, pinned in send(PinPanel(panel, of: id, pinned: pinned)) },
@@ -189,6 +200,15 @@ struct CompanionPage: View {
         send(DeleteProject(id))
         notice = .deleted()
       })
+  }
+
+  /// Turns are timed on this Mac only; another Mac's would include the network.
+  private var timing: HomeSwitch? { machineChoice?.link == nil ? homeSwitch : nil }
+
+  /// Times the turn when the page will change: to another home, or to the one a new project's field covers.
+  private func turn(to chosen: Home) {
+    guard chosen != home || starting != nil else { return }
+    timing?.turned(to: chosen, kept: chosen == .chat)
   }
 
   private func start(_ words: String, icon: String?) {
@@ -257,6 +277,7 @@ struct CompanionPage: View {
   /// The card is in its seal: the seal takes it, its home opens, and its question is said there.
   private func land(_ card: NextUp) {
     flight = nil
+    turn(to: card.home)
     if !reduceMotion { stamps[card.home, default: 0] += 1 }
     starting = nil
     withAnimation(reduceMotion ? nil : Motion.standard) { project = card.home.project }

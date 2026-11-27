@@ -10,6 +10,7 @@ struct TalkScreen: View {
   @Environment(\.locale) private var locale
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.changesAllowed) private var changesAllowed
+  @Environment(\.homeSwitch) private var homeSwitch
   let home: Home
   /// The project's panels pinned to the chat, by name.
   var pinned: Set<String> = []
@@ -63,6 +64,7 @@ struct TalkScreen: View {
       if column != nil { CornerButtons(layout: layout, panelsShown: $columnPreferred) }
     }
     .onChange(of: column?.panelNames) { settle() }
+    .onChange(of: column != nil, initial: true) { if column != nil { homeSwitch?.arrived(.panels, in: home) } }
     .onChange(of: working) { settle() }
     .acceptingDrops()
     .environment(\.panelHome, home)
