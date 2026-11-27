@@ -46,16 +46,32 @@ struct QuotedLine: View {
   }
 }
 
-/// What Loci says when a turn did not finish: one sentence, never the agent's own error output.
+/// What Loci says when a turn did not finish: one sentence, with the agent's reason when it gave one.
 struct EndedTurn: View {
   let ending: TurnEnding
 
   var body: some View {
     switch ending {
     case .interrupted: Text(.loci("ended.interrupted"))
-    case .failed: Text(.loci("ended.failed"))
+    case .failed(let reason):
+      if let cause = Self.cause(in: reason) {
+        Text(.loci("ended.failedBecause \(cause)"))
+      } else {
+        Text(.loci("ended.failed"))
+      }
     case .unstarted(let provider, let failure): Self.unstarted(provider, failure)
     }
+  }
+
+  /// The last line the agent said about the failure, where a traceback or log ends with its cause; `nil`
+  /// when it said nothing. Cut to a sentence's length.
+  nonisolated static func cause(in reason: String) -> String? {
+    let line = reason.split(whereSeparator: \.isNewline)
+      .map { $0.trimmingCharacters(in: .whitespaces) }
+      .last { !$0.isEmpty }
+    guard let line else { return nil }
+    let limit = 240
+    return line.count > limit ? String(line.prefix(limit - 1)) + "…" : line
   }
 
   /// Why Loci's agent did not start, beginning with the agent's name.

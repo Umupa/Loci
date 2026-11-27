@@ -113,7 +113,9 @@ struct ScreenSnapshots {
   @Test(arguments: Snapshot.Appearance.allCases)
   func agentUnavailable(appearance: Snapshot.Appearance) async throws {
     let endings: [TurnEnding] = [
-      .unstarted(.codex, .notInstalled), .unstarted(.codex, .wouldNotStart), .failed("exit 1: panic"), .interrupted,
+      .unstarted(.codex, .notInstalled), .unstarted(.codex, .wouldNotStart),
+      .failed("Traceback (most recent call last):\nImportError: Using SOCKS proxy, but python-socks is not installed."),
+      .interrupted,
     ]
     let lines = VStack(spacing: Size.messageGap) {
       ForEach(endings, id: \.self) { ending in

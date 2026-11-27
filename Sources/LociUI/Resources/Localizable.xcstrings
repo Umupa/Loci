@@ -2517,6 +2517,23 @@
         }
       }
     },
+    "ended.failedBecause %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I couldn't finish this one: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这次没能答完：%@"
+          }
+        }
+      }
+    },
     "ended.interrupted": {
       "extractionState": "manual",
       "localizations": {
