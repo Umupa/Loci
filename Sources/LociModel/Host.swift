@@ -114,6 +114,7 @@ public protocol CommandHandler: Sendable {
   func companionName() async throws(HostError) -> String
   func renameCompanion(_ command: RenameCompanion) async throws(HostError) -> Done
   func lociStatus() async -> LociStatus
+  func lociPresence() async throws(HostError) -> LociPresence
   func lociPage() async throws(HostError) -> LociPage
   func diary(of day: Day) async throws(HostError) -> Diary
   func saveSoul(_ command: SaveSoul) async throws(HostError) -> Soul

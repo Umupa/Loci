@@ -15,11 +15,13 @@ struct MachineWindow: View {
   @State private var items: Feed<[Item]>?
   @State private var health: Feed<Health>?
   @State private var status: Feed<LociStatus>?
+  @State private var presence: Feed<LociPresence>?
   @State private var name: Feed<String>?
   @State private var avatar: Feed<Avatar?>?
   @State private var saving: Feed<SavingBatch?>?
   @State private var dialogs = Dialogs()
   @State private var focusRequest = 0
+  @State private var chatRequest = 0
   @State private var covers = Covers()
   @State private var deletions = Deletions()
   @State private var linkPreviews = LinkPreviews()
@@ -43,6 +45,53 @@ struct MachineWindow: View {
   }
 
   var body: some View {
+    sharing(following)
+  }
+
+  /// The window and what it keeps up with.
+  private var following: some View {
+    windowed
+      .subscribing(AllItems(), into: $items)
+      .subscribing(HealthReport(), into: $health)
+      .subscribing(CompanionName(), into: $name)
+      .subscribing(LociWorking(), into: $status)
+      .subscribing(CompanionPresence(), into: $presence)
+      .subscribing(LociModel.LociAvatar(), into: $avatar)
+      .subscribing(SavingNow(), into: $saving)
+      .onAppear(perform: restore)
+      .task { await openModelSetup() }
+      .onChange(of: openedFiles?.waiting, initial: true) { openBooks() }
+      .onChange(of: signInReturns?.waiting, initial: true) { showReturnedSignIn() }
+      .onChange(of: window) { memory.remember(window) }
+      .onChange(of: itemIDs) { _, items in
+        if let items { window = window.keeping(items: items) }
+      }
+      .onChange(of: health?.value?.readingStateLost) { _, lost in
+        if lost == true { dialogs.readingStateLost = true }
+      }
+      .focusedSceneValue(\.navigator, navigator)
+      .dialogs($dialogs, host: host)
+  }
+
+  /// What every view in the window can reach.
+  private func sharing(_ content: some View) -> some View {
+    content
+      .environment(\.covers, covers)
+      .environment(\.deletions, deletions)
+      .environment(\.linkPreviews, linkPreviews)
+      .environment(\.panelPictures, panelPictures)
+      .environment(\.browser, browser)
+      .environment(\.nowPlaying, nowPlaying)
+      .environment(\.companionName, name?.value ?? "")
+      .environment(\.lociFace, face)
+      .environment(\.companionNow, companionNow)
+      .environment(\.showFailure, ShowFailure { dialogs.failure = $0 })
+      .takingIn(takeIn)
+      .lociAppearance()
+  }
+
+  /// The layout with what floats over it and the window's own buttons and keys.
+  private var windowed: some View {
     layout
       .overlay {
         if let pending = dialogs.intake {
@@ -60,36 +109,6 @@ struct MachineWindow: View {
       .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
       .tint(Palette.accent)
       .frame(minWidth: Size.windowMinimum.width, minHeight: Size.windowMinimum.height)
-      .subscribing(AllItems(), into: $items)
-      .subscribing(HealthReport(), into: $health)
-      .subscribing(CompanionName(), into: $name)
-      .subscribing(LociWorking(), into: $status)
-      .subscribing(LociModel.LociAvatar(), into: $avatar)
-      .subscribing(SavingNow(), into: $saving)
-      .onAppear(perform: restore)
-      .task { await openModelSetup() }
-      .onChange(of: openedFiles?.waiting, initial: true) { openBooks() }
-      .onChange(of: signInReturns?.waiting, initial: true) { showReturnedSignIn() }
-      .onChange(of: window) { memory.remember(window) }
-      .onChange(of: itemIDs) { _, items in
-        if let items { window = window.keeping(items: items) }
-      }
-      .onChange(of: health?.value?.readingStateLost) { _, lost in
-        if lost == true { dialogs.readingStateLost = true }
-      }
-      .focusedSceneValue(\.navigator, navigator)
-      .dialogs($dialogs, host: host)
-      .environment(\.covers, covers)
-      .environment(\.deletions, deletions)
-      .environment(\.linkPreviews, linkPreviews)
-      .environment(\.panelPictures, panelPictures)
-      .environment(\.browser, browser)
-      .environment(\.nowPlaying, nowPlaying)
-      .environment(\.companionName, name?.value ?? "")
-      .environment(\.lociFace, face)
-      .environment(\.showFailure, ShowFailure { dialogs.failure = $0 })
-      .takingIn(takeIn)
-      .lociAppearance()
   }
 
   /// The sidebar beside the place and the pages over it, with the buttons that float at the top.
@@ -153,8 +172,12 @@ struct MachineWindow: View {
   /// The sidebar's rows, above its foot.
   private var sidebarList: some View {
     Sidebar(
-      place: placeBinding, lociChosen: lociChosen, work: status?.value?.work,
-      chooseLoci: { window = window.choosingLoci() }
+      place: placeBinding, lociChosen: lociChosen,
+      chooseLoci: {
+        memory.rememberProject(nil)
+        window = window.choosingCompanion()
+        chatRequest += 1
+      }
     )
     .safeAreaInset(edge: .top, spacing: 0) {
       SidebarToggle(shown: true, toggle: toggleSidebar)
@@ -188,9 +211,14 @@ struct MachineWindow: View {
     !window.pages.isEmpty
   }
 
-  /// The main conversation or Loci's page is on screen, so the sidebar's Loci row is chosen.
+  /// How the companion is now, for its dot and the lines under its name.
+  private var companionNow: CompanionNow {
+    CompanionNow(presence: presence?.value, work: status?.value?.work, offline: machineChoice?.offline != nil)
+  }
+
+  /// The chat or the companion's home page is on screen, so the sidebar's companion is chosen.
   private var lociChosen: Bool {
-    window.pages.isEmpty && (window.place == .talk || window.place == .loci)
+    window.pages.isEmpty && window.place.companion != nil
   }
 
   /// The face the person chose for Loci, or the drawn one.
@@ -224,38 +252,39 @@ struct MachineWindow: View {
     return .library(LibraryCategory(item.kind))
   }
 
+  /// The chat and the companion's home page are one view, so moving between them keeps the chat made.
   @ViewBuilder private var placeView: some View {
-    switch window.place {
-    case .talk:
-      CompanionPage(
-        focusRequest: focusRequest, attach: { dialogs.importing = true }, opened: { window = $0 },
-        failed: { dialogs.failure = $0 }, columnPreferred: $panelColumnPreferred, memory: memory,
-        visits: conversationVisits
+    if let face = window.place.companion {
+      CompanionSpace(
+        face: face, chatRequest: chatRequest, focusRequest: focusRequest, attach: { dialogs.importing = true },
+        opened: { window = $0 }, failed: { dialogs.failure = $0 }, columnPreferred: $panelColumnPreferred,
+        memory: memory, visits: conversationVisits, chatShown: talkShown
       )
       .environment(\.sidebarShown, sidebarShown)
-      .onAppear(perform: talkShown)
-    case .loci:
-      LociScreen()
-    case .connector(let id):
-      LociScreen(tab: .connectors, connector: id)
-    case .library(let category):
-      LibraryScreen(
-        category: category, chooseFiles: { dialogs.importing = true }, opened: { window = $0 },
-        failed: { dialogs.failure = $0 })
-    case .browser:
-      BrowserScreen(session: browser)
-    case .courses(let open):
-      CoursesScreen(open: open)
-    case .settings(.general):
-      GeneralSettingsPage()
-    case .settings(.agents):
-      AgentSettingsPage()
-    case .settings(.models):
-      ModelServicesPage()
-    case .settings(.media):
-      MediaSettingsPage()
-    case .settings(.remote):
-      RemoteSettingsPage()
+      .environment(\.pagesOver, !window.pages.isEmpty)
+    } else {
+      switch window.place {
+      case .talk, .loci, .connector:
+        EmptyView()
+      case .library(let category):
+        LibraryScreen(
+          category: category, chooseFiles: { dialogs.importing = true }, opened: { window = $0 },
+          failed: { dialogs.failure = $0 })
+      case .browser:
+        BrowserScreen(session: browser)
+      case .courses(let open):
+        CoursesScreen(open: open)
+      case .settings(.general):
+        GeneralSettingsPage()
+      case .settings(.agents):
+        AgentSettingsPage()
+      case .settings(.models):
+        ModelServicesPage()
+      case .settings(.media):
+        MediaSettingsPage()
+      case .settings(.remote):
+        RemoteSettingsPage()
+      }
     }
   }
 

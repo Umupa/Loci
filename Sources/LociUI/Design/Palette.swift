@@ -53,6 +53,12 @@ enum Palette {
   static let fallBlock = Color(nsColor: fallBlockColor)
   /// Words and glyphs on an amber fill, such as a button's.
   static let onAccent = Color(nsColor: Tones.onAccent)
+  /// The dot by the companion's face while it is awake or a little tired.
+  static let presenceAwake = Color(nsColor: Tones.presenceAwake)
+  /// The dot while it is sleepy or asleep, or its Mac is offline.
+  static let presenceAway = Color(nsColor: Tones.presenceAway)
+  /// Around the dot by the face at the top of the sidebar, the color of the sidebar there.
+  static let sidebarRing = Color(nsColor: Tones.sidebarTop)
   /// Loci's messages, and the person's, a shade apart.
   static let bubble = Color(nsColor: Tones.bubble)
   static let bubbleMine = Color(nsColor: Tones.bubbleMine)
@@ -198,6 +204,8 @@ enum Tones {
   static let readerMark = NSColor(dark: 0xF3BA65, light: 0xD98E1F, alpha: (dark: 0.30, light: 0.20))
   static let flash = NSColor(dark: 0xEBA53A, light: 0xD98E1F, alpha: (dark: 0.6, light: 0.6))
   static let ready = NSColor(dark: 0x6CC783, light: 0x34A853)
+  static let presenceAwake = NSColor(dark: 0x4FBF6E, light: 0x2E9E50)
+  static let presenceAway = NSColor(dark: 0x7A766F, light: 0xA9A59E)
   static let thumb = NSColor(dark: 0x5A544D, light: 0xFFFFFF)
   static let ring = NSColor(dark: 0xFFF5E6, light: 0xFFFFFF, alpha: (dark: 0.14, light: 0.9))
   static let coverBackdrop = NSColor(dark: 0x2A2420, light: 0x2A2420)

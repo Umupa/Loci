@@ -203,4 +203,22 @@ struct TalkRowsTests {
       ReplyHold.due(LiveTurn(startedAt: turn.startedAt, messages: Array(turn.messages.prefix(2))), wait: .seconds(1))
         == nil)
   }
+
+  /// C-S9, CH-S3: the face stands beside the first part of each reply; the rest of it lines up under it.
+  @Test func onlyTheFirstPartOfEachReplyHasTheFace() {
+    let rows = Self.rows([
+      Self.asked(0, "看到哪了"), Self.message(1, .reply("都快十二点了\n\n看到哪了")),
+      Self.asked(2, "第三节"), Self.message(3, .reply("抢占那段")),
+    ])
+
+    #expect(rows.map(\.leads) == [false, false, true, false, false, true])
+  }
+
+  @Test func whatLociIsDoingAfterThePartsAlreadyShownKeepsTheFaceWhereItWas() {
+    let tool = ToolActivity(id: "r", name: "read", kind: .read, subject: "a.md", output: "", state: .running)
+    let working = Self.rows([Self.asked(0, "问"), Self.message(1, .tool(tool))], live: true)
+
+    #expect(working.last.map(\.leads) == true)
+    #expect(working.filter(\.leads).count == 1)
+  }
 }

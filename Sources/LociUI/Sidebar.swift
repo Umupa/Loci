@@ -9,10 +9,8 @@ import SwiftUI
 struct Sidebar: View {
   @Environment(\.machineChoice) private var machineChoice
   @Binding var place: Place
-  /// Whether the main conversation or Loci's page is on screen.
+  /// Whether the chat or the companion's home page is on screen.
   let lociChosen: Bool
-  /// What Loci is working on; `nil` while it is idle.
-  let work: LociWork?
   let chooseLoci: () -> Void
 
   /// The settings at the foot when the rows fit; when the window is too short for them, the rows scroll under the
@@ -26,7 +24,7 @@ struct Sidebar: View {
 
   private func rows(spread: Bool) -> some View {
     VStack(alignment: .leading, spacing: 2) {
-      SidebarLoci(chosen: lociChosen, work: work, choose: chooseLoci)
+      SidebarLoci(chosen: lociChosen, choose: chooseLoci)
         .padding(.top, 14)
         .padding(.bottom, Spacing.xs)
       SidebarLabel(text: Text(.loci("sidebar.library")))

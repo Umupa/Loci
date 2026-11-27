@@ -21,6 +21,30 @@ public struct LociWorking: Subscription {
   }
 }
 
+/// How tired the companion is and the last thing it said in the main conversation, for its dot and the line
+/// under its name while it is idle.
+public struct CompanionPresence: Subscription {
+  public static let name = "loci.presence"
+
+  public init() {}
+
+  public func value(from handler: any CommandHandler) async throws(HostError) -> LociPresence {
+    try await handler.lociPresence()
+  }
+
+  /// A reply is read once it ends, not at every word streamed into it.
+  public func isAffected(by changes: Set<ContentChange>) -> Bool {
+    changes.contains { change in
+      switch change {
+      case .loci(.feelings), .turnEnded(.main), .everything: true
+      case .loci, .turnEnded, .conversation, .review, .job, .timers, .course, .courseActivity, .item, .notes,
+        .reading, .media, .runtime, .agentModels, .connectors, .projects, .source, .nextUps:
+        false
+      }
+    }
+  }
+}
+
 /// Everything the Loci page shows but a diary's text, kept current as Loci and the person change the files.
 public struct LociHome: Subscription {
   public static let name = "loci.page"

@@ -1,138 +1,202 @@
 import LociModel
 import SwiftUI
 
-/// The pages of Loci's own page.
-enum LociTab: Hashable {
-  case soul, models, memory, diary, timers, connectors, usage
+/// The tabs of the companion's home page: its own, then its settings.
+enum LociTab: String, CaseIterable, Hashable {
+  case soul, memory, diary, models, timers, connectors, usage
+
+  static let groups: [[LociTab]] = [[.soul, .memory, .diary], [.models, .timers, .connectors, .usage]]
+
+  /// Where the tab last looked at is kept.
+  static let key = "companionTab"
+
+  /// The tab a page opened at one shows, or else the one last looked at, or Soul.
+  static func opening(asked: LociTab?, remembered: String) -> LociTab {
+    asked ?? LociTab(rawValue: remembered) ?? .soul
+  }
+
+  var title: LocalizedStringResource {
+    switch self {
+    case .soul: .loci("loci.soul")
+    case .memory: .loci("loci.memory")
+    case .diary: .loci("loci.diary")
+    case .models: .loci("loci.models")
+    case .timers: .loci("loci.timers")
+    case .connectors: .loci("connectors.tab")
+    case .usage: .loci("usage.tab")
+    }
+  }
 }
 
-/// Loci's own page: its face, which the person can change, its name, what they have done together, and its
-/// Soul, memory and diary.
+/// The companion's home page: back to the chat in the corner, its face, name and how it is, what you have done
+/// together, a button to message it, and its tabs, which stay at the top as the page scrolls.
 struct LociScreen: View {
-  @State private var page: Feed<LociPage>?
-  @Environment(\.host) private var host
-  @Environment(\.showFailure) private var showFailure
-  @Environment(\.companionName) private var name
-  @State private var renaming = false
-  @State private var draft = ""
-  @State private var tab: LociTab
-  private let opened: ScheduleRef?
-  private let connector: ConnectorID?
-  private let wikiPage: String?
+  /// Where the page opens: at a tab, or the one last looked at, and what inside it is open.
+  struct Opening: Hashable {
+    /// `nil` opens the tab last looked at.
+    var tab: LociTab?
+    /// Starts that schedule open on the Timers page.
+    var opened: ScheduleRef?
+    /// Lights that connector's row.
+    var connector: ConnectorID?
+    /// Starts that page of the wiki open on the Memory page.
+    var wikiPage: String?
+  }
 
-  /// `opened` starts that schedule open on the Timers page; `connector` lights that connector's row; `wikiPage`
-  /// starts that page of the wiki open on the Memory page.
-  init(tab: LociTab = .soul, opened: ScheduleRef? = nil, connector: ConnectorID? = nil, wikiPage: String? = nil) {
-    _tab = State(initialValue: tab)
-    self.opened = opened
-    self.connector = connector
-    self.wikiPage = wikiPage
+  @State private var page: Feed<LociPage>?
+  @Environment(\.sidebarShown) private var sidebarShown
+  @Environment(\.companionFlight) private var flight
+  @Environment(\.reducesMotion) private var reduceMotion
+  @Environment(\.pagesOver) private var pagesOver
+  @AppStorage(LociTab.key) private var rememberedTab = ""
+  @State private var chosen: LociTab?
+  @State private var stuck = false
+  @State private var risen = false
+  private let opening: Opening
+  private let back: (() -> Void)?
+  private let message: (() -> Void)?
+
+  /// `back` returns to the chat and `message` puts the keyboard in its field; without them the page has neither.
+  init(_ opening: Opening = Opening(), back: (() -> Void)? = nil, message: (() -> Void)? = nil) {
+    self.opening = opening
+    self.back = back
+    self.message = message
+  }
+
+  init(tab: LociTab? = nil, opened: ScheduleRef? = nil, connector: ConnectorID? = nil, wikiPage: String? = nil) {
+    self.init(Opening(tab: tab, opened: opened, connector: connector, wikiPage: wikiPage))
+  }
+
+  private var tab: LociTab { chosen ?? LociTab.opening(asked: opening.tab, remembered: rememberedTab) }
+
+  private var tabSelection: Binding<LociTab> {
+    Binding(
+      get: { tab },
+      set: {
+        chosen = $0
+        rememberedTab = $0.rawValue
+      })
   }
 
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 0) {
-        hero
-        CapsulePicker(
-          selection: $tab,
-          options: [
-            (.soul, .loci("loci.soul")), (.models, .loci("loci.models")), (.memory, .loci("loci.memory")),
-            (.diary, .loci("loci.diary")),
-            (.timers, .loci("loci.timers")), (.connectors, .loci("connectors.tab")),
-            (.usage, .loci("usage.tab")),
-          ]
-        )
-        .padding(.top, 34)
-        .padding(.bottom, 22)
-        if let page = page?.value {
-          Group {
-            switch tab {
-            case .soul: SoulTab(soul: page.soul)
-            case .models: ModelsTab()
-            case .memory: MemoryTab(memory: page.memory, profile: page.profile, today: page.today, opened: wikiPage)
-            case .diary: DiaryTab(diaries: page.diaries)
-            case .timers: TimersTab(opened: opened)
-            case .connectors: ConnectorsTab(focused: connector)
-            case .usage: UsageTab()
-            }
+      LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+        HomeHeader(page: page?.value, message: message, rise: rise)
+          .padding(.horizontal, Self.margin)
+          .padding(.top, Spacing.l)
+          .padding(.bottom, Spacing.l)
+        Section {
+          content
+            .padding(.horizontal, Self.margin)
+            .padding(.top, 26)
+            .padding(.bottom, 56)
+            .rising(4, risen: risen, when: rise)
+        } header: {
+          VStack(spacing: 0) {
+            UnderlineTabs(selection: tabSelection).padding(.horizontal, Self.margin)
+            Rectangle().fill(Palette.line).frame(height: Size.hairline)
           }
-          .id(tab)
-          .arriving()
+          .background(Palette.canvas)
+          .rising(3, risen: risen, when: rise)
         }
       }
-      .animatingArrivals(tab)
-      .padding(.top, 44)
-      .padding(.horizontal, 64)
-      .padding(.bottom, 56)
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
     .scrollIndicators(.never)
+    .onScrollGeometryChange(for: Bool.self) {
+      $0.contentOffset.y + $0.contentInsets.top > Self.stickAt
+    } action: { _, past in
+      stuck = past
+    }
+    .safeAreaInset(edge: .top, spacing: 0) { topRow }
     .background(Palette.canvas)
     .subscribing(LociHome(), into: $page)
-    .alert(Text(.loci("companion.name")), isPresented: $renaming) {
-      TextField(text: $draft) { Text(.loci("companion.name")) }
-      Button(.loci("dialog.cancel"), role: .cancel) {}
-      Button(.loci("loci.save")) { rename(draft) }
+    .onAppear { risen = true }
+  }
+
+  /// The parts under the face rise in one after another only as the face flies in from the chat.
+  private var rise: Bool { flight != nil && !reduceMotion }
+
+  @ViewBuilder private var content: some View {
+    if let page = page?.value {
+      Group {
+        switch tab {
+        case .soul: SoulTab(soul: page.soul)
+        case .models: ModelsTab()
+        case .memory:
+          MemoryTab(memory: page.memory, profile: page.profile, today: page.today, opened: opening.wikiPage)
+        case .diary: DiaryTab(diaries: page.diaries)
+        case .timers: TimersTab(opened: opening.opened)
+        case .connectors: ConnectorsTab(focused: opening.connector)
+        case .usage: UsageTab()
+        }
+      }
+      .id(tab)
+      .arriving()
+      .animatingArrivals(tab)
     }
   }
 
-  private func rename(_ name: String) {
-    Task {
-      do throws(HostError) {
-        _ = try await host.run(RenameCompanion(name))
-      } catch {
-        showFailure(error)
+  /// Back to the chat, and the companion's face and name once the header has scrolled away.
+  private var topRow: some View {
+    HStack(spacing: Spacing.s) {
+      if let back {
+        Button(action: back) {
+          HStack(spacing: Spacing.xxs) {
+            Image(systemName: Symbols.back).font(.system(size: 12, weight: .medium))
+            Text(.loci("projects.chat")).font(.system(size: 13))
+          }
+          .foregroundStyle(Palette.inkMuted)
+          .padding(.vertical, Spacing.xxs)
+          .padding(.horizontal, Spacing.xs)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle())
+        .keyboardShortcut(pagesOver ? nil : KeyboardShortcut("[", modifiers: .command))
+        .help(Text(.loci("companion.backToChat")))
+        .rising(0, risen: risen, when: rise)
       }
+      CompanionMini()
+        .opacity(stuck ? 1 : 0)
+        .offset(y: stuck || reduceMotion ? 0 : 4)
+        .animation(reduceMotion ? nil : Motion.quick, value: stuck)
+        .accessibilityHidden(!stuck)
+      Spacer(minLength: 0)
     }
+    .frame(height: Self.topRow)
+    .padding(.leading, CompanionBadge.leading(sidebarShown: sidebarShown) - Spacing.xs)
+    .padding(.top, Spacing.xs)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Palette.canvas)
   }
 
-  private var hero: some View {
-    HStack(spacing: Spacing.xl) {
-      Portrait()
-      VStack(alignment: .leading, spacing: Spacing.s) {
-        Button {
-          draft = name
-          renaming = true
-        } label: {
-          HStack(alignment: .firstTextBaseline, spacing: Spacing.s) {
-            (name.isEmpty ? Text(.loci("companion.title")) : Text(verbatim: name))
-              .font(.system(size: 46, weight: .semibold, design: .serif))
-              .lineLimit(1)
-            Image(systemName: Symbols.pencil).font(.system(size: 15)).foregroundStyle(Palette.inkMuted)
-          }
-        }
-        .buttonStyle(.plain)
-        .help(Text(.loci("companion.name")))
-        .changesData()
-        if let feeling = page?.value?.feeling {
-          FeelingLine(feeling: feeling).padding(.bottom, Spacing.xxs)
-        }
-        if let together = page?.value?.together {
-          FlowRow(spacing: Spacing.xs) {
-            FactPill(count: together.days, unit: .loci("loci.days"))
-            FactPill(count: together.messages, unit: .loci("loci.messages"))
-            FactPill(count: together.itemsReadTogether, unit: .loci("loci.readTogether"))
-          }
-        }
-      }
+  /// From the page's edge to its words.
+  static let margin: CGFloat = 48
+  private static let topRow: CGFloat = 38
+  /// How far the page scrolls before the header is gone under the tabs.
+  private static let stickAt: CGFloat = 130
+}
+
+/// The companion's small face and name, at the top of its page once the header has scrolled away.
+private struct CompanionMini: View {
+  @Environment(\.companionName) private var name
+
+  var body: some View {
+    HStack(spacing: Spacing.xs) {
+      LociAvatar(size: 22)
+      (name.isEmpty ? Text(.loci("companion.title")) : Text(verbatim: name))
+        .font(.system(size: 13.5, weight: .semibold))
+        .foregroundStyle(Palette.ink)
+        .lineLimit(1)
     }
   }
 }
 
-/// A count and what it counts, in a quiet capsule.
-private struct FactPill: View {
-  let count: Int
-  let unit: LocalizedStringResource
-
-  var body: some View {
-    HStack(spacing: Spacing.xxs) {
-      Text(count, format: .number).font(.system(size: 12.5, weight: .medium).monospaced()).foregroundStyle(Palette.ink)
-      Text(unit).font(.system(size: 12.5)).foregroundStyle(Palette.inkMuted)
-    }
-    .padding(.vertical, Spacing.xxs)
-    .padding(.horizontal, 10)
-    .background(Palette.fill, in: Capsule())
-    .fixedSize()
+extension View {
+  /// Comes up into place after the face, `step` places along, as the home page opens from the chat.
+  func rising(_ step: Int, risen: Bool, when rises: Bool) -> some View {
+    opacity(rises && !risen ? 0 : 1)
+      .offset(y: rises && !risen ? 10 : 0)
+      .animation(rises ? Motion.companionRise.delay(0.14 + Double(step) * 0.045) : nil, value: risen)
   }
 }
 

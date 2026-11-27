@@ -162,7 +162,7 @@ struct ConversationView<Tail: View>: View {
       VStack(alignment: .leading, spacing: Size.messageGap) {
         LazyVStack(alignment: .leading, spacing: Size.messageGap) {
           ForEach(rows) { row in
-            view(of: row).arriving()
+            view(of: row).besideFace(of: row, shown: scale == .main).arriving()
           }
         }
         .scrollTargetLayout()

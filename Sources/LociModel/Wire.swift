@@ -59,7 +59,7 @@ public enum Wire {
 
   public static let subscriptions: [any Subscription.Type] = [
     CompanionName.self, OneConversation.self, LociWorking.self, ConversationRuntime.self, LociHome.self, OneDiary.self,
-    LociAvatar.self,
+    LociAvatar.self, CompanionPresence.self,
     AllItems.self, OneItem.self, ItemCover.self, NotesOn.self, AllJobs.self, ItemJob.self, SavingNow.self,
     ItemMedia.self, WatchCourses.self, WatchCourse.self, WatchLesson.self,
     MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self, WatchPanelColumn.self,

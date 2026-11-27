@@ -1,15 +1,17 @@
 import LociModel
 import SwiftUI
 
-/// The companion's page: the project bar over the chat or the project it has open, or over the field a new
-/// project starts from. The open one is remembered for the Mac. A next-up card started from the deck flies into
-/// its seal, and its project opens.
+/// The companion's page: who it is in the top-left corner, and the project bar over the chat or the project it
+/// has open, or over the field a new project starts from. The open one is remembered for the Mac. A next-up card
+/// started from the deck flies into its seal, and its project opens.
 struct CompanionPage: View {
   @Environment(\.host) private var host
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.sidebarShown) private var sidebarShown
   @Environment(\.cardDelivery) private var cardDelivery
   @Environment(\.machineChoice) private var machineChoice
+  /// Changes each time the chat itself should come to the front, from whichever project was open.
+  var chatRequest = 0
   let focusRequest: Int
   let attach: () -> Void
   let opened: (WindowState) -> Void
@@ -34,6 +36,7 @@ struct CompanionPage: View {
   /// The projects whose pages stay made while another home shows, the latest opened last.
   @State private var madeProjects: [Project.ID] = []
   @State private var pageWidth: CGFloat = 0
+  @State private var badgeWidth: CGFloat = 0
   @State private var homeSwitch = HomeSwitch.logged()
   /// The chat's layout, for the layout button over a new project's field.
   @AppStorage(TalkLayout.key) private var storedLayout = Data()
@@ -73,15 +76,26 @@ struct CompanionPage: View {
             CornerButtons(layout: chatLayout, panelsShown: $columnPreferred)
           }
       }
-      let leadingClearance = sidebarShown ? Spacing.m : Size.projectBarClearance
+      let badgeLeading = CompanionBadge.leading(sidebarShown: sidebarShown)
+      let leadingClearance = max(Size.projectBarClearance, badgeLeading + badgeWidth + Spacing.s)
       let barBudget =
-        pageWidth > 0 ? max(240, pageWidth - leadingClearance - Size.projectBarClearance) : Size.projectBarWidest
-      BarClearance(leading: leadingClearance, trailing: Size.projectBarClearance) {
+        pageWidth > 0 ? max(240, pageWidth - leadingClearance * 2) : Size.projectBarWidest
+      BarClearance(leading: leadingClearance, trailing: leadingClearance) {
         ProjectBarView(
           bar: shownBar, home: home, maxWidth: barBudget, starting: starting != nil,
           startingSent: starting?.sent != nil, stamps: stamps, actions: actions)
       }
       .padding(.top, 11)
+      CompanionBadge()
+        .onGeometryChange(for: CGFloat.self) {
+          $0.size.width
+        } action: {
+          badgeWidth = $0
+        }
+        .frame(maxWidth: Self.badgeWidest, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, badgeLeading)
+        .padding(.top, Spacing.xs)
     }
     .onGeometryChange(for: CGFloat.self) {
       $0.size.width
@@ -121,6 +135,7 @@ struct CompanionPage: View {
     .environment(\.homeSwitch, timing)
     .onChange(of: shownHome) { if let shownHome { focus[shownHome, default: 0] += 1 } }
     .onChange(of: focusRequest) { if let shownHome { focus[shownHome, default: 0] += 1 } }
+    .onChange(of: chatRequest) { actions.open(.chat) }
     .onAppear {
       guard !recalled else { return }
       recalled = true
@@ -211,6 +226,9 @@ struct CompanionPage: View {
         notice = .deleted()
       })
   }
+
+  /// The most of the corner the companion's name and line take before they are cut short.
+  private static let badgeWidest: CGFloat = 220
 
   /// Turns are timed on this Mac only; another Mac's would include the network.
   private var timing: HomeSwitch? { machineChoice?.link == nil ? homeSwitch : nil }

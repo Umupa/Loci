@@ -208,6 +208,10 @@ enum Motion {
   static let land = Animation.spring(response: 0.55, dampingFraction: 0.62)
   /// The task dock opening into its list.
   static let dock = Animation.spring(response: 0.35, dampingFraction: 0.72)
+  /// The companion's face and name flying between the chat and its home page.
+  static let companionFlight = Animation.timingCurve(0.2, 0.9, 0.25, 1, duration: 0.56)
+  /// What else is on the home page rising into place after the face, one after another.
+  static let companionRise = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.38)
   /// What Loci is doing changing to the next thing.
   static let swap = Animation.timingCurve(0.28, 0.67, 0.32, 1, duration: 0.35)
   /// How long a reply being written goes on with no tool after it before it shows.

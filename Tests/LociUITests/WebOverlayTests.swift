@@ -199,7 +199,8 @@ struct WebOverlayTests {
     if let event { window.sendEvent(event) }
   }
 
-  /// The scroll view of the conversation: the tallest one in the window.
+  /// The scroll view of the conversation: the tallest one in the window. The conversation makes its scroll view
+  /// again once its messages arrive, so it is looked up each time rather than kept.
   private static func conversation(in window: NSWindow) -> NSScrollView? {
     guard let root = window.contentView else { return nil }
     return scrollViews(in: root).max { ($0.documentView?.frame.height ?? 0) < ($1.documentView?.frame.height ?? 0) }

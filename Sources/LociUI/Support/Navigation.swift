@@ -6,9 +6,9 @@ import SwiftUI
 enum Place: Codable, Hashable {
   /// The main conversation with Loci.
   case talk
-  /// Loci's own page: its face, Soul, memory and diary.
+  /// The companion's home page: its face, how it is, and its tabs.
   case loci
-  /// Loci's own page open at its connectors, with this one lit, as a reply asked.
+  /// The companion's home page open at its connectors, with this one lit, as a reply asked.
   case connector(ConnectorID)
   /// `nil` is every kind.
   case library(LibraryCategory?)
@@ -104,10 +104,9 @@ struct WindowState: Codable, Equatable {
     WindowState(place: place, pages: pages + [page])
   }
 
-  /// Where choosing Loci at the top of the sidebar goes: from the main conversation to Loci's page, and
-  /// from anywhere else back to the main conversation.
-  func choosingLoci() -> WindowState {
-    WindowState(place: place == .talk && pages.isEmpty ? .loci : .talk)
+  /// Where choosing the companion at the top of the sidebar goes: the chat, from anywhere.
+  func choosingCompanion() -> WindowState {
+    WindowState(place: .talk)
   }
 }
 
