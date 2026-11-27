@@ -6,7 +6,7 @@ import Testing
 
 @testable import LociUI
 
-/// PJ-S2: going from the chat to a project and back shows the chat as it was left, without making it again.
+/// PJ-S2: going between the chat and a project shows each as it was left, without making either again.
 @MainActor
 @Suite(.onStage(alone: true))
 struct ProjectSwitchTests {
@@ -14,7 +14,7 @@ struct ProjectSwitchTests {
   private static let investingSeal = CGPoint(x: 662, y: 31)
   private static let chatTab = CGPoint(x: 590, y: 31)
 
-  @Test func goingBackToTheChatFromAProjectKeepsTheChatAsItWas() async throws {
+  @Test func goingBackAndForthBetweenTheChatAndAProjectMakesNeitherPageAgain() async throws {
     let activity = Activity()
     let (window, host) = try Self.show(activity)
     defer { window.orderOut(nil) }
@@ -26,14 +26,15 @@ struct ProjectSwitchTests {
     try await eventually("the project to open over the chat", within: .seconds(5)) {
       Self.conversations(in: host).count == 2
     }
-    try await Task.sleep(for: .seconds(1))
-    try Self.click(Self.chatTab, in: window)
-    try await eventually("the project to close", within: .seconds(5)) {
-      Self.conversations(in: host).count == 1
+    for seal in [Self.chatTab, Self.investingSeal, Self.chatTab] {
+      try await Task.sleep(for: .milliseconds(500))
+      try Self.click(seal, in: window)
     }
 
     try await Task.sleep(for: .milliseconds(300))
+    #expect(Self.conversations(in: host).count == 2)
     #expect(activity.watches(of: OneConversation(.main)) == 1)
+    #expect(activity.watches(of: OneConversation(Home.project(ProjectSnapshots.investing.id).conversation)) == 1)
   }
 
   @Test func theProjectBarYieldsNameWidthSmoothlyBeforeFoldingOverflowIntoTheList() {

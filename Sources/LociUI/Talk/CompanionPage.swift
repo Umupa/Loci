@@ -27,9 +27,10 @@ struct CompanionPage: View {
   @State private var flight: NextUp?
   /// How many cards each seal caught, to stamp it once more.
   @State private var stamps: [Home: Int] = [:]
-  /// Asks the chat's input field for the keyboard; only while the chat shows, since it stays made under a
-  /// project.
-  @State private var chatFocus = 0
+  /// Asks a home's input field for the keyboard when its page comes to the front; pages stay made behind it.
+  @State private var focus: [Home: Int] = [:]
+  /// The projects whose pages stay made while another home shows, the latest opened last.
+  @State private var madeProjects: [Project.ID] = []
   @State private var pageWidth: CGFloat = 0
   @State private var homeSwitch = HomeSwitch.logged()
   /// The chat's layout, for the layout button over a new project's field.
@@ -60,7 +61,8 @@ struct CompanionPage: View {
 
   var body: some View {
     ZStack(alignment: .top) {
-      talk(.chat, shown: chatShown, focusRequest: chatFocus)
+      talk(.chat)
+      ForEach(keptProjects, id: \.self) { id in talk(.project(id)) }
       if let starting {
         NewProjectStage(sent: starting.sent, send: start)
           .padding(.top, Size.projectBarRoom)
@@ -68,9 +70,6 @@ struct CompanionPage: View {
           .overlay(alignment: .topTrailing) {
             CornerButtons(layout: chatLayout, panelsShown: $columnPreferred)
           }
-      } else if let project {
-        talk(.project(project), shown: true, focusRequest: focusRequest)
-          .id(project)
       }
       let leadingClearance = sidebarShown ? Spacing.m : Size.projectBarClearance
       let barBudget =
@@ -119,15 +118,18 @@ struct CompanionPage: View {
     }
     .onDisappear { timing?.left() }
     .environment(\.homeSwitch, timing)
-    .onChange(of: chatShown) { if chatShown { chatFocus += 1 } }
-    .onChange(of: focusRequest) { if chatShown { chatFocus += 1 } }
+    .onChange(of: shownHome) { if let shownHome { focus[shownHome, default: 0] += 1 } }
+    .onChange(of: focusRequest) { if let shownHome { focus[shownHome, default: 0] += 1 } }
     .onAppear {
       guard !recalled else { return }
       recalled = true
       project = memory.recallProject()
       if let opening { starting = opening }
     }
-    .onChange(of: project) { memory.rememberProject(project) }
+    .onChange(of: project) {
+      memory.rememberProject(project)
+      madeProjects = keptProjects
+    }
     .onChange(of: bar?.value) { settle() }
     .task(id: notice) {
       guard let shown = notice else { return }
@@ -136,27 +138,30 @@ struct CompanionPage: View {
     }
   }
 
-  /// A home's conversation and panels. The chat's stays made while a project is open over it, so going back to
-  /// it shows it as it was instead of making it again.
-  private func talk(_ shownHome: Home, shown: Bool, focusRequest: Int) -> some View {
-    TalkScreen(
-      home: shownHome, pinned: Set(shownHome == home ? openProject?.pinned ?? [] : []), focusRequest: focusRequest,
-      attach: attach, opened: opened, failed: failed, visit: visits.visit(for: shownHome),
+  /// A home's conversation and panels. The chat's page and those of the last projects opened stay made while
+  /// another home shows, so going back to one shows it as it was instead of making it again. What a page is
+  /// given does not depend on which home shows, so turning between them leaves the pages behind untouched.
+  private func talk(_ pageHome: Home) -> some View {
+    let shown = pageHome == shownHome
+    let project = pageHome.project.flatMap { projectsMap[$0] }
+    return TalkScreen(
+      home: pageHome, pinned: Set(project?.pinned ?? []), focusRequest: focus[pageHome, default: 0],
+      attach: attach, opened: opened, failed: failed, visit: visits.visit(for: pageHome),
       columnPreferred: $columnPreferred
     )
-    .environment(\.projectName, shownHome == home ? openProject?.name : nil)
+    .environment(\.projectName, project?.name)
     .environment(\.projectsByID, projectsMap)
-    .environment(\.nextUpDeck, deck)
+    .environment(\.nextUpDeck, shown ? deck : nil)
     .opacity(shown ? 1 : 0)
     .allowsHitTesting(shown)
     .accessibilityHidden(!shown)
   }
 
-  private var chatShown: Bool { starting == nil && project == nil }
+  /// The home whose page is in front; `nil` while a new project's field covers them.
+  private var shownHome: Home? { starting == nil ? home : nil }
 
-  private var openProject: Project? {
-    guard let project else { return nil }
-    return (shownBar.projects + shownBar.archived).first { $0.id == project }
+  private var keptProjects: [Project.ID] {
+    KeptPages.projects(made: madeProjects, open: project, alive: bar == nil ? nil : Set(projectsMap.keys))
   }
 
   /// A started project is done once it has its name; a project gone elsewhere leaves the chat open; what the
@@ -208,7 +213,7 @@ struct CompanionPage: View {
   /// Times the turn when the page will change: to another home, or to the one a new project's field covers.
   private func turn(to chosen: Home) {
     guard chosen != home || starting != nil else { return }
-    timing?.turned(to: chosen, kept: chosen == .chat)
+    timing?.turned(to: chosen, kept: chosen.project.map(madeProjects.contains) ?? true)
   }
 
   private func start(_ words: String, icon: String?) {
