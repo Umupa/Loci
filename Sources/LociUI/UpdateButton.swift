@@ -21,7 +21,7 @@ struct UpdateButton: View {
       Task { await updates.retry() }
     case .ready, .waiting:
       Task { await updates.restart() }
-    case .current, .downloading:
+    case .current, .downloading, .misplaced:
       break
     }
   }
@@ -57,7 +57,7 @@ struct UpdateMark: View {
     switch state {
     case .ready: Symbols.restart
     case .waiting: Symbols.waiting
-    case .failed: Symbols.retry
+    case .failed, .misplaced: Symbols.retry
     case .current, .downloading: nil
     }
   }
@@ -65,26 +65,31 @@ struct UpdateMark: View {
   private var amber: Bool {
     switch state {
     case .ready, .waiting: true
-    case .current, .downloading, .failed: false
+    case .current, .downloading, .failed, .misplaced: false
     }
   }
 
-  private var title: LocalizedStringResource {
-    switch state {
-    case .waiting(_, let busy): UpdateWords.waiting(for: busy)
-    case .failed(_, let failure): UpdateWords.failed(failure)
-    case .current, .downloading, .ready: .loci("update.ready")
-    }
-  }
+  private var title: LocalizedStringResource { UpdateWords.title(of: state) }
 }
 
 enum UpdateWords {
+  /// What hovering the update button says.
+  static func title(of state: AppUpdate) -> LocalizedStringResource {
+    switch state {
+    case .waiting(_, let busy): waiting(for: busy)
+    case .failed(_, let failure): failed(failure)
+    case .misplaced: .loci("update.misplaced")
+    case .current, .downloading, .ready: .loci("update.ready")
+    }
+  }
+
   static func failed(_ failure: UpdateFailure) -> LocalizedStringResource {
     switch failure {
     case .download: .loci("update.failedDownload")
     case .checksum: .loci("update.failedChecksum")
     case .signature: .loci("update.failedSignature")
     case .install: .loci("update.failedInstall")
+    case .launch: .loci("update.failedLaunch")
     }
   }
 

@@ -1,6 +1,7 @@
 import Foundation
 import LociMedia
 import LociModel
+import LociStore
 
 /// What updating this copy of Loci takes from the outside world, so tests can choose it.
 public struct UpdateEnvironment: Sendable {
@@ -8,6 +9,11 @@ public struct UpdateEnvironment: Sendable {
   public let running: ReleaseVersion?
   /// The app bundle running, which an update replaces.
   public let installed: URL
+  /// The bundle identifier of the copy running. Each one keeps its update files apart, so a test copy and
+  /// the published one never take up each other's downloads or records.
+  public let identifier: String
+  /// Whether `installed` can be replaced; a copy that cannot never downloads.
+  public let placement: AppPlacement
   /// This process; the new copy opens once it has ended.
   public let processID: Int32
   public let network: any Network
@@ -29,7 +35,9 @@ public struct UpdateEnvironment: Sendable {
   public let quit: @Sendable () async -> Void
 
   public init(
-    running: ReleaseVersion?, installed: URL, processID: Int32, network: any Network, runner: any ProgramRunner,
+    running: ReleaseVersion?, installed: URL, identifier: String,
+    placement: AppPlacement = .replaceable, processID: Int32,
+    network: any Network, runner: any ProgramRunner,
     support: URL, feed: URL = ReleaseFeed.loci, ticks: @escaping @Sendable () -> AsyncStream<Void>,
     foreground: @escaping @Sendable () -> AsyncStream<Void>, busy: @escaping @Sendable () -> AsyncStream<Busy?>,
     now: @escaping @Sendable () -> Date = Date.init,
@@ -38,6 +46,8 @@ public struct UpdateEnvironment: Sendable {
   ) {
     self.running = running
     self.installed = installed
+    self.identifier = identifier
+    self.placement = placement
     self.processID = processID
     self.network = network
     self.runner = runner
@@ -50,6 +60,10 @@ public struct UpdateEnvironment: Sendable {
     self.sleep = sleep
     self.quit = quit
   }
+
+  /// The bundle identifier every published release has; only it cleans up what releases up to 1.8.8 left in
+  /// the shared `updates/` folder.
+  public static let publishedIdentifier = "com.loci.native.dev"
 
   /// The variable that points a test copy at a local feed; the release still has to meet the signature
   /// requirement of the copy running.
@@ -64,7 +78,9 @@ public struct UpdateEnvironment: Sendable {
     UpdateEnvironment(
       running: (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
         .flatMap(ReleaseVersion.init),
-      installed: bundle.bundleURL, processID: ProcessInfo.processInfo.processIdentifier, network: SystemNetwork(),
+      installed: bundle.bundleURL, identifier: bundle.bundleIdentifier ?? bundle.bundleURL.lastPathComponent,
+      placement: AppPlacement.of(bundle.bundleURL),
+      processID: ProcessInfo.processInfo.processIdentifier, network: SystemNetwork(),
       runner: SystemRunner(),
       support: URL.applicationSupportDirectory.appending(path: "Loci", directoryHint: .isDirectory),
       feed: variables[feedVariable].flatMap { URL(string: $0) } ?? ReleaseFeed.loci,

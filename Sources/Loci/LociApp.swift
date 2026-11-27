@@ -26,6 +26,7 @@ struct LociApp: App {
         .returningFromSignIns(launch.signInReturns)
       case .problem(let problem):
         StartupProblemView(problem: problem, rebuild: launch.rebuild)
+          .onAppear(perform: launch.interfaceShown)
       }
     }
     .windowStyle(.hiddenTitleBar)

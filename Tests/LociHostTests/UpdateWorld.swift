@@ -1,6 +1,8 @@
+import CryptoKit
 import Foundation
 import LociMedia
 import LociModel
+import LociStore
 import Synchronization
 
 @testable import LociHost
@@ -11,6 +13,8 @@ struct UpdateWorld {
   let folder: URL
   let installed: URL
   let support: URL
+  /// This copy's own update folder.
+  let updates: URL
   let network: ReleaseNetwork
   let programs: UpdatePrograms
   let updater: AppUpdater
@@ -27,11 +31,14 @@ struct UpdateWorld {
   init(
     latest tag: String, signature: String = #"identifier "com.loci.native.dev" and certificate leaf = H"ab""#,
     verifies: Bool = true, checksum: String = UpdateWorld.imageChecksum, unreachable: Set<URL> = [],
-    running: String = "1.1.1", folder given: URL? = nil, beforeReply: @escaping @Sendable () async -> Void = {}
+    running: String = "1.1.1", identifier: String = UpdateEnvironment.publishedIdentifier,
+    placement: AppPlacement = .replaceable, folder given: URL? = nil,
+    beforeReply: @escaping @Sendable () async -> Void = {}
   ) throws {
     folder = given ?? FileManager.default.temporaryDirectory.appending(path: "loci-update-\(UUID().uuidString)")
     installed = folder.appending(path: "Applications/Loci (Beta).app")
     support = folder.appending(path: "Support")
+    updates = support.appending(path: "updates/\(identifier)")
     if given == nil {
       try FileManager.default.createDirectory(at: installed, withIntermediateDirectories: true)
       try Data("old".utf8).write(to: installed.appending(path: "marker"))
@@ -43,7 +50,9 @@ struct UpdateWorld {
     let quitting = Shared<AppUpdater?>(nil)
     updater = AppUpdater(
       environment: UpdateEnvironment(
-        running: ReleaseVersion(running), installed: installed, processID: 4242, network: network, runner: programs,
+        running: ReleaseVersion(running), installed: installed, identifier: identifier, placement: placement,
+        processID: 4242, network: network,
+        runner: programs,
         support: support, ticks: { AsyncStream { $0.finish() } }, foreground: { foreground.stream() },
         busy: { busy.stream() }, now: { clock.value }, sleep: { try await sleeper.sleep($0) },
         quit: {
@@ -97,9 +106,29 @@ struct UpdateWorld {
   var quitCount: Int { quits.value }
 
   var stagedFolders: [String] {
-    let updates = support.appending(path: "updates")
     let names = (try? FileManager.default.contentsOfDirectory(atPath: updates.path(percentEncoded: false))) ?? []
-    return names.filter { !$0.hasSuffix(".partial") }.sorted()
+    return names.filter { ReleaseVersion($0) != nil }.sorted()
+  }
+
+  /// The watcher started for the copy just put in place, as the arguments `AppImage.watchStart` passes.
+  var watcher: Watcher? {
+    guard let call = programs.calls.last(where: { $0.arguments.dropFirst(2).first == "watch" }) else { return nil }
+    let given = Array(call.arguments.dropFirst(3))
+    return Watcher(app: given[0], previousApp: given[2], opens: given[7] == "yes", pid: given[9])
+  }
+
+  struct Watcher: Equatable {
+    let app: String
+    let previousApp: String
+    let opens: Bool
+    let pid: String
+  }
+
+  var previous: URL { updates.appending(path: "previous") }
+
+  /// What the kept copy of the app that was replaced says.
+  func previousContents() throws -> String {
+    String(decoding: try Data(contentsOf: previous.appending(path: "Loci (Beta).app/marker")), as: UTF8.self)
   }
 }
 
@@ -160,6 +189,7 @@ final class ReleaseNetwork: Network {
   private let resumedFrom = Mutex<[Int]>([])
   private let shares = Mutex<[Fraction]>([Fraction(1)])
   private let holding = Mutex<Latch?>(nil)
+  private let offering = Mutex(Offers())
   let folder: URL
   let checksum: String
   let beforeReply: @Sendable () async -> Void
@@ -181,7 +211,79 @@ final class ReleaseNetwork: Network {
     let version = ReleaseVersion(tag)!
     let image = URL(string: "https://dl.umupa.fun/loci/Loci-Beta-\(version).dmg")!
     let mirror = URL(string: "https://github.com/Umupa/Loci/releases/download/\(tag)/Loci-Beta-\(version).dmg")!
-    return AppRelease(version: version, image: image, mirrors: [mirror], checksum: checksum)
+    let offers = self.offers
+    return AppRelease(
+      version: version, image: image, mirrors: [mirror], checksum: checksum,
+      archive: offers.archive.map { Self.file($0, at: archiveURL) },
+      manifest: offers.manifest.map { Self.file($0, at: manifestURL) },
+      patches: offers.patch.map {
+        [ReleasePatch(from: ReleaseVersion($0.from)!, file: Self.file($0.data, at: patchURL))]
+      }
+        ?? [],
+      notes: offers.notes)
+  }
+
+  /// What the feed offers besides the disk image; nothing, as releases up to 1.8.8 described.
+  struct Offers: Sendable {
+    var archive: Data?
+    var manifest: Data?
+    var patch: (from: String, data: Data)?
+    var notes: [ReleaseNotes] = []
+  }
+
+  var offers: Offers {
+    get { offering.withLock { $0 } }
+    set { offering.withLock { $0 = newValue } }
+  }
+
+  var archiveURL: URL { URL(string: "https://dl.umupa.fun/loci/Loci-Beta-\(tag.dropFirst()).zip")! }
+  var manifestURL: URL { URL(string: "https://dl.umupa.fun/loci/Loci-Beta-\(tag.dropFirst()).files.json")! }
+  var patchURL: URL {
+    URL(string: "https://dl.umupa.fun/loci/Loci-Beta-\(tag.dropFirst()).from-\(offers.patch?.from ?? "").patch")!
+  }
+
+  private static func file(_ data: Data, at address: URL) -> ReleaseFile {
+    ReleaseFile(checksum: sha256(data), size: Int64(data.count), places: [address])
+  }
+
+  static func sha256(_ data: Data) -> String {
+    SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+  }
+
+  /// The body of `latest.json` for what the feed offers now.
+  private var body: String {
+    let latest = release
+    func file(_ file: ReleaseFile?) -> String? {
+      file.map { #"{"sha256": "\#($0.checksum)", "size": \#($0.size ?? 0), "downloads": ["\#($0.places[0])"]}"# }
+    }
+    var fields = [
+      #""version": "\#(tag.dropFirst())""#, #""sha256": "\#(latest.checksum)""#,
+      #""downloads": [\#(latest.images.map { "\"\($0.absoluteString)\"" }.joined(separator: ", "))]"#,
+    ]
+    if let archive = file(latest.archive) { fields.append(#""archive": \#(archive)"#) }
+    if let manifest = file(latest.manifest) { fields.append(#""manifest": \#(manifest)"#) }
+    if let patch = latest.patches.first {
+      fields.append(
+        #""patches": [{"from": "\#(patch.from)", "sha256": "\#(patch.file.checksum)", "size": \#(patch.file.size ?? 0), "downloads": ["\#(patch.file.places[0])"]}]"#
+      )
+    }
+    if !latest.notes.isEmpty {
+      let notes = latest.notes.map { note in
+        let changes = note.changes.map { "- \($0)" }.joined(separator: "\\n")
+        return #"{"version": "\#(note.version)", "changes": "\#(changes)"}"#
+      }
+      fields.append(#""notes": [\#(notes.joined(separator: ", "))]"#)
+    }
+    return "{" + fields.joined(separator: ", ") + "}"
+  }
+
+  /// What the network serves at `url`.
+  private func served(at url: URL) -> Data {
+    let offers = self.offers
+    if url == archiveURL, let archive = offers.archive { return archive }
+    if url == manifestURL, let manifest = offers.manifest { return manifest }
+    if let patch = offers.patch, url == patchURL { return patch.data }
+    return Self.image
   }
 
   var unreachable: Set<URL> {
@@ -222,11 +324,6 @@ final class ReleaseNetwork: Network {
     requests.withLock { $0.append(url) }
     if offline || unreachable.contains(url) { throw FetchError(reason: "HTTP 403") }
     await beforeReply()
-    let latest = release
-    let downloads = latest.images.map { "\"\($0.absoluteString)\"" }.joined(separator: ", ")
-    let body = """
-      {"version": "\(tag.dropFirst())", "sha256": "\(latest.checksum)", "downloads": [\(downloads)]}
-      """
     return (Data(body.utf8), HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!)
   }
 
@@ -242,6 +339,7 @@ final class ReleaseNetwork: Network {
     let url = request.url ?? URL(filePath: "/")
     requests.withLock { $0.append(url) }
     if unreachable.contains(url) { throw FetchError(reason: "HTTP 403") }
+    let whole = served(at: url)
     let had = (try? Data(contentsOf: part)) ?? Data()
     resumedFrom.withLock { $0.append(had.count) }
     let breaks = breaking.withLock { count in
@@ -249,50 +347,12 @@ final class ReleaseNetwork: Network {
       return count > 0
     }
     if breaks {
-      try? (had + Self.image.dropFirst(had.count).prefix(1)).write(to: part)
+      try? (had + whole.dropFirst(had.count).prefix(1)).write(to: part)
       throw FetchError(reason: "The network connection was lost.")
     }
     for share in reportedShares { progress(share) }
     await hold?.wait()
-    try? (had + Self.image.dropFirst(had.count)).write(to: part)
+    try? (had + whole.dropFirst(had.count)).write(to: part)
     return part
-  }
-}
-
-/// Answers for `codesign`, `hdiutil`, `ditto` and `sh`. Copying the app writes a new copy whose marker says `new`.
-final class UpdatePrograms: ProgramRunner {
-  private let recorded = Mutex<[ProgramCall]>([])
-  private let passes: Mutex<Bool>
-  let signature: String
-
-  init(signature: String, verifies: Bool) {
-    self.signature = signature
-    passes = Mutex(verifies)
-  }
-
-  var calls: [ProgramCall] { recorded.withLock { $0 } }
-
-  var verifies: Bool {
-    get { passes.withLock { $0 } }
-    set { passes.withLock { $0 = newValue } }
-  }
-
-  func run(_ call: ProgramCall, line: @escaping @Sendable (String) -> Void) async throws(ProgramError)
-    -> ProgramResult
-  {
-    recorded.withLock { $0.append(call) }
-    switch (call.executable.lastPathComponent, call.arguments.first) {
-    case ("codesign", "-d"):
-      return ProgramResult(status: 0, output: "designated => \(signature)\n")
-    case ("codesign", "--verify"):
-      return verifies ? ProgramResult(status: 0, output: "") : ProgramResult(status: 3, output: "", diagnostics: "nope")
-    case ("ditto", _):
-      let copy = URL(filePath: call.arguments[1])
-      try? FileManager.default.createDirectory(at: copy, withIntermediateDirectories: true)
-      try? Data("new".utf8).write(to: copy.appending(path: "marker"))
-      return ProgramResult(status: 0, output: "")
-    default:
-      return ProgramResult(status: 0, output: "")
-    }
   }
 }

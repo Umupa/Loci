@@ -9,33 +9,33 @@ extension AppUpdater {
   func restoreStaged() async {
     guard let running = environment.running, let requirement else { return }
     let tools = AppImage(runner: environment.runner)
-    for candidate in support.stagedUpdates(appName: Self.packagedName) {
-      if staged == nil, candidate.release.version > running,
+    for candidate in files.stagedUpdates() {
+      if staged == nil, candidate.release.version > running, !isDeclined(candidate.release),
         (try? await tools.verify(candidate.app, meets: requirement)) != nil
       {
         staged = candidate
         state = .ready(candidate.release)
       } else {
-        support.discardStaged(candidate)
+        files.discardStaged(candidate)
       }
     }
   }
 
   func fetch(_ release: AppRelease) async {
-    let result: Result<Support.StagedUpdate, UpdateError>
+    let result: Result<StagedUpdate, UpdateError>
     do throws(UpdateError) {
       result = .success(try await stage(release))
     } catch {
       result = .failure(error)
     }
     guard fetching?.release == release, !Task.isCancelled else {
-      if case .success(let unwanted) = result, unwanted.app != staged?.app { support.discardStaged(unwanted) }
+      if case .success(let unwanted) = result, unwanted.app != staged?.app { files.discardStaged(unwanted) }
       return
     }
     fetching = nil
     switch result {
     case .success(let arrived):
-      if let replaced = staged, replaced.app != arrived.app { support.discardStaged(replaced) }
+      if let replaced = staged, replaced.app != arrived.app { files.discardStaged(replaced) }
       staged = arrived
       if case .waiting(_, let busy) = state {
         state = .waiting(release, for: busy)
@@ -50,67 +50,35 @@ extension AppUpdater {
     }
   }
 
-  private func stage(_ release: AppRelease) async throws(UpdateError) -> Support.StagedUpdate {
-    guard let requirement else { throw UpdateError(.signature, "this copy of Loci has no requirement to meet") }
-    let support = support
-    let tools = AppImage(runner: environment.runner)
-    let image = try await downloaded(release)
-    defer { support.discard(image) }
-    let (scratch, folder) = try UpdateError.on(.download) {
-      (try support.scratchFolder(), try support.stagingFolder(for: release))
-    }
-    defer { support.discard(scratch) }
-    let mountPoint = scratch.appending(path: "image", directoryHint: .isDirectory)
-    let app = folder.appending(path: Self.packagedName, directoryHint: .isDirectory)
-    do throws(UpdateError) {
-      try await UpdateError.on(.download) { () async throws(FetchError) in try await tools.mount(image, at: mountPoint)
-      }
-      do throws(UpdateError) {
-        let packaged = mountPoint.appending(path: Self.packagedName, directoryHint: .isDirectory)
-        try await UpdateError.on(.signature) { () async throws(FetchError) in
-          try await tools.verify(packaged, meets: requirement)
-        }
-        try await UpdateError.on(.download) { () async throws(FetchError) in try await tools.copy(packaged, to: app) }
-      } catch {
-        await tools.unmount(mountPoint)
-        throw error
-      }
-      await tools.unmount(mountPoint)
-      try await UpdateError.on(.signature) { () async throws(FetchError) in
-        try await tools.verify(app, meets: requirement)
-      }
-      return try UpdateError.on(.download) { try support.markStaged(release, appName: Self.packagedName) }
-    } catch {
-      support.discard(folder)
-      throw error
-    }
-  }
-
-  /// The disk image from the first place that serves one matching the release's checksum. The image collects
-  /// in one file across tries and places, and a place that sent more before it broke off is asked again.
-  private func downloaded(_ release: AppRelease) async throws(UpdateError) -> URL {
-    let part = try UpdateError.on(.download) { try support.partialImage(of: release) }
+  /// The file from the first place that serves one matching `checksum`. It collects in one file across tries
+  /// and places, and a place that sent more before it broke off is asked again. With `reporting`, the bytes
+  /// received show as the release's progress.
+  func downloaded(
+    _ checksum: String, from places: [URL], for release: AppRelease, reporting: Bool = true
+  ) async throws(UpdateError) -> URL {
+    let part = try UpdateError.on(.download) { try files.partialDownload(checksum: checksum) }
     var failure = UpdateError(.download, "the release has nowhere to download from")
-    var places = release.images[...]
-    while let address = places.first {
+    var remaining = places[...]
+    while let address = remaining.first {
       let before = support.size(of: part)
       do throws(UpdateError) {
-        let image = try await UpdateError.on(.download) { () async throws(FetchError) in
+        let file = try await UpdateError.on(.download) { () async throws(FetchError) in
           try await environment.network.download(URLRequest(url: address), keepingPartAt: part) {
             [weak self] share in
+            guard reporting else { return }
             Task { await self?.progress(release, share) }
           }
         }
-        guard (try? support.sha256(of: image)) == release.checksum else {
-          support.discard(image)
+        guard (try? support.sha256(of: file)) == checksum else {
+          support.discard(file)
           support.discard(part)
           throw UpdateError(.checksum, "the download from \(address.host() ?? "the mirror") did not match its checksum")
         }
-        return image
+        return file
       } catch {
         if Task.isCancelled { throw error }
         failure = error
-        if support.size(of: part) <= before { places = places.dropFirst() }
+        if support.size(of: part) <= before { remaining = remaining.dropFirst() }
       }
     }
     throw failure

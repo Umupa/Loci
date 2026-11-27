@@ -13,10 +13,10 @@ struct AppUpdaterRestartTests {
     #expect(try world.installedContents() == "old")
     await world.updater.restart()
     #expect(try world.installedContents() == "new")
-    let opened = try #require(world.programs.calls.last)
-    #expect(opened.executable.path() == "/bin/sh")
-    #expect(opened.arguments.last == world.installed.path(percentEncoded: false))
-    #expect(opened.arguments[1].contains("kill -0 4242"))
+    let watcher = try #require(world.watcher)
+    #expect(watcher.app == world.installed.path(percentEncoded: false))
+    #expect(watcher.opens)
+    #expect(watcher.pid == "4242")
     #expect(world.quitCount == 1)
   }
 
@@ -93,7 +93,7 @@ struct AppUpdaterRestartTests {
     try await world.downloadLatest()
     await world.updater.finishOnQuit()
     #expect(try world.installedContents() == "new")
-    #expect(!world.programs.calls.contains { $0.executable.path() == "/bin/sh" })
+    #expect(world.watcher?.opens == false)
     #expect(world.quitCount == 0)
     #expect(world.stagedFolders.isEmpty)
   }

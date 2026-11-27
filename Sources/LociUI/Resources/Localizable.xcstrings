@@ -8967,6 +8967,23 @@
         }
       }
     },
+    "update.failedLaunch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The new version didn’t start"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新版本没能启动"
+          }
+        }
+      }
+    },
     "update.failedSignature": {
       "extractionState": "manual",
       "localizations": {
@@ -9014,6 +9031,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "检查更新…"
+          }
+        }
+      }
+    },
+    "update.misplaced": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Loci to Applications first"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先把 Loci 移到「应用程序」"
           }
         }
       }

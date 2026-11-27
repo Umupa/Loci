@@ -15,10 +15,17 @@ public actor AppUpdater: Updates {
   static let staleness: TimeInterval = 5 * 60
   /// A failed download tries again after this long.
   static let retryDelay = Duration.seconds(30 * 60)
+  /// A copy opened after an update that is not running by then never started, and the previous copy goes back.
+  static let openedStart = Duration.seconds(30)
+  /// A copy put in place as Loci quits is watched for this long until the person opens it.
+  static let quitStart = Duration.seconds(12 * 60 * 60)
 
   let environment: UpdateEnvironment
   var requirement: String?
-  var staged: Support.StagedUpdate?
+  var staged: StagedUpdate?
+  /// A release that was put in place and did not start, so the previous copy came back. It and older ones are
+  /// not downloaded by themselves.
+  var declined: AppRelease?
   /// The release on its way in. It shows while nothing is ready; beside a ready one it downloads quietly.
   var fetching: (release: AppRelease, task: Task<Void, Never>)?
   private var checking: Task<Result<Void, UpdateCheckError>, Never>?
@@ -38,11 +45,22 @@ public actor AppUpdater: Updates {
 
   var support: Support { Support(root: environment.support) }
 
+  var files: UpdateFiles {
+    UpdateFiles(support: support, identifier: environment.identifier, appName: Self.packagedName)
+  }
+
   /// Takes up a copy staged before, looks for a newer release, and goes on looking when the ticks say and
   /// when Loci comes to the front, until the task is cancelled. A copy that does not know its version, or is
   /// not signed with a certificate, never looks.
   public func watch() async {
     guard await prepared() else { return }
+    guard environment.placement == .replaceable else {
+      state = .misplaced
+      return
+    }
+    if environment.identifier == UpdateEnvironment.publishedIdentifier { files.removeEarlierLayout() }
+    files.forgetPrevious()
+    takeUpRollBack()
     await restoreStaged()
     try? await check()
     let environment = environment
@@ -78,12 +96,13 @@ public actor AppUpdater: Updates {
 
   private func look() async -> Result<Void, UpdateCheckError> {
     guard let running = environment.running, await prepared() else { return .failure(.unsupported) }
+    guard environment.placement == .replaceable else { return .failure(.misplaced) }
     guard let latest = try? await ReleaseFeed(network: environment.network, address: environment.feed).latest()
     else { return .failure(.unavailable) }
     lastChecked = environment.now()
     if latest.version > running {
       offer(latest)
-    } else if staged == nil, fetching == nil {
+    } else if staged == nil, fetching == nil, declined == nil {
       retrying?.cancel()
       state = .current
     }
@@ -91,6 +110,7 @@ public actor AppUpdater: Updates {
   }
 
   private func offer(_ latest: AppRelease) {
+    if isDeclined(latest) { return }
     if let staged, staged.release.version >= latest.version { return }
     if let fetching, fetching.release.version >= latest.version { return }
     if case .failed(let failed, _) = state, failed == latest { return }
@@ -98,6 +118,10 @@ public actor AppUpdater: Updates {
   }
 
   func startFetching(_ release: AppRelease) {
+    if let declined, release.version >= declined.version {
+      self.declined = nil
+      files.forgetRolledBack()
+    }
     fetching?.task.cancel()
     retrying?.cancel()
     retrying = nil
@@ -157,6 +181,12 @@ public actor AppUpdater: Updates {
     await fetching?.task.value
   }
 
+  /// Marks that this copy has started and shows its window, so the copy it replaced is no longer kept.
+  public func started() {
+    guard let running = environment.running else { return }
+    files.markStarted(running)
+  }
+
   /// Returns once no download is on its way in.
   func settle() async {
     while let task = fetching?.task { await task.value }
@@ -172,7 +202,7 @@ public actor AppUpdater: Updates {
       }
     case .waiting:
       await installAndQuit()
-    case .current, .downloading, .failed:
+    case .current, .downloading, .failed, .misplaced:
       break
     }
   }
@@ -180,16 +210,24 @@ public actor AppUpdater: Updates {
   private func installAndQuit() async {
     guard let staged else { return }
     stopFetching()
+    let previous: PreviousCopy?
     do {
-      try put(staged)
+      previous = try put(staged)
     } catch {
       self.staged = nil
-      support.discardStaged(staged)
+      files.discardStaged(staged)
       fail(staged.release, UpdateError(.install, error.localizedDescription))
       return
     }
+    let tools = AppImage(runner: environment.runner)
     do throws(FetchError) {
-      try await AppImage(runner: environment.runner).open(environment.installed, after: environment.processID)
+      if let previous {
+        try await tools.watchStart(
+          of: environment.installed, previous: previous, after: environment.processID, opens: true,
+          appearing: Self.openedStart)
+      } else {
+        try await tools.open(environment.installed, after: environment.processID)
+      }
     } catch {
       fail(staged.release, UpdateError(.install, error.reason))
       return
@@ -205,19 +243,54 @@ public actor AppUpdater: Updates {
   public func finishOnQuit() async {
     guard let staged else { return }
     stopFetching()
+    let previous: PreviousCopy?
     do {
-      try put(staged)
+      previous = try put(staged)
     } catch {
       Self.log.error("the update could not be put in place: \(error.localizedDescription, privacy: .public)")
+      return
+    }
+    guard let previous else { return }
+    do throws(FetchError) {
+      try await AppImage(runner: environment.runner).watchStart(
+        of: environment.installed, previous: previous, after: environment.processID, opens: false,
+        appearing: Self.quitStart)
+    } catch {
+      Self.log.error("the new copy will not be watched as it starts: \(error.reason, privacy: .public)")
     }
   }
 
-  /// Puts the staged copy where this one is. When that fails the staged copy stays, so quitting can leave it
-  /// for the next launch.
-  private func put(_ update: Support.StagedUpdate) throws {
+  /// Puts the staged copy where this one is, keeping this one until the new one starts; without room to keep
+  /// it the update goes ahead all the same. When putting it fails the staged copy stays, so quitting can leave
+  /// it for the next launch.
+  private func put(_ update: StagedUpdate) throws -> PreviousCopy? {
+    let previous: PreviousCopy?
+    do {
+      previous = try files.keepPrevious(environment.installed, replacedBy: update.release)
+    } catch {
+      Self.log.error("the copy running could not be kept: \(error.localizedDescription, privacy: .public)")
+      previous = nil
+    }
     try support.replaceApp(environment.installed, with: update.app)
     staged = nil
-    support.discardStaged(update)
+    files.discardStaged(update)
+    return previous
+  }
+
+  /// Shows a release that was put back because it did not start, unless this copy is already as new.
+  private func takeUpRollBack() {
+    guard let release = files.rolledBack() else { return }
+    guard let running = environment.running, release.version > running else {
+      files.forgetRolledBack()
+      return
+    }
+    declined = release
+    state = .failed(release, .launch)
+  }
+
+  func isDeclined(_ release: AppRelease) -> Bool {
+    guard let declined else { return false }
+    return release.version <= declined.version
   }
 
   private func stopFetching() {

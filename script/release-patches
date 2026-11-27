@@ -1,0 +1,147 @@
+#!/bin/sh
+# Writes the files Loci updates from by patching, next to a new release:
+#   Loci-Beta-<version>.files.json          every file of the new app with its SHA-256
+#   Loci-Beta-<version>.from-<old>.patch    what turns <old> into <version>, one per earlier release
+# A patch is a zip (`ditto -c -k`) holding patch.json, a bsdiff for each file that changed (diffs/<n>),
+# and each file that is new (files/<path>). Its format is read by Sources/LociStore/AppPatchFiles.swift.
+#
+#   script/release-patches "output/Loci (Beta).app" output
+#
+# Earlier releases are the five newest version tags below the new one, downloaded from dl.umupa.fun.
+# One that cannot be downloaded, opened or diffed is skipped, so a release never fails for want of a
+# patch; nor is a patch kept that is not much smaller than the zip.
+#
+# Environment:
+#   LOCI_PATCH_FROM     the earlier versions to patch from, space separated (default: the newest five tags)
+#   LOCI_PATCH_IMAGES   a folder holding Loci-Beta-<old>.dmg to use instead of downloading
+# Needs bsdiff (`brew install bsdiff`) and jq.
+set -eu
+
+app="${1:?usage: script/release-patches <new .app> <output folder>}"
+out="${2:?usage: script/release-patches <new .app> <output folder>}"
+cd "$(dirname "$0")/.."
+version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")"
+origin="https://dl.umupa.fun/loci"
+work="$(mktemp -d)"
+trap 'for point in "$work"/mount-*; do [ -d "$point" ] && hdiutil detach -quiet -force "$point"; done; rm -rf "$work"' EXIT
+
+warn() { echo "::warning::release-patches: $*" >&2; }
+
+# One line per entry of the app: "f <mode> <sha256> <path>" or "l <target> <path>", sorted by path.
+inventory() {
+  (
+    cd "$1"
+    find . -type f | sed 's|^\./||' | sort | while IFS= read -r path; do
+      sum="$(shasum -a 256 "$path" | cut -d' ' -f1)"
+      if [ -x "$path" ]; then mode=x; else mode=-; fi
+      printf 'f\t%s\t%s\t%s\n' "$mode" "$sum" "$path"
+    done
+    find . -type l | sed 's|^\./||' | sort | while IFS= read -r path; do
+      printf 'l\t%s\t%s\n' "$(readlink "$path")" "$path"
+    done
+  )
+}
+
+manifest() {
+  jq -R -s --arg version "$2" '
+    split("\n") | map(select(length > 0) | split("\t")) |
+    { version: $version,
+      files: map(select(.[0] == "f") | {path: .[3], sha256: .[2], executable: (.[1] == "x")}),
+      links: map(select(.[0] == "l") | {path: .[2], target: .[1]}) }' "$1"
+}
+
+# patch <old app> <old version> <old inventory> <new inventory> <patch file>
+patch() {
+  stage="$work/patch-$2"
+  mkdir -p "$stage/diffs" "$stage/files"
+  : >"$stage/changed"
+  : >"$stage/added"
+  : >"$stage/removed"
+  : >"$stage/links"
+  index=0
+  while IFS="$(printf '\t')" read -r kind first second path; do
+    [ "$kind" = l ] && path="$second"
+    old="$(awk -F '\t' -v p="$path" '($1 == "f" && $4 == p) || ($1 == "l" && $3 == p)' "$3")"
+    if [ "$kind" = f ]; then
+      case "$old" in
+        f*)
+          [ "$(printf '%s' "$old" | cut -f3)" = "$second" ] && continue
+          bsdiff "$1/$path" "$app/$path" "$stage/diffs/$index"
+          printf '%s\t%s\n' "$path" "diffs/$index" >>"$stage/changed"
+          index=$((index + 1))
+          ;;
+        *)
+          [ -n "$old" ] && printf '%s\n' "$path" >>"$stage/removed"
+          mkdir -p "$stage/files/$(dirname "$path")"
+          cp -p "$app/$path" "$stage/files/$path"
+          printf '%s\n' "$path" >>"$stage/added"
+          ;;
+      esac
+    else
+      [ "$old" = "$(printf 'l\t%s\t%s' "$first" "$path")" ] && continue
+      [ -n "$old" ] && printf '%s\n' "$path" >>"$stage/removed"
+      printf '%s\t%s\n' "$path" "$first" >>"$stage/links"
+    fi
+  done <"$4"
+  awk -F '\t' '{ path = ($1 == "f") ? $4 : $3 } NR == FNR { kept[path] = 1; next } !(path in kept) { print path }' \
+    "$4" "$3" >>"$stage/removed"
+  jq -n --arg from "$2" --arg to "$version" \
+    --rawfile changed "$stage/changed" --rawfile added "$stage/added" \
+    --rawfile removed "$stage/removed" --rawfile links "$stage/links" '
+    def lines($text): $text | split("\n") | map(select(length > 0));
+    { from: $from, to: $to,
+      changed: lines($changed) | map(split("\t") | {path: .[0], diff: .[1]}),
+      added: lines($added),
+      removed: lines($removed) | unique,
+      links: lines($links) | map(split("\t") | {path: .[0], target: .[1]}) }' >"$stage/patch.json"
+  rm "$stage/changed" "$stage/added" "$stage/removed" "$stage/links"
+  ditto -c -k "$stage" "$5"
+}
+
+mkdir -p "$out"
+inventory "$app" >"$work/new.tsv"
+manifest "$work/new.tsv" "$version" >"$out/Loci-Beta-$version.files.json"
+ditto -c -k --keepParent "$app" "$work/whole.zip"
+whole="$(stat -f %z "$work/whole.zip")"
+
+if [ -n "${LOCI_PATCH_FROM:-}" ]; then
+  earlier="$LOCI_PATCH_FROM"
+else
+  earlier="$(git tag --list 'v*' --sort=-v:refname | sed 's/^v//' | while read -r tag; do
+    if [ "$tag" != "$version" ] && [ "$(printf '%s\n%s\n' "$tag" "$version" | sort -V | head -1)" = "$tag" ]; then
+      echo "$tag"
+    fi
+  done | head -5)"
+fi
+
+for old in $earlier; do
+  image="$work/Loci-Beta-$old.dmg"
+  if [ -n "${LOCI_PATCH_IMAGES:-}" ]; then
+    cp "$LOCI_PATCH_IMAGES/Loci-Beta-$old.dmg" "$image" 2>/dev/null || { warn "no image of $old; skipped"; continue; }
+  elif ! curl -fsSL --retry 2 -o "$image" "$origin/Loci-Beta-$old.dmg"; then
+    warn "could not download $old; skipped"
+    continue
+  fi
+  point="$work/mount-$old"
+  mkdir "$point"
+  if ! hdiutil attach -quiet -nobrowse -noautoopen -readonly -mountpoint "$point" "$image"; then
+    warn "could not open the image of $old; skipped"
+    continue
+  fi
+  name="Loci-Beta-$version.from-$old.patch"
+  if inventory "$point/Loci (Beta).app" >"$work/old-$old.tsv" &&
+    patch "$point/Loci (Beta).app" "$old" "$work/old-$old.tsv" "$work/new.tsv" "$out/$name"; then
+    size="$(stat -f %z "$out/$name")"
+    if [ $((size * 10)) -gt $((whole * 6)) ]; then
+      warn "the patch from $old is $size bytes, too close to the whole zip; skipped"
+      rm -f "$out/$name"
+    else
+      echo "release-patches: $name, $size bytes." >&2
+    fi
+  else
+    warn "could not diff $old; skipped"
+    rm -f "$out/$name"
+  fi
+  hdiutil detach -quiet -force "$point" || true
+  rm -f "$image"
+done

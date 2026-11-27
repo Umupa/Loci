@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import LociModel
 import SwiftUI
@@ -28,6 +29,56 @@ struct UpdateSnapshots {
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
+  func manualChecksListTheChangesSinceTheRunningVersion(appearance: Snapshot.Appearance) async throws {
+    let three = Self.notes(["9.0.3", "9.0.2", "9.0.1"])
+    let many = Self.notes((1...12).reversed().map { "9.0.\($0)" })
+    let cases: [(String, AppUpdate)] = [
+      ("ready", .ready(Self.release(three))), ("downloading", .downloading(Self.release(three), Fraction(0.4))),
+      ("did-not-start", .failed(Self.release(three), .launch)), ("many", .ready(Self.release(many))),
+      ("misplaced", .misplaced),
+    ]
+    for (name, state) in cases {
+      let window = AppUpdateWindow(updates: FixedUpdates(state: state), version: "9.0.0")
+      try await Snapshot.render(
+        window, named: "update-changes-\(name)", size: try await Self.fitted(window), appearance: appearance)
+    }
+  }
+
+  private static func notes(_ versions: [String]) -> [ReleaseNotes] {
+    versions.map { version in
+      ReleaseNotes(
+        version: ReleaseVersion(version)!,
+        changes: [
+          "更新只下补丁：从上一版升级通常十几 MB，打好后逐个文件核对，再验整包签名。",
+          "**项目栏**切换更顺，`检查更新` 窗口列出跨版本的变化。",
+        ])
+    }
+  }
+
+  private static func release(_ notes: [ReleaseNotes]) -> AppRelease {
+    AppRelease(
+      version: notes[0].version, image: URL(string: "https://example.com/Loci-Beta.dmg")!,
+      checksum: String(repeating: "0", count: 64), notes: notes)
+  }
+
+  /// The size the update window takes for `view` once it has checked, as the window scene sizes to its content.
+  private static func fitted(_ view: AppUpdateWindow) async throws -> CGSize {
+    let controller = NSHostingController(rootView: view)
+    let window = NSWindow(contentViewController: controller)
+    window.setFrameOrigin(CGPoint(x: -20_000, y: -20_000))
+    window.orderBack(nil)
+    defer { window.orderOut(nil) }
+    try await Task.sleep(for: .milliseconds(500))
+    var size = CGSize.zero
+    try await eventually("the update window to settle") {
+      let next = controller.sizeThatFits(in: CGSize(width: 440, height: 0))
+      defer { size = next }
+      return next == size
+    }
+    return size
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
   func sidebarWithAnUpdate(appearance: Snapshot.Appearance) async throws {
     let window = ScreenSnapshots.root(try Sample(problems: false), at: WindowState(place: .library(nil)))
       .environment(\.updates, FixedUpdates(state: .ready(Self.release)))
@@ -38,7 +89,7 @@ struct UpdateSnapshots {
   func everyState(appearance: Snapshot.Appearance) async throws {
     let states: [AppUpdate] = [
       .ready(Self.release), .waiting(Self.release, for: .answering), .waiting(Self.release, for: .library),
-      .failed(Self.release, .signature),
+      .failed(Self.release, .signature), .failed(Self.release, .launch), .misplaced,
     ]
     let row = HStack(spacing: Spacing.m) {
       ForEach(states, id: \.self) { UpdateMark(state: $0, act: {}) }
@@ -46,7 +97,7 @@ struct UpdateSnapshots {
     .padding(Spacing.m)
     .background(Palette.sidebarWash)
     let file = try await Snapshot.render(
-      row, named: "update-states", size: CGSize(width: 220, height: 60), appearance: appearance)
+      row, named: "update-states", size: CGSize(width: 340, height: 60), appearance: appearance)
     #expect(try Data(contentsOf: file).count > 1_000)
   }
 

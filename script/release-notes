@@ -1,0 +1,13 @@
+#!/bin/sh
+# Prints the CHANGELOG.md sections of the newest released versions as the JSON that latest.json carries in
+# `notes`: [{"version": "1.9.0", "changes": "- …"}, …], newest first. Loci lists the ones between the
+# version running and the new one when it finds an update.
+#   script/release-notes [count]      (default 10)
+set -eu
+cd "$(dirname "$0")/.."
+
+count="${1:-10}"
+grep -E '^## [0-9]+\.[0-9]+\.[0-9]+[^ ]* — ' CHANGELOG.md | head -n "$count" | sed -E 's/^## ([^ ]+) — .*/\1/' |
+  while read -r version; do
+    script/changelog "$version" | jq -R -s --arg version "$version" '{version: $version, changes: .}'
+  done | jq -s .

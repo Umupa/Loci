@@ -7,8 +7,12 @@
 | 文件 | 是什么 |
 |---|---|
 | `output/Loci (Beta).app` | `script/bundle` 组装的应用包，包含 `script/resources/Loci.icns`；`script/run` 和 `script/release` 共用 |
-| `output/Loci-Beta-<version>.dmg` | 发布产物：应用加一个 `/Applications` 链接，Apple silicon 与 Intel 通用 |
-| `output/Loci-Beta-<version>.dmg.sha256` | 上面那个文件的校验和 |
+| `output/Loci-Beta-<version>.dmg` | 第一次下载用：应用加一个 `/Applications` 链接，Apple silicon 与 Intel 通用 |
+| `output/Loci-Beta-<version>.zip` | 应用内完整更新用：`ditto -c -k --keepParent` 打的应用包，保留签名，不用挂载 |
+| `*.dmg.sha256`、`*.zip.sha256` | 上面两个文件的校验和 |
+| `output/patches/Loci-Beta-<version>.files.json` | 清单：新版应用包里每个文件的 SHA-256 和是否可执行、每个符号链接的目标（`script/release-patches`，只在 tag 构建） |
+| `output/patches/Loci-Beta-<version>.from-<旧版本>.patch` | 补丁：把 `<旧版本>` 的应用包变成这一版，最近五个版本各一份（同上） |
+| `output/notes.json` | 最近十个版本的 CHANGELOG 段落（`script/release-notes`），写进 `latest.json` |
 
 ## 签名
 
@@ -67,14 +71,15 @@
 
    Package 依次：
 
-   1. 确认 tag 在 main 上，用 `script/changelog` 取出这一版的 CHANGELOG 段落作为发布说明；没有这一段就失败。
+   1. 确认 tag 在 main 上，用 `script/changelog` 取出这一版的 CHANGELOG 段落作为发布说明，没有这一段就失败；`script/release-notes` 取出最近十个版本的段落。
    2. 检查 secrets：tag 构建必须签名，缺签名的 secret 就失败，不会把 ad hoc 签名的包发给别人。
    3. 把 `MACOS_SIGNING_IDENTITY` 里的 `.p12` 导入一个临时钥匙串：有 Developer ID 就用它；否则信任其中的「Loci Signing」并用它。
-   4. `script/release`：通用构建、签名并 `codesign --verify --strict`、Developer ID 时公证、写 dmg 和校验和。
-   5. `script/measure-launch`：记录 release 构建的冷启动，**只记录，不卡发布**。
-   6. 把 dmg、校验和、发布说明留成 `release` artifact。
+   4. `script/release`：通用构建、签名并 `codesign --verify --strict`、Developer ID 时公证、写 dmg、zip 和校验和。
+   5. `brew install bsdiff`，`script/release-patches` 写清单，并从 `dl.umupa.fun` 取最近五个版本的 dmg，各生成一份补丁（见下面「补丁」）。这一步**不卡发布**：取不到、打不开或补丁不比 zip 小很多的版本跳过，整步失败也只是这一版没有补丁。
+   6. `script/measure-launch`：记录 release 构建的冷启动，**只记录，不卡发布**。
+   7. 把 dmg、zip、校验和、补丁、清单、发布说明留成 `release` artifact。
 
-   Package 通过后，Publish 先确认上传 R2 的 secrets 都在，再取回 `release` artifact，用校验和核对 dmg，写出 `latest.json`，建 GitHub release、附上 dmg、校验和和 `latest.json`，最后把这三个文件传到 R2。Package 失败就不发布。重跑只替换文件，不会重复建 release。
+   Package 通过后，Publish 先确认上传 R2 的 secrets 都在，再取回 `release` artifact，用校验和核对 dmg 和 zip，写出 `latest.json`，建 GitHub release、附上 dmg、zip、校验和和 `latest.json`，最后按 zip、清单、补丁、dmg、`latest.json` 的顺序传到 R2。Package 失败就不发布。重跑只替换文件，不会重复建 release。
 
    推送时 CI 也会检查这个发版提交；它只改了 CHANGELOG，所以只跑文档检查。
 
@@ -84,7 +89,48 @@
 
 ## 下载与更新源
 
-仓库是私有的，GitHub release 的附件匿名下载不到，所以下载和更新只走 Cloudflare R2：`loci-releases` 桶，自定义域名 `dl.umupa.fun`。应用读 `https://dl.umupa.fun/loci/latest.json`（`Sources/LociMedia/Updates/ReleaseFeed.swift`），它写版本、dmg 的 SHA-256 和下载地址；应用下载后核对校验和，再核对签名。R2 上 dmg 永久缓存，`latest.json` 缓存五分钟，并且最后上传。
+仓库是私有的，GitHub release 的附件匿名下载不到，所以下载和更新只走 Cloudflare R2：`loci-releases` 桶，自定义域名 `dl.umupa.fun`。应用读 `https://dl.umupa.fun/loci/latest.json`（`Sources/LociMedia/Updates/ReleaseFeed.swift`）。R2 上除 `latest.json` 外都永久缓存；`latest.json` 缓存五分钟，并且最后上传，所以它指向的文件都已经在了。
+
+### `latest.json`
+
+```json
+{"version": "1.9.0", "sha256": "<dmg>", "downloads": ["https://dl.umupa.fun/loci/Loci-Beta-1.9.0.dmg"],
+ "archive": {"sha256": "…", "size": 66046324, "downloads": ["…/Loci-Beta-1.9.0.zip"]},
+ "manifest": {"sha256": "…", "size": 82011, "downloads": ["…/Loci-Beta-1.9.0.files.json"]},
+ "patches": [{"from": "1.8.8", "sha256": "…", "size": 15061390, "downloads": ["…/Loci-Beta-1.9.0.from-1.8.8.patch"]}],
+ "notes": [{"version": "1.9.0", "changes": "- …"}, {"version": "1.8.8", "changes": "- …"}]}
+```
+
+| 字段 | 谁读 | 是什么 |
+|---|---|---|
+| `version`、`sha256`、`downloads` | 所有版本 | 新版本号和 dmg。1.8.8 及更早的应用只认这三个，所以它们一直指 dmg，含义不变 |
+| `archive` | 1.8.8 之后的版本 | zip 的校验和、大小和地址；有它就不再挂载 dmg，没有（旧格式）就照旧用 dmg |
+| `manifest`、`patches` | 1.8.8 之后的版本 | 清单和各个补丁；有 `from` 等于当前版本的补丁才走补丁，没有补丁时这两项都不写 |
+| `notes` | 1.8.8 之后的版本 | 最近十个版本的 CHANGELOG 段落，检查更新窗口列出当前版本之后的那些 |
+
+### 更新文件放在哪
+
+每个副本的更新文件都在 `~/Library/Application Support/Loci/updates/<包标识>/` 下（`UpdateFiles`，包标识由 `UpdateEnvironment.system` 从 Bundle 读）：半截下载 `<校验和>.partial`、解压和打补丁用的临时文件夹 `scratch/`、暂存的新版 `<版本>/`、旧副本 `previous/`、没起来的新版 `failed/`、回滚记录 `rolled-back.json`。所以包标识不同的测试副本（比如 `fun.loci.bbtest.update`）和发布的 `com.loci.native.dev` 互不看见对方的暂存和记录。
+
+1.8.8 及更早把这些直接放在 `updates/` 下。正常装完只剩空目录，但下载失败留下的半截 dmg（最多七十多 MB）和暂存了却没换上的应用包（两三百 MB）会留在那里，新版本不再看那个位置。所以发布的副本（包标识是 `com.loci.native.dev`）每次开始检查更新时删掉 `updates/` 下以版本号命名的文件夹和 `.partial` 文件；测试副本不删，免得删掉正在运行的发布版的暂存。
+
+### 补丁
+
+补丁是 `ditto -c -k` 打的 zip，里面是 `patch.json`、每个变了的文件一份 bsdiff（`diffs/<n>`）、每个新文件整份（`files/<路径>`）。`patch.json` 写 `from`、`to`、`changed`（路径和它的 bsdiff）、`added`、`removed`（先删）、`links`（新的或目标变了的符号链接）。格式由 `script/release-patches` 写、`Sources/LociStore/AppPatchFiles.swift` 读。
+
+应用拿到补丁后：在 Application Support 里复制一份当前应用包（APFS 上是克隆，几乎不占地方），用系统自带的 `/usr/bin/bspatch` 逐个重建变了的文件，删、加、建链接、按清单设可执行位，然后按清单逐个核对：多一个、少一个、校验和或可执行位不对都不行，最后照旧 `codesign --verify --deep --strict` 并核对签名要求。任何一步不过就下 zip。1.8.6/1.8.7 → 1.8.8 的补丁约 14.5 MB，zip 66 MB。
+
+签名一变，每个可执行文件都变，所以按文件整份替换省不下来；二进制差分后主程序约 12 MB，其余可执行文件只有几 KB。bsdiff 只装在发布机上，应用不带它。
+
+### 换上后打不开
+
+换上新版之前，应用把旧的应用包复制到 `updates/<包标识>/previous/`，旁边写上换上的版本。换上后起一个独立的 shell 盯着新版（`AppImage.watchStart`）：重新打开时它负责打开，退出时换上的等你下次打开，最多等十二小时。新版的窗口出来（主对话或启动问题页）时写 `previous/started`，守护进程看到就删掉旧副本；新版在写出标记之前退出（重新打开时三十秒内没起来也算），守护进程把它挪到 `updates/<包标识>/failed/`，把旧副本挪回原位并打开，再把版本记到 `updates/<包标识>/rolled-back.json`。新版起得慢、还在跑，就一直等，不会杀掉它。守护进程中途没了（比如注销），旧副本留着，新版下次启动成功时删。
+
+回滚只换应用包，不动数据：新版已经改过数据格式时，换回的旧版能不能读，现在不保证。
+
+### 位置
+
+应用在只读卷上（直接从 dmg 运行）或在 macOS 的 App Translocation 位置运行时，不检查也不下载（`AppPlacement`），更新按钮让人先把 Loci 移到「应用程序」。
 
 环境变量 `LOCI_UPDATE_FEED` 给测试副本换成本地的 `latest.json` 地址（`UpdateEnvironment.system`），签名照样核对。
 

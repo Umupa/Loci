@@ -2,10 +2,11 @@ name: Release
 
 # A tag v<x.y.z> made by script/cut-release builds Loci (Beta).app for Apple
 # silicon and Intel, signs it with the identity in the MACOS_SIGNING_IDENTITY
-# secret (notarized when that is a Developer ID), and makes the dmg; Publish
-# attaches the dmg to that tag's release, with the version's CHANGELOG.md
-# section as its notes, and puts it with latest.json on dl.umupa.fun (R2),
-# where Loci downloads and updates from; the repository and its releases are
+# secret (notarized when that is a Developer ID), and makes the dmg and the zip,
+# a patch from each of the last few releases, and the notes of the last few
+# versions; Publish attaches the dmg and zip to that tag's release, with the
+# version's CHANGELOG.md section as its notes, and puts everything with
+# latest.json on dl.umupa.fun (R2), where Loci downloads and updates from; the repository and its releases are
 # private. It runs no check: script/check is run only when asked
 # for. `gh workflow run release` does the same without releasing anything, to
 # try the secrets; the dmg is kept as a workflow artifact. How the pieces fit:
@@ -26,7 +27,7 @@ jobs:
   package:
     name: Package
     runs-on: xcode-27
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
         with:
@@ -49,6 +50,7 @@ jobs:
           fi
           mkdir -p output
           script/changelog "$version" > output/changes.md
+          script/release-notes > output/notes.json
 
       # A tag ships to people, so it is signed with the identity every version
       # shares, or it is not released: macOS keeps the permissions an installed
@@ -124,7 +126,18 @@ jobs:
           if xcrun stapler validate "$dmg" > /dev/null 2>&1; then
             echo yes > output/notarized
           fi
-          ls -l "$dmg" "$dmg.sha256"
+          ls -l output/*.dmg output/*.zip output/*.sha256
+
+      # Loci updates from a patch when there is one for the version it runs, which is
+      # usually a tenth of the zip. A release never fails for want of one: an earlier
+      # release that cannot be fetched or diffed is skipped, and so is this whole step.
+      - name: Make patches from the last few releases
+        if: github.ref_type == 'tag'
+        continue-on-error: true
+        run: |
+          brew install bsdiff
+          script/release-patches "output/Loci (Beta).app" output/patches
+          ls -l output/patches
 
       # The cold-start budget is 500 ms (α1-S10). This records what the release build does and
       # never stops a release: a runner without a window session reports nothing.
@@ -141,17 +154,20 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # What Publish attaches, as it was signed here: Publish checks the dmg against
-      # this checksum before it releases anything.
-      - name: Keep the dmg, its notes and the measurement
+      # What Publish attaches, as it was signed here: Publish checks the dmg and zip
+      # against these checksums before it releases anything.
+      - name: Keep the dmg, zip, patches, notes and the measurement
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: release
           path: |
             output/*.dmg
+            output/*.zip
             output/*.sha256
+            output/patches/
             output/changes.md
+            output/notes.json
             output/notarized
             output/launch.txt
           if-no-files-found: ignore
@@ -165,7 +181,7 @@ jobs:
     needs: [package]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: write
     env:
@@ -201,16 +217,45 @@ jobs:
         working-directory: release
         run: |
           dmgs=(*.dmg)
+          zips=(*.zip)
           if [[ ${#dmgs[@]} -ne 1 || ! -f "${dmgs[0]}" || ! -f "${dmgs[0]}.sha256" || ! -f changes.md ]]; then
             echo "::error::Package left no single dmg with its checksum and notes."
             exit 1
           fi
+          if [[ ${#zips[@]} -ne 1 || ! -f "${zips[0]}" || ! -f "${zips[0]}.sha256" ]]; then
+            echo "::error::Package left no single zip with its checksum."
+            exit 1
+          fi
           dmg="${dmgs[0]}"
-          sha256sum --check "$dmg.sha256"
+          zip="${zips[0]}"
+          sha256sum --check "$dmg.sha256" "$zip.sha256"
           version="${GITHUB_REF_NAME#v}"
+          # Releases up to 1.8.8 read only version, sha256 and downloads, which keep
+          # describing the dmg; the rest is new and they ignore it. Format: docs/releasing.md.
+          described() {
+            jq -n --arg sha256 "$(sha256sum "$1" | cut -d' ' -f1)" --argjson size "$(stat -c %s "$1")" \
+              --arg url "$R2_ORIGIN/$(basename "$1")" '{sha256: $sha256, size: $size, downloads: [$url]}'
+          }
+          extra="$(jq -n --argjson archive "$(described "$zip")" '{archive: $archive}')"
+          manifest="patches/Loci-Beta-$version.files.json"
+          patches=(patches/*.patch)
+          if [[ -f "$manifest" && -f "${patches[0]}" ]]; then
+            list='[]'
+            for patch in "${patches[@]}"; do
+              from="${patch##*.from-}"
+              list="$(jq --arg from "${from%.patch}" --argjson file "$(described "$patch")" '. + [{from: $from} + $file]' <<<"$list")"
+            done
+            extra="$(jq --argjson manifest "$(described "$manifest")" --argjson patches "$list" \
+              '. + {manifest: $manifest, patches: $patches}' <<<"$extra")"
+          else
+            echo "::warning::No patches: every copy updates from the zip."
+          fi
+          if [[ -f notes.json ]]; then
+            extra="$(jq --slurpfile notes notes.json '. + {notes: $notes[0]}' <<<"$extra")"
+          fi
           jq -n --arg version "$version" --arg sha256 "$(cut -d' ' -f1 "$dmg.sha256")" \
-            --arg r2 "$R2_ORIGIN/$dmg" \
-            '{version: $version, sha256: $sha256, downloads: [$r2]}' > latest.json
+            --arg r2 "$R2_ORIGIN/$dmg" --argjson extra "$extra" \
+            '{version: $version, sha256: $sha256, downloads: [$r2]} + $extra' > latest.json
           notes="$RUNNER_TEMP/notes.md"
           cat changes.md > "$notes"
           {
@@ -223,18 +268,18 @@ jobs:
               echo "Loci is not notarized by Apple. The first time you open it, macOS says it cannot check it for malicious software: open **System Settings → Privacy & Security** and choose **Open Anyway**, or run \`xattr -dr com.apple.quarantine \"/Applications/Loci (Beta).app\"\`."
             fi
           } >> "$notes"
-          # A rerun replaces the dmg it uploaded before.
+          # A rerun replaces the files it uploaded before.
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$dmg" "$dmg.sha256" latest.json --clobber
+            gh release upload "$GITHUB_REF_NAME" "$dmg" "$dmg.sha256" "$zip" "$zip.sha256" latest.json --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$dmg" "$dmg.sha256" latest.json \
+            gh release create "$GITHUB_REF_NAME" "$dmg" "$dmg.sha256" "$zip" "$zip.sha256" latest.json \
               --verify-tag \
               --title "Loci (Beta) $GITHUB_REF_NAME" --notes-file "$notes"
           fi
           gh release view "$GITHUB_REF_NAME" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
 
       # latest.json goes last and is cached for five minutes, so it never points
-      # at a dmg that is not there yet.
+      # at a file that is not there yet.
       - name: Upload to R2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -244,8 +289,15 @@ jobs:
         working-directory: release
         run: |
           dmg="$(ls *.dmg)"
-          put() { aws s3 cp "$1" "s3://$R2_BUCKET/loci/$1" --endpoint-url "$R2_ENDPOINT" --cache-control "$2" --content-type "$3"; }
-          put "$dmg" "public, max-age=31536000, immutable" application/x-apple-diskimage
-          put "$dmg.sha256" "public, max-age=31536000, immutable" text/plain
+          zips=(*.zip)
+          zip="${zips[0]}"
+          put() { aws s3 cp "$1" "s3://$R2_BUCKET/loci/$(basename "$1")" --endpoint-url "$R2_ENDPOINT" --cache-control "$2" --content-type "$3"; }
+          forever="public, max-age=31536000, immutable"
+          put "$zip" "$forever" application/zip
+          put "$zip.sha256" "$forever" text/plain
+          for file in patches/*.files.json; do [[ -f "$file" ]] && put "$file" "$forever" application/json; done
+          for file in patches/*.patch; do [[ -f "$file" ]] && put "$file" "$forever" application/octet-stream; done
+          put "$dmg" "$forever" application/x-apple-diskimage
+          put "$dmg.sha256" "$forever" text/plain
           put latest.json "public, max-age=300" application/json
           curl -fsS "$R2_ORIGIN/latest.json?v=$GITHUB_SHA" | jq -e --arg v "${GITHUB_REF_NAME#v}" '.version == $v'

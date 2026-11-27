@@ -1,6 +1,7 @@
 #!/bin/sh
 # Builds a release Loci (Beta).app, signs it, notarizes it when the identity is a
-# Developer ID, and writes output/Loci-Beta-<version>.dmg and its checksum.
+# Developer ID, and writes output/Loci-Beta-<version>.dmg, for a first download, and
+# output/Loci-Beta-<version>.zip, which Loci updates from, each with its checksum.
 # Prints the dmg's path; everything else goes to stderr, so
 # `dmg="$(script/release)"` picks it up.
 #
@@ -100,7 +101,13 @@ if [ -n "$notarizable" ]; then
   fi
 fi
 
-hash="$(shasum -a 256 "$dmg" | cut -d' ' -f1)"
-echo "$hash  $(basename "$dmg")" >"$dmg.sha256"
-echo "release: wrote $dmg." >&2
+zip="output/Loci-Beta-$version.zip"
+rm -f "$zip"
+ditto -c -k --keepParent "$app" "$zip"
+
+for file in "$dmg" "$zip"; do
+  hash="$(shasum -a 256 "$file" | cut -d' ' -f1)"
+  echo "$hash  $(basename "$file")" >"$file.sha256"
+done
+echo "release: wrote $dmg and $zip." >&2
 echo "$dmg"

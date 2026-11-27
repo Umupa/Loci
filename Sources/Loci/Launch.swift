@@ -134,9 +134,16 @@ final class Launch {
 
   /// Records how long the process took to reach a main conversation that can be typed into.
   func talkShown() {
+    interfaceShown()
     guard !reportedStart, let elapsed = ProcessClock.millisecondsSinceStart() else { return }
     reportedStart = true
     Self.log.notice("main conversation shown \(elapsed, privacy: .public) ms after launch")
+  }
+
+  /// The window is up, showing the main conversation or what keeps the data from opening: this copy has
+  /// started, so an update that put it in place keeps it.
+  func interfaceShown() {
+    Task { [updater] in await updater.started() }
   }
 
   private func start(replacingDatabase: Bool) {
