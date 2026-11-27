@@ -341,23 +341,6 @@
         }
       }
     },
-    "agents.model": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Model"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "模型"
-          }
-        }
-      }
-    },
     "agents.notInstalled": {
       "extractionState": "manual",
       "localizations": {
@@ -371,23 +354,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "未安装"
-          }
-        }
-      }
-    },
-    "agents.provider": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Agent"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Agent"
           }
         }
       }
@@ -8385,23 +8351,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "译文"
-          }
-        }
-      }
-    },
-    "talk.add": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加"
           }
         }
       }
