@@ -13,6 +13,7 @@ struct ProjectSwitchTests {
   private static let size = CGSize(width: 1400, height: 860)
   private static let investingSeal = CGPoint(x: 662, y: 31)
   private static let chatTab = CGPoint(x: 590, y: 31)
+  private static let plus = CGPoint(x: 765, y: 31)
 
   @Test func goingBackAndForthBetweenTheChatAndAProjectMakesNeitherPageAgain() async throws {
     let activity = Activity()
@@ -52,9 +53,30 @@ struct ProjectSwitchTests {
     }
 
     try await Task.sleep(for: .milliseconds(600))
-    try await Self.swipe(toward: .left, in: window, steps: 1)
+    try await Self.swipe(toward: .left, in: window, steps: 1, every: 0.2)
     try await Task.sleep(for: .milliseconds(600))
     #expect(remembered.projects.last == ProjectSnapshots.investing.id)
+  }
+
+  /// PJ-S16: Esc on a new project's page slides it away.
+  @Test func escapeOnANewProjectsPageOpenedFromThePlusGoesBackToTheChat() async throws {
+    let (window, host) = try Self.show(Activity())
+    defer { window.orderOut(nil) }
+    try await eventually("the chat to appear", within: .seconds(5)) {
+      (Self.conversations(in: host).first?.documentView?.bounds.height ?? 0) > 2000
+    }
+    try await Task.sleep(for: .milliseconds(600))
+    try Self.click(Self.plus, in: window)
+    try await eventually("the new project's page to come in", within: .seconds(3)) {
+      Self.swipeArea(in: host)?.enabled == false
+    }
+    try await Task.sleep(for: .milliseconds(800))
+
+    window.sendEvent(try Self.escape(in: window))
+
+    try await eventually("the new project's page to slide away", within: .seconds(3)) {
+      Self.swipeArea(in: host)?.enabled == true
+    }
   }
 
   @Test func aScrollUpTheChatIsNotTakenForASwipe() async throws {
@@ -178,8 +200,11 @@ struct ProjectSwitchTests {
     return view.subviews.flatMap(conversations(in:))
   }
 
-  /// Two fingers across the middle of the window toward `side`, `upward` times as far up as across.
-  private static func swipe(toward side: Side, in window: NSWindow, steps: Int = 12, upward: CGFloat = 0) async throws {
+  /// Two fingers across the middle of the window toward `side`, `upward` times as far up as across, a step
+  /// `every` so many seconds.
+  private static func swipe(
+    toward side: Side, in window: NSWindow, steps: Int = 12, upward: CGFloat = 0, every: Double = 0.012
+  ) async throws {
     let content = try #require(window.contentView)
     let area = try #require(swipeArea(in: content))
     let middle = CGPoint(x: window.frame.width / 2, y: window.frame.height / 2)
@@ -188,7 +213,7 @@ struct ProjectSwitchTests {
     for (index, step) in phases.enumerated() {
       let moving = step != .ended
       _ = area.take(
-        step, across: moving ? across : 0, upward: moving ? upward * 30 : 0, at: Double(index) * 0.012, in: middle)
+        step, across: moving ? across : 0, upward: moving ? upward * 30 : 0, at: Double(index) * every, in: middle)
       try await Task.sleep(for: .milliseconds(12))
     }
   }
@@ -196,6 +221,14 @@ struct ProjectSwitchTests {
   private static func swipeArea(in view: NSView) -> SwipeArea? {
     if let area = view as? SwipeArea { return area }
     return view.subviews.lazy.compactMap(swipeArea(in:)).first
+  }
+
+  private static func escape(in window: NSWindow) throws -> NSEvent {
+    try #require(
+      NSEvent.keyEvent(
+        with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber, context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}",
+        isARepeat: false, keyCode: 53))
   }
 
   private static func click(_ point: CGPoint, in window: NSWindow) throws {

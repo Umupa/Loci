@@ -53,6 +53,7 @@ struct ProjectSeal: View {
       Image(systemName: symbol.isEmpty ? ProjectIcon.fallback : symbol)
         .symbolRenderingMode(.monochrome)
         .font(.system(size: size * 0.66, weight: selected ? .semibold : .medium))
+        .animation(nil, value: selected)
         .foregroundStyle(ghost ? Palette.inkMuted : (selected ? Palette.ink : Palette.inkMuted))
         .frame(width: size, height: size)
     }

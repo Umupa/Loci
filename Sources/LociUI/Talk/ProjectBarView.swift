@@ -26,6 +26,8 @@ struct ProjectBarView: View {
   var suggested: [Project.ID: String] = [:]
   /// How many next-up cards each seal caught; a new one stamps it.
   var stamps: [Home: Int] = [:]
+  /// The pages under the bar as they slide, for the slider to follow fingers dragging them.
+  var travel: PageTravel?
   let actions: ProjectBarActions
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.changesAllowed) private var changesAllowed
@@ -62,7 +64,7 @@ struct ProjectBarView: View {
         .transition(reduceMotion ? .identity : .opacity)
       }
       if let newSeal {
-        TabPill(open: true, action: {}) { _ in
+        TabPill(page: .newProject, open: true, action: {}) { _ in
           UnnamedSeal(project: nil, symbol: newSeal.landed ? newSeal.symbol : nil, working: newSeal.sent)
             .opacity(newSeal.sent && !newSeal.landed ? 0 : 1)
             .anchorPreference(key: NextUpAnchors.self, value: .bounds) { NextUpAnchors.Value(newSeal: $0) }
@@ -86,17 +88,11 @@ struct ProjectBarView: View {
           }
         }
     }
-    .backgroundPreferenceValue(ActiveTabAnchor.self) { anchor in
+    .backgroundPreferenceValue(TabAnchors.self) { anchors in
       GeometryReader { proxy in
-        if let anchor {
-          let rect = proxy[anchor]
-          Capsule(style: .circular)
-            .fill(Palette.surface)
-            .shadow(color: .black.opacity(0.14), radius: 1.5, y: 1)
-            .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
-            .frame(width: rect.width, height: rect.height)
-            .offset(x: rect.minX, y: rect.minY)
-        }
+        BarSlider(
+          tabs: anchors.mapValues { proxy[$0] }, open: drafting ? .newProject : .home(home),
+          order: HomeSlide.order(of: bar), travel: travel)
       }
       .allowsHitTesting(false)
     }
@@ -117,7 +113,7 @@ struct ProjectBarView: View {
 
   private var chatTab: some View {
     let open = home == .chat && !drafting
-    return TabPill(open: open, action: { actions.open(.chat) }) { hovering in
+    return TabPill(page: .home(.chat), open: open, action: { actions.open(.chat) }) { hovering in
       Text(.loci("projects.chat"))
         .font(.system(size: 13.5, weight: open ? .semibold : .medium))
         .foregroundStyle(open || hovering ? Palette.ink : Palette.inkMuted)
@@ -140,17 +136,36 @@ struct ProjectBarView: View {
   }
 }
 
-private struct ActiveTabAnchor: PreferenceKey {
-  static let defaultValue: Anchor<CGRect>? = nil
+private struct TabAnchors: PreferenceKey {
+  static let defaultValue: [SlidePage: Anchor<CGRect>] = [:]
 
-  static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
-    value = nextValue() ?? value
+  static func reduce(value: inout [SlidePage: Anchor<CGRect>], nextValue: () -> [SlidePage: Anchor<CGRect>]) {
+    value.merge(nextValue()) { _, next in next }
   }
 }
 
-/// One tab in the project bar: reports its bounds to the sliding capsule when open, and shows a quiet hover
-/// wash otherwise.
+/// The capsule under the open tab, drawn partway to the tab beside it while fingers drag the pages toward it.
+private struct BarSlider: View {
+  let tabs: [SlidePage: CGRect]
+  let open: SlidePage
+  let order: [Home]
+  let travel: PageTravel?
+
+  var body: some View {
+    if let rect = HomeSlide.slider(over: tabs, open: open, pull: travel?.pull ?? 0, in: order) {
+      Capsule(style: .circular)
+        .fill(Palette.surface)
+        .shadow(color: .black.opacity(0.14), radius: 1.5, y: 1)
+        .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+        .frame(width: rect.width, height: rect.height)
+        .offset(x: rect.minX, y: rect.minY)
+    }
+  }
+}
+
+/// One tab in the project bar: tells the slider where it is, and shows a quiet hover wash when not open.
 struct TabPill<Face: View>: View {
+  let page: SlidePage
   let open: Bool
   let action: () -> Void
   @ViewBuilder let face: (Bool) -> Face
@@ -170,7 +185,7 @@ struct TabPill<Face: View>: View {
     }
     .buttonStyle(PressStyle(scale: 0.95))
     .onHover { hovering = $0 }
-    .anchorPreference(key: ActiveTabAnchor.self, value: .bounds) { open ? $0 : nil }
+    .anchorPreference(key: TabAnchors.self, value: .bounds) { [page: $0] }
   }
 }
 

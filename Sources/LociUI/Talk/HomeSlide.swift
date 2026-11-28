@@ -5,6 +5,10 @@ import SwiftUI
 enum SlidePage: Hashable {
   case home(Home)
   case newProject
+
+  var home: Home? {
+    if case .home(let home) = self { home } else { nil }
+  }
 }
 
 /// Which way a page lies from the one in front.
@@ -19,6 +23,8 @@ enum Side: Equatable {
 enum HomeSlide {
   /// How far ahead a swipe's speed carries it when let go, in seconds.
   static let carry: CGFloat = 0.15
+  /// How fast a swipe let go toward a page turns to it however short it was, in points a second.
+  static let flick: CGFloat = 300
 
   /// The chat, then the projects in the bar and in its list, then the archived ones.
   static func order(of bar: ProjectBar) -> [Home] {
@@ -40,12 +46,26 @@ enum HomeSlide {
     return order.indices.contains(next) ? order[next] : nil
   }
 
-  /// Which side a swipe let go with `offset` and `velocity` turns to, carrying on at its speed a little; `nil`
-  /// when it springs back: short of half a page, or flung back the other way.
+  /// Which side a swipe let go with `offset` and `velocity` turns to: flicked toward it, or carried past half a
+  /// page at its speed. `nil` when it springs back: short and slow, or flung back the other way.
   static func outcome(offset: CGFloat, velocity: CGFloat, width: CGFloat) -> Side? {
+    guard offset != 0, velocity.sign == offset.sign || abs(velocity) < flick else { return nil }
     let projected = offset + velocity * carry
-    guard abs(projected) >= width / 2, projected.sign == offset.sign, offset != 0 else { return nil }
+    guard abs(velocity) >= flick || abs(projected) >= width / 2 else { return nil }
     return offset < 0 ? .right : .left
+  }
+
+  /// Where the project bar's slider is while two fingers `pull` the page in front toward the one beside it: part
+  /// of the way from the `open` tab to that one's, or on the open tab when there is none beside it in the bar.
+  static func slider(over tabs: [SlidePage: CGRect], open: SlidePage, pull: Double, in order: [Home]) -> CGRect? {
+    guard let from = tabs[open] else { return nil }
+    guard let home = open.home, pull != 0,
+      let next = neighbour(of: home, on: pull > 0 ? .right : .left, in: order), let to = tabs[.home(next)]
+    else { return from }
+    let part = CGFloat(min(abs(pull), 1))
+    return CGRect(
+      x: from.minX + (to.minX - from.minX) * part, y: from.minY + (to.minY - from.minY) * part,
+      width: from.width + (to.width - from.width) * part, height: from.height + (to.height - from.height) * part)
   }
 
   /// How far the page goes for a drag of `offset` past an end: less and less, never half a page.
@@ -63,12 +83,11 @@ enum HomeSlide {
   }
 }
 
-/// The pages on screen side by side, each at its slot along a strip that slides by `position`, in pages.
-/// The page in front is at `position` once the slide is over; turning again before it is just a new place to
-/// slide to, so taps never queue.
+/// The pages on screen side by side, each at its slot along a strip, in pages. The strip slides by a position
+/// kept apart from it; the page in front is there once the slide is over. Turning again before then is just a
+/// new place to slide to, so taps never queue.
 struct PageStrip: Equatable {
   private(set) var front: SlidePage
-  private(set) var position: Double = 0
   /// Only the pages on screen have a slot.
   private var slots: [SlidePage: Double]
 
@@ -80,47 +99,53 @@ struct PageStrip: Equatable {
   /// The pages on screen, left to right.
   var onScreen: [SlidePage] { slots.sorted { $0.value < $1.value }.map(\.key) }
 
+  /// Where the strip is when the page in front is.
+  var frontPosition: Double { slots[front] ?? 0 }
+
+  func slot(of page: SlidePage) -> Double? { slots[page] }
+
   /// Where `page` is drawn across a page `width` wide while the strip is at `position`; `nil` off screen.
   func x(of page: SlidePage, position: Double, width: CGFloat) -> CGFloat? {
-    slots[page].map { CGFloat($0 - position) * width }
+    Self.x(slot: slots[page], position: position, width: width)
   }
 
-  /// Puts `page` in front, brought in on `side`, and slides the strip to it.
-  mutating func turn(to page: SlidePage, on side: Side) {
-    bring(page, on: side)
+  static func x(slot: Double?, position: Double, width: CGFloat) -> CGFloat? {
+    slot.map { CGFloat($0 - position) * width }
+  }
+
+  /// Where the strip is while fingers have moved the page in front by `offset` points.
+  func position(dragged offset: CGFloat, width: CGFloat) -> Double {
+    width > 0 ? frontPosition - Double(offset / width) : frontPosition
+  }
+
+  /// Puts `page` in front, brought in on `side` of the strip shown at `position`, for the strip to slide to.
+  mutating func turn(to page: SlidePage, on side: Side, from position: Double) {
+    bring(page, on: side, from: position)
     front = page
-    position = frontSlot
   }
 
   /// Sets the pages beside the one in front, for a swipe to show as it drags.
-  mutating func peek(left: SlidePage?, right: SlidePage?) {
-    if let left { bring(left, on: .left) }
-    if let right { bring(right, on: .right) }
+  mutating func peek(left: SlidePage?, right: SlidePage?, from position: Double) {
+    if let left { bring(left, on: .left, from: position) }
+    if let right { bring(right, on: .right, from: position) }
   }
 
-  /// Puts `page` on screen beside the page in front on `side`, unless it is already on screen; whatever sat in
-  /// that slot gives it up.
-  mutating func bring(_ page: SlidePage, on side: Side) {
+  /// Puts `page` on screen beside the page in front on `side`, unless it is already on screen. A page still
+  /// showing while the strip is at `position` keeps its slot, and `page` goes past it; one out of sight gives
+  /// its slot up.
+  mutating func bring(_ page: SlidePage, on side: Side, from position: Double) {
     guard slots[page] == nil else { return }
-    let slot = frontSlot + side.step
-    slots = slots.filter { $0.key == front || $0.value != slot }
+    var slot = frontPosition + side.step
+    while slots.contains(where: { $0.value == slot && ($0.key == front || abs(slot - position) < 1) }) {
+      slot += side.step
+    }
+    slots = slots.filter { $0.value != slot }
     slots[page] = slot
-  }
-
-  /// Slides the strip by `offset` points from the page in front.
-  mutating func follow(_ offset: CGFloat, width: CGFloat) {
-    guard width > 0 else { return }
-    position = frontSlot - Double(offset / width)
-  }
-
-  /// Back to the page in front, for a swipe that springs back.
-  mutating func recentre() {
-    position = frontSlot
   }
 
   /// `page` takes the place of the page in front, where it is, without sliding.
   mutating func hand(to page: SlidePage) {
-    let slot = frontSlot
+    let slot = frontPosition
     slots[front] = nil
     slots[page] = slot
     front = page
@@ -129,18 +154,38 @@ struct PageStrip: Equatable {
   /// The slide is over: only the page in front stays on screen, at the start of the strip.
   mutating func settle() {
     slots = [front: 0]
-    position = 0
   }
-
-  private var frontSlot: Double { slots[front] ?? 0 }
 }
 
-/// Draws a page at its slot as the strip slides; only the strip's position animates, so a page given a new slot
-/// is there at once.
+/// A slide of the strip from `from` to `to`, setting off at `speed` pages a second: where it is at any moment,
+/// so a swipe or a turn begun before it ends takes the strip from where it is shown.
+struct PageFlight {
+  let from: Double
+  let to: Double
+  let speed: Double
+  let start: ContinuousClock.Instant
+
+  /// The slide, carrying on at `speed` as it sets off.
+  var animation: Animation { .interpolatingSpring(Motion.pageSpring, initialVelocity: relativeSpeed) }
+
+  func position(at now: ContinuousClock.Instant) -> Double {
+    let elapsed = now - start
+    let time = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) * 1e-18
+    return from + (to - from) * Motion.pageSpring.value(target: 1.0, initialVelocity: relativeSpeed, time: time)
+  }
+
+  /// The speed as a share of the way to go each second, as springs take it.
+  private var relativeSpeed: Double {
+    abs(to - from) < 0.001 ? 0 : max(-20, min(20, speed / (to - from)))
+  }
+}
+
+/// Draws a page at its `slot` as the strip slides; only the strip's position animates, so a page given a new
+/// slot is there at once. The page moves only where it is drawn, not where it is laid out, so nothing in it that
+/// measures itself is asked again on every frame of a slide.
 struct StripPlace: ViewModifier, Animatable {
   var position: Double
-  let strip: PageStrip
-  let page: SlidePage
+  let slot: Double?
   let width: CGFloat
 
   nonisolated var animatableData: Double {
@@ -149,9 +194,9 @@ struct StripPlace: ViewModifier, Animatable {
   }
 
   func body(content: Content) -> some View {
-    let x = strip.x(of: page, position: position, width: width)
+    let x = PageStrip.x(slot: slot, position: position, width: width)
     content
-      .offset(x: x ?? 0)
+      .visualEffect { page, _ in page.offset(x: x ?? 0) }
       .opacity(x == nil ? 0 : 1)
   }
 }

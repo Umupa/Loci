@@ -190,8 +190,10 @@ enum Motion {
   static let quick = Animation.snappy(duration: 0.2)
   /// The slider pill gliding between tabs in the project bar.
   static let slider = Animation.spring(duration: 0.28, bounce: 0.08)
-  /// The companion's pages sliding sideways from one home to the next, and the bar's slider with them.
-  static let pageTurn = Animation.spring(duration: 0.35, bounce: 0.1)
+  /// The companion's pages sliding sideways from one home to the next, and the bar's slider with them, coming to
+  /// rest without overshooting.
+  static let pageSpring = Spring(duration: 0.35, bounce: 0)
+  static let pageTurn = Animation.spring(pageSpring)
   /// A new project's blank seal sliding into the project bar, or out of it.
   static let newSeal = Animation.timingCurve(0.32, 0.72, 0, 1, duration: 0.6)
   /// A new project's large seal flying into its place in the project bar.

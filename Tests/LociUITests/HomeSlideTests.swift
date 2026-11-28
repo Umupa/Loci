@@ -97,42 +97,101 @@ struct HomeSlideTests {
     #expect(SwipeClaim.decide(dx: -14, dy: 3) == .claim)
   }
 
+  @Test func anOrdinaryFlickTowardTheNextPageTurnsIt() {
+    #expect(HomeSlide.outcome(offset: -150, velocity: -600, width: width) == .right)
+    #expect(HomeSlide.outcome(offset: 150, velocity: 600, width: width) == .left)
+  }
+
   @Test func turningAgainBeforeTheSlideEndsHeadsStraightForTheNewPage() {
     var strip = PageStrip(front: .home(.chat))
-    strip.turn(to: .home(.project(a)), on: .right)
-    strip.turn(to: .home(.project(b)), on: .right)
+    strip.turn(to: .home(.project(a)), on: .right, from: 0)
+    strip.turn(to: .home(.project(b)), on: .right, from: 0)
 
-    #expect(strip.position == 2)
-    #expect(strip.x(of: .home(.project(b)), position: strip.position, width: width) == 0)
-    #expect(strip.x(of: .home(.chat), position: strip.position, width: width) == -2 * width)
+    #expect(strip.frontPosition == 2)
+    #expect(strip.x(of: .home(.project(b)), position: 2, width: width) == 0)
+    #expect(strip.x(of: .home(.chat), position: 2, width: width) == -2 * width)
     #expect(strip.onScreen == [.home(.chat), .home(.project(a)), .home(.project(b))])
   }
 
   @Test func turningBackMidSlideReturnsToThePageItCameFrom() {
     var strip = PageStrip(front: .home(.chat))
-    strip.turn(to: .home(.project(a)), on: .right)
-    strip.turn(to: .home(.chat), on: .left)
+    strip.turn(to: .home(.project(a)), on: .right, from: 0)
+    strip.turn(to: .home(.chat), on: .left, from: 0.5)
 
-    #expect(strip.position == 0)
-    #expect(strip.x(of: .home(.chat), position: strip.position, width: width) == 0)
+    #expect(strip.frontPosition == 0)
+    #expect(strip.x(of: .home(.chat), position: 0, width: width) == 0)
+  }
+
+  @Test func turningMidSlideNeverTakesAwayAPageStillOnScreen() {
+    var strip = PageStrip(front: .home(.chat))
+    strip.turn(to: .home(.project(a)), on: .right, from: 0)
+    strip.turn(to: .home(.project(c)), on: .left, from: 0.5)
+
+    #expect(strip.x(of: .home(.chat), position: 0.5, width: width) == -width / 2)
+    #expect(strip.x(of: .home(.project(a)), position: 0.5, width: width) == width / 2)
+    #expect(strip.frontPosition == -1)
   }
 
   @Test func aPageGoneByWhenTheSlideEndsIsPutAway() {
     var strip = PageStrip(front: .home(.chat))
-    strip.turn(to: .home(.project(a)), on: .right)
+    strip.turn(to: .home(.project(a)), on: .right, from: 0)
     strip.settle()
 
     #expect(strip.onScreen == [.home(.project(a))])
-    #expect(strip.position == 0)
-    #expect(strip.x(of: .home(.project(a)), position: strip.position, width: width) == 0)
+    #expect(strip.frontPosition == 0)
+    #expect(strip.x(of: .home(.project(a)), position: 0, width: width) == 0)
   }
 
   @Test func aPeekedNeighbourSitsJustBesideThePageInFront() {
     var strip = PageStrip(front: .home(.project(a)))
-    strip.peek(left: .home(.chat), right: .home(.project(b)))
+    strip.peek(left: .home(.chat), right: .home(.project(b)), from: 0)
 
-    #expect(strip.x(of: .home(.chat), position: strip.position, width: width) == -width)
-    #expect(strip.x(of: .home(.project(b)), position: strip.position, width: width) == width)
+    #expect(strip.x(of: .home(.chat), position: 0, width: width) == -width)
+    #expect(strip.x(of: .home(.project(b)), position: 0, width: width) == width)
+  }
+
+  @Test func theFingersDrawTheStripAlongWithThem() {
+    var strip = PageStrip(front: .home(.chat))
+    strip.turn(to: .home(.project(a)), on: .right, from: 0)
+
+    #expect(strip.position(dragged: -250, width: width) == 1.25)
+    #expect(strip.position(dragged: 500, width: width) == 0.5)
+  }
+
+  @Test func aPageLetGoMidSwipeCarriesOnAtTheFingersSpeedAndComesToRestOnItsPage() {
+    let start = ContinuousClock.now
+    let flight = PageFlight(from: 0.3, to: 1, speed: 3, start: start)
+
+    #expect(flight.position(at: start) == 0.3)
+    #expect(flight.position(at: start + .milliseconds(16)) > 0.3 + 0.016 * 3 * 0.8)
+    #expect(abs(flight.position(at: start + .seconds(2)) - 1) < 0.001)
+  }
+
+  @Test func aPageTurnedFromRestSetsOffGentlyAndDoesNotOvershoot() {
+    let start = ContinuousClock.now
+    let flight = PageFlight(from: 0, to: 1, speed: 0, start: start)
+    let positions = (0...60).map { flight.position(at: start + .milliseconds($0 * 10)) }
+
+    #expect(positions[1] < 0.05)
+    #expect(positions.allSatisfy { $0 <= 1 + 0.0001 })
+    #expect(zip(positions, positions.dropFirst()).allSatisfy { $0 <= $1 })
+  }
+
+  @Test func theBarsSliderFollowsTheFingersTowardTheTabBesideTheOpenOne() {
+    let tabs: [SlidePage: CGRect] = [
+      .home(.chat): CGRect(x: 0, y: 0, width: 60, height: 30),
+      .home(.project(a)): CGRect(x: 70, y: 0, width: 100, height: 30),
+      .home(.project(b)): CGRect(x: 180, y: 0, width: 30, height: 30),
+    ]
+    let open = SlidePage.home(.project(a))
+
+    #expect(HomeSlide.slider(over: tabs, open: open, pull: 0, in: order) == tabs[open])
+    #expect(
+      HomeSlide.slider(over: tabs, open: open, pull: 0.5, in: order) == CGRect(x: 125, y: 0, width: 65, height: 30))
+    #expect(
+      HomeSlide.slider(over: tabs, open: open, pull: -0.5, in: order) == CGRect(x: 35, y: 0, width: 80, height: 30))
+    #expect(
+      HomeSlide.slider(over: tabs, open: .home(.chat), pull: -0.5, in: order) == tabs[.home(.chat)])
   }
 }
 

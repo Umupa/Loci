@@ -12,6 +12,7 @@ struct CompanionBar: View {
   let newSeal: NewSeal?
   let suggested: [Project.ID: String]
   let stamps: [Home: Int]
+  let travel: PageTravel
   let actions: ProjectBarActions
   @Environment(\.sidebarShown) private var sidebarShown
   @State private var badgeWidth: CGFloat = 0
@@ -24,8 +25,8 @@ struct CompanionBar: View {
     ZStack(alignment: .top) {
       BarClearance(leading: clearance, trailing: clearance) {
         ProjectBarView(
-          bar: bar, home: home, maxWidth: barBudget, newSeal: newSeal, suggested: suggested, stamps: stamps,
-          actions: actions
+          bar: bar, home: travel.heading.home ?? home, maxWidth: barBudget, newSeal: newSeal, suggested: suggested,
+          stamps: stamps, travel: travel, actions: actions
         )
         .background { WarmLight(on: building) }
       }

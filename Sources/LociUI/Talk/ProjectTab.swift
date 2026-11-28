@@ -25,7 +25,8 @@ struct ProjectTab: View {
   var body: some View {
     let revealWidth =
       (open ? max(nameWidth, 1) : (heldWidth ?? Size.projectNameWidest)) + ProjectBarPlan.openLabelPadding
-    TabPill(open: open, action: { actions.open(.project(project.id)) }) { hovering in
+    TabPill(page: .home(.project(project.id)), open: open, action: { actions.open(.project(project.id)) }) {
+      hovering in
       HStack(spacing: 0) {
         seal(hovering: hovering)
         if let name = project.name {

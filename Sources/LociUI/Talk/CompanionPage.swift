@@ -48,6 +48,9 @@ struct CompanionPage: View {
   @State private var madeProjects: [Project.ID] = []
   @State private var pageWidth: CGFloat = 0
   @State private var homeSwitch = HomeSwitch.logged()
+  @State private var travel = PageTravel()
+  /// The page the last slide came to rest on.
+  @State private var settledPage: SlidePage?
   /// The chat's layout, for the layout button over a new project's field.
   @AppStorage(TalkLayout.key) private var storedLayout = Data()
 
@@ -85,7 +88,7 @@ struct CompanionPage: View {
       SlidingPages(
         front: draft == nil ? .home(home) : .newProject, order: HomeSlide.order(of: shownBar), kept: keptProjects,
         newProject: (draft ?? parting) != nil, handed: handed, jump: jumps, swipes: documents?.shown == nil,
-        open: { open($0, made: true) }, settled: { if draft == nil { parting = nil } }
+        travel: travel, open: { open($0, made: true) }, settled: arrived
       ) { page in
         switch page {
         case .home(let pageHome): talk(pageHome)
@@ -94,7 +97,7 @@ struct CompanionPage: View {
       }
       CompanionBar(
         bar: shownBar, home: home, pageWidth: pageWidth, newSeal: newSeal, suggested: suggested, stamps: stamps,
-        actions: actions)
+        travel: travel, actions: actions)
     }
     .coordinateSpace(.named(Self.space))
     .onGeometryChange(for: CGFloat.self) {
@@ -130,7 +133,6 @@ struct CompanionPage: View {
       }
     }
     .animation(reduceMotion ? nil : Motion.standard, value: notice)
-    .animation(reduceMotion ? nil : Motion.standard, value: draft == nil)
     .subscribing(WatchProjects(), into: $bar)
     .subscribing(WatchNextUps(of: home), into: $nextUps)
     .onChange(of: home) {
@@ -139,7 +141,6 @@ struct CompanionPage: View {
     }
     .onDisappear { timing?.left() }
     .environment(\.homeSwitch, timing)
-    .onChange(of: shownHome) { if let shownHome { focus[shownHome, default: 0] += 1 } }
     .onChange(of: focusRequest) { if let shownHome { focus[shownHome, default: 0] += 1 } }
     .onChange(of: chatRequest) { actions.open(.chat) }
     .onAppear {
@@ -199,6 +200,17 @@ struct CompanionPage: View {
       .allowsHitTesting(draft != nil)
       .transition(.opacity)
     }
+  }
+
+  /// A slide has come to rest on `page`: a new project's page put away is gone, and a home newly in front takes
+  /// the keyboard and has what is new in it seen. Both wait for the slide, so it carries nothing else.
+  private func arrived(_ page: SlidePage) {
+    if draft == nil { parting = nil }
+    guard page != settledPage else { return }
+    settledPage = page
+    guard let home = page.home else { return }
+    focus[home, default: 0] += 1
+    if let id = home.project, shownBar.unseen.contains(id) { send(SeeProject(id)) }
   }
 
   /// The home whose page is in front; `nil` while a new project's page covers them.
@@ -265,7 +277,7 @@ struct CompanionPage: View {
       send(ArchiveProject(id, archived: false))
     }
     project = chosen.project
-    if let id = chosen.project { send(SeeProject(id)) }
+    travel.head(to: .home(chosen))
   }
 
   /// Times the turn when the page will change: to another home, or to the one a new project's field covers.
