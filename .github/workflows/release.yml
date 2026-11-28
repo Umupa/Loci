@@ -130,10 +130,12 @@ jobs:
 
       # Loci updates from a patch when there is one for the version it runs, which is
       # usually a tenth of the zip. A release never fails for want of one: an earlier
-      # release that cannot be fetched or diffed is skipped, and so is this whole step.
+      # release that cannot be fetched or diffed is skipped, and so is this whole step
+      # when it fails or runs past 20 minutes (bsdiff on the 150 MB binary can).
       - name: Make patches from the last few releases
         if: github.ref_type == 'tag'
         continue-on-error: true
+        timeout-minutes: 20
         run: |
           brew install bsdiff
           script/release-patches "output/Loci (Beta).app" output/patches
