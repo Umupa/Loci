@@ -101,15 +101,19 @@ struct ProjectList: View {
     return ListRow(selected: selected) {
       open(.project(project.id))
     } label: {
-      ProjectSeal(symbol: project.symbol, selected: selected, locked: !project.remembered)
-      Text(verbatim: project.shownName)
-        .foregroundStyle(Palette.ink)
+      if project.name == nil {
+        UnnamedSeal(project: nil, symbol: project.icon)
+      } else {
+        ProjectSeal(symbol: project.symbol, selected: selected, locked: !project.remembered)
+      }
+      project.title
+        .foregroundStyle(project.name == nil ? Palette.inkMuted : Palette.ink)
         .fontWeight(selected ? .medium : .regular)
         .lineLimit(1)
       Spacer(minLength: 0)
       if dot { Circle().fill(Palette.accent).frame(width: 6, height: 6) }
     }
-    .help(Text(verbatim: project.summary.isEmpty ? project.shownName : project.summary))
+    .help(project.summary.isEmpty ? project.title : Text(verbatim: project.summary))
     .contextMenu {
       if changesAllowed, !archived, let actions {
         ProjectMenuItems(bar: bar, project: project, actions: actions) {
@@ -123,7 +127,7 @@ struct ProjectList: View {
       isPresented: Binding(get: { renaming == project.id }, set: { if !$0 { renaming = nil } }), arrowEdge: .trailing
     ) {
       if let actions {
-        RenameField(name: project.shownName) { name in
+        RenameField(name: project.name ?? "") { name in
           renaming = nil
           actions.rename(project.id, name)
         }

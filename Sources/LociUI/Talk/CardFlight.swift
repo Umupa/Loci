@@ -6,6 +6,8 @@ struct NextUpAnchors: PreferenceKey {
   struct Value {
     var cards: [EntityID: Anchor<CGRect>] = [:]
     var seals: [Home: Anchor<CGRect>] = [:]
+    /// The blank seal of a new project not yet in the bar.
+    var newSeal: Anchor<CGRect>?
   }
 
   static let defaultValue = Value()
@@ -14,6 +16,7 @@ struct NextUpAnchors: PreferenceKey {
     let next = nextValue()
     value.cards.merge(next.cards) { _, new in new }
     value.seals.merge(next.seals) { _, new in new }
+    value.newSeal = next.newSeal ?? value.newSeal
   }
 }
 
@@ -80,6 +83,56 @@ extension View {
   func sealAnchor(_ home: Home?) -> some View {
     anchorPreference(key: NextUpAnchors.self, value: .bounds) { anchor in
       NextUpAnchors.Value(seals: home.map { [$0: anchor] } ?? [:])
+    }
+  }
+}
+
+/// A new project's large seal on its way into the bar: it shrinks along an arc into the blank seal waiting
+/// there, then is gone.
+struct SealFlight: View {
+  let symbol: String?
+  let from: CGRect
+  let to: CGRect
+  let landed: () -> Void
+  @State private var progress = 0.0
+
+  var body: some View {
+    HeroSeal(symbol: symbol)
+      .modifier(Arc(progress: progress, from: from, to: to))
+      .allowsHitTesting(false)
+      .onAppear {
+        withAnimation(Motion.sealFlight) {
+          progress = 1
+        } completion: {
+          landed()
+        }
+      }
+  }
+
+  /// Along a curve that bows up and out, shrinking from the large seal to the bar's.
+  private struct Arc: ViewModifier, Animatable {
+    var progress: Double
+    let from: CGRect
+    let to: CGRect
+
+    nonisolated var animatableData: Double {
+      get { progress }
+      set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+      let start = CGPoint(x: from.midX, y: from.midY)
+      let end = CGPoint(x: to.midX, y: to.midY)
+      let bend = CGPoint(x: start.x + (end.x - start.x) * 0.2, y: min(start.y, end.y) - 40)
+      let t = progress
+      let point = CGPoint(
+        x: (1 - t) * (1 - t) * start.x + 2 * (1 - t) * t * bend.x + t * t * end.x,
+        y: (1 - t) * (1 - t) * start.y + 2 * (1 - t) * t * bend.y + t * t * end.y)
+      let scale = 1 + (to.width / max(from.width, 1) - 1) * t
+      content
+        .scaleEffect(scale)
+        .opacity(t > 0.96 ? 0 : 1)
+        .position(point)
     }
   }
 }

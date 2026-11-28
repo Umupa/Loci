@@ -215,22 +215,4 @@ struct ProjectLifecycleTests {
       #expect(try await host.nextUps(of: .chat).isEmpty)
     }
   }
-
-  @Test func aNameGivenWhileTheFirstTurnEndsIsKept() async throws {
-    try await withHost(agent: FakeAgent(provider: .codex) { _ in .hang }) { host, _, _ in
-      for _ in 0..<5 {
-        let project = try await host.run(StartProject(ProjectScenarioTests.words)).id
-        let session = LocalSession.conversation(.project(project))
-        async let named = Background.call(NameProject("投资"), from: session, on: host)
-        async let stopped: Void = { _ = try? await host.run(StopTurn(in: .project(project))) }()
-        _ = await (named, stopped)
-        _ = await Background.call(DescribeProject("盯纳指"), from: session, on: host)
-        try await Background.quiet()
-
-        let kept = try host.store.project(project)
-        #expect(kept.name == "投资")
-        #expect(kept.summary == "盯纳指")
-      }
-    }
-  }
 }

@@ -4,7 +4,7 @@ import LociStore
 
 extension LocalHost {
   public func projectBar() async throws(HostError) -> ProjectBar {
-    let projects = store.projects().filter { $0.name != nil }
+    let projects = store.projects()
     let panels = projects.map { project in
       let named = store.home(.project(project.id)).panels().compactMap(\.panel).map {
         PanelName(name: $0.name, title: $0.title)
@@ -31,7 +31,7 @@ extension LocalHost {
   }
 
   /// The project is made without a name, and the person's words are said in its conversation with what the
-  /// companion is to do first. A project still without a name when that turn ends takes its first words.
+  /// companion is to do first; it stays without one until the companion or the person names it.
   public func startProject(_ command: StartProject) async throws(HostError) -> Project {
     let text = command.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { throw .invalidRequest("say what the project is for") }
@@ -45,28 +45,16 @@ extension LocalHost {
       try store.home(.project(project.id)).setMemoryWritable(false)
     }
     let run = try await loci.run(of: .project(project.id))
-    try await run.send(Prompt(text: text, purpose: .chat), saying: loci.context.prompts.projectStart + text)
+    try await run.send(Prompt(text: text, purpose: .chat), saying: saying(text, in: .project(project.id)))
     await follow([.projects])
-    await hub.hold(
-      Task {
-        _ = await run.settle()
-        await self.nameIfUnnamed(project.id, from: text)
-      })
     return project
   }
 
-  /// Named in the same edit that finds it unnamed, so a name the companion gave meanwhile always stays.
-  private func nameIfUnnamed(_ id: Project.ID, from text: String) async {
-    let name = Self.provisionalName(from: text)
-    _ = try? await changeProject(id) { $0.name == nil ? $0.with(name: .some(name)) : $0 }
-  }
-
-  /// The first few characters of what the person said, to a word's end when there are spaces.
-  static func provisionalName(from text: String) -> String {
-    let line = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? text
-    let words = line.split(separator: " ")
-    if words.count > 1 { return words.prefix(3).joined(separator: " ") }
-    return String(line.prefix(6))
+  /// What the companion is told the person said: in a project still without a name, after what it is to do to
+  /// set the project up.
+  func saying(_ text: String, in conversation: ConversationRef) -> String {
+    guard case .project(let id) = conversation, (try? store.project(id))?.name == nil else { return text }
+    return loci.context.prompts.projectStart + text
   }
 
   public func renameProject(_ command: RenameProject) async throws(HostError) -> Project {

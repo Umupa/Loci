@@ -141,7 +141,7 @@ struct NextUpSource: View {
     HStack(spacing: 6) {
       if let project {
         ProjectSeal(symbol: project.symbol, size: 16, locked: !project.remembered)
-        Text(verbatim: project.shownName)
+        project.title
       } else {
         LociAvatar(size: 16)
         Text(.loci("projects.chat"))

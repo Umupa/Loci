@@ -1,15 +1,16 @@
 import LociModel
 import SwiftUI
 
-/// The companion's page: the project bar over the chat or the project it has open, or over the field a new
-/// project starts from. The open one is remembered for the Mac. A next-up card started from the deck flies into
-/// its seal, and its project opens.
+/// The companion's page: the project bar over the chat or the project it has open, or over a new project's
+/// page. The open one is remembered for the Mac. A next-up card started from the deck flies into its seal, and
+/// its project opens; so does a new project's large seal once its words are sent.
 struct CompanionPage: View {
   @Environment(\.host) private var host
   @Environment(\.reducesMotion) private var reduceMotion
   @Environment(\.sidebarShown) private var sidebarShown
   @Environment(\.cardDelivery) private var cardDelivery
   @Environment(\.machineChoice) private var machineChoice
+  @Environment(\.documents) private var documents
   let focusRequest: Int
   let attach: () -> Void
   let opened: (WindowState) -> Void
@@ -17,12 +18,23 @@ struct CompanionPage: View {
   @Binding var columnPreferred: Bool
   let memory: WindowMemory
   let visits: ConversationVisits
-  /// Opens on a new project's field, for a snapshot.
-  var opening: Starting?
+  /// Opens on a new project's page, for a snapshot.
+  var opening: NewProjectDraft?
   @State private var project: Project.ID?
   @State private var recalled = false
   @State private var bar: Feed<ProjectBar>?
-  @State private var starting: Starting?
+  @State private var draft: NewProjectDraft?
+  /// A new project's page put away, still sliding out.
+  @State private var parting: NewProjectDraft?
+  /// The project last made from a new project's page, which takes that page's place.
+  @State private var handed: Project.ID?
+  /// Counts the times the page in front was put there at once instead of turned to.
+  @State private var jumps = 0
+  @State private var launching: Launching?
+  @State private var sealFrame = CGRect.zero
+  /// The symbols new projects' words suggested, worn faintly until they are named.
+  @State private var suggested: [Project.ID: String] = [:]
+  @State private var building = false
   @State private var notice: Notice?
   @State private var focusedCard: EntityID?
   @State private var nextUps: Feed<[NextUp]>?
@@ -38,11 +50,17 @@ struct CompanionPage: View {
   /// The chat's layout, for the layout button over a new project's field.
   @AppStorage(TalkLayout.key) private var storedLayout = Data()
 
-  /// A project being started: the words, once sent, and the project they started.
-  struct Starting: Equatable {
-    var sent: String?
+  /// A new project's words on their way: the large seal flies into the bar while the project is made, and the
+  /// project opens once both are done.
+  struct Launching: Equatable {
+    let symbol: String?
+    let from: CGRect
+    var landed: Bool
     var project: Project.ID?
   }
+
+  /// Where things on the page are, for a seal to fly between them.
+  nonisolated static let space = "companion"
 
   /// What the last archiving, deletion, or card put off or declined took away, to undo.
   enum Notice: Equatable {
@@ -63,26 +81,30 @@ struct CompanionPage: View {
 
   var body: some View {
     ZStack(alignment: .top) {
-      talk(.chat)
-      ForEach(keptProjects, id: \.self) { id in talk(.project(id)) }
-      if let starting {
-        NewProjectStage(sent: starting.sent, send: start)
-          .padding(.top, Size.projectBarRoom)
-          .padding(.horizontal, Spacing.m)
-          .overlay(alignment: .topTrailing) {
-            CornerButtons(layout: chatLayout, panelsShown: $columnPreferred)
-          }
+      SlidingPages(
+        front: draft == nil ? .home(home) : .newProject, order: HomeSlide.order(of: shownBar), kept: keptProjects,
+        newProject: (draft ?? parting) != nil, handed: handed, jump: jumps, swipes: documents?.shown == nil,
+        open: { open($0, made: true) }, settled: { if draft == nil { parting = nil } }
+      ) { page in
+        switch page {
+        case .home(let pageHome): talk(pageHome)
+        case .newProject: newProjectPage
+        }
       }
       let leadingClearance = sidebarShown ? Spacing.m : Size.projectBarClearance
       let barBudget =
         pageWidth > 0 ? max(240, pageWidth - leadingClearance - Size.projectBarClearance) : Size.projectBarWidest
       BarClearance(leading: leadingClearance, trailing: Size.projectBarClearance) {
         ProjectBarView(
-          bar: shownBar, home: home, maxWidth: barBudget, starting: starting != nil,
-          startingSent: starting?.sent != nil, stamps: stamps, actions: actions)
+          bar: shownBar, home: home, maxWidth: barBudget, newSeal: newSeal, suggested: suggested, stamps: stamps,
+          actions: actions
+        )
+        .background { WarmLight(on: building) }
       }
       .padding(.top, 11)
+      .onPreferenceChange(Building.self) { building = $0 }
     }
+    .coordinateSpace(.named(Self.space))
     .onGeometryChange(for: CGFloat.self) {
       $0.size.width
     } action: {
@@ -99,6 +121,12 @@ struct CompanionPage: View {
             Color.clear.onAppear { land(flight) }
           }
         }
+        if let launching, !launching.landed, let to = anchors.newSeal {
+          SealFlight(symbol: launching.symbol, from: launching.from, to: proxy[to]) {
+            self.launching?.landed = true
+            settle()
+          }
+        }
       }
     }
     .overlay(alignment: .bottom) {
@@ -110,7 +138,7 @@ struct CompanionPage: View {
       }
     }
     .animation(reduceMotion ? nil : Motion.standard, value: notice)
-    .animation(reduceMotion ? nil : Motion.standard, value: starting == nil)
+    .animation(reduceMotion ? nil : Motion.standard, value: draft == nil)
     .subscribing(WatchProjects(), into: $bar)
     .subscribing(WatchNextUps(of: home), into: $nextUps)
     .onChange(of: home) {
@@ -125,7 +153,8 @@ struct CompanionPage: View {
       guard !recalled else { return }
       recalled = true
       project = cardDelivery?.waiting.map { $0.home.project } ?? memory.recallProject()
-      if let opening { starting = opening }
+      if let opening { draft = opening }
+      jumps += 1
     }
     .onChange(of: project) {
       memory.rememberProject(project)
@@ -157,24 +186,50 @@ struct CompanionPage: View {
     .environment(\.projectName, project?.name)
     .environment(\.projectsByID, projectsMap)
     .environment(\.nextUpDeck, shown ? deck : nil)
-    .opacity(shown ? 1 : 0)
     .allowsHitTesting(shown)
     .accessibilityHidden(!shown)
   }
 
-  /// The home whose page is in front; `nil` while a new project's field covers them.
-  private var shownHome: Home? { starting == nil ? home : nil }
+  /// A new project's page, in front or sliding out.
+  @ViewBuilder private var newProjectPage: some View {
+    if let shown = draft ?? parting {
+      NewProjectPage(
+        draft: Binding(get: { draft ?? shown }, set: { if draft != nil { draft = $0 } }), sent: launching != nil,
+        attach: attach, send: launch, sealFrame: { sealFrame = $0 }
+      )
+      .padding(.top, Size.projectBarRoom)
+      .padding(.horizontal, Spacing.m)
+      .overlay(alignment: .topTrailing) {
+        CornerButtons(layout: chatLayout, panelsShown: $columnPreferred)
+      }
+      .onExitCommand { if launching == nil { leaveDraft() } }
+      .allowsHitTesting(draft != nil)
+      .transition(.opacity)
+    }
+  }
+
+  /// The home whose page is in front; `nil` while a new project's page covers them.
+  private var shownHome: Home? { draft == nil ? home : nil }
+
+  private var newSeal: NewSeal? {
+    guard draft != nil else { return nil }
+    return NewSeal(sent: launching != nil, landed: launching?.landed ?? false, symbol: launching?.symbol)
+  }
 
   private var keptProjects: [Project.ID] {
     KeptPages.projects(made: madeProjects, open: project, alive: bar == nil ? nil : Set(projectsMap.keys))
   }
 
-  /// A started project is done once it has its name; a project gone elsewhere leaves the chat open; what the
-  /// open project says new is seen.
+  /// A new project opens once its seal has landed and it is in the bar; a project gone elsewhere leaves the
+  /// chat open; what the open project says new is seen.
   private func settle() {
     guard let value = bar?.value else { return }
-    if let id = starting?.project, value.projects.contains(where: { $0.id == id }) {
-      starting = nil
+    if let launching, launching.landed, let id = launching.project, value.projects.contains(where: { $0.id == id }) {
+      if let symbol = launching.symbol { suggested[id] = symbol }
+      turn(to: .project(id))
+      handed = id
+      self.launching = nil
+      draft = nil
       project = id
     }
     if let project, !(value.projects + value.archived).contains(where: { $0.id == project }) { self.project = nil }
@@ -183,18 +238,12 @@ struct CompanionPage: View {
 
   private var actions: ProjectBarActions {
     ProjectBarActions(
-      open: { chosen in
-        turn(to: chosen)
-        starting = nil
-        if case .project(let id) = chosen, shownBar.archived.contains(where: { $0.id == id }) {
-          send(ArchiveProject(id, archived: false))
-        }
-        project = chosen.project
-        if let id = chosen.project { send(SeeProject(id)) }
-      },
+      open: { open($0) },
       start: {
         timing?.left()
-        starting = Starting()
+        handed = nil
+        parting = nil
+        draft = NewProjectDraft()
       },
       rename: { id, name in send(RenameProject(id, to: name)) },
       reicon: { id, icon in send(SetProjectIcon(id, icon: icon)) },
@@ -215,24 +264,44 @@ struct CompanionPage: View {
   /// Turns are timed on this Mac only; another Mac's would include the network.
   private var timing: HomeSwitch? { machineChoice?.link == nil ? homeSwitch : nil }
 
-  /// Times the turn when the page will change: to another home, or to the one a new project's field covers.
-  private func turn(to chosen: Home) {
-    guard chosen != home || starting != nil else { return }
-    focusedCard = nil
-    timing?.turned(to: chosen, kept: chosen.project.map(madeProjects.contains) ?? true)
+  /// Opens `chosen`, its page already `made` when a swipe brought it into view.
+  private func open(_ chosen: Home, made: Bool = false) {
+    turn(to: chosen, made: made)
+    leaveDraft()
+    if case .project(let id) = chosen, shownBar.archived.contains(where: { $0.id == id }) {
+      send(ArchiveProject(id, archived: false))
+    }
+    project = chosen.project
+    if let id = chosen.project { send(SeeProject(id)) }
   }
 
-  private func start(_ words: String, icon: String?) {
-    starting?.sent = words
+  /// Times the turn when the page will change: to another home, or to the one a new project's field covers.
+  private func turn(to chosen: Home, made: Bool = false) {
+    guard chosen != home || draft != nil else { return }
+    focusedCard = nil
+    timing?.turned(to: chosen, kept: made || (chosen.project.map(madeProjects.contains) ?? true))
+  }
+
+  /// Sends a new project's words: its seal flies into the bar while the project is made.
+  private func launch() {
+    guard let draft, launching == nil else { return }
+    launching = Launching(symbol: draft.symbol, from: sealFrame, landed: reduceMotion)
     Task {
       do throws(HostError) {
-        starting?.project = try await host.run(StartProject(words, icon: icon)).id
+        launching?.project = try await host.run(StartProject(draft.words, icon: draft.chosenIcon)).id
         settle()
       } catch {
-        starting = nil
+        launching = nil
         failed(error)
       }
     }
+  }
+
+  /// Puts a new project's page away; words already sent go on making their project.
+  private func leaveDraft() {
+    if draft != nil { parting = draft }
+    draft = nil
+    launching = nil
   }
 
   private func words(of notice: Notice) -> LocalizedStringResource {
@@ -258,7 +327,7 @@ struct CompanionPage: View {
 
   private func openNotifiedCard() {
     guard let route = cardDelivery?.waiting, let bar = bar?.value else { return }
-    starting = nil
+    leaveDraft()
     let projects = bar.projects + bar.archived
     let exists = route.home.project.map { id in projects.contains { $0.id == id } } ?? true
     if exists {
@@ -306,8 +375,8 @@ struct CompanionPage: View {
     flight = nil
     turn(to: card.home)
     if !reduceMotion { stamps[card.home, default: 0] += 1 }
-    starting = nil
-    withAnimation(reduceMotion ? nil : Motion.standard) { project = card.home.project }
+    leaveDraft()
+    project = card.home.project
     if let id = card.home.project { send(SeeProject(id)) }
     send(StartNextUp(card.id, version: card.version))
   }

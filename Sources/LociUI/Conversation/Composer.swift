@@ -263,7 +263,7 @@ enum ComposerKey: Equatable {
 }
 
 /// The circle that sends, or stops Loci while it works: ink when it can, a faint wash when it cannot.
-private struct RoundButton: View {
+struct RoundButton: View {
   let symbol: String
   let glyphSize: CGFloat
   let label: LocalizedStringResource

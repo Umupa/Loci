@@ -113,6 +113,8 @@ enum Palette {
 
   /// A finished stage on the stage ruler.
   static let accentLine = Color(nsColor: Tones.accentLine)
+  /// A faint amber glow: the ring around a new project's field, and the heart of the light under the bar.
+  static let glow = Color(nsColor: Tones.glow)
   /// Work that failed.
   static let failure = Color(nsColor: Tones.failure)
   /// Paper and ink for the cover of an item without a picture.
@@ -202,6 +204,7 @@ enum Tones {
   static let ring = NSColor(dark: 0xFFF5E6, light: 0xFFFFFF, alpha: (dark: 0.14, light: 0.9))
   static let coverBackdrop = NSColor(dark: 0x2A2420, light: 0x2A2420)
   static let accentLine = NSColor(dark: 0xEBA53A, light: 0xD98E1F, alpha: (dark: 0.6, light: 0.55))
+  static let glow = NSColor(dark: 0xEBA53A, light: 0xD98E1F, alpha: (dark: 0.13, light: 0.16))
   static let failure = NSColor(dark: 0xEE7A60, light: 0xC9503A)
   static let coverPlaceholder = NSColor(dark: 0x2A2420, light: 0xEFEAE2)
   static let menuFace = NSColor(dark: 0x2C2824, light: 0xFDFBF8)

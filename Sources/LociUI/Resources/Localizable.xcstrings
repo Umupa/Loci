@@ -4971,23 +4971,6 @@
         }
       }
     },
-    "projects.shuffle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Another example"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "换一批"
-          }
-        }
-      }
-    },
     "projects.start": {
       "extractionState": "manual",
       "localizations": {
