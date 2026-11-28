@@ -95,6 +95,7 @@ extension Place {
     case .talk: .chat
     case .loci: .home(LociScreen.Opening())
     case .connector(let id): .home(LociScreen.Opening(tab: .connectors, connector: id))
+    case .watch(let home): .home(LociScreen.Opening(tab: .watch, watch: home))
     case .library, .browser, .courses, .settings: nil
     }
   }

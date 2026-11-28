@@ -177,10 +177,12 @@ struct ProjectMenuItems: View {
   let actions: ProjectBarActions
   let rename: () -> Void
   let reicon: () -> Void
+  @Environment(\.openPlace) private var openPlace
 
   var body: some View {
     Button(.loci("projects.rename"), systemImage: Symbols.pencil, action: rename)
     Button(.loci("projects.changeIcon"), systemImage: "square.grid.2x2", action: reicon)
+    Button(.loci("loci.watch"), systemImage: "eye") { openPlace(.watch(.project(project.id))) }
     Menu(.loci("projects.pin")) {
       ForEach(bar.panels[project.id] ?? [], id: \.name) { panel in
         Toggle(

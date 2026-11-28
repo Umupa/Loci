@@ -18,7 +18,7 @@ struct CompanionHomeTests {
   }
 
   @Test func thePageHasTheCompanionsOwnTabsThenItsSettings() {
-    #expect(LociTab.groups == [[.soul, .memory, .diary], [.models, .timers, .connectors, .usage]])
+    #expect(LociTab.groups == [[.soul, .memory, .watch, .diary], [.models, .timers, .connectors, .usage]])
     #expect(Set(LociTab.groups.joined()) == Set(LociTab.allCases))
   }
 

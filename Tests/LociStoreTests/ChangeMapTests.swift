@@ -28,6 +28,8 @@ struct ChangeMapTests {
       ("agent/avatar.png", .loci(.avatar)),
       ("agent/panels/sandbox-radar.json", .loci(.panels)),
       ("agent/panels", .loci(.panels)),
+      ("agent/WATCH.md", .loci(.watch)),
+      ("agent/projects/\(Fixture.id(5))/WATCH.md", .loci(.watch)),
     ]
     for (path, change) in expected {
       #expect(Self.changes([path]) == [change], "\(path)")

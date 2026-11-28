@@ -238,6 +238,8 @@ public protocol CommandHandler: Sendable {
   func recall(_ command: Recall) async throws(HostError) -> [RecallHit]
   func wikiPage(_ name: String) async throws(HostError) -> WikiPage
   func forgetWikiLine(_ command: ForgetWikiLine) async throws(HostError) -> Done
+  func watch(of home: Home) async throws(HostError) -> String
+  func saveWatch(_ command: SaveWatch) async throws(HostError) -> Done
   func connectors() async throws(HostError) -> Connectors
   func connectorCalls(limit: Int) async throws(HostError) -> [ConnectorCall]
   func usage(since: Timestamp) async throws(HostError) -> [SessionUsage]

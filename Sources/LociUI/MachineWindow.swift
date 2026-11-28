@@ -262,7 +262,7 @@ struct MachineWindow: View {
       .environment(\.pagesOver, !window.pages.isEmpty)
     } else {
       switch window.place {
-      case .talk, .loci, .connector:
+      case .talk, .loci, .connector, .watch:
         EmptyView()
       case .library(let category):
         LibraryScreen(
@@ -320,7 +320,7 @@ struct MachineWindow: View {
     guard window.pages.isEmpty, changesAllowed else { return false }
     switch window.place {
     case .talk, .library: return true
-    case .loci, .connector, .browser, .settings, .courses: return false
+    case .loci, .connector, .watch, .browser, .settings, .courses: return false
     }
   }
 

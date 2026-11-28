@@ -25,7 +25,8 @@ struct ChangeMap {
     switch parts[0] {
     case Store.agentFolderName:
       if parts[1] == Store.projectsFolder {
-        return rest.count >= 2 && rest[1] == Store.panelsFolder ? .loci(.panels) : nil
+        if rest.count >= 2, rest[1] == Store.panelsFolder { return .loci(.panels) }
+        return rest.count == 2 && rest[1] == Store.watchFile ? .loci(.watch) : nil
       }
       if parts[1] == "workspace", rest.count >= 4, rest[0] == Store.coursesFolder,
         rest.last?.hasSuffix(".md") == true, let id = EntityID(canonical: rest[1])
@@ -86,6 +87,7 @@ struct ChangeMap {
     case (Store.panelsFolder, _): .loci(.panels)
     case (Store.wikiFolder, _): .loci(.wiki)
     case (Store.feelingsFile, 0): .loci(.feelings)
+    case (Store.watchFile, 0): .loci(.watch)
     case (_, 0) where name.hasPrefix(Store.avatarName + "."): .loci(.avatar)
     default: nil
     }

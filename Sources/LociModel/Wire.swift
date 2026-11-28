@@ -18,7 +18,8 @@ public enum Wire {
     .reads(ReadConversationRuntime.self), .writes(SetConversationRuntime.self), .writes(SetDefaultRuntime.self),
     .reads(DetectAgents.self),
     .writes(RenameCompanion.self),
-    .writes(SaveSoul.self), .writes(Forget.self), .writes(ForgetWikiLine.self), .writes(SetAvatar.self, lane: .data),
+    .writes(SaveSoul.self), .writes(Forget.self), .writes(ForgetWikiLine.self), .writes(SaveWatch.self),
+    .writes(SetAvatar.self, lane: .data),
     .writes(ResetAvatar.self),
     .writes(AddTextItem.self), .reads(ProbeLink.self), .reads(ReadImportChoice.self), .writes(AddLink.self),
     .writes(ImportMediaFile.self), .writes(ImportBook.self), .writes(DeleteItems.self),
@@ -67,7 +68,7 @@ public enum Wire {
     MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self, WatchPanelColumn.self,
     WatchTimers.self, WatchScheduleRuns.self, WatchWikiPage.self, WatchConnectors.self, WatchConnectorCalls.self,
     AvailableModels.self, WatchProjects.self, WatchSourceHistory.self, WatchNextUps.self, AgentModelList.self,
-    RuntimeOverview.self, AllFollows.self, OneFollow.self,
+    RuntimeOverview.self, AllFollows.self, OneFollow.self, WatchNotes.self,
   ]
 
   /// The route of a command type, or `nil` when it is not registered.

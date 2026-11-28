@@ -3,9 +3,9 @@ import SwiftUI
 
 /// The tabs of the companion's home page: its own, then its settings.
 enum LociTab: String, CaseIterable, Hashable {
-  case soul, memory, diary, models, timers, connectors, usage
+  case soul, memory, watch, diary, models, timers, connectors, usage
 
-  static let groups: [[LociTab]] = [[.soul, .memory, .diary], [.models, .timers, .connectors, .usage]]
+  static let groups: [[LociTab]] = [[.soul, .memory, .watch, .diary], [.models, .timers, .connectors, .usage]]
 
   /// Where the tab last looked at is kept.
   static let key = "companionTab"
@@ -19,6 +19,7 @@ enum LociTab: String, CaseIterable, Hashable {
     switch self {
     case .soul: .loci("loci.soul")
     case .memory: .loci("loci.memory")
+    case .watch: .loci("loci.watch")
     case .diary: .loci("loci.diary")
     case .models: .loci("loci.models")
     case .timers: .loci("loci.timers")
@@ -41,6 +42,8 @@ struct LociScreen: View {
     var connector: ConnectorID?
     /// Starts that page of the wiki open on the Memory page.
     var wikiPage: String?
+    /// Starts that home's watch open on the Watch page.
+    var watch: Home?
   }
 
   @State private var page: Feed<LociPage>?
@@ -124,6 +127,7 @@ struct LociScreen: View {
         case .models: ModelsTab()
         case .memory:
           MemoryTab(memory: page.memory, profile: page.profile, today: page.today, opened: opening.wikiPage)
+        case .watch: WatchTab(chosen: opening.watch ?? .chat)
         case .diary: DiaryTab(diaries: page.diaries)
         case .timers: TimersTab(opened: opening.opened)
         case .connectors: ConnectorsTab(focused: opening.connector)

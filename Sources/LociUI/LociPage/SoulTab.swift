@@ -15,7 +15,7 @@ struct SoulTab: View {
         if let editing {
           editor(editing)
         } else {
-          SoulCore(markdown: soul.core)
+          SerifProse(markdown: soul.core)
           PageButton(title: .loci("loci.edit")) { editing = soul.core }.changesData()
         }
       }
@@ -55,8 +55,9 @@ struct SoulTab: View {
   }
 }
 
-/// The core of the Soul as the page sets it: serif paragraphs under small sans-serif headings.
-private struct SoulCore: View {
+/// Markdown the person may rewrite, as the companion's page sets it: serif paragraphs under small sans-serif
+/// headings.
+struct SerifProse: View {
   let markdown: String
 
   var body: some View {

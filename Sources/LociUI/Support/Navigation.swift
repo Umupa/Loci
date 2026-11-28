@@ -10,6 +10,8 @@ enum Place: Codable, Hashable {
   case loci
   /// The companion's home page open at its connectors, with this one lit, as a reply asked.
   case connector(ConnectorID)
+  /// The companion's home page open at what this home watches for.
+  case watch(Home)
   /// `nil` is every kind.
   case library(LibraryCategory?)
   /// The built-in browser, for finding things to add.

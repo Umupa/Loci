@@ -59,7 +59,7 @@ public struct LociHome: Subscription {
   public func isAffected(by changes: Set<ContentChange>) -> Bool {
     changes.contains { change in
       switch change {
-      case .loci(let file): file != .avatar && file != .panels && file != .name && file != .wiki
+      case .loci(let file): ![.avatar, .panels, .name, .wiki, .watch].contains(file)
       case .turnEnded, .item, .everything: true
       case .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .review, .runtime, .agentModels,
         .timers,

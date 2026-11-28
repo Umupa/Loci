@@ -2,17 +2,21 @@ import Foundation
 import GRDB
 import LociModel
 
+extension Store {
+  static let watchFile = "WATCH.md"
+}
+
 extension HomeFiles {
   public func watch() throws -> String {
-    try store.optionalText(at: folder.appending(path: "WATCH.md")) ?? ""
+    try store.optionalText(at: folder.appending(path: Store.watchFile)) ?? ""
   }
 
   public func saveWatch(_ text: String) throws {
-    try store.write(Data(text.utf8), to: folder.appending(path: "WATCH.md"))
+    try store.write(Data(text.utf8), to: folder.appending(path: Store.watchFile))
   }
 
   func prepareWatch() throws {
-    let path = folder.appending(path: "WATCH.md")
+    let path = folder.appending(path: Store.watchFile)
     if try store.optionalText(at: path) == nil { try saveWatch("# Watch\n") }
   }
 }
@@ -85,7 +89,7 @@ extension Store {
       panels.append((path, try JSONSerialization.data(withJSONObject: panel, options: [.prettyPrinted, .sortedKeys])))
     }
     if !lines.isEmpty {
-      let path = agent.appending(path: "WATCH.md")
+      let path = agent.appending(path: Store.watchFile)
       let current = try optionalText(at: path) ?? "# Watch\n"
       var kept = Set(current.components(separatedBy: .newlines))
       let additions = lines.filter { kept.insert($0).inserted }

@@ -60,4 +60,6 @@ public enum LociFile: String, Hashable, Codable, Sendable {
   case panels
   /// Any page of the wiki, `memory/<page>.md`.
   case wiki
+  /// The chat's or any project's `WATCH.md`.
+  case watch
 }

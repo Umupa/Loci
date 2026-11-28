@@ -5396,6 +5396,23 @@
         }
       }
     },
+    "loci.watch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留意"
+          }
+        }
+      }
+    },
     "loci.messages": {
       "extractionState": "manual",
       "localizations": {
