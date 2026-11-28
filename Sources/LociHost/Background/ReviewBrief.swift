@@ -19,10 +19,27 @@ struct ReviewBrief: Sendable, Equatable {
   /// `memory/unsorted.md` holds entries the app kept for the review to put in place.
   let unsorted: Bool
 
+  /// What the person did with the home's cards up to the day's end, oldest first, for the review to write into
+  /// WATCH.md.
+  let feedback: [CardFeedback]
+
+  struct CardFeedback: Sendable, Equatable {
+    let card: EntityID
+    let what: String
+    let given: NextUp.Feedback
+  }
+
+  /// The feedback the review read, by card, to forget once it finished.
+  var feedbackRead: [EntityID: [NextUp.Feedback]] {
+    Dictionary(grouping: feedback, by: \.card).mapValues { $0.map(\.given) }
+  }
+
   static let unsortedPage = "unsorted"
 
   /// A project's review is given only its own transcripts and memory, and never splits an older index.
-  static func make(for day: Day, in home: Home, store: Store, timeZone: TimeZone) -> ReviewBrief {
+  static func make(
+    for day: Day, in home: Home, store: Store, timeZone: TimeZone, cards: [NextUp] = []
+  ) -> ReviewBrief {
     let files = store.home(home)
     let pages = files.wikiPages()
     let index = files.index()
@@ -36,13 +53,19 @@ struct ReviewBrief: Sendable, Equatable {
         dead.append("\(path) → \(link.path)")
       }
     }
+    let end = day.adding(days: 1).start(in: timeZone)
+    let feedback = cards.filter { $0.home == home }.flatMap { card in
+      (card.feedback ?? []).filter { $0.at < end }.map {
+        CardFeedback(card: card.id, what: card.what, given: $0)
+      }
+    }.sorted { $0.given.at < $1.given.at }
     return ReviewBrief(
       transcripts: files.transcriptPaths().filter { $0.contains("/\(day)/") }.map(files.local).sorted(),
       deadLinks: Array(NSOrderedSet(array: dead)).compactMap { $0 as? String },
       changedElsewhere: files.memoryChangedSinceKept(),
       weekly: Weekday(of: day, in: timeZone) == .sunday,
       migrating: home == .chat && pages.isEmpty && !entries.isEmpty ? entries : nil,
-      unsorted: pages.contains(unsortedPage))
+      unsorted: pages.contains(unsortedPage), feedback: feedback)
   }
 
   /// After the first split: every entry of the old index whose words are now nowhere in the index or the wiki
@@ -88,6 +111,14 @@ struct ReviewBrief: Sendable, Equatable {
       lines.append(
         "- It is Sunday: go over the whole wiki. Merge what repeats, split what grew too long, drop what no longer holds."
       )
+    }
+    if !feedback.isEmpty {
+      lines.append(
+        "- What the person did with today's cards. Write each declined one into WATCH.md as noise and each started "
+          + "one as an example of what is worth telling:")
+      lines += feedback.map {
+        "  - \($0.given.kind == .declined ? "declined" : "started"): \($0.what)"
+      }
     }
     return lines.joined(separator: "\n")
   }

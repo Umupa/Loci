@@ -1,35 +1,29 @@
 import Foundation
 import LociModel
 
-/// `loci next`: the cards and conditions land in the home of the session the command came from.
+/// `loci next`: the cards land in the home of the session the command came from. A card a run puts up keeps
+/// its event's deadline unless it gives an earlier one, and a watch finding's card takes the finding's key.
 extension ToolGateway {
-  static func runNextUp(_ name: String, _ body: Data, in home: Home, on host: LocalHost)
+  static func runNextUp(_ name: String, _ body: Data, in home: Home, from event: Event?, on host: LocalHost)
     async throws(HostError) -> Data?
   {
+    let now = host.environment.now()
     switch name {
     case AddNextUp.name:
       let command = try WireCodec.decode(AddNextUp.self, from: body)
+      let deadline = try Event.deadline(command.deadline, under: event, after: now)
+      let finding: WatchFinding? = if case .watch(let finding, _)? = event?.source { finding } else { nil }
       return try WireCodec.encode(
-        try await host.addNextUp(AddNextUp(command.what, asking: command.question, key: command.key, in: home)))
+        try await host.addNextUp(
+          AddNextUp(
+            command.what, asking: command.question, key: finding?.key ?? command.key, in: home, deadline: deadline),
+          fromWatch: finding != nil))
     case ProposeApproval.name:
       let command = try WireCodec.decode(ProposeApproval.self, from: body)
+      let deadline = try Event.deadline(command.deadline, under: event, after: now)
       return try WireCodec.encode(
-        try await host.proposeApproval(ProposeApproval(command.approval, why: command.why, in: home)))
-    case AddNextUpCondition.name:
-      let command = try WireCodec.decode(AddNextUpCondition.self, from: body)
-      return try WireCodec.encode(
-        try await host.addNextUpCondition(
-          AddNextUpCondition(
-            command.field, command.comparison, command.threshold, say: command.say, asking: command.question,
-            in: home)))
-    case ListNextUpConditions.name:
-      return try WireCodec.encode(try await host.nextUpConditions(of: home))
-    case RemoveNextUpCondition.name:
-      let command = try WireCodec.decode(RemoveNextUpCondition.self, from: body)
-      guard try await host.nextUpConditions(of: home).contains(where: { $0.id == command.condition }) else {
-        throw .notFound("condition \(command.condition)")
-      }
-      return try WireCodec.encode(try await host.removeNextUpCondition(command))
+        try await host.proposeApproval(
+          ProposeApproval(command.approval, why: command.why, in: home, deadline: deadline)))
     default:
       return nil
     }

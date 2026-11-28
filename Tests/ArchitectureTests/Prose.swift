@@ -55,6 +55,12 @@ enum Documents {
     "Sources/LociStore/Schema.swift": "migrations already run on users' databases and are never edited"
   ]
 
+  static let roadmap = "docs/roadmap.md"
+  /// The roadmap's table of what was released, which stays as it was written, as the released changelog does.
+  static let releasedHeading = "已完成"
+  /// The line of a plan in the roadmap that names what it retires, by the words it retires.
+  static let retirementLine = "- **退场。**"
+
   /// Everything a person or an agent reads to learn what Loci is now. The changelog counts up to its
   /// first released version; what was released stays as it was written.
   static func current() throws -> [Prose] {

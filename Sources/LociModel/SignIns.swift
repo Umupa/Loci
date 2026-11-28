@@ -20,7 +20,8 @@ public enum SignInBrowser: String, CaseIterable, Hashable, Codable, Sendable {
 public enum SignInChoice: Hashable, Sendable {
   /// Not asked yet: the browser used most lately, offered once.
   case offer(SignInBrowser)
-  /// Each launch starts with this browser's sign-ins.
+  /// This browser's sign-ins were brought in; they stay in the built-in browser until they expire, and are
+  /// brought in again only when the reader asks.
   case using(SignInBrowser)
   /// Asked and turned down; the browser that would be used.
   case declined(SignInBrowser)
@@ -39,11 +40,9 @@ public enum SignInFailure: Error, Hashable, Sendable {
 /// it is handed to the window beside the host rather than served by it.
 public protocol BrowserSignIns: Sendable {
   func choice() async -> SignInChoice
-  /// Starts using `browser` from now on and returns its cookies. The first time, macOS asks whether Loci may
-  /// use the browser's key; refusing it turns sign-ins down.
+  /// Returns `browser`'s cookies, the only time its key is read: macOS may ask whether Loci may use it, and
+  /// refusing turns sign-ins down.
   func use(_ browser: SignInBrowser) async throws(SignInFailure) -> [BrowserCookie]
   /// Stops using any browser's sign-ins, and stops offering them.
   func decline() async
-  /// The cookies of the browser in use, read afresh; empty when none is in use.
-  func currentCookies() async throws(SignInFailure) -> [BrowserCookie]
 }

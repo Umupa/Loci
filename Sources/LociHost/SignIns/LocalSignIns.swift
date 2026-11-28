@@ -2,8 +2,8 @@ import Foundation
 import LociModel
 import LociStore
 
-/// This Mac's other browsers, for the built-in browser to start signed in. The reader's answer is kept in
-/// Loci's Application Support folder; the cookies are read afresh each time and never written anywhere.
+/// This Mac's other browsers, for the built-in browser to be signed in where they are. The reader's answer is
+/// kept in Loci's Application Support folder; the cookies are read only when the reader brings them in.
 public actor LocalSignIns: BrowserSignIns {
   private let profiles: BrowserProfiles
   private let keys: any BrowserKeys
@@ -52,10 +52,5 @@ public actor LocalSignIns: BrowserSignIns {
 
   public func decline() {
     try? support.save(.declined)
-  }
-
-  public func currentCookies() throws(SignInFailure) -> [BrowserCookie] {
-    guard case .using(let browser) = choice() else { return [] }
-    return try profiles.cookies(of: browser, password: try keys.password(for: browser), now: now())
   }
 }

@@ -16,13 +16,19 @@ enum PendingImport: Hashable, Identifiable {
 
 /// Takes in what is pasted, typed, dropped or chosen, without leaving the page: a video or episode link and
 /// video or audio files wait in the import panel; an article, a paper, a text file or a book goes straight in.
+/// A channel, show or feed link is not taken in: it brings up the follow card.
 struct TakeIn {
   let host: any LociModel.Host
   let ask: @MainActor (PendingImport) -> Void
+  var follow: @MainActor (URL) -> Void = { _ in }
   let failed: @MainActor (HostError) -> Void
 
   @MainActor
   func link(_ url: URL) {
+    if FollowLink(url) != nil {
+      follow(url)
+      return
+    }
     switch LinkKind(url) {
     case .video, .audio: ask(.link(url))
     case .article, .paper: run { () async throws(HostError) in _ = try await host.run(AddLink(url: url)) }

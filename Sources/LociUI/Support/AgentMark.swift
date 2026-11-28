@@ -1,16 +1,19 @@
 import LociModel
 import SwiftUI
 
-/// The agent's mark as supplied for this appearance, on a neutral tile.
+/// An agent's brand mark on a rounded tile, or bare at normalized optical weight when `plain` is true.
 struct AgentMark: View {
   let provider: Provider
   var size: CGFloat = 26
+  var plain = false
   @Environment(\.colorScheme) private var scheme
 
   var body: some View {
     let dark = scheme == .dark
+    let bare = plain && provider != .omp && provider != .fx
+    let artSize = size * (bare ? Self.opticalScale(provider) : 0.9)
     RoundedRectangle(cornerRadius: size * 0.25, style: .continuous)
-      .fill(tile)
+      .fill(bare ? .clear : tile)
       .overlay {
         if let art = MarkArt.agent(provider, in: scheme) {
           Image(nsImage: art)
@@ -18,11 +21,24 @@ struct AgentMark: View {
             .resizable()
             .scaledToFit()
             .foregroundStyle(dark ? Self.lightInk : Self.darkInk)
-            .frame(width: size * 0.9, height: size * 0.9)
+            .frame(width: artSize, height: artSize)
         }
       }
       .frame(width: size, height: size)
       .accessibilityHidden(true)
+  }
+
+  static func opticalScale(_ provider: Provider) -> CGFloat {
+    switch provider {
+    case .codex: 1.75
+    case .antigravity: 1.18
+    case .grok: 1.05
+    case .bundledPi: 1.15
+    case .claudeCode: 0.92
+    case .cursor, .hermes, .opencode: 0.9
+    case .pi: 0.8
+    case .omp, .fx: 0.96
+    }
   }
 
   private var tile: Color {

@@ -9,7 +9,8 @@ struct BundledPiNavigationTests {
     let host = FakeHost(try Sample(), modelSettings: SampleModelAccess(SampleModelAccess.empty))
     var opened: Place?
     await chooseRuntime(
-      Runtime(provider: .bundledPi), for: .conversation(.main), on: host, openPlace: OpenPlace { opened = $0 })
+      Runtime(provider: .bundledPi), for: .conversation(.main), on: host, changesAllowed: true,
+      openPlace: OpenPlace { opened = $0 })
     #expect(opened == .settings(.models))
   }
 
@@ -17,7 +18,8 @@ struct BundledPiNavigationTests {
     let host = FakeHost(try Sample(), modelSettings: SampleModelAccess())
     var opened: Place?
     await chooseRuntime(
-      Runtime(provider: .bundledPi), for: .conversation(.main), on: host, openPlace: OpenPlace { opened = $0 })
+      Runtime(provider: .bundledPi), for: .conversation(.main), on: host, changesAllowed: true,
+      openPlace: OpenPlace { opened = $0 })
     #expect(opened == .settings(.agents))
   }
 
@@ -25,7 +27,18 @@ struct BundledPiNavigationTests {
     let host = FakeHost(try Sample(), modelSettings: SampleModelAccess())
     var opened: Place?
     await chooseRuntime(
-      Runtime(provider: .codex), for: .conversation(.main), on: host, openPlace: OpenPlace { opened = $0 })
+      Runtime(provider: .codex), for: .conversation(.main), on: host, changesAllowed: true,
+      openPlace: OpenPlace { opened = $0 })
+    #expect(opened == nil)
+  }
+
+  /// R-S7: with the Mac behind the window offline, picking a runtime sends nothing and opens nothing.
+  @Test func choosingWhileOfflineChangesNothing() async throws {
+    let host = FakeHost(try Sample(), modelSettings: SampleModelAccess(SampleModelAccess.empty))
+    var opened: Place?
+    await chooseRuntime(
+      Runtime(provider: .bundledPi), for: .conversation(.main), on: host, changesAllowed: false,
+      openPlace: OpenPlace { opened = $0 })
     #expect(opened == nil)
   }
 }

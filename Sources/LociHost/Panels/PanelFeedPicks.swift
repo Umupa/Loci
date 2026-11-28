@@ -32,13 +32,20 @@ extension PanelKeeper {
       throw .invalidRequest(
         "\(unknown.joined(separator: ", ")) were not among the entries shown this time; pick only those.")
     }
-    let picked = command.ids.compactMap { id in found.first { $0.entry.id == id } }.map(line)
+    let picked = command.ids.compactMap { id in found.first { $0.entry.id == id } }
+    try writeFeed(panel, in: home, sentence: say, entries: picked)
+    await context.follower.follow([.loci(.panels)])
+  }
+
+  nonisolated func writeFeed(_ panel: Panel, in home: Home, sentence: String, entries: [SeenEntry]) throws(HostError) {
+    let files = context.store.home(home)
+    let picked = entries.map(line)
     let earlier = panel.rowsOfEveryPage.flatMap { $0 }.flatMap { row -> [PanelListItem] in
       if case .list(let lines) = row { lines } else { [] }
     }
     let lines = Array(
       (picked + earlier.filter { line in !picked.contains { $0.same(as: line) } }).prefix(Self.picksShown))
-    let rows: [PanelRow] = [.sentence(say)] + (lines.isEmpty ? [] : [.list(lines)])
+    let rows: [PanelRow] = [.sentence(sentence)] + (lines.isEmpty ? [] : [.list(lines)])
     let saved = panel.with(body: .rows(rows))
     let problems = PanelCheck.problems(in: saved)
     guard problems.isEmpty else { throw .invalidRequest(problems.map(\.description).joined(separator: "\n")) }
@@ -47,10 +54,9 @@ extension PanelKeeper {
       try files.savePanel(saved)
       _ = try files.changePanelState { $0.refreshed[saved.name] = now }
     }
-    await context.follower.follow([.loci(.panels)])
   }
 
-  private func line(_ seen: SeenEntry) -> PanelListItem {
+  private nonisolated func line(_ seen: SeenEntry) -> PanelListItem {
     let entry = seen.entry
     let timeZone = context.environment.timeZone
     let moment = entry.at ?? seen.seen

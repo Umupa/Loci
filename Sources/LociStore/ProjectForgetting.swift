@@ -7,7 +7,7 @@ import LociModel
 extension StoreDatabase {
   /// Forgets the project's conversation and its runs' sessions, its schedules, follow-ups, inbox events, runs,
   /// the connector calls of its conversation, runs and sources, the search over its conversations and run
-  /// records, its sources, cards and conditions. A card whose approval was being written or undone stays until
+  /// records, its sources and cards. A card whose approval was being written or undone stays until
   /// the app learns what became of it, so nothing written is lost track of.
   public func forgetProject(_ project: Project.ID) throws {
     let home = Home.project(project)
@@ -46,7 +46,7 @@ extension StoreDatabase {
       try db.execute(
         sql: "DELETE FROM connector_call WHERE caller LIKE ?",
         arguments: [ConnectorCall.Caller.source(SourceKey(home, "")).tag + "%"])
-      for table in ["source_snapshot", "source_series", "source_entry"] {
+      for table in ["source_snapshot", "source_series", "source_entry", "watch_batch"] {
         try db.execute(sql: "DELETE FROM \(table) WHERE source LIKE ?", arguments: [folder])
       }
       try db.execute(
@@ -55,7 +55,6 @@ extension StoreDatabase {
           AND json_extract(body, '$.execution.writing') IS NULL AND json_extract(body, '$.execution.undoing') IS NULL
           """,
         arguments: [project.description])
-      try db.execute(sql: "DELETE FROM next_up_condition WHERE home = ?", arguments: [project.description])
     }
   }
 

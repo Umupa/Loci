@@ -67,7 +67,7 @@ public struct WatchPanelColumn: Subscription {
       case .reading, .item, .everything, .projects, .source: true
       case .course, .courseActivity, .notes, .job, .media, .conversation, .turnEnded, .review, .runtime, .agentModels,
         .timers,
-        .connectors, .nextUps:
+        .connectors, .nextUps, .follows:
         false
       }
     }

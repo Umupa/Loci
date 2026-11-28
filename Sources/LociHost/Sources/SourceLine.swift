@@ -3,32 +3,69 @@ import LociModel
 import LociStore
 
 /// The fetching line: beside the worker and the inbox, it fetches each source of the active homes when
-/// `SourceSchedule` says it is due. Nothing a run or a turn does holds it up, and nothing it does goes
-/// into the inbox but a repair or a panel's new entries. A source is fetched once at a time, and at most
-/// `most` are fetched at once, pages read in a hidden web view among them. The sources tried longest ago
-/// go first, and a fetch that ends looks again at once, so no source waits behind others that are due as
-/// often as it is.
+/// `SourceSchedule` says it is due, and looks at each follow once an hour. Nothing a run or a turn does holds
+/// it up, and nothing it does goes into the inbox but a repair: what a fetch brings that is new goes to watch
+/// triage, and a follow's new episodes only to its follow page. A source or a follow is fetched once at a
+/// time, at most `most` are fetched at once, pages read in a hidden web view among them, and at most
+/// `startsPerMinute` start in a minute, sources and follows alike. Those tried longest ago go first, and a
+/// fetch that ends looks again at once, so nothing waits behind others that are due as often as it is.
 actor SourceLine {
   let keeper: SourceKeeper
+  let follows: FollowKeeper?
   /// The most fetches under way at once.
   static let most = 4
-  private var fetching: Set<SourceKey> = []
+  /// The most fetches started in any minute, however many sources are due: the rest wait their turn.
+  static let startsPerMinute = 12
+  /// When each fetch of the last minute started.
+  private var starts: [Timestamp] = []
+  private var fetching: Set<Fetch> = []
   /// When each source was last tried here, for one that has no snapshot to say so.
   private var tried: [SourceKey: Timestamp] = [:]
 
-  init(keeper: SourceKeeper) {
-    self.keeper = keeper
+  /// One thing the line fetches.
+  private enum Fetch: Hashable {
+    case source(SourceKey)
+    case follow(EntityID)
   }
 
-  /// Starts a fetch of each source that is due and not being fetched, the longest untried first, and
-  /// returns them without waiting.
+  private struct Due {
+    let fetch: Fetch
+    let last: Timestamp?
+    let run: @Sendable () async -> Void
+  }
+
+  init(keeper: SourceKeeper, follows: FollowKeeper? = nil) {
+    self.keeper = keeper
+    self.follows = follows
+  }
+
+  /// Starts a fetch of each source and follow that is due and not being fetched, the longest untried first,
+  /// and returns them without waiting.
   @discardableResult
   func look() async -> [Task<Void, Never>] {
+    let now = keeper.context.environment.now()
+    starts.removeAll { now.millisecondsSince1970 - $0.millisecondsSince1970 >= 60_000 }
+    let available = min(Self.most - fetching.count, Self.startsPerMinute - starts.count)
+    guard available > 0 else { return [] }
+    let due = (sources(due: now) + followsDue(at: now)).filter { !fetching.contains($0.fetch) }
+    let first = due.sorted { ($0.last?.millisecondsSince1970 ?? .min) < ($1.last?.millisecondsSince1970 ?? .min) }
+    var started: [Task<Void, Never>] = []
+    for each in first.prefix(available) {
+      fetching.insert(each.fetch)
+      if case .source(let key) = each.fetch { tried[key] = now }
+      starts.append(now)
+      started.append(
+        Task {
+          await each.run()
+          await self.finished(each.fetch)
+        })
+    }
+    return started
+  }
+
+  private func sources(due now: Timestamp) -> [Due] {
     let context = keeper.context
-    let environment = context.environment
-    let inFront = await environment.inFront()
-    let now = environment.now()
-    var due: [(source: DataSource, home: Home, last: Timestamp?)] = []
+    var due: [Due] = []
     for home in context.homes() {
       let sources = context.store.dataSources(in: DataSourceFolder(home))
       guard !sources.isEmpty else { continue }
@@ -36,30 +73,25 @@ actor SourceLine {
       for source in sources {
         let key = SourceKey(home, source.name)
         let last = [snapshots[key]?.tried, tried[key]].compactMap(\.self).max()
-        guard !fetching.contains(key),
-          SourceSchedule.due(source, tried: last, now: now, inFront: inFront, timeZone: environment.timeZone)
-        else { continue }
-        due.append((source, home, last))
+        guard SourceSchedule.due(source, tried: last, now: now, timeZone: context.environment.timeZone) else {
+          continue
+        }
+        let keeper = keeper
+        due.append(Due(fetch: .source(key), last: last) { await keeper.refresh(source, in: home) })
       }
     }
-    let first = due.sorted { ($0.last?.millisecondsSince1970 ?? .min) < ($1.last?.millisecondsSince1970 ?? .min) }
-    var started: [Task<Void, Never>] = []
-    for (source, home, _) in first.prefix(max(0, Self.most - fetching.count)) {
-      let key = SourceKey(home, source.name)
-      fetching.insert(key)
-      tried[key] = now
-      let keeper = keeper
-      started.append(
-        Task {
-          await keeper.refresh(source, in: home)
-          await self.finished(key)
-        })
-    }
-    return started
+    return due
   }
 
-  private func finished(_ key: SourceKey) async {
-    fetching.remove(key)
+  private func followsDue(at now: Timestamp) -> [Due] {
+    guard let follows else { return [] }
+    return follows.due(at: now).map { follow, tried in
+      Due(fetch: .follow(follow.id), last: tried) { await follows.look(follow) }
+    }
+  }
+
+  private func finished(_ fetch: Fetch) async {
+    fetching.remove(fetch)
     await look()
   }
 }

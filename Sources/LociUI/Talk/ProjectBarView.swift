@@ -20,10 +20,10 @@ struct ProjectBarView: View {
   let home: Home
   /// Width available to the bar before overflow projects fold into the list.
   var maxWidth: CGFloat = Size.projectBarWidest
-  /// A project being started shows as a dashed symbol until it has its name.
-  var starting = false
-  /// Whether the new project's words have already been sent to the companion.
-  var startingSent = false
+  /// The blank seal of a new project not yet in the bar, while there is one.
+  var newSeal: NewSeal?
+  /// The symbols new projects' words suggested, worn faintly until they are named.
+  var suggested: [Project.ID: String] = [:]
   /// How many next-up cards each seal caught; a new one stamps it.
   var stamps: [Home: Int] = [:]
   let actions: ProjectBarActions
@@ -36,9 +36,11 @@ struct ProjectBarView: View {
 
   private var plan: ProjectBarPlan {
     ProjectBarPlan.compute(
-      projects: bar.projects, home: home, starting: starting, availableWidth: maxWidth,
-      chatLabel: localized("projects.chat"), newProjectLabel: localized("projects.new"))
+      projects: bar.projects, home: home, drafting: drafting, availableWidth: maxWidth,
+      chatLabel: localized("projects.chat"))
   }
+
+  private var drafting: Bool { newSeal != nil }
 
   private var hiddenUnseen: Bool {
     plan.hidden.contains { bar.unseen.contains($0.id) }
@@ -49,24 +51,30 @@ struct ProjectBarView: View {
     HStack(spacing: ProjectBarPlan.spacing) {
       chatTab
       barDivider
-      if starting {
-        ghostTab
-      }
       ForEach(plan.visible, id: \.id) { project in
-        let open = home == .project(project.id) && !starting
+        let open = home == .project(project.id) && !drafting
         ProjectTab(
           bar: bar, project: project, open: open, unseen: !open && bar.unseen.contains(project.id),
-          nameWidth: plan.openNameWidth, stamp: stamps[.project(project.id)] ?? 0, actions: actions
+          nameWidth: plan.openNameWidth, stamp: stamps[.project(project.id)] ?? 0,
+          suggested: suggested[project.id], actions: actions
         )
         .id(project.id)
         .transition(reduceMotion ? .identity : .opacity)
       }
-      if starting || !plan.visible.isEmpty {
+      if let newSeal {
+        TabPill(open: true, action: {}) { _ in
+          UnnamedSeal(project: nil, symbol: newSeal.landed ? newSeal.symbol : nil, working: newSeal.sent)
+            .opacity(newSeal.sent && !newSeal.landed ? 0 : 1)
+            .anchorPreference(key: NextUpAnchors.self, value: .bounds) { NextUpAnchors.Value(newSeal: $0) }
+        }
+        .transition(reduceMotion ? .identity : .scale(scale: 0.4).combined(with: .opacity))
+      }
+      if drafting || !plan.visible.isEmpty {
         barDivider
       }
       BarIconButton(symbol: Symbols.add, help: .loci("projects.new"), action: actions.start)
-        .disabled(!changesAllowed || starting)
-        .opacity(starting ? 0.45 : 1)
+        .disabled(!changesAllowed || drafting)
+        .opacity(drafting ? 0.45 : 1)
       UnfoldButton(overflow: plan.overflowCount, unseen: hiddenUnseen) { listing.toggle() }
         .popover(isPresented: $listing, arrowEdge: .bottom) {
           ProjectList(bar: bar, home: home, actions: actions) { chosen in
@@ -86,7 +94,6 @@ struct ProjectBarView: View {
             .fill(Palette.surface)
             .shadow(color: .black.opacity(0.14), radius: 1.5, y: 1)
             .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
-            .overlay { if starting && startingSent { TurningCapsule() } }
             .frame(width: rect.width, height: rect.height)
             .offset(x: rect.minX, y: rect.minY)
         }
@@ -96,9 +103,9 @@ struct ProjectBarView: View {
     .padding(ProjectBarPlan.outerPadding)
     .glassEffect(.regular, in: Capsule(style: .circular))
     .overlay(Capsule(style: .circular).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
-    .animation(reduceMotion ? nil : Motion.slider, value: home)
+    .animation(reduceMotion ? nil : Motion.pageTurn, value: home)
     .animation(reduceMotion ? nil : Motion.slider, value: plan.visible.map(\.id))
-    .animation(reduceMotion ? nil : Motion.quick, value: starting)
+    .animation(reduceMotion ? nil : Motion.newSeal, value: drafting)
   }
 
   private var barDivider: some View {
@@ -109,7 +116,7 @@ struct ProjectBarView: View {
   }
 
   private var chatTab: some View {
-    let open = home == .chat && !starting
+    let open = home == .chat && !drafting
     return TabPill(open: open, action: { actions.open(.chat) }) { hovering in
       Text(.loci("projects.chat"))
         .font(.system(size: 13.5, weight: open ? .semibold : .medium))
@@ -126,93 +133,10 @@ struct ProjectBarView: View {
     .sealAnchor(.chat)
   }
 
-  private var ghostTab: some View {
-    TabPill(open: true, action: {}) { _ in
-      HStack(spacing: 0) {
-        ProjectSeal(symbol: "", ghost: true)
-        Text(.loci("projects.new"))
-          .font(.system(size: 13.5, weight: .semibold))
-          .foregroundStyle(Palette.inkFaint)
-          .lineLimit(1)
-          .padding(.horizontal, 6)
-      }
-    }
-  }
-
   private func localized(_ key: String.LocalizationValue) -> String {
     var resource = LocalizedStringResource.loci(key)
     resource.locale = locale
     return String(localized: resource)
-  }
-}
-
-private struct ProjectTab: View {
-  let bar: ProjectBar
-  let project: Project
-  let open: Bool
-  let unseen: Bool
-  let nameWidth: CGFloat
-  let stamp: Int
-  let actions: ProjectBarActions
-  @Environment(\.reducesMotion) private var reduceMotion
-  @Environment(\.changesAllowed) private var changesAllowed
-  @State private var heldWidth: CGFloat?
-  @State private var renaming = false
-  @State private var reiconing = false
-
-  var body: some View {
-    let revealWidth =
-      (open ? max(nameWidth, 1) : (heldWidth ?? Size.projectNameWidest)) + ProjectBarPlan.openLabelPadding
-    TabPill(open: open, action: { actions.open(.project(project.id)) }) { hovering in
-      HStack(spacing: 0) {
-        ProjectSeal(symbol: project.symbol, selected: open || hovering, locked: !project.remembered, unseen: unseen)
-          .scaleEffect(!open && hovering && !reduceMotion ? 1.06 : 1)
-          .sealAnchor(.project(project.id))
-          .keyframeAnimator(initialValue: 1.0, trigger: stamp) { seal, scale in
-            seal.scaleEffect(scale)
-          } keyframes: { _ in
-            SpringKeyframe(1.3, duration: 0.16)
-            SpringKeyframe(1.0, duration: 0.45, spring: .bouncy)
-          }
-        RevealWidth(fraction: open ? 1 : 0, maxWidth: revealWidth) {
-          Text(verbatim: project.shownName)
-            .font(.system(size: 13.5, weight: .semibold))
-            .foregroundStyle(Palette.ink)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .padding(.horizontal, 6)
-        }
-        .opacity(open ? 1 : 0)
-        .clipped()
-        .accessibilityHidden(!open)
-      }
-    }
-    .accessibilityLabel(Text(verbatim: project.shownName))
-    .help(Text(verbatim: project.shownName))
-    .onAppear { if open, nameWidth > 0 { heldWidth = nameWidth } }
-    .onChange(of: open) { if open, nameWidth > 0 { heldWidth = nameWidth } }
-    .onChange(of: nameWidth) { if open, nameWidth > 0 { heldWidth = nameWidth } }
-    .contextMenu {
-      if changesAllowed {
-        ProjectMenuItems(bar: bar, project: project, actions: actions) {
-          renaming = true
-        } reicon: {
-          reiconing = true
-        }
-      }
-    }
-    .popover(isPresented: $renaming, arrowEdge: .bottom) {
-      RenameField(name: project.shownName) { name in
-        renaming = false
-        actions.rename(project.id, name)
-      }
-    }
-    .popover(isPresented: $reiconing, arrowEdge: .bottom) {
-      ProjectIconPicker(selected: project.symbol) { icon in
-        reiconing = false
-        actions.reicon(project.id, icon)
-      }
-    }
   }
 }
 
@@ -226,7 +150,7 @@ private struct ActiveTabAnchor: PreferenceKey {
 
 /// One tab in the project bar: reports its bounds to the sliding capsule when open, and shows a quiet hover
 /// wash otherwise.
-private struct TabPill<Face: View>: View {
+struct TabPill<Face: View>: View {
   let open: Bool
   let action: () -> Void
   @ViewBuilder let face: (Bool) -> Face
@@ -312,25 +236,61 @@ private struct UnfoldButton: View {
   }
 }
 
-/// An amber light circling the ghost capsule while the companion sets up a new project.
-private struct TurningCapsule: View {
+/// A new project's seal before it is in the bar: blank while the words are written, then circled while they
+/// are on their way, wearing the symbol they suggested once the large seal has flown into it.
+struct NewSeal: Equatable {
+  var sent = false
+  var landed = false
+  var symbol: String?
+}
+
+/// An amber light circling a shape while the companion sets up a new project.
+struct TurningRing<Ring: InsettableShape>: View {
+  let shape: Ring
   @Environment(\.reducesMotion) private var reduceMotion
 
   var body: some View {
     TimelineView(.animation(paused: reduceMotion)) { context in
       let turns = reduceMotion ? 0.14 : context.date.timeIntervalSinceReferenceDate / Self.period
-      Capsule(style: .circular)
+      shape
         .strokeBorder(
           AngularGradient(
             stops: [
-              .init(color: .clear, location: 0), .init(color: .clear, location: 0.58),
-              .init(color: Palette.accent, location: 0.78), .init(color: Palette.Glow.gold, location: 0.85),
-              .init(color: Palette.accent, location: 0.92), .init(color: .clear, location: 1),
+              .init(color: .clear, location: 0), .init(color: .clear, location: 0.55),
+              .init(color: Palette.accent, location: 0.85), .init(color: .clear, location: 1),
             ], center: .center, angle: .degrees(turns.truncatingRemainder(dividingBy: 1) * 360)),
-          lineWidth: 1.5)
+          lineWidth: 1.6)
     }
     .allowsHitTesting(false)
   }
 
-  static let period = 2.4
+  static var period: Double { 1.5 }
+}
+
+/// A faint warm light just under the bar while a project is being made: a little wider than the bar, fading out
+/// before it reaches the conversation.
+struct WarmLight: View {
+  let on: Bool
+  @Environment(\.reducesMotion) private var reduceMotion
+
+  var body: some View {
+    GeometryReader { proxy in
+      Ellipse()
+        .fill(EllipticalGradient(colors: [Palette.glow, Palette.glow.opacity(0)], center: .center))
+        .frame(width: proxy.size.width * 1.3, height: Self.height)
+        .phaseAnimator(on && !reduceMotion ? [1.0, 1.08] : [1.0]) { light, spread in
+          light.scaleEffect(x: spread, y: 1)
+        } animation: { _ in
+          .easeInOut(duration: 1.6)
+        }
+        .position(x: proxy.size.width / 2, y: proxy.size.height / 2 + Self.drop)
+    }
+    .opacity(on ? 1 : 0)
+    .animation(reduceMotion ? nil : .easeInOut(duration: 1.2), value: on)
+    .allowsHitTesting(false)
+  }
+
+  static let height: CGFloat = 120
+  /// How far below the bar's middle the light's middle sits.
+  static let drop: CGFloat = 30
 }

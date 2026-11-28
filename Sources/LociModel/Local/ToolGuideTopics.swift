@@ -158,7 +158,13 @@ extension ToolGuide {
       { "title": "CubeSandbox 动静", "follow": "看看 CubeSandbox 有什么新版本、PR 和讨论",
         "every": { "every": "day", "at": "21:00" }, "panel": "sandbox-radar" }
 
-    - "every" is written as a panel's "refresh": hour, day with "at", or week with "weekday" and "at".
+    - "every" accepts hour, day with "at", week with "weekday" and "at", and:
+      {"every":"interval","minutes":10,"from":"09:30","to":"15:00"}
+      {"every":"trading-day","market":"cn","at":"09:15"} (cn or us, in the market's time)
+      {"every":"once","at":"2026-11-27T12:24:00+08:00"}
+      An interval may include "market". "deadlineMinutes" on a schedule gives each event its time to act.
+    - A run can use "$LOCI" followup in 10m <what> [--deadline <ISO-8601>]. Child events keep or shorten
+      the parent's deadline and may descend at most two levels.
     - change takes any of "title", "follow", "every" and "panel"; what is left out stays. "panel": null sends
       what it finds only to your notes. A panel's refresh always goes to that panel.
     - "panel" is where what it finds goes: a panel that exists, without a "refresh" of its own. Leave it

@@ -44,6 +44,7 @@ extension LocalHost {
         case .schedule(let schedule, _): .schedule(schedule)
         case .followUp(let followUp, _): .followUp(followUp)
         case .source(let name, _): .repair(name)
+        case .watch(_, let project): project.map(UsageActivity.project) ?? .main
         case .review, nil: .review
         }
       return (activity, failed)

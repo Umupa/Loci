@@ -25,10 +25,21 @@ struct PanelExample {
 /// The examples in turn, each rising in as the last rises away.
 struct PanelExamples: View {
   let index: Int
+
+  var body: some View {
+    RollingLine(words: PanelExample.at(index).words, index: index)
+  }
+}
+
+/// One line of words that rises in from below as the one before rises away, each time `index` changes.
+struct RollingLine: View {
+  let words: LocalizedStringResource
+  let index: Int
+  var size: CGFloat = 15
   @Environment(\.reducesMotion) private var reduceMotion
 
   var body: some View {
-    Text(PanelExample.at(index).words).font(.system(size: 15)).foregroundStyle(Palette.ink.opacity(0.45))
+    Text(words).font(.system(size: size)).foregroundStyle(Palette.ink.opacity(0.45))
       .lineLimit(1)
       .id(index)
       .transition(

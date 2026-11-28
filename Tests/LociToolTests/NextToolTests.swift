@@ -24,11 +24,10 @@ struct NextToolTests {
     #expect(
       try Request.parse(["next", "add", "费城半导体跌", "8%", "--ask", "这对我意味着什么"])
         == (.next(.add(what: "费城半导体跌 8%", question: "这对我意味着什么", key: nil)), false))
+    let deadline = try #require(Timestamp.parseISO8601("2026-11-27T13:00:00+08:00"))
     #expect(
-      try Request.parse(["next", "when", "prem.513100.premium", "<", "0.03", "--say", "溢价 {value}", "--ask", "买吗"])
-        == (.next(.when(SourceField("prem.513100.premium")!, .below, 0.03, say: "溢价 {value}", question: "买吗")), false))
-    #expect(try Request.parse(["next", "conditions"]) == (.next(.conditions), false))
-    #expect(try Request.parse(["next", "unwhen", Self.id.description]) == (.next(.unwhen(Self.id)), false))
+      try Request.parse(["next", "add", "policy", "--ask", "what now", "--deadline", "2026-11-27T13:00:00+08:00"])
+        == (.next(.add(what: "policy", question: "what now", key: nil, deadline: deadline)), false))
     let day = try #require(Day("2026-11-30"))
     #expect(
       try Request.parse(["next", "propose", "event", "投资复盘", "--at", "2026-11-30", "20:00", "--calendar", "家庭"])

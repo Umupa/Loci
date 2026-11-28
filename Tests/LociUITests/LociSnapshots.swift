@@ -54,13 +54,21 @@ struct LociSnapshots {
     let search = ToolActivity(
       id: "1", name: "web_search", kind: .search, subject: "CubeSandbox snapshot restore latency", output: "",
       state: .running)
-    let states: [(chosen: Bool, work: LociWork?)] = [
-      (true, nil), (false, nil), (true, .answering(nil)), (false, .answering(search)),
-      (false, .refreshing(title: "沙箱雷达")), (false, .reviewing), (false, .saving), (false, .unspecified),
+    let said = LociPresence(tiredness: .awake, lastSaid: "Borg 那篇读完了。\n\n写好了，放在「调度器」里。最值得看的是抢占那段。")
+    let asleep = LociPresence(tiredness: .asleep, lastSaid: "晚安")
+    let states: [(chosen: Bool, now: CompanionNow)] = [
+      (true, CompanionNow(presence: said, work: nil, offline: false)),
+      (false, CompanionNow(presence: asleep, work: nil, offline: false)),
+      (false, CompanionNow(presence: said, work: nil, offline: true)),
+      (true, CompanionNow(presence: said, work: .answering(nil), offline: false)),
+      (false, CompanionNow(presence: said, work: .answering(search), offline: false)),
+      (false, CompanionNow(presence: nil, work: .refreshing(title: "沙箱雷达"), offline: false)),
+      (false, CompanionNow(presence: nil, work: .reviewing, offline: false)),
+      (false, CompanionNow(presence: nil, work: .saving, offline: false)),
     ]
     let view = VStack(alignment: .leading, spacing: Spacing.m) {
       ForEach(states.indices, id: \.self) { index in
-        SidebarLoci(chosen: states[index].chosen, work: states[index].work) {}
+        SidebarLoci(chosen: states[index].chosen) {}.environment(\.companionNow, states[index].now)
       }
     }
     .padding(.horizontal, 10)

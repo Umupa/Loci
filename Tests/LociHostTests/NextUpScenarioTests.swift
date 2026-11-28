@@ -5,12 +5,9 @@ import Testing
 
 @testable import LociHost
 
-/// NX-S1–NX-S5, NX-S8: cards on the deck from the companion and from reminder conditions, and what the
-/// person does with them.
+/// NX-S1–NX-S5, NX-S8: cards on the deck from the companion, and what the person does with them.
 @Suite(.timeLimit(.minutes(1)))
 struct NextUpScenarioTests {
-  static let field = SourceField("prem.513100.premium")!
-
   static func deck(_ host: LocalHost, _ home: Home = .chat) async throws -> [NextUp] {
     try await host.nextUps(of: home)
   }
@@ -22,95 +19,6 @@ struct NextUpScenarioTests {
     let reply = await Background.call(AddNextUp(what, asking: question), from: session, on: host)
     guard case .value(let data)? = reply else { throw HostError.invalidRequest("\(String(describing: reply))") }
     return try JSONDecoder().decode(NextUp.self, from: data)
-  }
-
-  static func snapshot(_ premium: Double, at moment: Timestamp) -> SourceSnapshot {
-    SourceSnapshot(fetched: moment, records: ["513100": ["premium": .number(premium)]])
-  }
-
-  @Test func aConditionBringsUpACardOnlyAsItTurnsTrue() async throws {
-    let runner = FakeSources(records: ["513100": ["premium": .number(0.034)]])
-    try await withHost(sources: runner) { host, _, world in
-      _ = try await host.run(SaveDataSource(DataSourceScenarioTests.source))
-      let condition = AddNextUpCondition(
-        Self.field, .below, 0.03, say: "513100 溢价回到 {value}", asking: "要不要现在申购？")
-      #expect(RunToolScenarioTests.worked(await Background.call(condition, from: .conversation(.main), on: host)))
-      let key = SourceKey(.chat, "prem")
-      let conditions = host.nextUpConditions
-
-      for premium in [0.028, 0.027, 0.026] {
-        world.advance(minutes: 1)
-        await conditions.refreshed(key, Self.snapshot(premium, at: world.now))
-      }
-
-      let deck = try await Self.deck(host)
-      #expect(deck.map(\.what) == ["513100 溢价回到 0.028"])
-      #expect(deck.first?.kind == .ask(question: "要不要现在申购？"))
-      #expect(try await host.run(ListNextUpConditions()).first?.holds == true)
-    }
-  }
-
-  @Test func theFetchingLineBringsUpACardWhenAFetchCrossesTheThreshold() async throws {
-    let runner = FakeSources(records: ["513100": ["premium": .number(0.034)]])
-    try await withHost(sources: runner) { host, _, world in
-      _ = try await host.run(SaveDataSource(DataSourceScenarioTests.source))
-      _ = try await host.run(AddNextUpCondition(Self.field, .below, 0.03, say: "溢价回到 {value}", asking: "买吗"))
-
-      world.advance(minutes: 1)
-      #expect(await SourceLineTests.look(host) == 1)
-      #expect(try await Self.deck(host).isEmpty)
-
-      runner.set(["513100": ["premium": .number(0.028)]])
-      world.advance(minutes: 1)
-      #expect(await SourceLineTests.look(host) == 1)
-      world.advance(minutes: 1)
-      #expect(await SourceLineTests.look(host) == 1)
-
-      #expect(try await Self.deck(host).map(\.what) == ["溢价回到 0.028"])
-    }
-  }
-
-  @Test func savingASourceAgainChecksItsConditions() async throws {
-    let runner = FakeSources(records: ["513100": ["premium": .number(0.034)]])
-    try await withHost(sources: runner) { host, _, world in
-      _ = try await host.run(SaveDataSource(DataSourceScenarioTests.source))
-      _ = try await host.run(AddNextUpCondition(Self.field, .below, 0.03, say: "低了", asking: "买吗"))
-      runner.set(["513100": ["premium": .number(0.028)]])
-      world.advance(minutes: 1)
-
-      _ = try await host.run(SaveDataSource(DataSourceScenarioTests.source))
-
-      #expect(try await Self.deck(host).map(\.what) == ["低了"])
-      #expect(try await host.run(ListNextUpConditions()).first?.firedAt == world.now)
-    }
-  }
-
-  @Test func aConditionNeedsASourceOfItsHome() async throws {
-    try await withHost { host, _, _ in
-      let condition = AddNextUpCondition(Self.field, .below, 0.03, say: "x", asking: "y")
-      let reply = await Background.call(condition, from: .conversation(.main), on: host)
-
-      guard case .failed(.notFound)? = reply else { throw HostError.invalidRequest("\(String(describing: reply))") }
-    }
-  }
-
-  @Test func aDeclinedConditionBringsUpNoMoreCards() async throws {
-    let runner = FakeSources(records: ["513100": ["premium": .number(0.034)]])
-    try await withHost(sources: runner) { host, _, world in
-      _ = try await host.run(SaveDataSource(DataSourceScenarioTests.source))
-      _ = try await host.run(AddNextUpCondition(Self.field, .below, 0.03, say: "低了", asking: "买吗"))
-      let key = SourceKey(.chat, "prem")
-      await host.nextUpConditions.refreshed(key, Self.snapshot(0.028, at: world.now))
-      let card = try #require(try await Self.deck(host).first)
-
-      _ = try await host.run(SetNextUp(card.id, .decline, version: card.version))
-      world.advance(minutes: 600)
-      await host.nextUpConditions.refreshed(key, Self.snapshot(0.035, at: world.now))
-      world.advance(minutes: 1)
-      await host.nextUpConditions.refreshed(key, Self.snapshot(0.028, at: world.now))
-
-      #expect(try await Self.deck(host).isEmpty)
-    }
   }
 
   @Test func startingACardSaysItsQuestionInItsProjectAsThePerson() async throws {

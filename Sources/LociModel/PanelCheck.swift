@@ -91,9 +91,12 @@ public enum PanelCheck {
   }
 
   private static func problems(in refresh: PanelRefresh) -> [PanelProblem] {
+    if [.interval, .tradingDay, .once].contains(refresh.every) {
+      return Every(refresh) == nil ? [PanelProblem("refresh", "needs a valid time, interval or market")] : []
+    }
     var found: [PanelProblem] = []
     switch refresh.every {
-    case .hour:
+    case .hour, .interval, .tradingDay, .once:
       break
     case .day, .week:
       if refresh.at == nil { found.append(PanelProblem("refresh.at", "is missing; write the time as HH:mm")) }

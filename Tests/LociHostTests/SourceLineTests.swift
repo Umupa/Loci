@@ -5,8 +5,9 @@ import Testing
 
 @testable import LociHost
 
-/// DS-S2: the app fetches each source by itself, as often as it says while the window is in front and at most
-/// hourly while it is behind, only within its window, beside whatever the companion is doing.
+/// DS-S2, WT-S3: the app fetches each source by itself, as often as it says whether the window is in front or
+/// not, only within its window, beside whatever the companion is doing, and no more than
+/// `SourceLine.startsPerMinute` fetches a minute in all.
 @Suite(.timeLimit(.minutes(1)))
 struct SourceLineTests {
   static let records: [String: SourceRecord] = ["513870": ["premium": .number(0.159)]]
@@ -16,6 +17,12 @@ struct SourceLineTests {
       name: "prem", title: "ETF 溢价", every: SourceEvery(minutes: 1)!, window: window, script: "function requests() {}")
   }
 
+  /// Waits a moment for fetches the line started on its own after others ended.
+  static func settled(_ runner: FakeSources, fetches: Int) async {
+    for _ in 0..<100 where runner.finished < fetches { try? await Task.sleep(for: .milliseconds(10)) }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+
   /// One look of the fetching line, waited out.
   static func look(_ host: LocalHost) async -> Int {
     let started = await host.sourceLine.look()
@@ -23,7 +30,7 @@ struct SourceLineTests {
     return started.count
   }
 
-  @Test func aSourceIsFetchedEveryItsMinutesInFrontAndAtMostHourlyBehind() async throws {
+  @Test func aSourceIsFetchedAtItsFrequencyWhileTheWindowIsInTheBackground() async throws {
     let runner = FakeSources(records: Self.records)
     try await withHost(sources: runner) { host, _, world in
       _ = try await host.run(SaveDataSource(Self.source()))
@@ -32,15 +39,33 @@ struct SourceLineTests {
       world.advance(minutes: 1)
       #expect(await Self.look(host) == 1)
 
-      world.inFront = false
-      world.advance(minutes: 1)
-      #expect(await Self.look(host) == 0)
-      world.advance(minutes: 58)
-      #expect(await Self.look(host) == 0)
       world.advance(minutes: 1)
       #expect(await Self.look(host) == 1)
       #expect(runner.fetches == 3)
       #expect(try await host.run(ListDataSources()).first?.snapshot?.fetched == world.now)
+    }
+  }
+
+  @Test func noMoreFetchesStartInAMinuteThanTheBudgetAndTheRestWaitForTheNext() async throws {
+    let runner = FakeSources(records: Self.records)
+    try await withHost(sources: runner) { host, _, world in
+      let count = SourceLine.startsPerMinute + 4
+      for index in 0..<count {
+        let source = Self.source()
+        _ = try await host.run(
+          SaveDataSource(
+            DataSource(name: "prem\(index)", title: source.title, every: source.every, script: source.script)))
+      }
+      let saved = runner.fetches
+      world.advance(minutes: 1)
+      for _ in 0..<count { _ = await Self.look(host) }
+      await Self.settled(runner, fetches: saved + SourceLine.startsPerMinute)
+      #expect(runner.fetches == saved + SourceLine.startsPerMinute)
+
+      world.advance(minutes: 1)
+      _ = await Self.look(host)
+      await Self.settled(runner, fetches: saved + count)
+      #expect(runner.fetches >= saved + count)
     }
   }
 

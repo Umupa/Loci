@@ -6,9 +6,9 @@ import SwiftUI
 enum Place: Codable, Hashable {
   /// The main conversation with Loci.
   case talk
-  /// Loci's own page: its face, Soul, memory and diary.
+  /// The companion's home page: its face, how it is, and its tabs.
   case loci
-  /// Loci's own page open at its connectors, with this one lit, as a reply asked.
+  /// The companion's home page open at its connectors, with this one lit, as a reply asked.
   case connector(ConnectorID)
   /// `nil` is every kind.
   case library(LibraryCategory?)
@@ -51,11 +51,14 @@ enum SettingsSection: String, Codable, Hashable, CaseIterable {
 enum Page: Codable, Hashable {
   case item(EntityID)
   case passage(Locator)
+  /// A follow page: who the person follows and their episodes.
+  case follow(EntityID)
 
   var itemID: EntityID? {
     switch self {
     case .item(let item): item
     case .passage(let locator): locator.item
+    case .follow: nil
     }
   }
 
@@ -86,8 +89,12 @@ struct WindowState: Codable, Equatable {
 
   /// Drops the pages of items that no longer exist, so the window goes back to the place they were opened
   /// from, such as the library an item was deleted from, and a remembered place never opens onto a blank page.
+  /// A follow page stays: it goes back by itself once the follow is gone.
   func keeping(items: Set<EntityID>) -> WindowState {
-    let kept = pages.filter { $0.itemID.map(items.contains) == true }
+    let kept = pages.filter { page in
+      if case .follow = page { return true }
+      return page.itemID.map(items.contains) == true
+    }
     return kept == pages ? self : WindowState(place: place, pages: kept)
   }
 
@@ -104,10 +111,9 @@ struct WindowState: Codable, Equatable {
     WindowState(place: place, pages: pages + [page])
   }
 
-  /// Where choosing Loci at the top of the sidebar goes: from the main conversation to Loci's page, and
-  /// from anywhere else back to the main conversation.
-  func choosingLoci() -> WindowState {
-    WindowState(place: place == .talk && pages.isEmpty ? .loci : .talk)
+  /// Where choosing the companion at the top of the sidebar goes: the chat, from anywhere.
+  func choosingCompanion() -> WindowState {
+    WindowState(place: .talk)
   }
 }
 

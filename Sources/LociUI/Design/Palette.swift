@@ -53,6 +53,12 @@ enum Palette {
   static let fallBlock = Color(nsColor: fallBlockColor)
   /// Words and glyphs on an amber fill, such as a button's.
   static let onAccent = Color(nsColor: Tones.onAccent)
+  /// The dot by the companion's face while it is awake or a little tired.
+  static let presenceAwake = Color(nsColor: Tones.presenceAwake)
+  /// The dot while it is sleepy or asleep, or its Mac is offline.
+  static let presenceAway = Color(nsColor: Tones.presenceAway)
+  /// Around the dot by the face at the top of the sidebar, the color of the sidebar there.
+  static let sidebarRing = Color(nsColor: Tones.sidebarTop)
   /// Loci's messages, and the person's, a shade apart.
   static let bubble = Color(nsColor: Tones.bubble)
   static let bubbleMine = Color(nsColor: Tones.bubbleMine)
@@ -99,6 +105,12 @@ enum Palette {
   static let menuFace = Color(nsColor: Tones.menuFace)
   /// Over the window behind a sheet.
   static let scrim = Color(nsColor: Tones.scrim)
+  /// Over a conversation behind the runtime island: deep enough that the island reads as lifted above it.
+  static let islandScrim = Color(nsColor: Tones.islandScrim)
+  /// The tiles that ripple under Extra High thinking.
+  static let effortExtraHigh = Color(nsColor: Tones.effortExtraHigh)
+  /// The tiles that ripple under Max thinking.
+  static let effortMax = Color(nsColor: Tones.effortMax)
   /// Over a conversation behind a web page opened on it: dark enough that the page stands apart even where the
   /// blur under it is not drawn.
   static let pageScrim = Color(nsColor: Tones.pageScrim)
@@ -107,6 +119,8 @@ enum Palette {
 
   /// A finished stage on the stage ruler.
   static let accentLine = Color(nsColor: Tones.accentLine)
+  /// A faint amber glow: the ring around a new project's field, and the heart of the light under the bar.
+  static let glow = Color(nsColor: Tones.glow)
   /// Work that failed.
   static let failure = Color(nsColor: Tones.failure)
   /// Paper and ink for the cover of an item without a picture.
@@ -192,14 +206,20 @@ enum Tones {
   static let readerMark = NSColor(dark: 0xF3BA65, light: 0xD98E1F, alpha: (dark: 0.30, light: 0.20))
   static let flash = NSColor(dark: 0xEBA53A, light: 0xD98E1F, alpha: (dark: 0.6, light: 0.6))
   static let ready = NSColor(dark: 0x6CC783, light: 0x34A853)
+  static let presenceAwake = NSColor(dark: 0x4FBF6E, light: 0x2E9E50)
+  static let presenceAway = NSColor(dark: 0x7A766F, light: 0xA9A59E)
   static let thumb = NSColor(dark: 0x5A544D, light: 0xFFFFFF)
   static let ring = NSColor(dark: 0xFFF5E6, light: 0xFFFFFF, alpha: (dark: 0.14, light: 0.9))
   static let coverBackdrop = NSColor(dark: 0x2A2420, light: 0x2A2420)
   static let accentLine = NSColor(dark: 0xEBA53A, light: 0xD98E1F, alpha: (dark: 0.6, light: 0.55))
+  static let glow = NSColor(dark: 0xEBA53A, light: 0xD98E1F, alpha: (dark: 0.13, light: 0.16))
   static let failure = NSColor(dark: 0xEE7A60, light: 0xC9503A)
   static let coverPlaceholder = NSColor(dark: 0x2A2420, light: 0xEFEAE2)
   static let menuFace = NSColor(dark: 0x2C2824, light: 0xFDFBF8)
   static let scrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.32, light: 0.10))
+  static let islandScrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.36, light: 0.12))
+  static let effortExtraHigh = NSColor(dark: 0xB57BF8, light: 0xA855F7)
+  static let effortMax = NSColor(dark: 0xF4B942, light: 0xF4B942)
   static let pageScrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.45, light: 0.22))
   static let floating = NSColor(dark: 0x2C2824, light: 0xFDFBF8, alpha: (dark: 0.96, light: 0.96))
   static let codeKeyword = NSColor(dark: 0xE09A6A, light: 0x9C4524)

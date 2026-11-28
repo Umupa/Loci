@@ -249,6 +249,42 @@ enum Schema {
           );
           """)
     }
+    migrator.registerMigration("16 watch batches") { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE watch_batch (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            body TEXT NOT NULL,
+            tries INTEGER NOT NULL DEFAULT 0,
+            not_before TEXT
+          );
+          """)
+    }
+    migrator.registerMigration("17 watch batch failures") { db in
+      try db.execute(sql: "ALTER TABLE watch_batch ADD COLUMN failures INTEGER NOT NULL DEFAULT 0")
+      try db.execute(sql: "ALTER TABLE watch_batch ADD COLUMN problem TEXT")
+      try db.execute(sql: "ALTER TABLE watch_batch ADD COLUMN tried TEXT")
+    }
+    migrator.registerMigration("18 follows") { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE follow_episode (
+            follow TEXT NOT NULL,
+            key TEXT NOT NULL,
+            published INTEGER,
+            first_seen INTEGER NOT NULL,
+            body TEXT NOT NULL,
+            PRIMARY KEY (follow, key)
+          );
+          CREATE TABLE follow_state (
+            follow TEXT PRIMARY KEY NOT NULL,
+            tried INTEGER,
+            listed INTEGER,
+            problem TEXT
+          );
+          """)
+    }
     return migrator
   }
 

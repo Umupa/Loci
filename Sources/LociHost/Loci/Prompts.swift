@@ -17,6 +17,8 @@ struct Prompts: Sendable {
   let projectStart: String
   let repair: String
   let feed: String
+  let watch: String
+  let watchTriage: String
 
   static func bundled() throws(HostError) -> Prompts {
     Prompts(
@@ -25,7 +27,8 @@ struct Prompts: Sendable {
       panel: try resource("panel"), course: try resource("course"), schedule: try resource("schedule"),
       followUp: try resource("followup"), projectReview: try resource("project-review"),
       projectStart: try resource("project-start"), repair: try resource("source-repair"),
-      feed: try resource("panel-feed"))
+      feed: try resource("panel-feed"), watch: try resource("watch"),
+      watchTriage: try resource("watch-triage"))
   }
 
   private static func resource(_ name: String) throws(HostError) -> String {
@@ -102,7 +105,7 @@ struct Prompts: Sendable {
       .replacing("{{hidden}}", with: Self.hidden(in: panel, marks: marks))
   }
 
-  static func json(_ panel: Panel) throws(HostError) -> String {
+  static func json(_ panel: some Encodable) throws(HostError) -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     do {

@@ -1,13 +1,10 @@
 import Foundation
 import LociModel
 
-/// `loci next …`: cards on the person's deck, reminder conditions, and approval cards.
+/// `loci next …`: cards on the person's deck and approval cards.
 enum NextRequest: Hashable, Sendable {
-  case add(what: String, question: String, key: String?)
-  case when(SourceField, Comparison, Double, say: String, question: String)
-  case conditions
-  case unwhen(EntityID)
-  case propose(Proposal)
+  case add(what: String, question: String, key: String?, deadline: Timestamp? = nil)
+  case propose(Proposal, deadline: Timestamp? = nil)
 
   /// An approval as written, before its times are read in the person's time zone.
   enum Proposal: Hashable, Sendable {
@@ -16,10 +13,9 @@ enum NextRequest: Hashable, Sendable {
   }
 
   static let usage =
-    "loci next add <what> --ask <question> [--key <key>] | loci next when <source>.<record>.<field> <|<=|>|>= "
-    + "<number> --say <line> --ask <question> | loci next conditions | loci next unwhen <id> | loci next propose "
+    "loci next add <what> --ask <question> [--key <key>] [--deadline <ISO-8601>] | loci next propose "
     + "event <title> --at YYYY-MM-DD [HH:mm] [--until HH:mm] [--calendar <name>] [--why <line>] | loci next propose "
-    + "reminder <title> [--at YYYY-MM-DD [HH:mm]] [--list <name>] [--why <line>]"
+    + "reminder <title> [--at YYYY-MM-DD [HH:mm]] [--list <name>] [--why <line>]; both accept --deadline"
 
   static let onlyTwo =
     "loci next propose takes event or reminder. Paying, ordering, signing up and sending messages are not "
@@ -27,23 +23,24 @@ enum NextRequest: Hashable, Sendable {
 
   static func parse(_ words: [String]) throws(UsageError) -> NextRequest {
     guard let verb = words.first else { throw UsageError(usage) }
-    let (plain, options) = try split(Array(words.dropFirst()))
+    let (plain, supplied) = try split(Array(words.dropFirst()))
+    var options = supplied
+    let deadline: Timestamp?
+    if let text = options.removeValue(forKey: "deadline") {
+      guard let parsed = Timestamp.parseISO8601(text) else {
+        throw UsageError("--deadline needs ISO-8601 with an offset")
+      }
+      deadline = parsed
+    } else {
+      deadline = nil
+    }
     switch verb {
     case "add":
       guard !plain.isEmpty, let question = options["ask"], options.keys.allSatisfy(["ask", "key"].contains) else {
         throw UsageError(usage)
       }
-      return .add(what: plain.joined(separator: " "), question: question, key: options["key"])
-    case "when":
-      guard plain.count == 3, let field = SourceField(plain[0]), let comparison = Comparison(rawValue: plain[1]),
-        let threshold = Double(plain[2]), let say = options["say"], let question = options["ask"]
-      else { throw UsageError(usage) }
-      return .when(field, comparison, threshold, say: say, question: question)
-    case "conditions" where plain.isEmpty && options.isEmpty: return .conditions
-    case "unwhen":
-      guard plain.count == 1, let id = EntityID(plain[0]) else { throw UsageError(usage) }
-      return .unwhen(id)
-    case "propose": return .propose(try proposal(plain, options))
+      return .add(what: plain.joined(separator: " "), question: question, key: options["key"], deadline: deadline)
+    case "propose": return .propose(try proposal(plain, options), deadline: deadline)
     default: throw UsageError(usage)
     }
   }
@@ -125,29 +122,14 @@ extension NextRequest.Proposal {
 extension Tool {
   func next(_ request: NextRequest, json: Bool) async throws(Failure) -> Outcome {
     switch request {
-    case .add(let what, let question, let key):
-      let reply = try await line.run(AddNextUp(what, asking: question, key: key))
+    case .add(let what, let question, let key, let deadline):
+      let reply = try await line.run(AddNextUp(what, asking: question, key: key, deadline: deadline))
       if json { return .worked(Self.text(reply)) }
       let card = try Failure.decoding(NextUp.self, from: reply)
       return .worked("On the deck: \(card.what)")
-    case .when(let field, let comparison, let threshold, let say, let question):
-      let reply = try await line.run(AddNextUpCondition(field, comparison, threshold, say: say, asking: question))
-      if json { return .worked(Self.text(reply)) }
-      let condition = try Failure.decoding(NextUpCondition.self, from: reply)
-      let now = condition.holds == true ? " It holds now, so the first card comes when it turns true again." : ""
-      return .worked("Watching: \(condition.line)\(now)")
-    case .conditions:
-      let reply = try await line.run(ListNextUpConditions())
-      if json { return .worked(Self.text(reply)) }
-      let conditions = try Failure.decoding([NextUpCondition].self, from: reply)
-      return .worked(
-        conditions.isEmpty ? "There are no reminder conditions." : conditions.map(\.line).joined(separator: "\n"))
-    case .unwhen(let id):
-      let reply = try await line.run(RemoveNextUpCondition(id))
-      return .worked(json ? Self.text(reply) : "Removed \(id).")
-    case .propose(let proposal):
+    case .propose(let proposal, let deadline):
       let (approval, why) = proposal.approval(in: timeZone)
-      let reply = try await line.run(ProposeApproval(approval, why: why))
+      let reply = try await line.run(ProposeApproval(approval, why: why, deadline: deadline))
       if json { return .worked(Self.text(reply)) }
       return .worked("Waiting for the person to approve: \(approval.title)")
     }

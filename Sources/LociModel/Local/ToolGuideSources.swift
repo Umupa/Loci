@@ -6,8 +6,8 @@ extension ToolGuide {
     retype, and they stay fresh between refreshes.
 
     - Make one when a panel would show numbers that change on their own. Look the site's API up first.
-    - The app fetches it every <every> while the window is in front, at most hourly while it is behind, and
-      only --between those hours. You are never woken for it, except to mend it.
+    - The app fetches it at the declared frequency, in front or behind, within --between if given.
+      Watch triage reads each new batch and can wake you only for something that matters. See help watch.
     - Write one script and save it with "$LOCI" source save <name> --title <title> --every <1m|15m|1h>
       [--between HH:mm-HH:mm] [--weekdays] < script.js. The app runs it once at once; it is saved only when
       that works, and you hear what it got. Say in one sentence what it fetched.
@@ -46,9 +46,8 @@ extension ToolGuide {
     - Write shares as fractions: 0.159 is 15.9%, -0.0186 is −1.86%.
     - For a list of things that come and go, such as news, papers or issues, parse also returns
       entries: [{ id, title, url, at, note }], at in milliseconds, at most 200. A panel with
-      "feed": { "source": "<name>", "skip": ["<word>", ...] } and no refresh follows them: when the source
-      reads entries it never had and no skipped word is in their titles, you are shown only those, and keep
-      some with "$LOCI" panel pick <panel> --say <sentence> <id>...; the app writes each one's link and time.
+      "feed": { "source": "<name>" } follows that source. Watch triage can choose entries for it;
+      the app writes each title, link and time from the source. Use WATCH.md to say what is noise.
 
     Chart rows draw numbers. Anywhere a number goes, write it, or point at a source's field as
     "<source>.<record>.<field>"; a word that comes from a source is { "field": "<source>.<record>.<field>" }.

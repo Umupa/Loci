@@ -62,8 +62,10 @@ struct WebOverlayTests {
     try await eventually("the page to open over the conversation") {
       !browser.peeks.isEmpty && Self.conversation(in: window) != nil
     }
+    try await eventually("the conversation to settle") {
+      (Self.conversation(in: window)?.contentView.bounds.minY ?? 0) > 0
+    }
     let scroll = try #require(Self.conversation(in: window))
-    try await eventually("the conversation to settle") { scroll.contentView.bounds.minY > 0 }
     let scrolled = scroll.contentView.bounds.minY
 
     Self.click(window, at: try Self.point(side, in: window))
@@ -197,7 +199,8 @@ struct WebOverlayTests {
     if let event { window.sendEvent(event) }
   }
 
-  /// The scroll view of the conversation: the tallest one in the window.
+  /// The scroll view of the conversation: the tallest one in the window. The conversation makes its scroll view
+  /// again once its messages arrive, so it is looked up each time rather than kept.
   private static func conversation(in window: NSWindow) -> NSScrollView? {
     guard let root = window.contentView else { return nil }
     return scrollViews(in: root).max { ($0.documentView?.frame.height ?? 0) < ($1.documentView?.frame.height ?? 0) }

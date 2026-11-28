@@ -22,12 +22,10 @@ struct ProjectBarPlan: Equatable {
   static let overflowUnfoldPadding: CGFloat = 30
 
   static func compute(
-    projects: [Project], home: Home, starting: Bool, availableWidth: CGFloat, chatLabel: String,
-    newProjectLabel: String
+    projects: [Project], home: Home, drafting: Bool, availableWidth: CGFloat, chatLabel: String
   ) -> ProjectBarPlan {
     let budget = max(240, min(Size.projectBarWidest, availableWidth))
     let chatWidth = ceil(labelWidth(chatLabel, weight: .semibold)) + 20
-    let ghostExtra = ceil(labelWidth(newProjectLabel, weight: .semibold)) + openLabelPadding
 
     func width(projectSlots: Int, openExtra: CGFloat, overflow: Int) -> CGFloat {
       let unfold = overflow > 0 ? overflowWidth(count: overflow) : unfoldButtonWidth
@@ -38,9 +36,9 @@ struct ProjectBarPlan: Equatable {
       return outerPadding * 2 + chatWidth + dividerWidth * CGFloat(dividers) + middle + addButtonWidth + unfold + gaps
     }
 
-    if starting {
+    if drafting {
       let kept = fittingCount(total: projects.count) { count, overflow in
-        width(projectSlots: count + 1, openExtra: ghostExtra, overflow: overflow) <= budget
+        width(projectSlots: count + 1, openExtra: 0, overflow: overflow) <= budget
       }
       return ProjectBarPlan(
         visible: Array(projects.prefix(kept)), hidden: Array(projects.dropFirst(kept)), openNameWidth: 0)
@@ -48,7 +46,16 @@ struct ProjectBarPlan: Equatable {
 
     if case .project(let activeID) = home, let activeIndex = projects.firstIndex(where: { $0.id == activeID }) {
       let active = projects[activeIndex]
-      let natural = min(Size.projectNameWidest, ceil(labelWidth(active.shownName, weight: .semibold)))
+      guard let name = active.name else {
+        let kept = fittingCount(total: projects.count) { count, overflow in
+          width(projectSlots: count, openExtra: 0, overflow: overflow) <= budget
+        }
+        let visible =
+          activeIndex < kept ? Array(projects.prefix(kept)) : Array(projects.prefix(max(0, kept - 1))) + [active]
+        let shown = Set(visible.map(\.id))
+        return ProjectBarPlan(visible: visible, hidden: projects.filter { !shown.contains($0.id) }, openNameWidth: 0)
+      }
+      let natural = min(Size.projectNameWidest, ceil(labelWidth(name, weight: .semibold)))
       let fullExtra = natural + openLabelPadding
       if width(projectSlots: projects.count, openExtra: fullExtra, overflow: 0) <= budget {
         return ProjectBarPlan(visible: projects, hidden: [], openNameWidth: natural)

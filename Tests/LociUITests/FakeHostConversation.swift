@@ -8,9 +8,9 @@ extension FakeHost {
 
   func conversation(_ conversation: ConversationRef) async throws(HostError) -> Conversation {
     let empty = Conversation(ref: conversation, entries: [], turn: nil)
+    if let chat, chat.ref == conversation { return chat }
     switch conversation {
     case .main:
-      if let chat { return chat }
       if let library { return library.mainConversation(working: working) }
       return (try? sample.chat()) ?? empty
     case .project:
@@ -30,6 +30,18 @@ extension FakeHost {
 
   func lociStatus() async -> LociStatus {
     LociStatus(work: working ? .answering(library?.mainConversation(working: true).turn?.latestTool) : nil)
+  }
+
+  func lociPresence() async throws(HostError) -> LociPresence {
+    if let presence { return presence }
+    let said = try await conversation(.main).entries.reversed().lazy.compactMap { entry -> String? in
+      guard case .message(let message) = entry else { return nil }
+      switch message.body {
+      case .reply(let text), .told(let text): return text
+      default: return nil
+      }
+    }.first
+    return LociPresence(tiredness: try await lociPage().feeling?.tiredness ?? .awake, lastSaid: said)
   }
 
   func lociPage() async throws(HostError) -> LociPage {

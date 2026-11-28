@@ -10,6 +10,7 @@ struct LociApp: App {
     let launch = Launch()
     _launch = State(initialValue: launch)
     delegate.updates = launch.updater
+    delegate.cards.watch(launch.host)
   }
 
   var body: some Scene {
@@ -23,6 +24,7 @@ struct LociApp: App {
         .id(launch.generation)
         .resetFailure($launch.resetFailure)
         .openingFiles(delegate.opened)
+        .openingCardNotifications(delegate.cards)
         .returningFromSignIns(launch.signInReturns)
       case .problem(let problem):
         StartupProblemView(problem: problem, rebuild: launch.rebuild)
@@ -36,6 +38,7 @@ struct LociApp: App {
       MenuBarPanel(companion: launch.companion)
     } label: {
       MenuBarGlyph(companion: launch.companion)
+        .openingCardNotifications(delegate.cards)
     }
     .menuBarExtraStyle(.window)
 

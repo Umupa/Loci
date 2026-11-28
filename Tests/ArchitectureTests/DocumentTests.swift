@@ -9,11 +9,18 @@ struct DocumentTests {
       (word: $0.word, instead: $0.instead, matches: try Self.matcher(for: $0.word))
     }
     let table = Set(glossary.section(Documents.retiredHeading).map(\.number))
+    let roadmap = try Documents.read(Documents.roadmap)
+    let history = Set(roadmap.section(Documents.releasedHeading).map(\.number))
 
     report(
       try Documents.current().filter { Documents.keepsOldWords[$0.path] == nil }.flatMap { file in
         file.lines.enumerated().flatMap { index, line -> [Violation] in
           if file.path == Documents.glossary && table.contains(index + 1) { return [] }
+          if file.path == Documents.roadmap,
+            history.contains(index + 1) || line.hasPrefix(Documents.retirementLine)
+          {
+            return []
+          }
           return retired.filter { $0.matches(line) }.map {
             Violation(
               file: file.path, line: index + 1, found: "「\($0.word)」 is retired",

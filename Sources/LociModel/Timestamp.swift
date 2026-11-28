@@ -24,6 +24,27 @@ public struct Timestamp: Hashable, Comparable, Sendable, TextCodable {
     self.init(millisecondsSince1970: Int64(seconds.timeIntervalSince1970) * 1000 + milliseconds)
   }
 
+  /// An ISO 8601 moment with its offset, as `loci` takes a deadline: `2026-11-27T13:00:00+08:00`, `Z` or the
+  /// app's own form.
+  public static func parseISO8601(_ text: String) -> Self? {
+    if let exact = Self(text) { return exact }
+    guard text.wholeMatch(of: /\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?(?:Z|[+-]\d\d:\d\d)/) != nil else {
+      return nil
+    }
+    let style = Date.ISO8601FormatStyle(includingFractionalSeconds: text.contains("."))
+    guard let date = try? style.parse(text) else { return nil }
+    return Self(date)
+  }
+
+  /// The moment to the second as a clock in `zone` shows it, with the offset: `2026-11-27T13:00:00+08:00`.
+  public func iso8601(in zone: TimeZone) -> String {
+    let offset = zone.secondsFromGMT(for: date)
+    let local = Timestamp(millisecondsSince1970: millisecondsSince1970 + Int64(offset) * 1000).description.prefix(19)
+    let sign = offset < 0 ? "-" : "+"
+    let minutes = abs(offset) / 60
+    return "\(local)\(sign)\(String(minutes / 60).leftPadded(to: 2)):\(String(minutes % 60).leftPadded(to: 2))"
+  }
+
   public var description: String {
     let (seconds, milliseconds) = millisecondsSince1970.floorDividedBy1000
     let whole = Date(timeIntervalSince1970: Double(seconds)).formatted(Date.ISO8601FormatStyle())

@@ -16,6 +16,7 @@ struct GeneralSettingsPage: View {
   @State private var folder: HostPath?
   @State private var revealable: LocalFile?
   @State private var signInChoice: SignInChoice?
+  @State private var bringingIn = false
 
   var body: some View {
     SettingsPage(symbol: Symbols.settings, title: .loci("settings.general")) {
@@ -48,13 +49,15 @@ struct GeneralSettingsPage: View {
       if let browser = signInBrowser {
         SettingsGroup(title: .loci("sidebar.browser")) {
           SettingsRow {
-            Text(.loci("browser.useSignIns \(browser.name)"))
+            Text(.loci("browser.signInsOf \(browser.name)"))
           } trailing: {
-            Toggle(isOn: Binding(get: { signInChoice == .using(browser) }, set: { use(browser, $0) })) {
-              Text(.loci("browser.useSignIns \(browser.name)"))
+            Button {
+              bringIn(browser)
+            } label: {
+              Text(.loci("browser.importSignIns"))
             }
-            .labelsHidden()
-            .toggleStyle(AmberSwitch(small: true))
+            .buttonStyle(PushStyle())
+            .disabled(bringingIn)
           }
         }
       }
@@ -109,16 +112,13 @@ extension GeneralSettingsPage {
     }
   }
 
-  private func use(_ browser: SignInBrowser, _ on: Bool) {
+  private func bringIn(_ browser: SignInBrowser) {
     guard let signIns, let browserSession else { return }
-    signInChoice = on ? .using(browser) : .declined(browser)
+    bringingIn = true
     Task {
-      if on {
-        await browserSession.acceptSignIns(from: browser)
-      } else {
-        await browserSession.declineSignIns()
-      }
+      await browserSession.acceptSignIns(from: browser)
       signInChoice = await signIns.choice()
+      bringingIn = false
     }
   }
 }

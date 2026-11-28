@@ -11,6 +11,7 @@ public struct RootView: View {
   private let talkShown: () -> Void
   private let updates: any Updates
   private let reset: DataReset?
+  @Environment(\.cardDelivery) private var cardDelivery
   @State private var roster: Roster?
   /// `nil` is this Mac.
   @State private var current: MachineID?
@@ -72,6 +73,7 @@ public struct RootView: View {
         .environment(\.updates, updates)
         .environment(\.signIns, signIns)
         .environment(\.dataReset, shown == roster.this ? reset : nil)
+        .environment(\.cardDelivery, shown == roster.this ? cardDelivery : nil)
       } else {
         Palette.canvas
       }
@@ -85,6 +87,7 @@ public struct RootView: View {
       }
     }
     .overlay { sheets }
+    .onChange(of: cardDelivery?.waiting, initial: true) { if cardDelivery?.waiting != nil { show(nil) } }
     .task {
       for await next in machines.roster() {
         roster = next

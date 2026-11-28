@@ -13,24 +13,28 @@ extension StoreDatabase {
   public func recordEntries(_ source: SourceKey, _ entries: [SourceEntry], at moment: Timestamp) throws
     -> [SourceEntry]
   {
+    try queue.write { db in try Self.recordEntries(source, entries, at: moment, in: db) }
+  }
+
+  static func recordEntries(_ source: SourceKey, _ entries: [SourceEntry], at moment: Timestamp, in db: Database)
+    throws -> [SourceEntry]
+  {
     guard !entries.isEmpty else { return [] }
     let bodies = try entries.map { ($0, try MirrorUpdate.json($0)) }
-    return try queue.write { db in
-      var new: [SourceEntry] = []
-      for (entry, body) in bodies {
-        try db.execute(
-          sql: "INSERT OR IGNORE INTO source_entry (source, id, seen, body) VALUES (?, ?, ?, ?)",
-          arguments: [source.description, entry.id, moment.description, body])
-        if db.changesCount > 0 { new.append(entry) }
-      }
+    var new: [SourceEntry] = []
+    for (entry, body) in bodies {
       try db.execute(
-        sql: """
-          DELETE FROM source_entry WHERE source = ? AND id NOT IN (
-            SELECT id FROM source_entry WHERE source = ? ORDER BY seen DESC, rowid DESC LIMIT ?)
-          """,
-        arguments: [source.description, source.description, Self.entriesKept])
-      return new
+        sql: "INSERT OR IGNORE INTO source_entry (source, id, seen, body) VALUES (?, ?, ?, ?)",
+        arguments: [source.description, entry.id, moment.description, body])
+      if db.changesCount > 0 { new.append(entry) }
     }
+    try db.execute(
+      sql: """
+        DELETE FROM source_entry WHERE source = ? AND id NOT IN (
+          SELECT id FROM source_entry WHERE source = ? ORDER BY seen DESC, rowid DESC LIMIT ?)
+        """,
+      arguments: [source.description, source.description, Self.entriesKept])
+    return new
   }
 
   /// The entries kept after `seq` in the order they were first read (all when it is `nil`), at most `limit`.

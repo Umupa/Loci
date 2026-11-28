@@ -126,9 +126,10 @@ struct ConversationView<Tail: View>: View {
   /// Starts keeping the newest line in view.
   @State var follow = Following()
   @State private var scrolling = false
-  @State private var visibleRow: TalkRow.ID?
+  /// The first row in view, kept out of what draws the conversation so scrolling does not draw it again.
+  @State private var visibleRow = VisibleRow()
   @State private var localVisit = ConversationVisit()
-  @State private var pointedAnswer: EntityID?
+  @State private var pointedAnswer = PointedAnswer()
   @State private var settled = Remembered(TalkRow.settled)
   /// The running turn's rows, which moving through the conversation leaves as they are.
   @State private var going = Remembered<LiveSoFar, [TalkRow]>(TalkRow.live)
@@ -137,6 +138,7 @@ struct ConversationView<Tail: View>: View {
   /// When a reply held back last came due, so the conversation is drawn again to show it.
   @State private var cameDue = Date.distantPast
   @State private var cover = ConversationCover()
+  @State private var runtimeIsland = false
 
   private enum End: Hashable { case latest }
 
@@ -160,7 +162,7 @@ struct ConversationView<Tail: View>: View {
       VStack(alignment: .leading, spacing: Size.messageGap) {
         LazyVStack(alignment: .leading, spacing: Size.messageGap) {
           ForEach(rows) { row in
-            view(of: row).arriving()
+            view(of: row).besideFace(of: row, shown: scale == .main).arriving()
           }
         }
         .scrollTargetLayout()
@@ -190,8 +192,8 @@ struct ConversationView<Tail: View>: View {
     }
     .onScrollTargetVisibilityChange(idType: TalkRow.ID.self, threshold: 0.01) { ids in
       let visible = Set(ids)
-      visibleRow = rows.first { visible.contains($0.id) }?.id
-      if scrolling, !follow.isOn, let visibleRow { currentVisit.reading = visibleRow }
+      visibleRow.id = rows.first { visible.contains($0.id) }?.id
+      if scrolling, !follow.isOn, let first = visibleRow.id { currentVisit.reading = first }
     }
     .onScrollGeometryChange(for: Bool.self, of: { $0.contentOffset.y + $0.contentInsets.top < 1 }) { _, atTop in
       let said = said
@@ -235,8 +237,10 @@ struct ConversationView<Tail: View>: View {
         conversation: ref ?? conversation?.ref, busy: conversation?.turn != nil, draft: $draft, send: send, stop: stop,
         startOver: startOver,
         style: scale == .main ? .talk : .companion, attach: scale == .main ? attach : nil, focusRequest: focusRequest,
-        making: panelRequest.making, made: panelRequest.made, fill: panelRequest.fill
+        making: panelRequest.making, made: panelRequest.made, fill: panelRequest.fill,
+        islandOpen: $runtimeIsland
       )
+      .transformAnchorPreference(key: RuntimeIslandAnchors.self, value: .bounds) { $0.composer = $1 }
       .overlay(alignment: .top) {
         if follow.offersLatest {
           LatestButton {
@@ -267,6 +271,7 @@ struct ConversationView<Tail: View>: View {
         cover.area = $0
       }
     }
+    .runtimeIsland(open: $runtimeIsland, conversation: ref ?? conversation?.ref)
     .environment(\.conversationCover, cover)
     .background(Palette.canvas)
   }
@@ -285,11 +290,13 @@ struct ConversationView<Tail: View>: View {
   }
 
   private func read(at distance: CGFloat) {
-    follow.scrolled(to: distance)
+    var next = follow
+    next.scrolled(to: distance)
+    if next != follow { follow = next }
     if follow.isOn {
       currentVisit.reading = nil
-    } else if let visibleRow {
-      currentVisit.reading = visibleRow
+    } else if let first = visibleRow.id {
+      currentVisit.reading = first
     }
   }
 
@@ -314,10 +321,10 @@ struct ConversationView<Tail: View>: View {
           VStack(alignment: .leading, spacing: 0) { ReplyText(text: words, streaming: false, size: scale.fontSize) }
         },
         beside: {
-          if let answer { AnswerActions(text: answer, shown: pointedAnswer == row.reply) }
+          if let answer, let reply = row.reply { AnswerActions(text: answer, reply: reply, pointed: pointedAnswer) }
         }
       )
-      .onHover { pointedAnswer = $0 ? row.reply : nil }
+      .onHover { [pointedAnswer] in pointedAnswer.hovering($0, over: row.reply) }
     case .doing(let doing):
       DoingLine(doing: doing, size: scale.fontSize)
     case .ended(let ending):

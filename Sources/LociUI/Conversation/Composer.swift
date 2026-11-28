@@ -31,6 +31,8 @@ struct Composer: View {
   var made: (String) -> Void = { _ in }
   /// Words put in from outside, such as asking Loci to change a panel.
   var fill: ComposerFill?
+  /// Whether the runtime island is open over the conversation.
+  let islandOpen: Binding<Bool>
   @Environment(\.locale) private var locale
   @Environment(\.reducesMotion) private var reduceMotion
   @State private var example = 0
@@ -87,7 +89,11 @@ struct Composer: View {
         }
         field.padding(.vertical, (Size.composerHeight - Self.lineHeight) / 2)
         Group {
-          if let conversation { RuntimeCapsule(conversation: conversation).padding(.trailing, 4) }
+          if let conversation {
+            RuntimeCapsule(conversation: conversation, compact: style == .companion, islandOpen: islandOpen)
+              .frame(height: Size.composerButton)
+              .padding(.trailing, style == .companion ? 5 : 2)
+          }
           if let attach { AttachButton(attach: attach) }
           sendOrStop
         }
@@ -257,7 +263,7 @@ enum ComposerKey: Equatable {
 }
 
 /// The circle that sends, or stops Loci while it works: ink when it can, a faint wash when it cannot.
-private struct RoundButton: View {
+struct RoundButton: View {
   let symbol: String
   let glyphSize: CGFloat
   let label: LocalizedStringResource

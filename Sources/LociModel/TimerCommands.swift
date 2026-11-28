@@ -123,11 +123,14 @@ public struct AddFollowUp: LocalToolCommand {
   public let what: String
   /// Where it was set; the app fills it in from the session the command came from.
   public let conversation: ConversationRef?
+  public let deadline: Timestamp?
 
-  public init(_ time: FollowUpTime, _ what: String, in conversation: ConversationRef? = nil) {
+  public init(_ time: FollowUpTime, _ what: String, in conversation: ConversationRef? = nil, deadline: Timestamp? = nil)
+  {
     self.time = time
     self.what = what
     self.conversation = conversation
+    self.deadline = deadline
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> FollowUp {

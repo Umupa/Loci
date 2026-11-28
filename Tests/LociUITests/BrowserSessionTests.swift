@@ -25,11 +25,6 @@ actor FakeSignIns: BrowserSignIns {
   func decline() {
     if case .offer(let browser) = answer { answer = .declined(browser) }
   }
-
-  func currentCookies() -> [BrowserCookie] {
-    cookiesTaken += 1
-    return []
-  }
 }
 
 @MainActor
@@ -208,14 +203,23 @@ struct BrowserSessionTests {
     #expect(await signIns.cookiesTaken == 1)
   }
 
-  @Test func signInsInUseAreTakenOnceALaunchWithoutAsking() async {
+  /// B-S6: a launch does not read the other browser's key again, so macOS does not ask after an update.
+  @Test func signInsBroughtInBeforeAreNotReadAgainOnLaunch() async {
     let signIns = FakeSignIns(answer: .using(.chrome))
     let session = BrowserSession(signIns: signIns)
 
     await session.checkSignIns()
-    await session.checkSignIns()
 
     #expect(session.signInOffer == nil)
+    #expect(await signIns.cookiesTaken == 0)
+  }
+
+  @Test func importingAgainReadsTheSignInsAgain() async {
+    let signIns = FakeSignIns(answer: .using(.chrome))
+    let session = BrowserSession(signIns: signIns)
+
+    await session.acceptSignIns(from: .chrome)
+
     #expect(await signIns.cookiesTaken == 1)
   }
 }

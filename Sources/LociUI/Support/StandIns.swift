@@ -25,12 +25,16 @@ struct StandIns {
   var pointedCard: EntityID?
   /// The task dock is opened into its list.
   var taskDockOpen = false
+  /// The follow card is up for this link.
+  var followCard: URL?
   /// The gallery is scrolled to its end.
   var galleryAtEnd = false
   /// The episode playing in the play bar.
   var listening: EntityID?
   /// How far down the reading text is.
   var readThrough: Double?
+  /// The runtime island open over a conversation, on this half.
+  var runtimeIsland: RuntimeIslandTab?
 }
 
 /// A reader of a video or audio item caught part way through.

@@ -194,7 +194,7 @@ struct HostCodingTests {
     ]
     let subscriptions = [
       AllItems.name, OneItem.name, HealthReport.name, OneConversation.name, ConversationRuntime.name, LociWorking.name,
-      LociHome.name, OneDiary.name, LociAvatar.name, AgentModelList.name, RuntimeOverview.name,
+      LociHome.name, OneDiary.name, LociAvatar.name, AgentModelList.name, RuntimeOverview.name, CompanionPresence.name,
     ]
 
     #expect(Set(commands).count == commands.count)

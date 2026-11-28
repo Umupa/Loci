@@ -15,7 +15,6 @@ final class TestWorld: Sendable {
   private let looks = Mutex<[Bool]>([])
   private let clock = Mutex<Timestamp>(TestWorld.instant)
   private let ticking = Mutex<[AsyncStream<Void>.Continuation]>([])
-  private let front = Mutex(true)
   private let activities = Mutex<[String]>([])
   /// What the Mac seems to have installed: Pi only.
   static let installed: [AgentInstallation] = Provider.allCases.map { provider in
@@ -32,16 +31,23 @@ final class TestWorld: Sendable {
   let connect: ConnectEnvironment
   let sessionFiles: SessionFolders
   let sources: (any DataSourceRunning)?
+  /// What the model services' requests reach, with keys kept in memory; none when `nil`.
+  let models: (any Network)?
+  /// What reading follows finds; nothing can be read when `nil`.
+  let follows: (any FollowReading)?
 
   init(
     agent: FakeAgent = FakeAgent(), idOffset: UInt64 = 0, connect: ConnectEnvironment = .disconnected,
-    sessionFiles: SessionFolders = .none, sources: (any DataSourceRunning)? = nil
+    sessionFiles: SessionFolders = .none, sources: (any DataSourceRunning)? = nil, models: (any Network)? = nil,
+    follows: (any FollowReading)? = nil
   ) {
+    self.follows = follows
     created = Mutex(idOffset)
     self.agent = agent
     self.connect = connect
     self.sessionFiles = sessionFiles
     self.sources = sources
+    self.models = models
   }
 
   var environment: HostEnvironment {
@@ -60,17 +66,13 @@ final class TestWorld: Sendable {
       detectAgents: { [self] again in
         self.looks.withLock { $0.append(again) }
         return Self.installed
-      }, ticks: { [self] in self.listen() }, media: .disconnected(sources: sources), tool: tool,
+      }, ticks: { [self] in self.listen() }, media: .disconnected(sources: sources, follows: follows), tool: tool,
+      modelKeys: models.map { _ in MemoryModelKeys() },
+      modelClient: models.map { ModelClient(network: $0) } ?? ModelClient(),
       activity: { [self] _ in
         self.activities.withLock { $0.append("begin") }
         return Activity { self.activities.withLock { $0.append("end") } }
-      }, connect: connect, sessionFiles: sessionFiles, inFront: { [self] in self.inFront })
-  }
-
-  /// Whether the app's window is in front; it is unless a test sends it behind.
-  var inFront: Bool {
-    get { front.withLock { $0 } }
-    set { front.withLock { $0 = newValue } }
+      }, connect: connect, sessionFiles: sessionFiles)
   }
 
   private func listen() -> AsyncStream<Void> {
@@ -83,6 +85,10 @@ final class TestWorld: Sendable {
   var activity: [String] { activities.withLock { $0 } }
 
   var now: Timestamp { clock.withLock { $0 } }
+
+  func set(to instant: Timestamp) {
+    clock.withLock { $0 = instant }
+  }
 
   func advance(minutes: Int64) {
     clock.withLock { $0 = Timestamp(millisecondsSince1970: $0.millisecondsSince1970 + minutes * 60_000) }
@@ -139,12 +145,13 @@ struct Place {
 /// Runs `body` against a host started in a new temporary place, then closes it and deletes the place.
 func withHost(
   agent: FakeAgent = FakeAgent(), connect: ConnectEnvironment = .disconnected,
-  sessionFiles: SessionFolders = .none, sources: (any DataSourceRunning)? = nil,
-  _ body: (LocalHost, Place, TestWorld) async throws -> Void
+  sessionFiles: SessionFolders = .none, sources: (any DataSourceRunning)? = nil, models: (any Network)? = nil,
+  follows: (any FollowReading)? = nil, _ body: (LocalHost, Place, TestWorld) async throws -> Void
 ) async throws {
   let place = Place()
   defer { place.remove() }
-  let world = TestWorld(agent: agent, connect: connect, sessionFiles: sessionFiles, sources: sources)
+  let world = TestWorld(
+    agent: agent, connect: connect, sessionFiles: sessionFiles, sources: sources, models: models, follows: follows)
   let host = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
   do {
     try await body(host, place, world)

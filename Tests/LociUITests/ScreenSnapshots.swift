@@ -166,7 +166,7 @@ struct ScreenSnapshots {
   @Test(arguments: Snapshot.Appearance.allCases)
   func generalSettings(appearance: Snapshot.Appearance) async throws {
     let view = GeneralSettingsPage(version: AppVersion(number: "1.1.0", build: "412")).lociHost(FakeHost(try Sample()))
-      .environment(\.dataReset, DataReset {})
+      .environment(\.dataReset, DataReset {}).environment(\.signIns, FakeSignIns(answer: .using(.chrome)))
     try await Self.shoot("settings-general", view, appearance: appearance, size: CGSize(width: 800, height: 600))
   }
 

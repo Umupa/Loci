@@ -152,7 +152,13 @@ public enum MainWindow {
 /// hands the files the Finder opens with Loci to the window, and puts a downloaded update in place on quitting.
 public final class LociAppDelegate: NSObject, NSApplicationDelegate {
   @MainActor public let opened = OpenedFiles()
+  @MainActor public let cards = CardDelivery()
   @MainActor public var updates: any Updates = NoUpdates()
+
+  /// Clicks on card notifications reach the app from its first moment, even one that launched it.
+  @MainActor public func applicationWillFinishLaunching(_ notification: Notification) {
+    cards.receiveClicks()
+  }
 
   public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 

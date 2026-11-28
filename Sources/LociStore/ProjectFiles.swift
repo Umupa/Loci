@@ -41,7 +41,7 @@ extension Store {
 /// `.deleted/projects/<id>/`: a project deleted a moment ago, both its folders, kept until the deletion can
 /// no longer be undone.
 extension Store {
-  private func deletedProject(_ id: Project.ID) -> URL {
+  func deletedProject(_ id: Project.ID) -> URL {
     root.appending(path: "\(Self.setAsideFolder)/\(Self.projectsFolder)/\(id)", directoryHint: .isDirectory)
   }
 

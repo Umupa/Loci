@@ -15,7 +15,9 @@ public enum LinkKind: Hashable, Sendable {
     let fileExtension = url.pathExtension.lowercased()
     if Self.videoExtensions.contains(fileExtension) || Self.isVideoPage(host: host, path: path) {
       self = .video
-    } else if Self.audioExtensions.contains(fileExtension) || Self.isEpisodePage(host: host, path: path) {
+    } else if Self.audioExtensions.contains(fileExtension) || Self.isEpisodePage(host: host, path: path)
+      || (Self.matches(host, "podcasts.apple.com") && FollowLink.query(url, "i") != nil)
+    {
       self = .audio
     } else if fileExtension == "pdf" || (Self.matches(host, "arxiv.org") && Self.isArxivPaper(path)) {
       self = .paper
@@ -34,7 +36,7 @@ public enum LinkKind: Hashable, Sendable {
   }
 
   private static func isEpisodePage(host: String, path: String) -> Bool {
-    matches(host, "podcasts.apple.com") || (matches(host, "xiaoyuzhoufm.com") && path.hasPrefix("/episode/"))
+    matches(host, "xiaoyuzhoufm.com") && path.hasPrefix("/episode/")
   }
 
   private static func isArxivPaper(_ path: String) -> Bool {

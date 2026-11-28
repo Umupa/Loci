@@ -76,7 +76,7 @@ public struct CancelConnecting: HostOnlyCommand {
   }
 }
 
-/// Deletes the connector's credentials from the keychain; the companion no longer sees it. Its calls stay
+/// Deletes the connector's credentials; the companion no longer sees it. Its calls stay
 /// in the record.
 public struct Disconnect: RemoteCommand {
   public static let name = "connectors.disconnect"

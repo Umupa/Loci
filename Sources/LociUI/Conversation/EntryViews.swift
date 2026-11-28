@@ -88,13 +88,33 @@ struct EndedTurn: View {
 /// Beside the last bubble of a finished answer: copy all of it. Shows while the pointer is over the answer.
 struct AnswerActions: View {
   let text: String
-  let shown: Bool
+  let reply: EntityID
+  let pointed: PointedAnswer
   @Environment(\.showsCopyButtons) private var showsCopyButtons
 
   var body: some View {
     CopyButton { CopyButton.put(text) }
-      .opacity(shown || showsCopyButtons ? 1 : 0)
+      .opacity(pointed.id == reply || showsCopyButtons ? 1 : 0)
   }
+}
+
+/// The answer the pointer is over. Only each answer's actions read it, so moving the pointer across the
+/// conversation draws nothing else again.
+@MainActor @Observable final class PointedAnswer {
+  private(set) var id: EntityID?
+
+  func hovering(_ inside: Bool, over reply: EntityID?) {
+    if inside {
+      if id != reply { id = reply }
+    } else if id == reply, reply != nil {
+      id = nil
+    }
+  }
+}
+
+/// The first row of a conversation in view, which nothing draws from.
+@MainActor final class VisibleRow {
+  var id: TalkRow.ID?
 }
 
 /// The question and its answer went into the highlight.

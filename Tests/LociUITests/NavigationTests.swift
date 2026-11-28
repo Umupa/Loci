@@ -130,14 +130,17 @@ struct NavigationTests {
     #expect(WindowState(restoring: window.text) == WindowState(place: .talk, pages: [.item(item)]))
   }
 
-  @Test func choosingLociFromTheMainConversationOpensItsPageAndFromAnywhereElseTheConversation() throws {
+  /// UI-S2, CH-S1: the face at the top of the sidebar always opens the chat, wherever the window was.
+  @Test func choosingTheCompanionAlwaysOpensTheChat() throws {
     let sample = try Sample()
 
-    #expect(WindowState(place: .talk).choosingLoci() == WindowState(place: .loci))
-    #expect(WindowState(place: .loci).choosingLoci() == WindowState(place: .talk))
-    #expect(WindowState(place: .library(nil)).choosingLoci() == WindowState(place: .talk))
+    #expect(WindowState(place: .talk).choosingCompanion() == WindowState(place: .talk))
+    #expect(WindowState(place: .loci).choosingCompanion() == WindowState(place: .talk))
     #expect(
-      WindowState(place: .library(nil), pages: [.item(sample.borg.id)]).choosingLoci() == WindowState(place: .talk))
+      WindowState(place: .connector(ConnectorID(rawValue: "github"))).choosingCompanion() == WindowState(place: .talk))
+    #expect(
+      WindowState(place: .library(nil), pages: [.item(sample.borg.id)]).choosingCompanion()
+        == WindowState(place: .talk))
   }
 
   @Test func commandsWaitForTheHostToBeReady() async throws {

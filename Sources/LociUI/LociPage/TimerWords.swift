@@ -8,6 +8,12 @@ extension Every {
     switch self {
     case .hour: Text(.loci("timers.hourly"))
     case .day(let at): Text(joining: Text(.loci("timers.daily")), Text(verbatim: " \(at.description)"))
+    case .interval(let rate, let window, _):
+      Text(joining: Text(.loci("timers.interval \(rate.minutes)")), Text(verbatim: " \(window.from)–\(window.to)"))
+    case .tradingDay(let market, let at):
+      Text(joining: Text(.loci(market == .cn ? "timers.cn" : "timers.us")), Text(verbatim: " \(at)"))
+    case .once(let at):
+      Text(at.date, format: .dateTime.month(.twoDigits).day(.twoDigits).hour().minute())
     case .week(let day, let at):
       Text(joining: Text(.loci("timers.weekly")), day.name, Text(verbatim: " \(at.description)"))
     }

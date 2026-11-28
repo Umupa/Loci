@@ -28,6 +28,8 @@ struct TalkScreen: View {
   @State private var working = false
   /// The panel column, once the host has it; without it the conversation has the room to itself.
   @State private var panelColumn: Feed<PanelColumn>?
+  /// The panels that came after the column was first shown, by name.
+  @State private var freshPanels: Set<String> = []
 
   /// The chat keeps its layout as it always did; each project keeps its own.
   init(
@@ -63,12 +65,16 @@ struct TalkScreen: View {
     .overlay(alignment: .topTrailing) {
       if column != nil { CornerButtons(layout: layout, panelsShown: $columnPreferred) }
     }
-    .onChange(of: column?.panelNames) { settle() }
+    .onChange(of: column?.panelNames) { before, after in
+      settle()
+      if let before, let after { freshPanels = after.subtracting(before) }
+    }
     .onChange(of: column != nil, initial: true) { if column != nil { homeSwitch?.arrived(.panels, in: home) } }
     .onChange(of: working) { settle() }
     .acceptingDrops()
     .environment(\.panelHome, home)
     .environment(\.pinnedPanels, pinned)
+    .environment(\.freshPanels, freshPanels)
     .subscribing(WatchPanelColumn(of: home), into: $panelColumn)
   }
 

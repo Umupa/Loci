@@ -38,7 +38,7 @@ struct ProjectScenarioTests {
 
       #expect(world.agent.opened.last?.workingDirectory == folder)
       let prompt = try #require(world.agent.prompts.last)
-      #expect(prompt.typed.hasPrefix("This is a new project") && prompt.typed.hasSuffix(Self.words))
+      #expect(prompt.typed.hasPrefix("This project has no name yet") && prompt.typed.hasSuffix(Self.words))
       let instructions = place.store.home(.project(project.id)).instructions()
       #expect(instructions.contains("# This project") && instructions.contains("agent/projects/\(project.id)/"))
       #expect(instructions.contains("../../../library/"))
@@ -51,14 +51,64 @@ struct ProjectScenarioTests {
     }
   }
 
-  @Test func aProjectLeftUnnamedTakesItsFirstWords() async throws {
+  @Test func aProjectTheCompanionDidNotNameStaysInTheBarWithoutAName() async throws {
     try await withHost(agent: Self.agent) { host, _, _ in
-      let project = try await host.run(StartProject(Self.words))
+      let project = try await host.run(StartProject("hello"))
+      _ = try #require(await settled(host, .project(project.id)))
 
       let bar = try #require(await Self.bar(host) { !$0.projects.isEmpty })
 
       #expect(bar.projects.map(\.id) == [project.id])
-      #expect(bar.projects.first?.name == "建一个投资项")
+      #expect(bar.projects.first?.name == nil)
+      #expect(try host.store.project(project.id).name == nil)
+    }
+  }
+
+  @Test func whatIsSaidNextInAProjectWithoutANameAsksTheCompanionToSetItUp() async throws {
+    try await withHost(agent: Self.agent) { host, _, world in
+      let project = try await host.run(StartProject("hello")).id
+      _ = try #require(await settled(host, .project(project)))
+
+      _ = try await host.run(SendMessage(to: .project(project), text: Self.words))
+      _ = try #require(await settled(host, .project(project), prompts: 2))
+
+      let prompt = try #require(world.agent.prompts.last)
+      #expect(prompt.typed.hasPrefix("This project has no name yet") && prompt.typed.hasSuffix(Self.words))
+    }
+  }
+
+  @Test func whatIsSaidInANamedProjectIsSaidAsItIs() async throws {
+    try await withHost(agent: Self.agent) { host, _, world in
+      let project = try await Self.start(host)
+
+      _ = try await host.run(SendMessage(to: .project(project), text: "加一只红利基金"))
+      _ = try #require(await settled(host, .project(project), prompts: 2))
+
+      let prompt = try #require(world.agent.prompts.last)
+      #expect(prompt.typed.hasSuffix("加一只红利基金") && !prompt.contains("no name yet"))
+    }
+  }
+
+  @Test func theStartingWordsAskForOneQuestionWhenTheyDoNotSayWhatTheProjectIsFor() async throws {
+    try await withHost(agent: Self.agent) { host, _, world in
+      let project = try await host.run(StartProject("hello")).id
+      _ = try #require(await settled(host, .project(project)))
+
+      let prompt = try #require(world.agent.prompts.last)
+      #expect(prompt.typed.contains("ask one short question"))
+    }
+  }
+
+  @Test func deletingAProjectWithoutANameTakesItOffTheBarAndUndoBringsItBack() async throws {
+    try await withHost(agent: Self.agent) { host, _, _ in
+      let project = try await host.run(StartProject("hello")).id
+      _ = try #require(await settled(host, .project(project)))
+
+      _ = try await host.run(DeleteProject(project))
+
+      _ = try #require(await Self.bar(host) { $0.projects.isEmpty })
+      #expect(try await host.run(RestoreDeletedProject())?.name == nil)
+      _ = try #require(await Self.bar(host) { $0.projects.map(\.id) == [project] })
     }
   }
 

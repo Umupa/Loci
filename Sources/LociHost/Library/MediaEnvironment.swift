@@ -28,6 +28,8 @@ public struct MediaEnvironment: Sendable {
   public let dataSources: any DataSourceRunning
   /// Reads the pages data sources read as no one, apart from the library's fetching.
   public let sourcePages: SourcePages
+  /// Reads follows and their episodes; over `sourceNetwork` unless given.
+  public let follows: any FollowReading
 
   public init(
     support: URL, runner: any ProgramRunner, network: any Network, transcriber: any Transcribing,
@@ -35,7 +37,7 @@ public struct MediaEnvironment: Sendable {
     arm: Bool = true, textFetching: (any TextFetching)? = nil,
     transcriptAgent: (@Sendable (Runtime) -> any TranscriptAgent)? = nil, diarizer: (any Diarizing)? = nil,
     sourceNetwork: (any Network)? = nil, dataSources: (any DataSourceRunning)? = nil,
-    sourcePages: SourcePages = SourcePages(hops: HopNetwork())
+    sourcePages: SourcePages = SourcePages(hops: HopNetwork()), follows: (any FollowReading)? = nil
   ) {
     self.support = support
     self.runner = runner
@@ -51,6 +53,7 @@ public struct MediaEnvironment: Sendable {
     self.transcriptAgent = transcriptAgent
     self.dataSources = dataSources ?? DataSourceRunner(network: sourceNetwork ?? network)
     self.sourcePages = sourcePages
+    self.follows = follows ?? FollowReader(network: sourceNetwork ?? network)
   }
 
   /// The programs on this Mac, the internet, whisper.cpp, and `~/Library/Application Support/Loci`, with
@@ -77,12 +80,14 @@ public struct MediaEnvironment: Sendable {
   /// touch video, such as previews and tests of other features.
   public static let disconnected = disconnected(sources: nil)
 
-  /// Nothing outside, with sources run by `sources`.
-  public static func disconnected(sources: (any DataSourceRunning)?) -> MediaEnvironment {
+  /// Nothing outside, with sources run by `sources` and follows read by `follows`.
+  public static func disconnected(sources: (any DataSourceRunning)?, follows: (any FollowReading)? = nil)
+    -> MediaEnvironment
+  {
     MediaEnvironment(
       support: URL(filePath: "/nonexistent/loci-support"), runner: Disconnected(), network: Disconnected(),
       transcriber: Disconnected(), searchPaths: [], readerLanguage: "en", dataSources: sources,
-      sourcePages: SourcePages(hops: Disconnected()))
+      sourcePages: SourcePages(hops: Disconnected()), follows: follows)
   }
 }
 

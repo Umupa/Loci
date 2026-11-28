@@ -5,7 +5,7 @@ import Foundation
 public struct Project: Hashable, Codable, Sendable, Identifiable {
   public typealias ID = EntityID
   public let id: ID
-  /// `nil` while the companion is still starting it; the project bar leaves it out until it has one.
+  /// `nil` until the companion or the person names it; the project bar shows it as a blank seal until then.
   public let name: String?
   /// What the project is doing, in a line: all the main conversation knows of it.
   public let summary: String

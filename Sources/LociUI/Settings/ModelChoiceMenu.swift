@@ -9,6 +9,8 @@ struct ModelChoiceMenu: View {
   var shown: ModelChoice?
   /// A first item that leaves the choice to the settings.
   var following: LocalizedStringResource?
+  /// Shows as a borderless trigger, like the other pickers in a row.
+  var plain = false
 
   var body: some View {
     Menu {
@@ -36,21 +38,40 @@ struct ModelChoiceMenu: View {
         }
       }
     } label: {
-      PopupLabel {
-        if let face {
-          ModelMark(preset: face.group.preset, name: face.group.name, size: 16)
-          Text(verbatim: face.model).font(.system(size: 12).monospaced())
-        } else if selection == nil, shown == nil, let following {
-          Text(following)
-        } else {
-          Text(.loci("models.none")).foregroundStyle(Palette.inkMuted)
-        }
+      if plain {
+        PlainTriggerLabel { plainFace }
+      } else {
+        PopupLabel { compactFace }
       }
     }
     .menuStyle(.button)
     .buttonStyle(.plain)
     .menuIndicator(.hidden)
-    .fixedSize()
+    .fixedSize(horizontal: !plain, vertical: false)
+  }
+
+  @ViewBuilder
+  private var plainFace: some View {
+    if let face {
+      ModelMark(preset: face.group.preset, name: face.group.name, size: 15, plain: true)
+      Text(verbatim: Agents.modelName(face.model)).font(.system(size: 12.5, weight: .medium)).lineLimit(1)
+    } else if selection == nil, shown == nil, let following {
+      Text(following).font(.system(size: 12.5))
+    } else {
+      Text(.loci("models.none")).font(.system(size: 12.5)).foregroundStyle(Palette.inkMuted)
+    }
+  }
+
+  @ViewBuilder
+  private var compactFace: some View {
+    if let face {
+      ModelMark(preset: face.group.preset, name: face.group.name, size: 16)
+      Text(verbatim: face.model).font(.system(size: 12).monospaced())
+    } else if selection == nil, shown == nil, let following {
+      Text(following)
+    } else {
+      Text(.loci("models.none")).foregroundStyle(Palette.inkMuted)
+    }
   }
 
   private var face: (group: ModelGroup, model: String)? {

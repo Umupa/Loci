@@ -83,6 +83,8 @@ enum Symbols {
   static let disk = "internaldrive"
   static let online = "dot.radiowaves.left.and.right"
   static let why = "quote.opening"
+  static let star = "star"
+  static let starFilled = "star.fill"
 
   static func machine(_ model: MachineModel) -> String {
     switch model {

@@ -14,7 +14,31 @@ public struct LociWorking: Subscription {
       case .conversation, .turnEnded, .review, .job, .loci(.panels), .timers, .everything: true
       case .course, .courseActivity, .item, .notes, .reading, .media, .loci, .runtime, .agentModels, .connectors,
         .projects, .source,
-        .nextUps:
+        .nextUps, .follows:
+        false
+      }
+    }
+  }
+}
+
+/// How tired the companion is and the last thing it said in the main conversation, for its dot and the line
+/// under its name while it is idle.
+public struct CompanionPresence: Subscription {
+  public static let name = "loci.presence"
+
+  public init() {}
+
+  public func value(from handler: any CommandHandler) async throws(HostError) -> LociPresence {
+    try await handler.lociPresence()
+  }
+
+  /// A reply is read once it ends, not at every word streamed into it.
+  public func isAffected(by changes: Set<ContentChange>) -> Bool {
+    changes.contains { change in
+      switch change {
+      case .loci(.feelings), .turnEnded(.main), .everything: true
+      case .loci, .turnEnded, .conversation, .review, .job, .timers, .course, .courseActivity, .item, .notes,
+        .reading, .media, .runtime, .agentModels, .connectors, .projects, .source, .nextUps, .follows:
         false
       }
     }
@@ -39,7 +63,7 @@ public struct LociHome: Subscription {
       case .turnEnded, .item, .everything: true
       case .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .review, .runtime, .agentModels,
         .timers,
-        .connectors, .projects, .source, .nextUps:
+        .connectors, .projects, .source, .nextUps, .follows:
         false
       }
     }

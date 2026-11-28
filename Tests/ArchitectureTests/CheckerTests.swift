@@ -82,7 +82,7 @@ struct CheckerTests {
     #expect(BoundaryTests.violations(of: Architecture.forbidden, in: writes).isEmpty)
   }
 
-  @Test func flagsANotificationASoundOrADockBadge() {
+  @Test func flagsANotificationOutsideCardDeliveryASoundOrADockBadge() {
     let file = SourceFile(
       path: "Sources/LociUI/Example.swift", module: "LociUI",
       text: """
@@ -94,6 +94,10 @@ struct CheckerTests {
         """)
 
     #expect(BoundaryTests.violations(of: Architecture.forbidden, in: file).map(\.line) == [1, 2, 3, 4])
+    let delivery = SourceFile(
+      path: "Sources/LociUI/MenuBar/CardDelivery.swift", module: "LociUI",
+      text: "UNUserNotificationCenter.current().add(request)\nNSSound(named: \"Glass\")?.play()")
+    #expect(BoundaryTests.violations(of: Architecture.forbidden, in: delivery).map(\.line) == [2])
   }
 
   @Test func flagsASparklesSymbolInAnyCase() {

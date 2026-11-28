@@ -7,16 +7,17 @@ struct ModelMark: View {
   var name = ""
   var size: CGFloat = 28
   var faded = false
+  var plain = false
   @Environment(\.colorScheme) private var scheme
 
   var body: some View {
-    let artSize = size * (preset == .openAI ? 1.2 : 0.72)
+    let artSize = size * scale
     RoundedRectangle(cornerRadius: size * 0.29, style: .continuous)
-      .fill(Palette.fillStrong)
+      .fill(plain ? .clear : Palette.fillStrong)
       .overlay {
         if preset == .custom {
           Text(verbatim: name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "+")
-            .font(.system(size: size * 0.46, weight: .bold))
+            .font(.system(size: size * (plain ? 0.62 : 0.46), weight: .bold))
             .foregroundStyle(Palette.ink)
         } else if let art = MarkArt.model(preset, in: scheme) {
           Image(nsImage: art)
@@ -29,6 +30,17 @@ struct ModelMark: View {
       .frame(width: size, height: size)
       .opacity(faded ? 0.45 : 1)
       .accessibilityHidden(true)
+  }
+
+  private var scale: CGFloat {
+    if plain {
+      return switch preset {
+      case .openAI: 1.75
+      case .siliconFlow: 1.22
+      default: 0.86
+      }
+    }
+    return preset == .openAI ? 1.2 : 0.72
   }
 }
 

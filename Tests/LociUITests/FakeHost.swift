@@ -44,6 +44,9 @@ final class FakeHost: LociModel.Host, CommandHandler {
   let projectPanels: [Project.ID: PanelColumn]
   /// The next-up cards, as the chat's deck shows them; none unless a test gives them.
   let nextUps: [NextUp]
+  /// How tired the companion is and what it said last; unless a test gives them, as its page and its main
+  /// conversation say.
+  let presence: LociPresence?
 
   init(
     _ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false, working: Bool = false,
@@ -53,8 +56,10 @@ final class FakeHost: LociModel.Host, CommandHandler {
     modelOptions: ModelOptions = .sample,
     timers: SampleTimers = .none, connectors: Connectors = SampleConnectors.empty, remembers: Bool = true,
     books: SampleBooks? = nil, usage: [SessionUsage] = [], projects: ProjectBar = ProjectBar(projects: []),
-    projectPanels: [Project.ID: PanelColumn] = [:], nextUps: [NextUp] = [], chat: Conversation? = nil
+    projectPanels: [Project.ID: PanelColumn] = [:], nextUps: [NextUp] = [], chat: Conversation? = nil,
+    presence: LociPresence? = nil
   ) {
+    self.presence = presence
     self.nextUps = nextUps
     self.projects = projects
     self.projectPanels = projectPanels

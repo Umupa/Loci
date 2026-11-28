@@ -2,8 +2,8 @@ import LociModel
 import SwiftUI
 
 /// A project's monochrome SF Symbol seal. A project kept out of memory carries a small lock, and one with news
-/// carries an amber dot, each cleanly punched out of the symbol; a project being started without a chosen
-/// symbol shows a dashed outline.
+/// carries an amber dot, each cleanly punched out of the symbol; the row that starts a new project, without a
+/// symbol, shows a dashed outline.
 struct ProjectSeal: View {
   let symbol: String
   var size: CGFloat = Size.seal
@@ -60,7 +60,10 @@ struct ProjectSeal: View {
 }
 
 extension Project {
-  var shownName: String { name ?? "" }
+  /// Its name, or what a project is called before it has one.
+  var title: Text {
+    name.map { Text(verbatim: $0) } ?? Text(.loci("projects.new"))
+  }
 }
 
 extension ProjectSeal {

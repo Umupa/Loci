@@ -98,7 +98,7 @@ enum ToolGateway {
   static let over = "This run is over; loci does nothing more for it."
 
   /// What a run's session may run: what reads, setting follow-ups, saving the panels it is for, and putting a
-  /// card on the deck (not in the daily review).
+  /// card on the deck (not in the daily review). Following someone is the person's to ask for, so not here.
   static let runCommands: Set<String> = Set(
     ([Search.self, ListItems.self, ListPanels.self, ListTimers.self, CancelFollowUp.self] as [any Command.Type]).map {
       $0.name
@@ -106,6 +106,7 @@ enum ToolGateway {
       ReadSource.name, FetchSourceRepository.name, AddFollowUp.name, SavePanel.name, EditPanel.name,
       PickPanelEntries.name,
       ListConnectors.name, CallConnector.name, Recall.name, DescribeProject.name, AddNextUp.name,
+      ListFollows.name,
     ])
 
   /// What a repair's session may run: show, test and save sources.
@@ -120,6 +121,13 @@ enum ToolGateway {
   }
 
   /// The home a session works in: a project's conversation and runs are the project's, everything else the chat's.
+  /// The event the run's session works on, which what it sets descends from; `nil` outside a run.
+  static func event(of session: LocalSession?, on host: LocalHost) async throws(HostError) -> Event? {
+    guard case .run(let run)? = session else { return nil }
+    guard let event = await host.worker.access(of: run)?.event else { throw .invalidRequest(over) }
+    return event
+  }
+
   static func home(of session: LocalSession?, on host: LocalHost) async -> Home {
     switch session {
     case .conversation(let conversation): conversation.home
@@ -152,7 +160,10 @@ enum ToolGateway {
     if name == AddFollowUp.name {
       let command = try WireCodec.decode(AddFollowUp.self, from: body)
       let place = call.session?.conversation ?? (home == .chat ? nil : home.conversation)
-      return try WireCodec.encode(try await host.addFollowUp(AddFollowUp(command.time, command.what, in: place)))
+      return try WireCodec.encode(
+        try await host.addFollowUp(
+          AddFollowUp(command.time, command.what, in: place, deadline: command.deadline),
+          parent: try await event(of: call.session, on: host)))
     }
     if name == AddSchedule.name {
       let command = try WireCodec.decode(AddSchedule.self, from: body)
@@ -205,7 +216,11 @@ enum ToolGateway {
       let command = try WireCodec.decode(DescribeProject.self, from: body)
       return try WireCodec.encode(try await host.describeProject(DescribeProject(command.summary, of: project)))
     }
-    if let reply = try await runNextUp(name, body, in: home, on: host) { return reply }
+    if name == AddNextUp.name || name == ProposeApproval.name,
+      let reply = try await runNextUp(name, body, in: home, from: try await event(of: call.session, on: host), on: host)
+    {
+      return reply
+    }
     if let reply = try await runTimer(name, body, in: home, on: host) { return reply }
     if let command = Wire.toolCommands.first(where: { $0.name == name }) {
       return try await WireCodec.run(command, body: body, on: host)

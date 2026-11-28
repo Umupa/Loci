@@ -12,7 +12,7 @@ extension LocalHost {
     guard command.lesson == nil else { throw .invalidRequest("a lesson belongs to a course conversation") }
     let run = try await loci.run(of: command.conversation)
     guard let passage = command.passage else {
-      try await run.send(Prompt(text: text, purpose: .chat), saying: text)
+      try await run.send(Prompt(text: text, purpose: .chat), saying: saying(text, in: command.conversation))
       return Done()
     }
     guard case .item(let item) = command.conversation, passage.locator.content == .item(item) else {

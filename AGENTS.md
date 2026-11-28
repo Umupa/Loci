@@ -31,7 +31,7 @@ script/test 'LociUITests\.(ChatTests|ConversationTests|TalkRowsTests)/'
 | `script/check` | 跑完整检查，含全量快照和长对话压测 |
 | `script/format` | 按项目风格重排代码 |
 | `script/run` | 构建并打开 `output/Loci (Beta).app`；`--no-open` 只构建 |
-| `script/eval` | 用本机 Codex 跑评测（后台 run 的安静与重复、记忆、成本），报告在 `output/evals/<时间>/`（真实运行，只在用户要求时跑） |
+| `script/eval` | 用本机 Codex 跑评测（后台 run 的安静与重复、记忆、成本、错过的事件），报告在 `output/evals/<时间>/`（真实运行，只在用户要求时跑） |
 | `script/cut-release` | 定一个版本：默认下一个补丁号，改 CHANGELOG、提交、打 tag |
 
 ## 这个仓库是你的教材

@@ -8,6 +8,7 @@ struct NextUpDeckState {
   let projects: [Project.ID: Project]
   /// The card flying into its seal, hidden in the deck meanwhile.
   var flying: EntityID?
+  var focused: EntityID? = nil
   let actions: NextUpActions
 }
 
@@ -140,7 +141,7 @@ struct NextUpSource: View {
     HStack(spacing: 6) {
       if let project {
         ProjectSeal(symbol: project.symbol, size: 16, locked: !project.remembered)
-        Text(verbatim: project.shownName)
+        project.title
       } else {
         LociAvatar(size: 16)
         Text(.loci("projects.chat"))

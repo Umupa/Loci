@@ -5,8 +5,8 @@ import Testing
 
 @testable import LociUI
 
-/// PJ-S1, PJ-S2, PJ-S3, PJ-S7, PJ-S9, PJ-S10, PJ-S12: the project bar over the chat and over a project, the
-/// field a project starts from, and the list of every project.
+/// PJ-S1–PJ-S3, PJ-S7, PJ-S9, PJ-S10, PJ-S12–PJ-S14: the project bar over the chat and over a project, a new
+/// project's page and the project being made, and the list of every project.
 @MainActor
 @Suite(.serialized, .onStage)
 struct ProjectSnapshots {
@@ -62,15 +62,18 @@ struct ProjectSnapshots {
     try await Self.window(project: Self.investing.id, appearance: appearance, named: "projects-project")
   }
 
-  /// PJ-S3: the field a project starts from, and the field risen over the skeletons once sent.
+  /// PJ-S3: a new project's page, blank, and with words that suggest a symbol.
   @Test(arguments: Snapshot.Appearance.allCases)
-  func starting(appearance: Snapshot.Appearance) async throws {
-    for (name, sent) in [("projects-new", nil), ("projects-new-sent", "建一个投资项目，盯纳指和我的几只基金")] {
+  func newProject(appearance: Snapshot.Appearance) async throws {
+    let drafts = [
+      ("projects-new", NewProjectDraft()), ("projects-new-typed", NewProjectDraft(text: "下个月去东京旅行五天，帮我盯着行程")),
+    ]
+    for (name, draft) in drafts {
       let memory = WindowMemory(
         recall: { WindowState() }, remember: { _ in }, recallProject: { nil }, rememberProject: { _ in })
       let view = CompanionPage(
         focusRequest: 0, attach: {}, opened: { _ in }, failed: { _ in }, columnPreferred: .constant(true),
-        memory: memory, visits: ConversationVisits(), opening: CompanionPage.Starting(sent: sent)
+        memory: memory, visits: ConversationVisits(), opening: draft
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
       .background(Palette.canvas)
@@ -80,6 +83,74 @@ struct ProjectSnapshots {
       try await Snapshot.render(
         view, named: name, size: CGSize(width: 1000, height: 700), appearance: appearance, settle: .seconds(1))
     }
+  }
+
+  /// PJ-S17: two fingers halfway across from the chat, the project beside it coming in from the right.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func halfwayThroughASwipe(appearance: Snapshot.Appearance) async throws {
+    let memory = WindowMemory(
+      recall: { WindowState() }, remember: { _ in }, recallProject: { nil }, rememberProject: { _ in })
+    let host = FakeHost(
+      try Sample(problems: false), panels: PanelColumn(slots: [.panel(Self.rules)]), projects: Self.bar,
+      projectPanels: [Self.investing.id: PanelColumn(slots: [.panel(Self.holdings)])])
+    let view = CompanionPage(
+      focusRequest: 0, attach: {}, opened: { _ in }, failed: { _ in }, columnPreferred: .constant(true),
+      memory: memory, visits: ConversationVisits()
+    )
+    .environment(\.suppressMotion, false)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .background(Palette.canvas)
+    .environment(\.sidebarShown, false)
+    .lociHost(host)
+    .defaultAppStorage(PanelSnapshots.defaults(columnShown: true, sidebarShown: false, layout: nil))
+    final class Dragged {
+      let shown = ContinuousClock.now
+      var at: ContinuousClock.Instant?
+    }
+    let dragged = Dragged()
+    try await Snapshot.render(
+      view, named: "projects-swipe", size: CGSize(width: 1000, height: 700), appearance: appearance
+    ) { window in
+      if let at = dragged.at { return ContinuousClock.now - at > .seconds(1) }
+      guard ContinuousClock.now - dragged.shown > .seconds(1), let content = window.contentView,
+        let area = Self.swipeArea(in: content)
+      else { return false }
+      let middle = CGPoint(x: 500, y: 350)
+      for index in 0...10 {
+        _ = area.take(index == 0 ? .began : .changed, across: -50, upward: 0, at: Double(index) * 0.2, in: middle)
+      }
+      dragged.at = .now
+      return false
+    }
+  }
+
+  private static func swipeArea(in view: NSView) -> SwipeArea? {
+    if let area = view as? SwipeArea { return area }
+    return view.subviews.lazy.compactMap(swipeArea(in:)).first
+  }
+
+  static let unnamed = Project(id: id(5), name: nil, createdAt: Timestamp(millisecondsSince1970: 5))
+
+  /// PJ-S13, PJ-S14: once sent, the project is open without a name, its seal circled in amber while the
+  /// companion works on the words, which are the conversation's first.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func aNewProjectBeingMade(appearance: Snapshot.Appearance) async throws {
+    let asked = Message(
+      id: Self.id(6), at: Timestamp(millisecondsSince1970: 6),
+      body: .prompt(Prompt(text: "建一个投资项目，盯纳指和我的几只基金", purpose: .chat)))
+    let chat = Conversation(
+      ref: .project(Self.unnamed.id), entries: [], turn: LiveTurn(startedAt: asked.at, messages: [asked]))
+    let host = FakeHost(
+      try Sample(problems: false), projects: ProjectBar(projects: [Self.investing, Self.trip, Self.unnamed]),
+      chat: chat)
+    let memory = WindowMemory(
+      recall: { WindowState() }, remember: { _ in }, recallProject: { Self.unnamed.id }, rememberProject: { _ in })
+    let view = MachineWindow(memory: memory)
+      .lociHost(host)
+      .defaultAppStorage(PanelSnapshots.defaults(columnShown: true, sidebarShown: true, layout: nil))
+    try await Snapshot.render(
+      view, named: "projects-new-making", size: CGSize(width: 1280, height: 760), appearance: appearance,
+      settle: .seconds(1))
   }
 
   /// PJ-S8: a very long name stays on one line, cut short, and the corner buttons stay clear of the bar in the

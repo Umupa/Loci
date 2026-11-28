@@ -114,6 +114,7 @@ public protocol CommandHandler: Sendable {
   func companionName() async throws(HostError) -> String
   func renameCompanion(_ command: RenameCompanion) async throws(HostError) -> Done
   func lociStatus() async -> LociStatus
+  func lociPresence() async throws(HostError) -> LociPresence
   func lociPage() async throws(HostError) -> LociPage
   func diary(of day: Day) async throws(HostError) -> Diary
   func saveSoul(_ command: SaveSoul) async throws(HostError) -> Soul
@@ -199,13 +200,20 @@ public protocol CommandHandler: Sendable {
   func nextUps(of home: Home) async throws(HostError) -> [NextUp]
   func addNextUp(_ command: AddNextUp) async throws(HostError) -> NextUp
   func proposeApproval(_ command: ProposeApproval) async throws(HostError) -> NextUp
-  func addNextUpCondition(_ command: AddNextUpCondition) async throws(HostError) -> NextUpCondition
-  func nextUpConditions(of home: Home) async throws(HostError) -> [NextUpCondition]
-  func removeNextUpCondition(_ command: RemoveNextUpCondition) async throws(HostError) -> Done
   func startNextUp(_ command: StartNextUp) async throws(HostError) -> Done
   func setNextUp(_ command: SetNextUp) async throws(HostError) -> NextUp
   func approveNextUp(_ command: ApproveNextUp) async throws(HostError) -> Done
   func undoApproval(_ command: UndoApproval) async throws(HostError) -> Done
+  func previewFollow(_ command: PreviewFollow) async throws(HostError) -> FollowPreview
+  func startFollowing(_ command: StartFollowing) async throws(HostError) -> Follow
+  func stopFollowing(_ command: StopFollowing) async throws(HostError) -> Follow
+  func restoreFollowing(_ command: RestoreFollowing) async throws(HostError) -> Done
+  func sawFollow(_ command: SawFollow) async throws(HostError) -> Done
+  func refreshFollow(_ command: RefreshFollow) async throws(HostError) -> Done
+  func followOfItem(_ command: FollowOfItem) async throws(HostError) -> ItemFollow?
+  func listFollows() async throws(HostError) -> [FollowListing]
+  func followSummaries() async throws(HostError) -> [FollowSummary]
+  func followPage(_ follow: EntityID) async throws(HostError) -> FollowPage?
   func listCourses() async throws(HostError) -> [CourseEntry]
   func coursePage(_ course: EntityID) async throws(HostError) -> CoursePage
   func readLesson(_ course: EntityID, lesson: Lesson.ID) async throws(HostError) -> String?

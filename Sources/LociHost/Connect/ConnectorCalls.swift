@@ -116,7 +116,7 @@ extension ConnectorKeeper {
   private func credential(of record: ConnectorRecord) throws(ConnectError) -> MCPCredential {
     guard let data = try? connect.vault?.secret(for: record.id),
       let credential = try? JSONDecoder().decode(MCPCredential.self, from: data)
-    else { throw .needsReconnecting("its sign-in is missing from the keychain") }
+    else { throw .needsReconnecting("its sign-in is missing") }
     return credential
   }
 

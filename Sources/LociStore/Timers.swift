@@ -40,12 +40,52 @@ extension StoreDatabase {
     }
   }
 
-  public func addFollowUp(_ followUp: FollowUp) throws {
+  /// Keeps the follow-up, or returns the one kept before with its key. One with a parent is kept only while the
+  /// parent's run goes on, in its home, one level below it and no later than its deadline: checked in the same
+  /// write.
+  @discardableResult
+  public func addFollowUp(_ followUp: FollowUp) throws -> FollowUp {
     let body = try MirrorUpdate.json(followUp)
-    try queue.write { db in
+    return try queue.write { db in
+      if let key = followUp.key,
+        let earlier = try String.fetchOne(
+          db, sql: "SELECT body FROM timer WHERE kind = 'follow-up' AND json_extract(body, '$.key') = ?",
+          arguments: [key])
+      {
+        return try Self.decoded(FollowUp.self, earlier)
+      }
+      if let id = followUp.parent {
+        guard
+          let body = try String.fetchOne(db, sql: "SELECT body FROM inbox WHERE id = ?", arguments: [id.description]),
+          let parent = try? Self.decoded(Event.self, body), case .running = parent.state,
+          parent.source.home == followUp.home, let depth = followUp.depth, depth == parent.depth + 1,
+          depth <= Event.deepest
+        else { throw HostError.invalidRequest("The parent run is no longer active or cannot create a follow-up.") }
+        if let parentDeadline = parent.deadline,
+          followUp.deadline.map({ $0 <= parentDeadline }) != true
+        {
+          throw HostError.invalidRequest("The deadline cannot be later than the parent event's deadline.")
+        }
+      }
       try db.execute(
         sql: "INSERT INTO timer (id, kind, body, due_at) VALUES (?, 'follow-up', ?, ?)",
         arguments: [followUp.id.description, body, followUp.due.description])
+      return followUp
+    }
+  }
+
+  /// Ends the follow-up and raises its event, as `id`, in one write; one past its deadline is put in the inbox
+  /// already dropped. Whether an event was raised.
+  public func raiseFollowUp(_ followUp: FollowUp, id: EntityID, at now: Timestamp) throws -> Bool {
+    try queue.write { db in
+      try db.execute(
+        sql: "UPDATE timer SET ended_at = ? WHERE id = ? AND kind = 'follow-up' AND ended_at IS NULL",
+        arguments: [now.description, followUp.id.description])
+      guard db.changesCount > 0 else { return false }
+      let event = Event(
+        id: id, source: .followUp(followUp.id, project: followUp.home.project), due: followUp.due,
+        deadline: followUp.deadline, parent: followUp.parent, depth: followUp.depth ?? 0)
+      return try Self.raise(event.isExpired(at: now) ? event.with(.dropped) : event, in: db)
     }
   }
 

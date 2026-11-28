@@ -40,6 +40,39 @@ struct TimersTests {
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
+  func anUncoveredTradingCalendarHasAnAmberMark(appearance: Snapshot.Appearance) async throws {
+    let opening = try #require(TimeOfDay("09:15"))
+    let now = Timestamp(SampleTimers.now)
+    let entry = ScheduleEntry(
+      ref: .panel(PanelRef("market")), name: "market", title: "开盘前看看隔夜美股",
+      every: .tradingDay(.cn, at: opening), destination: .notes,
+      paused: false, next: now, lastSummary: nil, calendarUncovered: true)
+    let view = TimerCard { ScheduleRow(entry: entry, panels: [:]) }
+      .padding(22).background(Palette.canvas)
+    try await Snapshot.render(
+      view, named: "watch-calendar-uncovered", size: CGSize(width: 580, height: 130), appearance: appearance)
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func aSourceWhoseSortingKeepsFailingStandsFirstWithWhy(appearance: Snapshot.Appearance) async throws {
+    let opening = try #require(TimeOfDay("09:15"))
+    let now = Timestamp(SampleTimers.now)
+    let trouble = TriageTrouble(
+      source: SourceKey(.chat, "news"), title: "财联社电报", problem: "api_error: upstream unavailable",
+      tried: Timestamp(millisecondsSince1970: now.millisecondsSince1970 - 60_000), failed: 4)
+    let entry = ScheduleEntry(
+      ref: .panel(PanelRef("market")), name: "market", title: "开盘前看看隔夜美股",
+      every: .tradingDay(.cn, at: opening), destination: .notes, paused: false, next: now, lastSummary: nil)
+    let view = TimerCard {
+      TriageTroubleRow(trouble: trouble)
+      ScheduleRow(entry: entry, panels: [:]).rule(true)
+    }
+    .padding(22).background(Palette.canvas).environment(\.fixedNow, SampleTimers.now)
+    try await Snapshot.render(
+      view, named: "watch-triage-failed", size: CGSize(width: 580, height: 200), appearance: appearance)
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
   func timersPage(appearance: Snapshot.Appearance) async throws {
     let design = SampleTimers.design
     let opened = try #require(design.runs.keys.first)

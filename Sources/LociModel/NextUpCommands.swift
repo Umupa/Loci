@@ -21,7 +21,7 @@ public struct WatchNextUps: Subscription {
       switch change {
       case .nextUps, .projects, .everything: true
       case .item, .course, .courseActivity, .notes, .reading, .job, .media, .conversation, .turnEnded, .review, .loci,
-        .runtime, .agentModels, .timers, .connectors, .source:
+        .runtime, .agentModels, .timers, .connectors, .source, .follows:
         false
       }
     }
@@ -35,13 +35,17 @@ public struct AddNextUp: LocalToolCommand {
   public let what: String
   public let question: String
   public let key: String?
+  public let deadline: Timestamp?
   /// The app fills it in from the session the command came from.
   public let project: Project.ID?
 
-  public init(_ what: String, asking question: String, key: String? = nil, in home: Home = .chat) {
+  public init(
+    _ what: String, asking question: String, key: String? = nil, in home: Home = .chat, deadline: Timestamp? = nil
+  ) {
     self.what = what
     self.question = question
     self.key = key
+    self.deadline = deadline
     project = home.project
   }
 
@@ -57,11 +61,13 @@ public struct ProposeApproval: LocalToolCommand {
   public static let name = "nextUps.propose"
   public let approval: Approval
   public let why: String?
+  public let deadline: Timestamp?
   public let project: Project.ID?
 
-  public init(_ approval: Approval, why: String? = nil, in home: Home = .chat) {
+  public init(_ approval: Approval, why: String? = nil, in home: Home = .chat, deadline: Timestamp? = nil) {
     self.approval = approval
     self.why = why
+    self.deadline = deadline
     project = home.project
   }
 
@@ -72,67 +78,6 @@ public struct ProposeApproval: LocalToolCommand {
   }
 }
 
-/// Sets a reminder condition on one of the home's sources. Refused when the home has no such source.
-public struct AddNextUpCondition: LocalToolCommand {
-  public static let name = "nextUps.addCondition"
-  public let field: SourceField
-  public let comparison: Comparison
-  public let threshold: Double
-  public let say: String
-  public let question: String
-  public let project: Project.ID?
-
-  public init(
-    _ field: SourceField, _ comparison: Comparison, _ threshold: Double, say: String, asking question: String,
-    in home: Home = .chat
-  ) {
-    self.field = field
-    self.comparison = comparison
-    self.threshold = threshold
-    self.say = say
-    self.question = question
-    project = home.project
-  }
-
-  public var home: Home { Home(project) }
-
-  public func run(on handler: any CommandHandler) async throws(HostError) -> NextUpCondition {
-    try await handler.addNextUpCondition(self)
-  }
-}
-
-/// The reminder conditions of a home.
-public struct ListNextUpConditions: LocalToolCommand {
-  public static let name = "nextUps.conditions"
-  public let project: Project.ID?
-
-  public init(of home: Home = .chat) {
-    project = home.project
-  }
-
-  public var home: Home { Home(project) }
-
-  public func run(on handler: any CommandHandler) async throws(HostError) -> [NextUpCondition] {
-    try await handler.nextUpConditions(of: home)
-  }
-}
-
-public struct RemoveNextUpCondition: LocalToolCommand {
-  public static let name = "nextUps.removeCondition"
-  public let condition: EntityID
-
-  public init(_ condition: EntityID) {
-    self.condition = condition
-  }
-
-  public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
-    try await handler.removeNextUpCondition(self)
-  }
-}
-
-/// Starts a card: its question is said in its home's conversation, as the person, and then it leaves the deck.
-/// Refused when the card changed since `version`, is not on the deck, or its project is not open; when the
-/// conversation cannot take the question, the card stays.
 public struct StartNextUp: RemoteCommand {
   public static let name = "nextUps.start"
   public let card: EntityID

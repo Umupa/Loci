@@ -3,8 +3,8 @@ import LociMedia
 import LociModel
 import LociStore
 
-/// What happens after a source's fetch has written its snapshot: by default the reminder conditions on it are
-/// checked (`NextUpConditions`). Fetches of a source are handed on one at a time, in the order they were kept.
+/// What happens after a source's fetch has written its snapshot, besides watch triage. Fetches of a source are
+/// handed on one at a time, in the order they were kept.
 protocol SourceRefreshed: Sendable {
   func refreshed(_ source: SourceKey, _ snapshot: SourceSnapshot) async
 }
@@ -13,13 +13,14 @@ protocol SourceRefreshed: Sendable {
 /// fetch of a source is numbered when it starts and kept only through `SourceCommits`: one that started
 /// before a fetch already kept is dropped, and the line's fetch is dropped too when the definition it ran
 /// is no longer the saved one, so an old fetch never writes over a new definition's records, failures or
-/// repair. A fetch that is kept writes the snapshot and series, wakes the panels that follow its entries
-/// when some wait for them, and is handed to `refreshed`. One whose script fails often enough in a row
+/// repair. A fetch of the line that is kept writes the snapshot, series and entries, with what it brought that
+/// is new for watch triage in the same write, and is handed to `refreshed`. One whose script fails often enough in a row
 /// puts a repair in the inbox, once for each time it breaks.
 struct SourceKeeper: Sendable {
   let context: AgentContext
   let connectors: ConnectorKeeper
-  let refreshed: any SourceRefreshed
+  let refreshed: (any SourceRefreshed)?
+  let watch: WatchTriage
   var commits: SourceCommits { context.commits }
 
   private var database: StoreDatabase { context.database }
@@ -106,16 +107,16 @@ struct SourceKeeper: Sendable {
           }
           try store.keepSample(result.sample, of: source.name, in: folder)
           let snapshot = try database.recordFetch(
-            key, records: result.records, state: result.state, at: result.sample.at)
-          _ = try database.recordEntries(key, result.entries, at: result.sample.at)
+            key, records: result.records, state: result.state, at: result.sample.at, entries: result.entries,
+            watching: saving == nil ? source.title : nil)
           return snapshot
         } then: { snapshot in
-          await refreshed.refreshed(key, snapshot)
+          await refreshed?.refreshed(key, snapshot)
         }
       }
     }
     guard let (_, handed) = kept else { return false }
-    context.wakeFeeds(following: source.name, in: home, at: result.sample.at)
+    if saving == nil { await watch.look() }
     await handed.value
     await context.follower.follow([.source(key), .timers])
     return true

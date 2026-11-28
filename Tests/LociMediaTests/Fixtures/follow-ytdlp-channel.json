@@ -1,0 +1,89 @@
+{
+ "id": "UCJgIbYl6C5no72a0NUAPcTA",
+ "channel": "GPU MODE",
+ "channel_id": "UCJgIbYl6C5no72a0NUAPcTA",
+ "title": "GPU MODE - Videos",
+ "uploader_id": "@GPUMODE",
+ "channel_url": "https://www.youtube.com/channel/UCJgIbYl6C5no72a0NUAPcTA",
+ "_type": "playlist",
+ "webpage_url": "https://www.youtube.com/@GPUMODE/videos",
+ "thumbnails": [
+  {
+   "url": "https://yt3.googleusercontent.com/NU5gMBGmWB8S7Qj7aDU0WhbH87cNwUI3rKsNXageBmV7e3iDkVMSbmkwGBrKEV9X6OxK7chHtA=s900-c-k-c0x00ffffff-no-rj",
+   "height": 900,
+   "width": 900,
+   "id": "7",
+   "resolution": "900x900"
+  },
+  {
+   "url": "https://yt3.googleusercontent.com/NU5gMBGmWB8S7Qj7aDU0WhbH87cNwUI3rKsNXageBmV7e3iDkVMSbmkwGBrKEV9X6OxK7chHtA=s0",
+   "id": "avatar_uncropped",
+   "preference": 1
+  }
+ ],
+ "entries": [
+  {
+   "_type": "url",
+   "ie_key": "Youtube",
+   "id": "YoaSiClZtuQ",
+   "url": "https://www.youtube.com/watch?v=YoaSiClZtuQ",
+   "title": "Lecture 123: Larger Fusions and Consistent RL: Recent Work in FlashInfer on Blackwell and Rubin",
+   "duration": 4003,
+   "timestamp": 1795305600,
+   "thumbnails": [
+    {
+     "url": "https://i.ytimg.com/vi/YoaSiClZtuQ/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBBU0Ye2IV5Sfl4SCtRlacROIEFWw",
+     "height": 202,
+     "width": 360
+    },
+    {
+     "url": "https://i.ytimg.com/vi/YoaSiClZtuQ/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCGoQBcjov8eIiGAzKHOH5szJE_Ow",
+     "height": 404,
+     "width": 720
+    }
+   ]
+  },
+  {
+   "_type": "url",
+   "ie_key": "Youtube",
+   "id": "RF6lox0YfSU",
+   "url": "https://www.youtube.com/watch?v=RF6lox0YfSU",
+   "title": "Lecture 122:Disaggregated Quantization",
+   "duration": 2917,
+   "timestamp": 1794700800,
+   "thumbnails": [
+    {
+     "url": "https://i.ytimg.com/vi/RF6lox0YfSU/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBSUfOcXHHhGV_fGVRdydneYhZSRA",
+     "height": 202,
+     "width": 360
+    },
+    {
+     "url": "https://i.ytimg.com/vi/RF6lox0YfSU/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDoNC553LRa_rq20ohtb55bbnl0BQ",
+     "height": 404,
+     "width": 720
+    }
+   ]
+  },
+  {
+   "_type": "url",
+   "ie_key": "Youtube",
+   "id": "Vw4lBDRw_1Y",
+   "url": "https://www.youtube.com/watch?v=Vw4lBDRw_1Y",
+   "title": "Lecture 121: NixNan FP exception tracking in NVIDIA GPUs",
+   "duration": 3851,
+   "timestamp": 1794614400,
+   "thumbnails": [
+    {
+     "url": "https://i.ytimg.com/vi/Vw4lBDRw_1Y/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDw_JGshe6_TqznP0ag5vWWkdVV0A",
+     "height": 202,
+     "width": 360
+    },
+    {
+     "url": "https://i.ytimg.com/vi/Vw4lBDRw_1Y/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA2ksn6zrMVXS1PJ3S-Zee_YHPfEg",
+     "height": 404,
+     "width": 720
+    }
+   ]
+  }
+ ]
+}

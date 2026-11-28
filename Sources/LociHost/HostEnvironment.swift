@@ -48,8 +48,8 @@ public struct HostEnvironment: Sendable {
   public let connect: ConnectEnvironment
   /// Where the CLIs keep their session files, which the usage page reads.
   public let sessionFiles: SessionFolders
-  /// Whether a window of the app is in front, which decides how often sources are fetched.
-  public let inFront: @Sendable () async -> Bool
+  /// The days each market trades on, which trading-day schedules follow.
+  public let trading: TradingCalendar
 
   public init(
     newID: @escaping @Sendable () -> EntityID, now: @escaping @Sendable () -> Timestamp, timeZone: TimeZone = .gmt,
@@ -66,7 +66,7 @@ public struct HostEnvironment: Sendable {
     bundledPi: BundledPiEnvironment? = nil, sourceCache: URL? = nil, gitExecutable: URL = URL(filePath: "/usr/bin/git"),
     activity: @escaping @Sendable (_ reason: String) -> Activity = { _ in Activity {} },
     connect: ConnectEnvironment = .disconnected, sessionFiles: SessionFolders = .none,
-    inFront: @escaping @Sendable () async -> Bool = { true }
+    trading: TradingCalendar = .bundled
   ) {
     self.newID = newID
     self.now = now
@@ -91,15 +91,15 @@ public struct HostEnvironment: Sendable {
     self.activity = activity
     self.connect = connect
     self.sessionFiles = sessionFiles
-    self.inFront = inFront
+    self.trading = trading
   }
 
-  /// The real clock and time zone, fresh identifiers, the Trash, and the agent programs installed on this Mac.
+  /// The real clock and time zone, fresh identifiers, the Trash, the agent programs installed on this Mac, and
+  /// the secrets in `secrets`.
   /// The app comes to the front on a connector's page through `browserReturned`.
   public static func system(
-    defaultRuntime: Runtime, tool: AgentTool? = nil, sourceCache: URL? = nil,
-    browserReturned: @escaping @Sendable (ConnectorID) async -> Void = { _ in },
-    inFront: @escaping @Sendable () async -> Bool = { true }
+    defaultRuntime: Runtime, secrets: Secrets, tool: AgentTool? = nil, sourceCache: URL? = nil,
+    browserReturned: @escaping @Sendable (ConnectorID) async -> Void = { _ in }
   ) -> HostEnvironment {
     let installed = InstalledAgents(tool: tool)
     return HostEnvironment(
@@ -108,12 +108,13 @@ public struct HostEnvironment: Sendable {
       unavailability: { await installed.unavailability(of: $0) },
       detectAgents: { await installed.detect(again: $0) }, models: { await installed.models(of: $0) },
       ticks: { everyMinute() }, media: .system(agents: { await installed.driver(for: $0) }), tool: tool,
-      modelKeys: ModelKeychain(serviceName: "com.loci.native.dev.model-service"), bundledPi: BundledPiEnvironment(),
+      modelKeys: secrets.folder, bundledPi: BundledPiEnvironment(),
       sourceCache: sourceCache, activity: ProcessActivity.begin,
       connect: .system(
-        githubLogin: { await installed.githubLogin() }, githubRead: { await installed.githubRead($0) },
+        vault: secrets.folder, githubLogin: { await installed.githubLogin() },
+        githubRead: { await installed.githubRead($0) },
         browserReturned: browserReturned),
-      sessionFiles: .home(URL.homeDirectory, environment: ProcessInfo.processInfo.environment), inFront: inFront)
+      sessionFiles: .home(URL.homeDirectory, environment: ProcessInfo.processInfo.environment))
   }
 
   private static func everyMinute() -> AsyncStream<Void> {

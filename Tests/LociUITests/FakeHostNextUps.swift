@@ -11,11 +11,6 @@ extension FakeHost {
   func proposeApproval(_ command: ProposeApproval) async throws(HostError) -> NextUp {
     throw .invalidRequest("not here")
   }
-  func addNextUpCondition(_ command: AddNextUpCondition) async throws(HostError) -> NextUpCondition {
-    throw .invalidRequest("not here")
-  }
-  func nextUpConditions(of home: Home) async throws(HostError) -> [NextUpCondition] { [] }
-  func removeNextUpCondition(_ command: RemoveNextUpCondition) async throws(HostError) -> Done { Done() }
   func startNextUp(_ command: StartNextUp) async throws(HostError) -> Done { Done() }
   func setNextUp(_ command: SetNextUp) async throws(HostError) -> NextUp {
     guard let card = nextUps.first(where: { $0.id == command.card }) else { throw .notFound("card") }

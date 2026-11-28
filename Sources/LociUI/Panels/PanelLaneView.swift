@@ -90,6 +90,7 @@ struct PanelSlotView: View {
   var pages: [String: Int] = [:]
   @Environment(\.panelLineMarks) private var marks
   @Environment(\.projectsByID) private var projectsByID
+  @Environment(\.freshPanels) private var fresh
 
   var body: some View {
     switch slot {
@@ -98,7 +99,9 @@ struct PanelSlotView: View {
     case .panel(let panel):
       PanelCard(
         panel: panel, refreshing: refreshing.contains(slot.key), actions: actions, marks: marks[slot.key] ?? [:],
-        open: opened.contains(slot.key), page: pages[slot.key] ?? 0)
+        open: opened.contains(slot.key), page: pages[slot.key] ?? 0
+      )
+      .overlay { if fresh.contains(panel.name) { FreshEdge() } }
     case .pinned(let project, let panel):
       PanelCard(
         panel: panel, refreshing: refreshing.contains(slot.key), actions: actions, marks: marks[slot.key] ?? [:],
@@ -110,6 +113,26 @@ struct PanelSlotView: View {
       .transformEnvironment(\.panelData) { $0.home = .project(project) }
     }
   }
+}
+
+/// The amber edge of a panel the companion just made, fading as it settles in.
+private struct FreshEdge: View {
+  @Environment(\.reducesMotion) private var reduceMotion
+  @State private var shown = 1.0
+
+  var body: some View {
+    RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
+      .strokeBorder(Palette.accent, lineWidth: 1.5)
+      .shadow(color: Palette.accent.opacity(0.35), radius: 14)
+      .opacity(reduceMotion ? 0 : shown)
+      .allowsHitTesting(false)
+      .onAppear { withAnimation(.easeOut(duration: 1.8)) { shown = 0 } }
+  }
+}
+
+extension EnvironmentValues {
+  /// The panels that came while the page was open, by name, edged in amber as they land.
+  @Entry var freshPanels: Set<String> = []
 }
 
 /// Where a dragged panel would land: its size, ringed in amber.

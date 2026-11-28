@@ -3,8 +3,9 @@ import LociModel
 import LociStore
 
 /// The one background worker: it takes events from the inbox and does them, one run at a time, each in a
-/// new session no conversation shows. Events due in the same minute share a run. While the person is
-/// talking it starts nothing, except a panel's refresh the person asked for.
+/// new session no conversation shows. Events due in the same minute share a run. An event with a deadline goes
+/// first, the earliest first, and runs alone. While the person is talking it starts nothing else, except a
+/// panel's refresh the person asked for.
 actor Worker {
   let context: AgentContext
   /// Whether a turn is running in any conversation.
@@ -15,6 +16,8 @@ actor Worker {
 
   /// How long a failed try waits before the next, after the first, second and third failure.
   static let retryMinutes: [Int64] = [1, 5, 15]
+  /// How many events a home's watch findings and the follow-ups they lead to may start in an hour.
+  static let wakesPerHour = 12
 
   struct Current {
     var run: Run
@@ -108,8 +111,8 @@ actor Worker {
   /// What the run's session may touch, read at once: its policy, its home, and for a repair what it may save.
   /// `nil` once the run is over.
   func access(of run: Run.ID) -> RunAccess? {
-    guard let current, current.run.id == run, !current.stopped else { return nil }
-    return RunAccess(policy: current.policy, home: current.home, repair: current.repair)
+    guard let current, current.run.id == run, !current.stopped, !current.closed else { return nil }
+    return RunAccess(policy: current.policy, home: current.home, repair: current.repair, event: current.events.first)
   }
 
   /// Whether the run may save the panel now.
@@ -168,9 +171,15 @@ actor Worker {
     let ready = ((try? context.database.openEvents()) ?? []).filter { event in
       if let project = event.source.home.project, leaving.contains(project) { return false }
       guard case .waiting(let retry) = event.state else { return false }
+      if event.isExpired(at: now) {
+        try? context.database.update(event.with(.dropped))
+        return false
+      }
       return retry?.notBefore.map { $0 <= now } ?? true
     }
+    let spent = budgetSpent(at: now)
     let wanted = ready.filter { event in
+      if event.depth > 0, event.wokeAt == nil, spent(event.source.home) { return false }
       switch context.isWanted(event) {
       case .now: return true
       case .later: return false
@@ -179,25 +188,17 @@ actor Worker {
         return false
       }
     }
-    if let asked = wanted.first(where: \.isAsked) {
+    if let urgent = wanted.filter({ $0.deadline != nil }).min(by: { ($0.deadline ?? now) < ($1.deadline ?? now) }) {
+      await start([urgent], at: now)
+    } else if let asked = wanted.first(where: \.isAsked) {
       await start([asked], at: now)
     } else if !busy, let first = wanted.first {
       await start(Self.together(wanted, first: first), at: now)
     }
   }
 
-  /// The events that share a run with `first`: those of its home raised for the first time, due in the same
-  /// minute. A review, a repair, a follow-up, and a run being tried again, run alone.
-  static func together(_ events: [Event], first: Event) -> [Event] {
-    guard case .waiting(nil) = first.state, !first.runsAlone else { return [first] }
-    let minute = first.due.millisecondsSince1970 / 60_000
-    return events.filter { event in
-      guard case .waiting(nil) = event.state, event.source.home == first.source.home else { return false }
-      return !event.runsAlone && !event.isAsked && event.due.millisecondsSince1970 / 60_000 == minute
-    }
-  }
-
-  private func start(_ events: [Event], at now: Timestamp) async {
+  private func start(_ waiting: [Event], at now: Timestamp) async {
+    let events = waiting.map { $0.with($0.state, wokeAt: $0.depth > 0 ? now : nil) }
     guard let first = events.first else { return }
     let retry: Event.Retry? = if case .waiting(let retry) = first.state { retry } else { nil }
     let tries = retry?.tries ?? 0
@@ -245,7 +246,8 @@ actor Worker {
         try? context.database.beginReview(of: day, at: now)
       }
       current?.brief = ReviewBrief.make(
-        for: day, in: kind.home, store: context.store, timeZone: context.environment.timeZone)
+        for: day, in: kind.home, store: context.store, timeZone: context.environment.timeZone,
+        cards: (try? context.database.nextUps(of: [kind.home])) ?? [])
       try? context.store.home(kind.home).setMemoryWritable(true)
     }
     work = Task { await self.perform(run, redo: retry != nil) }
@@ -263,7 +265,8 @@ actor Worker {
         owner: owner, work: work(of: run), home: run.kind.home, session: .run(run.id), context: context)
       current?.agent = agent
       try await agent.startOver()
-      let text = try RunPrompts(context: context).text(for: run, redo: redo, brief: current?.brief)
+      let text = try RunPrompts(context: context).text(
+        for: run, redo: redo, brief: current?.brief, event: current?.events.first)
       if current?.stopped == true {
         result = .stopped
       } else {
@@ -281,7 +284,8 @@ actor Worker {
   }
 
   /// What the run is for: a follow-up runs on the conversation that set it, a repair on the conversation of its
-  /// source's home, a review on its home's conversation, and panels and schedules on the tool model.
+  /// source's home, a review and a watch finding on their home's conversation, and panels and schedules on the
+  /// tool model.
   private func work(of run: Run) -> ModelWork.Session {
     switch run.kind {
     case .review(_, let project): return .review(Home(project))
@@ -292,6 +296,7 @@ actor Worker {
         return .followUp(setIn: set ?? Home(project).conversation)
       case .source(let name, let project): return .repair(SourceKey(Home(project), name))
       case .review(_, let project): return .review(Home(project))
+      case .watch(_, let project): return .watch(Home(project))
       case .schedule, .panel: return .refresh
       }
     }

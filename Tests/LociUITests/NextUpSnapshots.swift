@@ -35,6 +35,19 @@ struct NextUpSnapshots {
     ]
   }
 
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func aDeadlineCardLeavesTheDeck(appearance: Snapshot.Appearance) async throws {
+    let policy = Self.cards[0].with(deadline: Self.at)
+    let remain = Self.cards[3]
+    let before = Timestamp(millisecondsSince1970: Self.at.millisecondsSince1970 - 60_000)
+    try await Self.window(
+      project: Self.investing.project, appearance: appearance, named: "watch-card-before",
+      cards: NextUp.deck([policy, remain], at: before))
+    try await Self.window(
+      project: Self.investing.project, appearance: appearance, named: "watch-card-expired",
+      cards: NextUp.deck([policy, remain], at: Self.at))
+  }
+
   static func window(
     project: Project.ID?, appearance: Snapshot.Appearance, named name: String, cards: [NextUp] = cards,
     projectColumn: PanelColumn = PanelColumn(slots: [.panel(ProjectSnapshots.holdings), .panel(ProjectSnapshots.rules)]
@@ -49,6 +62,7 @@ struct NextUpSnapshots {
       recall: { WindowState() }, remember: { _ in }, recallProject: { project }, rememberProject: { _ in })
     let view = MachineWindow(memory: memory)
       .lociHost(host)
+      .environment(\.fixedNow, Self.at.date)
       .defaultAppStorage(PanelSnapshots.defaults(columnShown: true, sidebarShown: true, layout: nil))
     let file = try await Snapshot.render(view, named: name, size: size, appearance: appearance, settle: .seconds(1))
     #expect(try Data(contentsOf: file).count > 10_000)

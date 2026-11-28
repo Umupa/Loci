@@ -8,10 +8,10 @@ enum MarkArt {
   private static var loaded: [String: NSImage] = [:]
 
   static func agent(_ provider: Provider, in scheme: ColorScheme) -> NSImage? {
-    let provider = provider == .bundledPi ? .pi : provider
     let suffix =
       switch (provider, scheme) {
-      case (.pi, .dark), (.codex, .dark), (.cursor, .dark), (.hermes, .dark), (.opencode, .dark): "-dark"
+      case (.pi, .dark), (.bundledPi, .dark), (.codex, .dark), (.cursor, .dark), (.hermes, .dark), (.opencode, .dark):
+        "-dark"
       default: ""
       }
     let fileType =

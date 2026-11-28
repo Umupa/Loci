@@ -22,6 +22,8 @@ struct SampleLibrary: Sendable {
   let article: Item
   let attention: Item
   var setup: MediaSetup
+  /// The follows above the video and podcast galleries; none unless a test gives them.
+  var follows: [FollowPage] = []
   /// Lets later parts of the sample number their messages and notes after the items.
   var entropy = Sample.Seeded(state: 99)
 

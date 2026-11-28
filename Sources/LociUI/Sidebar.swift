@@ -8,11 +8,10 @@ import SwiftUI
 /// elsewhere.
 struct Sidebar: View {
   @Environment(\.machineChoice) private var machineChoice
+  @Environment(\.flights) private var flights
   @Binding var place: Place
-  /// Whether the main conversation or Loci's page is on screen.
+  /// Whether the chat or the companion's home page is on screen.
   let lociChosen: Bool
-  /// What Loci is working on; `nil` while it is idle.
-  let work: LociWork?
   let chooseLoci: () -> Void
 
   /// The settings at the foot when the rows fit; when the window is too short for them, the rows scroll under the
@@ -26,13 +25,24 @@ struct Sidebar: View {
 
   private func rows(spread: Bool) -> some View {
     VStack(alignment: .leading, spacing: 2) {
-      SidebarLoci(chosen: lociChosen, work: work, choose: chooseLoci)
+      SidebarLoci(chosen: lociChosen, choose: chooseLoci)
         .padding(.top, 14)
         .padding(.bottom, Spacing.xs)
       SidebarLabel(text: Text(.loci("sidebar.library")))
       row(.library(nil), Text(.loci("sidebar.allItems")), symbol: Symbols.library)
       ForEach(LibraryCategory.allCases, id: \.self) { category in
         row(.library(category), Text(Messages.name(of: category)), symbol: Symbols.category(category))
+          .flightMark(.category(category))
+          .overlay {
+            RoundedRectangle(cornerRadius: Radius.sidebarRow, style: .continuous)
+              .fill(Palette.accent.opacity(flights?.glowing == category ? 0.32 : 0))
+              .allowsHitTesting(false)
+          }
+          .task(id: flights?.glowing == category) {
+            guard flights?.glowing == category else { return }
+            try? await Task.sleep(for: .milliseconds(420))
+            withAnimation(.easeOut(duration: 0.7)) { flights?.settled(category) }
+          }
       }
       row(.courses(nil), Text(.loci("sidebar.courses")), symbol: Symbols.course)
       row(.browser, Text(.loci("sidebar.browser")), symbol: Symbols.browser)
