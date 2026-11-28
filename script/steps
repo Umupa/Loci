@@ -5,7 +5,7 @@
 mkdir -p output
 
 # The suites script/check --fast and script/test skip: the snapshots and the long conversation.
-slow_tests='^LociUITests\.([^./]+Snapshots/|LongConversationTests/aLongConversationKeepsShowingItsMessagesWhileQuestionsFollowOneAnother)'
+slow_tests='^LociUITests\.([^./]+Snapshots/|LongConversationTests/aLongConversationKeepsShowingItsMessagesWhileQuestionsFollowOneAnother|ProjectTurnCostTests/)'
 
 step() {
   name=$1

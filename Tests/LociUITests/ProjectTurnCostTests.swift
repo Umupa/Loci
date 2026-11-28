@@ -7,7 +7,7 @@ import Testing
 @testable import LociUI
 
 /// PJ-S16: turning between the chat and a project in the whole window leaves the main thread free for most of
-/// the slide.
+/// the slide. It measures time, so it runs with the full check, not the fast one.
 @MainActor
 @Suite(.onStage(alone: true))
 struct ProjectTurnCostTests {
@@ -20,12 +20,16 @@ struct ProjectTurnCostTests {
     let remembered = Remembered()
     let window = try Self.show { remembered.projects.append($0) }
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .seconds(2))
-    for seal in [Self.investingSeal, Self.chatTab] {
+    try await eventually("the chat to appear", within: .seconds(20)) {
+      (window.contentView.map(Self.conversations(in:))?.first?.documentView?.bounds.height ?? 0) > 2000
+    }
+    for (seal, home) in [(Self.investingSeal, ProjectSnapshots.investing.id), (Self.chatTab, nil)] {
       try Self.click(seal, in: window)
+      try await eventually("the bar to open what was clicked", within: .seconds(10)) {
+        remembered.projects.last == .some(home)
+      }
       try await Task.sleep(for: .milliseconds(1200))
     }
-    #expect(remembered.projects.suffix(2) == [ProjectSnapshots.investing.id, nil])
 
     var costs: [Double] = []
     for seal in [Self.investingSeal, Self.chatTab, Self.investingSeal, Self.chatTab, Self.investingSeal, Self.chatTab] {
@@ -70,6 +74,12 @@ struct ProjectTurnCostTests {
     window.setContentSize(size)
     window.orderBack(nil)
     return window
+  }
+
+  /// The conversations made in the window, the chat's first.
+  private static func conversations(in view: NSView) -> [NSScrollView] {
+    if let scroll = view as? NSScrollView { return scroll.bounds.width >= 450 ? [scroll] : [] }
+    return view.subviews.flatMap(conversations(in:))
   }
 
   /// Time the main thread has spent working so far, in milliseconds.
