@@ -11,7 +11,7 @@
 | `output/Loci-Beta-<version>.zip` | 应用内完整更新用：`ditto -c -k --keepParent` 打的应用包，保留签名，不用挂载 |
 | `*.dmg.sha256`、`*.zip.sha256` | 上面两个文件的校验和 |
 | `output/patches/Loci-Beta-<version>.files.json` | 清单：新版应用包里每个文件的 SHA-256 和是否可执行、每个符号链接的目标（`script/release-patches`，只在 tag 构建） |
-| `output/patches/Loci-Beta-<version>.from-<旧版本>.patch` | 补丁：把 `<旧版本>` 的应用包变成这一版，最近五个版本各一份（同上） |
+| `output/patches/Loci-Beta-<version>.from-<旧版本>.patch` | 补丁：把 `<旧版本>` 的应用包变成这一版，最近两个版本各一份（同上） |
 | `output/notes.json` | 最近十个版本的 CHANGELOG 段落（`script/release-notes`），写进 `latest.json` |
 
 ## 签名
@@ -75,7 +75,7 @@
    2. 检查 secrets：tag 构建必须签名，缺签名的 secret 就失败，不会把 ad hoc 签名的包发给别人。
    3. 把 `MACOS_SIGNING_IDENTITY` 里的 `.p12` 导入一个临时钥匙串：有 Developer ID 就用它；否则信任其中的「Loci Signing」并用它。
    4. `script/release`：通用构建、签名并 `codesign --verify --strict`、Developer ID 时公证、写 dmg、zip 和校验和。
-   5. `brew install bsdiff`，`script/release-patches` 写清单，并从 `dl.umupa.fun` 取最近五个版本的 dmg，各生成一份补丁（见下面「补丁」）。这一步**不卡发布**：取不到、打不开或补丁不比 zip 小很多的版本跳过，整步失败也只是这一版没有补丁。
+   5. `brew install bsdiff`，`script/release-patches` 写清单，并从 `dl.umupa.fun` 取最近两个版本的 dmg，各生成一份补丁（见下面「补丁」）。主程序约 150 MB，bsdiff 每份要几分钟、约 3 GB 内存，所以只做两份。这一步**不卡发布**：取不到、打不开或补丁不比 zip 小很多的版本跳过，整步失败或超过 20 分钟也只是这一版没有补丁。
    6. `script/measure-launch`：记录 release 构建的冷启动，**只记录，不卡发布**。
    7. 把 dmg、zip、校验和、补丁、清单、发布说明留成 `release` artifact。
 

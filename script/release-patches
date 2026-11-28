@@ -7,12 +7,12 @@
 #
 #   script/release-patches "output/Loci (Beta).app" output
 #
-# Earlier releases are the five newest version tags below the new one, downloaded from dl.umupa.fun.
+# Earlier releases are the two newest version tags below the new one, downloaded from dl.umupa.fun.
 # One that cannot be downloaded, opened or diffed is skipped, so a release never fails for want of a
 # patch; nor is a patch kept that is not much smaller than the zip.
 #
 # Environment:
-#   LOCI_PATCH_FROM     the earlier versions to patch from, space separated (default: the newest five tags)
+#   LOCI_PATCH_FROM     the earlier versions to patch from, space separated (default: the newest two tags)
 #   LOCI_PATCH_IMAGES   a folder holding Loci-Beta-<old>.dmg to use instead of downloading
 # Needs bsdiff (`brew install bsdiff`) and jq.
 set -eu
@@ -111,7 +111,7 @@ else
     if [ "$tag" != "$version" ] && [ "$(printf '%s\n%s\n' "$tag" "$version" | sort -V | head -1)" = "$tag" ]; then
       echo "$tag"
     fi
-  done | head -5)"
+  done | head -2)"
 fi
 
 for old in $earlier; do
