@@ -94,10 +94,11 @@ public struct HostEnvironment: Sendable {
     self.trading = trading
   }
 
-  /// The real clock and time zone, fresh identifiers, the Trash, and the agent programs installed on this Mac.
+  /// The real clock and time zone, fresh identifiers, the Trash, the agent programs installed on this Mac, and
+  /// the secrets in `secrets`.
   /// The app comes to the front on a connector's page through `browserReturned`.
   public static func system(
-    defaultRuntime: Runtime, tool: AgentTool? = nil, sourceCache: URL? = nil,
+    defaultRuntime: Runtime, secrets: Secrets, tool: AgentTool? = nil, sourceCache: URL? = nil,
     browserReturned: @escaping @Sendable (ConnectorID) async -> Void = { _ in }
   ) -> HostEnvironment {
     let installed = InstalledAgents(tool: tool)
@@ -107,10 +108,11 @@ public struct HostEnvironment: Sendable {
       unavailability: { await installed.unavailability(of: $0) },
       detectAgents: { await installed.detect(again: $0) }, models: { await installed.models(of: $0) },
       ticks: { everyMinute() }, media: .system(agents: { await installed.driver(for: $0) }), tool: tool,
-      modelKeys: ModelKeychain(serviceName: "com.loci.native.dev.model-service"), bundledPi: BundledPiEnvironment(),
+      modelKeys: secrets.folder, bundledPi: BundledPiEnvironment(),
       sourceCache: sourceCache, activity: ProcessActivity.begin,
       connect: .system(
-        githubLogin: { await installed.githubLogin() }, githubRead: { await installed.githubRead($0) },
+        vault: secrets.folder, githubLogin: { await installed.githubLogin() },
+        githubRead: { await installed.githubRead($0) },
         browserReturned: browserReturned),
       sessionFiles: .home(URL.homeDirectory, environment: ProcessInfo.processInfo.environment))
   }

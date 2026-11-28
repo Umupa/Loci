@@ -237,6 +237,10 @@ struct ItemMeta: View {
 
   var body: some View {
     HStack(spacing: 6) {
+      if let site = item.site {
+        SourceName(item: item, name: site)
+        if !parts.isEmpty { Text(verbatim: "·") }
+      }
       Text(verbatim: parts.joined(separator: " · ")).lineLimit(1)
       if let source = item.source {
         Button {
@@ -253,9 +257,7 @@ struct ItemMeta: View {
   }
 
   private var parts: [String] {
-    var parts: [String] = []
-    if let site = item.site { parts.append(site) }
-    parts += item.authors.filter { $0 != item.site }
+    var parts = item.authors.filter { $0 != item.site }
     if let host = item.source?.host() { parts.append(host.replacing(/^www\./, with: "")) }
     return parts
   }

@@ -7,7 +7,7 @@ struct FeelingLine: View {
   let feeling: Feeling
 
   var body: some View {
-    HStack(alignment: .center, spacing: Spacing.l) {
+    HStack(alignment: .center, spacing: Spacing.m) {
       mood
       Scale(symbol: Symbols.valence, value: feeling.valence, label: .loci("loci.valence"))
       Scale(symbol: Symbols.energy, value: feeling.energy, label: .loci("loci.energy"))
@@ -17,7 +17,7 @@ struct FeelingLine: View {
 
   private var mood: some View {
     (feeling.word.map { Text(verbatim: $0) } ?? Text(.loci("loci.resting")))
-      .font(.system(size: 19, weight: .medium, design: .serif))
+      .font(.system(size: 15, weight: .medium, design: .serif))
       .foregroundStyle(Palette.ink)
       .lineLimit(1)
       .help(feeling.why.map { Text(verbatim: $0) } ?? Text(.loci("loci.restingWhy")))
@@ -44,7 +44,7 @@ struct FeelingLine: View {
     }
   }
 
-  static func name(_ tiredness: Tiredness) -> LocalizedStringResource {
+  nonisolated static func name(_ tiredness: Tiredness) -> LocalizedStringResource {
     switch tiredness {
     case .awake: .loci("loci.awake")
     case .tired: .loci("loci.tired")

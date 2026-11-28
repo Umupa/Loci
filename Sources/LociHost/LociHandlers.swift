@@ -12,6 +12,11 @@ extension LocalHost {
     return LociStatus(work: nil)
   }
 
+  public func lociPresence() async throws(HostError) -> LociPresence {
+    let tiredness = await loci.context.feelings.feeling().tiredness
+    return LociPresence(tiredness: tiredness, lastSaid: try attempt { try database.lastSaid(in: .main) })
+  }
+
   /// Read from the files each time, which Loci and the person may both have changed.
   public func lociPage() async throws(HostError) -> LociPage {
     let today = Day(containing: environment.now(), in: environment.timeZone)

@@ -10,20 +10,24 @@ struct MachineWindow: View {
   @Environment(\.cardDelivery) private var cardDelivery
   @Environment(\.openedFiles) private var openedFiles
   @Environment(\.signInReturns) private var signInReturns
+  @Environment(\.standIns) private var standIns
   @State private var window = WindowState()
   @State private var restored = false
   @State private var items: Feed<[Item]>?
   @State private var health: Feed<Health>?
   @State private var status: Feed<LociStatus>?
+  @State private var presence: Feed<LociPresence>?
   @State private var name: Feed<String>?
   @State private var avatar: Feed<Avatar?>?
   @State private var saving: Feed<SavingBatch?>?
   @State private var dialogs = Dialogs()
   @State private var focusRequest = 0
+  @State private var chatRequest = 0
   @State private var covers = Covers()
   @State private var deletions = Deletions()
   @State private var linkPreviews = LinkPreviews()
-  @State private var panelPictures = PanelPictures()
+  @State private var webPictures = WebPictures()
+  @State private var flights = Flights()
   @State private var browser: BrowserSession
   @State private var nowPlaying = NowPlaying()
   @State private var conversationVisits = ConversationVisits()
@@ -43,27 +47,17 @@ struct MachineWindow: View {
   }
 
   var body: some View {
-    layout
-      .overlay {
-        if let pending = dialogs.intake {
-          ImportSheet(pending: pending, close: { dialogs.intake = nil }, open: { window = window.opening(.item($0)) })
-            .id(pending)
-            .transition(.opacity)
-        }
-      }
-      .animation(Motion.standard, value: dialogs.intake)
-      .overlay { if (saving?.value ?? nil) != nil { WindowGlow() } }
-      .animation(.easeInOut(duration: 0.6), value: (saving?.value ?? nil) != nil)
-      .background(WindowButtons(inset: Size.windowButtons))
-      .background(WindowKeys(whileTyping: true, handle: key))
-      .toolbar(removing: .title)
-      .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-      .tint(Palette.accent)
-      .frame(minWidth: Size.windowMinimum.width, minHeight: Size.windowMinimum.height)
+    sharing(following)
+  }
+
+  /// The window and what it keeps up with.
+  private var following: some View {
+    windowed
       .subscribing(AllItems(), into: $items)
       .subscribing(HealthReport(), into: $health)
       .subscribing(CompanionName(), into: $name)
       .subscribing(LociWorking(), into: $status)
+      .subscribing(CompanionPresence(), into: $presence)
       .subscribing(LociModel.LociAvatar(), into: $avatar)
       .subscribing(SavingNow(), into: $saving)
       .onAppear(perform: restore)
@@ -79,17 +73,40 @@ struct MachineWindow: View {
       }
       .focusedSceneValue(\.navigator, navigator)
       .dialogs($dialogs, host: host)
-      .environment(\.covers, covers)
-      .environment(\.deletions, deletions)
-      .environment(\.linkPreviews, linkPreviews)
-      .environment(\.panelPictures, panelPictures)
+  }
+
+  /// What every view in the window can reach.
+  private func sharing(_ content: some View) -> some View {
+    content
+      .modifier(
+        WindowShared(
+          covers: covers, deletions: deletions, linkPreviews: linkPreviews, pictures: webPictures, flights: flights,
+          followCardLink: dialogs.following)
+      )
       .environment(\.browser, browser)
       .environment(\.nowPlaying, nowPlaying)
       .environment(\.companionName, name?.value ?? "")
       .environment(\.lociFace, face)
+      .environment(\.companionNow, companionNow)
       .environment(\.showFailure, ShowFailure { dialogs.failure = $0 })
       .takingIn(takeIn)
       .lociAppearance()
+  }
+
+  /// The layout with what floats over it and the window's own buttons and keys.
+  private var windowed: some View {
+    layout
+      .overlay { FlightLayer() }
+      .overlay { WindowFloating(dialogs: $dialogs) { window = window.opening(.item($0)) } }
+      .animation(Motion.standard, value: dialogs.intake)
+      .overlay { if (saving?.value ?? nil) != nil { WindowGlow() } }
+      .animation(.easeInOut(duration: 0.6), value: (saving?.value ?? nil) != nil)
+      .background(WindowButtons(inset: Size.windowButtons))
+      .background(WindowKeys(whileTyping: true, handle: key))
+      .toolbar(removing: .title)
+      .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+      .tint(Palette.accent)
+      .frame(minWidth: Size.windowMinimum.width, minHeight: Size.windowMinimum.height)
   }
 
   /// The sidebar beside the place and the pages over it, with the buttons that float at the top.
@@ -99,7 +116,7 @@ struct MachineWindow: View {
       PageStack(pages: $window.pages) {
         placeView.environment(\.openPlace, openPlace)
       } destination: { page in
-        ItemScreen(destination: page).environment(\.openPlace, openPlace)
+        PageScreen(page: page).environment(\.openPlace, openPlace)
       }
       .nowPlaying(nowPlaying, items: items?.value ?? [], front: window.pages.last?.itemID) {
         window = window.opening($0)
@@ -153,8 +170,12 @@ struct MachineWindow: View {
   /// The sidebar's rows, above its foot.
   private var sidebarList: some View {
     Sidebar(
-      place: placeBinding, lociChosen: lociChosen, work: status?.value?.work,
-      chooseLoci: { window = window.choosingLoci() }
+      place: placeBinding, lociChosen: lociChosen,
+      chooseLoci: {
+        memory.rememberProject(nil)
+        window = window.choosingCompanion()
+        chatRequest += 1
+      }
     )
     .safeAreaInset(edge: .top, spacing: 0) {
       SidebarToggle(shown: true, toggle: toggleSidebar)
@@ -188,9 +209,14 @@ struct MachineWindow: View {
     !window.pages.isEmpty
   }
 
-  /// The main conversation or Loci's page is on screen, so the sidebar's Loci row is chosen.
+  /// How the companion is now, for its dot and the lines under its name.
+  private var companionNow: CompanionNow {
+    CompanionNow(presence: presence?.value, work: status?.value?.work, offline: machineChoice?.offline != nil)
+  }
+
+  /// The chat or the companion's home page is on screen, so the sidebar's companion is chosen.
   private var lociChosen: Bool {
-    window.pages.isEmpty && (window.place == .talk || window.place == .loci)
+    window.pages.isEmpty && window.place.companion != nil
   }
 
   /// The face the person chose for Loci, or the drawn one.
@@ -224,38 +250,39 @@ struct MachineWindow: View {
     return .library(LibraryCategory(item.kind))
   }
 
+  /// The chat and the companion's home page are one view, so moving between them keeps the chat made.
   @ViewBuilder private var placeView: some View {
-    switch window.place {
-    case .talk:
-      CompanionPage(
-        focusRequest: focusRequest, attach: { dialogs.importing = true }, opened: { window = $0 },
-        failed: { dialogs.failure = $0 }, columnPreferred: $panelColumnPreferred, memory: memory,
-        visits: conversationVisits
+    if let face = window.place.companion {
+      CompanionSpace(
+        face: face, chatRequest: chatRequest, focusRequest: focusRequest, attach: { dialogs.importing = true },
+        opened: { window = $0 }, failed: { dialogs.failure = $0 }, columnPreferred: $panelColumnPreferred,
+        memory: memory, visits: conversationVisits, chatShown: talkShown
       )
       .environment(\.sidebarShown, sidebarShown)
-      .onAppear(perform: talkShown)
-    case .loci:
-      LociScreen()
-    case .connector(let id):
-      LociScreen(tab: .connectors, connector: id)
-    case .library(let category):
-      LibraryScreen(
-        category: category, chooseFiles: { dialogs.importing = true }, opened: { window = $0 },
-        failed: { dialogs.failure = $0 })
-    case .browser:
-      BrowserScreen(session: browser)
-    case .courses(let open):
-      CoursesScreen(open: open)
-    case .settings(.general):
-      GeneralSettingsPage()
-    case .settings(.agents):
-      AgentSettingsPage()
-    case .settings(.models):
-      ModelServicesPage()
-    case .settings(.media):
-      MediaSettingsPage()
-    case .settings(.remote):
-      RemoteSettingsPage()
+      .environment(\.pagesOver, !window.pages.isEmpty)
+    } else {
+      switch window.place {
+      case .talk, .loci, .connector:
+        EmptyView()
+      case .library(let category):
+        LibraryScreen(
+          category: category, chooseFiles: { dialogs.importing = true }, opened: { window = $0 },
+          failed: { dialogs.failure = $0 })
+      case .browser:
+        BrowserScreen(session: browser)
+      case .courses(let open):
+        CoursesScreen(open: open)
+      case .settings(.general):
+        GeneralSettingsPage()
+      case .settings(.agents):
+        AgentSettingsPage()
+      case .settings(.models):
+        ModelServicesPage()
+      case .settings(.media):
+        MediaSettingsPage()
+      case .settings(.remote):
+        RemoteSettingsPage()
+      }
     }
   }
 
@@ -314,7 +341,8 @@ struct MachineWindow: View {
   }
 
   private var takeIn: TakeIn {
-    TakeIn(host: host, ask: { dialogs.intake = $0 }, failed: { dialogs.failure = $0 })
+    TakeIn(
+      host: host, ask: { dialogs.intake = $0 }, follow: { dialogs.following = $0 }, failed: { dialogs.failure = $0 })
   }
 
   /// Takes in the books the Finder opened with Loci and opens the last one.
@@ -365,5 +393,6 @@ struct MachineWindow: View {
     restored = true
     let recalled = memory.recall()
     window = itemIDs.map(recalled.keeping(items:)) ?? recalled
+    dialogs.following = standIns?.followCard
   }
 }

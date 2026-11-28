@@ -13,7 +13,7 @@ public struct AllJobs: Subscription {
       switch change {
       case .job, .item, .everything: true
       case .course, .courseActivity, .notes, .reading, .media, .conversation, .turnEnded, .review, .loci,
-        .runtime, .agentModels, .timers, .connectors, .projects, .source, .nextUps:
+        .runtime, .agentModels, .timers, .connectors, .projects, .source, .nextUps, .follows:
         false
       }
     }
@@ -39,7 +39,7 @@ public struct ItemJob: Subscription {
       case .job(let id), .item(let id): id == item
       case .everything: true
       case .course, .courseActivity, .notes, .reading, .media, .conversation, .turnEnded, .review, .loci,
-        .runtime, .agentModels, .timers, .connectors, .projects, .source, .nextUps:
+        .runtime, .agentModels, .timers, .connectors, .projects, .source, .nextUps, .follows:
         false
       }
     }
@@ -66,7 +66,7 @@ public struct ItemMedia: Subscription {
       case .job(let id), .item(let id): id == item
       case .everything: true
       case .course, .courseActivity, .notes, .reading, .media, .conversation, .turnEnded, .review, .loci,
-        .runtime, .agentModels, .timers, .connectors, .projects, .source, .nextUps:
+        .runtime, .agentModels, .timers, .connectors, .projects, .source, .nextUps, .follows:
         false
       }
     }
@@ -88,7 +88,7 @@ public struct MediaSettings: Subscription {
       switch change {
       case .media, .everything: true
       case .course, .courseActivity, .item, .notes, .reading, .job, .conversation, .turnEnded, .review, .loci,
-        .runtime, .agentModels, .timers, .connectors, .projects, .source, .nextUps:
+        .runtime, .agentModels, .timers, .connectors, .projects, .source, .nextUps, .follows:
         false
       }
     }

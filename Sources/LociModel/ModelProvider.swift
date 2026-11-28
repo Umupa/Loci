@@ -43,7 +43,7 @@ public struct ProviderModel: Hashable, Codable, Sendable {
 }
 
 /// One provider in the model services: where it is, the models checked on it, and whether it is on. Its key
-/// is in the keychain under `keyAccount`, never in the data folder.
+/// is kept on this Mac under `keyAccount`, never in the data folder.
 public struct ModelProvider: Hashable, Codable, Sendable, Identifiable {
   public let id: ModelProviderID
   public let preset: ModelPreset

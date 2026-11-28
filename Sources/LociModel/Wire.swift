@@ -5,7 +5,7 @@ public enum Wire {
     ReadSource.self, FetchSourceRepository.self, AddSchedule.self, AddFollowUp.self, ListConnectors.self,
     CallConnector.self, Recall.self, NameProject.self, IconProject.self, DescribeProject.self,
     SaveDataSource.self, TestDataSource.self, ListDataSources.self, PickPanelEntries.self,
-    AddNextUp.self, ProposeApproval.self,
+    AddNextUp.self, ProposeApproval.self, AddFollow.self, ListFollows.self,
   ]
 
   /// Commands only the Mac the companion lives on runs; another Mac is refused them.
@@ -55,17 +55,19 @@ public enum Wire {
     .writes(RemoveSchedule.self), .writes(CancelFollowUp.self), .writes(Disconnect.self),
     .reads(ReadUsage.self),
     .writes(StartNextUp.self), .writes(SetNextUp.self), .writes(ApproveNextUp.self), .writes(UndoApproval.self),
+    .reads(PreviewFollow.self), .writes(StartFollowing.self), .writes(StopFollowing.self),
+    .writes(RestoreFollowing.self), .writes(SawFollow.self), .writes(RefreshFollow.self), .reads(FollowOfItem.self),
   ]
 
   public static let subscriptions: [any Subscription.Type] = [
     CompanionName.self, OneConversation.self, LociWorking.self, ConversationRuntime.self, LociHome.self, OneDiary.self,
-    LociAvatar.self,
+    LociAvatar.self, CompanionPresence.self,
     AllItems.self, OneItem.self, ItemCover.self, NotesOn.self, AllJobs.self, ItemJob.self, SavingNow.self,
     ItemMedia.self, WatchCourses.self, WatchCourse.self, WatchLesson.self,
     MediaSettings.self, HealthReport.self, StorageUse.self, ItemKeyPoints.self, WatchPanelColumn.self,
     WatchTimers.self, WatchScheduleRuns.self, WatchWikiPage.self, WatchConnectors.self, WatchConnectorCalls.self,
     AvailableModels.self, WatchProjects.self, WatchSourceHistory.self, WatchNextUps.self, AgentModelList.self,
-    RuntimeOverview.self,
+    RuntimeOverview.self, AllFollows.self, OneFollow.self,
   ]
 
   /// The route of a command type, or `nil` when it is not registered.

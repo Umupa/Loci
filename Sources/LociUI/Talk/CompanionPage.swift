@@ -1,16 +1,18 @@
 import LociModel
 import SwiftUI
 
-/// The companion's page: the project bar over the chat or the project it has open, or over a new project's
-/// page. The open one is remembered for the Mac. A next-up card started from the deck flies into its seal, and
-/// its project opens; so does a new project's large seal once its words are sent.
+/// The companion's page: who it is in the top-left corner, and the project bar over the chat or the project it
+/// has open, or over a new project's page. The open one is remembered for the Mac. A next-up card started from
+/// the deck flies into its seal, and its project opens; so does a new project's large seal once its words are
+/// sent.
 struct CompanionPage: View {
   @Environment(\.host) private var host
   @Environment(\.reducesMotion) private var reduceMotion
-  @Environment(\.sidebarShown) private var sidebarShown
   @Environment(\.cardDelivery) private var cardDelivery
   @Environment(\.machineChoice) private var machineChoice
   @Environment(\.documents) private var documents
+  /// Changes each time the chat itself should come to the front, from whichever project was open.
+  var chatRequest = 0
   let focusRequest: Int
   let attach: () -> Void
   let opened: (WindowState) -> Void
@@ -34,7 +36,6 @@ struct CompanionPage: View {
   @State private var sealFrame = CGRect.zero
   /// The symbols new projects' words suggested, worn faintly until they are named.
   @State private var suggested: [Project.ID: String] = [:]
-  @State private var building = false
   @State private var notice: Notice?
   @State private var focusedCard: EntityID?
   @State private var nextUps: Feed<[NextUp]>?
@@ -91,18 +92,9 @@ struct CompanionPage: View {
         case .newProject: newProjectPage
         }
       }
-      let leadingClearance = sidebarShown ? Spacing.m : Size.projectBarClearance
-      let barBudget =
-        pageWidth > 0 ? max(240, pageWidth - leadingClearance - Size.projectBarClearance) : Size.projectBarWidest
-      BarClearance(leading: leadingClearance, trailing: Size.projectBarClearance) {
-        ProjectBarView(
-          bar: shownBar, home: home, maxWidth: barBudget, newSeal: newSeal, suggested: suggested, stamps: stamps,
-          actions: actions
-        )
-        .background { WarmLight(on: building) }
-      }
-      .padding(.top, 11)
-      .onPreferenceChange(Building.self) { building = $0 }
+      CompanionBar(
+        bar: shownBar, home: home, pageWidth: pageWidth, newSeal: newSeal, suggested: suggested, stamps: stamps,
+        actions: actions)
     }
     .coordinateSpace(.named(Self.space))
     .onGeometryChange(for: CGFloat.self) {
@@ -149,6 +141,7 @@ struct CompanionPage: View {
     .environment(\.homeSwitch, timing)
     .onChange(of: shownHome) { if let shownHome { focus[shownHome, default: 0] += 1 } }
     .onChange(of: focusRequest) { if let shownHome { focus[shownHome, default: 0] += 1 } }
+    .onChange(of: chatRequest) { actions.open(.chat) }
     .onAppear {
       guard !recalled else { return }
       recalled = true

@@ -44,7 +44,8 @@ struct CopyTests {
     let used = Set(
       try Self.sources().flatMap { $0.text.matches(of: /"([a-z]+\.[A-Za-z]+(?: %arg)*)"/).map { String($0.1) } })
 
-    #expect(Set(try Self.catalog().keys).subtracting(used).isEmpty)
+    let unused = Set(try Self.catalog().keys).subtracting(used).sorted()
+    #expect(unused.isEmpty, "no source uses \(unused); delete them from Localizable.xcstrings")
   }
 
   @Test func viewsDoNotSpellOutText() throws {

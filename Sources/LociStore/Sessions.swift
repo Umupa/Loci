@@ -189,6 +189,26 @@ extension StoreDatabase {
     }
   }
 
+  /// The text of the companion's latest reply, or of what it said on its own, in the conversation; `nil`
+  /// before it said anything. Only the newest messages are read, since a turn ends with what it said.
+  public func lastSaid(in conversation: ConversationRef) throws -> String? {
+    try queue.read { db in
+      try Row.fetchAll(
+        db,
+        sql: """
+          SELECT m.id, m.at, m.body FROM message m JOIN session s ON s.id = m.session_id
+          WHERE s.owner = ? AND NOT m.typed ORDER BY m.seq DESC LIMIT 64
+          """,
+        arguments: [SessionOwner.conversation(conversation).key]
+      ).lazy.compactMap(Self.message).compactMap { message -> String? in
+        switch message.body {
+        case .reply(let text), .told(let text): text
+        case .prompt, .thinking, .tool, .savedToNote, .savedItem, .notice, .ended, .startedOver: nil
+        }
+      }.first
+    }
+  }
+
   /// What the person has said to Loci, in every conversation.
   public func talk() throws -> Talk {
     try queue.read { db in

@@ -135,7 +135,7 @@ public protocol ModelSettingsAccess: Sendable {
   func saveModelSettings(_ settings: ModelSettings) async throws(HostError) -> ModelSettingsState
   /// Saves `key` for the provider, or removes it when `nil`.
   func setModelKey(_ key: String?, for provider: ModelProviderID) async throws(HostError) -> ModelSettingsState
-  /// The key saved for the provider; reading it may ask the person to allow Loci into the keychain.
+  /// The key saved for the provider.
   func modelKey(for provider: ModelProviderID) async throws(HostError) -> String?
   /// Asks the provider for its models and adds the new ones, unchecked.
   func fetchModels(for provider: ModelProviderID) async throws(HostError) -> ModelSettingsState

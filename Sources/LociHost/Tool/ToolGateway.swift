@@ -98,7 +98,7 @@ enum ToolGateway {
   static let over = "This run is over; loci does nothing more for it."
 
   /// What a run's session may run: what reads, setting follow-ups, saving the panels it is for, and putting a
-  /// card on the deck (not in the daily review).
+  /// card on the deck (not in the daily review). Following someone is the person's to ask for, so not here.
   static let runCommands: Set<String> = Set(
     ([Search.self, ListItems.self, ListPanels.self, ListTimers.self, CancelFollowUp.self] as [any Command.Type]).map {
       $0.name
@@ -106,6 +106,7 @@ enum ToolGateway {
       ReadSource.name, FetchSourceRepository.name, AddFollowUp.name, SavePanel.name, EditPanel.name,
       PickPanelEntries.name,
       ListConnectors.name, CallConnector.name, Recall.name, DescribeProject.name, AddNextUp.name,
+      ListFollows.name,
     ])
 
   /// What a repair's session may run: show, test and save sources.

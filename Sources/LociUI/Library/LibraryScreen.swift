@@ -16,6 +16,9 @@ struct LibraryScreen: View {
   @Environment(\.takeIn) private var takeIn
   @Environment(\.deletions) private var deletions
   @Environment(\.standIns) private var standIns
+  @Environment(\.openPage) private var openPage
+  @Environment(\.flights) private var flights
+  @Environment(\.webPictures) private var pictures
   let category: LibraryCategory?
   let chooseFiles: () -> Void
   let opened: (WindowState) -> Void
@@ -24,6 +27,8 @@ struct LibraryScreen: View {
   @State private var jobs: Feed<[Job]>?
   @State private var saving: Feed<SavingBatch?>?
   @State private var storage: Feed<StorageReport>?
+  @State private var follows: Feed<[FollowSummary]>?
+  @State private var linkFocus = 0
   @State private var progress = Progress()
   @State private var selection = LibrarySelection()
   @State private var renaming: EntityID?
@@ -35,6 +40,11 @@ struct LibraryScreen: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 0) {
         controls.padding(.bottom, presentation == .gallery ? 26 : 12)
+        if !followed.isEmpty {
+          FollowRow(follows: followed, add: { linkFocus += 1 }, open: open, stop: stop)
+            .padding(.bottom, 22)
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
         if !items.isEmpty {
           LibraryEntries(
             items: items, jobs: jobsByItem, progress: progress, chosen: selection.chosen, renaming: renaming,
@@ -56,7 +66,7 @@ struct LibraryScreen: View {
     .overlay(alignment: .bottom) {
       VStack(spacing: 10) {
         if let deletion = deletions?.latest {
-          DeletedNotice(count: deletion.count) { deletions?.undo() }
+          DeletedNotice(words: deletion.words) { deletions?.undo() }
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
         TaskDock(
@@ -67,6 +77,7 @@ struct LibraryScreen: View {
       .padding(.bottom, 20)
     }
     .animation(Motion.standard, value: deletions?.latest)
+    .animation(Motion.standard, value: followed.isEmpty)
     .background(WindowKeys(handle: key))
     .navigationTitle(category.map { Text(Messages.name(of: $0)) } ?? Text(.loci("sidebar.library")))
     .acceptingDrops()
@@ -74,6 +85,7 @@ struct LibraryScreen: View {
     .subscribing(AllJobs(), into: $jobs)
     .subscribing(SavingNow(), into: $saving)
     .subscribing(StorageUse(), into: $storage)
+    .subscribing(AllFollows(), into: $follows)
     .task(id: Set(itemIDs)) { await readProgress(itemIDs) }
     .onChange(of: itemIDs) { selection.keep(itemIDs) }
     .task(id: deletions?.latest) {
@@ -85,7 +97,7 @@ struct LibraryScreen: View {
 
   private var controls: some View {
     HStack(spacing: Spacing.m) {
-      LinkField(category: category, add: add, chooseFiles: chooseFiles)
+      LinkField(category: category, add: add, chooseFiles: chooseFiles, focusRequest: linkFocus)
       Picker(selection: $presentation) {
         ForEach(LibraryPresentation.allCases, id: \.self) { option in
           Label {
@@ -103,6 +115,33 @@ struct LibraryScreen: View {
       .labelsHidden()
       .controlSize(.large)
       .fixedSize()
+    }
+  }
+
+  /// The follows of this page's kind: channels over videos, shows over podcasts.
+  private var followed: [FollowSummary] {
+    switch category {
+    case .video: (follows?.value ?? []).filter(\.follow.source.isChannel)
+    case .audio: (follows?.value ?? []).filter { !$0.follow.source.isChannel }
+    case .article, .book, nil: []
+    }
+  }
+
+  /// The follow's picture grows into its page.
+  private func open(_ follow: Follow) {
+    let rounding = FollowFace.rounding(follow.source.isChannel)
+    flights?.launch(
+      follow.picture.flatMap { pictures?.image(of: $0) }, from: .follow(follow.id), to: .followHead(follow.id),
+      rounding: (rounding, rounding))
+    openPage(.follow(follow.id))
+  }
+
+  private func stop(_ follow: Follow) {
+    run { () async throws(HostError) in
+      let stopped = try await host.run(StopFollowing(follow.id))
+      deletions?.happened(.loci("follow.stopped"), action: .loci("follow.stop"), undoManager: undoManager) {
+        run { () async throws(HostError) in _ = try await host.run(RestoreFollowing(stopped)) }
+      }
     }
   }
 

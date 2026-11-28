@@ -30,12 +30,15 @@ public enum ContentChange: Hashable, Codable, Sendable {
   /// A schedule or follow-up, the inbox, or a run changed. They live in the database only.
   case timers
   /// A connector, a connection under way, or the record of calls changed. They live in the database and
-  /// the keychain.
+  /// the secrets folder.
   case connectors
   /// A source got records or failed to; its snapshot and history live in the database.
   case source(SourceKey)
   /// A next-up card or a reminder condition changed. They live in the database only.
   case nextUps
+  /// A follow was added or removed, was opened, or brought new episodes. They live in `follows.json` and the
+  /// database.
+  case follows
   /// Events were lost or a change could not be placed; read everything again.
   case everything
 }

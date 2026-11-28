@@ -19,7 +19,6 @@ final class BrowserSession {
   /// Goes up each time the address field should take the cursor.
   private(set) var addressFocus = 0
   @ObservationIgnored private let signIns: (any BrowserSignIns)?
-  @ObservationIgnored private var signedIn = false
   @ObservationIgnored private var watcher: PageWatcher?
   @ObservationIgnored private var configuration: WKWebViewConfiguration?
 
@@ -119,17 +118,13 @@ final class BrowserSession {
     }
   }
 
-  /// Brings in the sign-ins of the browser in use, once a launch, or finds which one to offer.
+  /// Finds the browser to offer sign-ins from, if the reader has not answered yet. Sign-ins brought in before
+  /// are already in the browser's store, so nothing is read.
   func checkSignIns() async {
-    guard let signIns, !signedIn else { return }
-    switch await signIns.choice() {
-    case .offer(let browser):
+    guard let signIns else { return }
+    if case .offer(let browser) = await signIns.choice() {
       signInOffer = browser
-    case .using:
-      signInOffer = nil
-      signedIn = true
-      if let cookies = try? await signIns.currentCookies() { await take(cookies) }
-    case .declined, .unavailable:
+    } else {
       signInOffer = nil
     }
   }
@@ -137,10 +132,7 @@ final class BrowserSession {
   func acceptSignIns(from browser: SignInBrowser) async {
     guard let signIns else { return }
     signInOffer = nil
-    if let cookies = try? await signIns.use(browser) {
-      signedIn = true
-      await take(cookies)
-    }
+    if let cookies = try? await signIns.use(browser) { await take(cookies) }
   }
 
   func declineSignIns() async {

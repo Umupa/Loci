@@ -33,7 +33,7 @@ struct CoursesScreen: View {
         )
         .overlay(alignment: .bottom) {
           if let deletion = deletions?.latest {
-            DeletedNotice(count: deletion.count) { deletions?.undo() }
+            DeletedNotice(words: deletion.words) { deletions?.undo() }
               .padding(.bottom, 20)
               .transition(.move(edge: .bottom).combined(with: .opacity))
           }

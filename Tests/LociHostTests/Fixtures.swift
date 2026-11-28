@@ -33,11 +33,15 @@ final class TestWorld: Sendable {
   let sources: (any DataSourceRunning)?
   /// What the model services' requests reach, with keys kept in memory; none when `nil`.
   let models: (any Network)?
+  /// What reading follows finds; nothing can be read when `nil`.
+  let follows: (any FollowReading)?
 
   init(
     agent: FakeAgent = FakeAgent(), idOffset: UInt64 = 0, connect: ConnectEnvironment = .disconnected,
-    sessionFiles: SessionFolders = .none, sources: (any DataSourceRunning)? = nil, models: (any Network)? = nil
+    sessionFiles: SessionFolders = .none, sources: (any DataSourceRunning)? = nil, models: (any Network)? = nil,
+    follows: (any FollowReading)? = nil
   ) {
+    self.follows = follows
     created = Mutex(idOffset)
     self.agent = agent
     self.connect = connect
@@ -62,7 +66,7 @@ final class TestWorld: Sendable {
       detectAgents: { [self] again in
         self.looks.withLock { $0.append(again) }
         return Self.installed
-      }, ticks: { [self] in self.listen() }, media: .disconnected(sources: sources), tool: tool,
+      }, ticks: { [self] in self.listen() }, media: .disconnected(sources: sources, follows: follows), tool: tool,
       modelKeys: models.map { _ in MemoryModelKeys() },
       modelClient: models.map { ModelClient(network: $0) } ?? ModelClient(),
       activity: { [self] _ in
@@ -142,11 +146,12 @@ struct Place {
 func withHost(
   agent: FakeAgent = FakeAgent(), connect: ConnectEnvironment = .disconnected,
   sessionFiles: SessionFolders = .none, sources: (any DataSourceRunning)? = nil, models: (any Network)? = nil,
-  _ body: (LocalHost, Place, TestWorld) async throws -> Void
+  follows: (any FollowReading)? = nil, _ body: (LocalHost, Place, TestWorld) async throws -> Void
 ) async throws {
   let place = Place()
   defer { place.remove() }
-  let world = TestWorld(agent: agent, connect: connect, sessionFiles: sessionFiles, sources: sources, models: models)
+  let world = TestWorld(
+    agent: agent, connect: connect, sessionFiles: sessionFiles, sources: sources, models: models, follows: follows)
   let host = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
   do {
     try await body(host, place, world)

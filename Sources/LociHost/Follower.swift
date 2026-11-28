@@ -28,7 +28,7 @@ extension ContentChange {
     case .reading, .job, .media, .conversation, .turnEnded, .review, .loci, .runtime, .agentModels,
       .timers,
       .connectors,
-      .projects, .source, .nextUps:
+      .projects, .source, .nextUps, .follows:
       true
     case .courseActivity: true
     case .item, .notes, .course, .everything: false

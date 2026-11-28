@@ -32,6 +32,18 @@ extension FakeHost {
     LociStatus(work: working ? .answering(library?.mainConversation(working: true).turn?.latestTool) : nil)
   }
 
+  func lociPresence() async throws(HostError) -> LociPresence {
+    if let presence { return presence }
+    let said = try await conversation(.main).entries.reversed().lazy.compactMap { entry -> String? in
+      guard case .message(let message) = entry else { return nil }
+      switch message.body {
+      case .reply(let text), .told(let text): return text
+      default: return nil
+      }
+    }.first
+    return LociPresence(tiredness: try await lociPage().feeling?.tiredness ?? .awake, lastSaid: said)
+  }
+
   func lociPage() async throws(HostError) -> LociPage {
     do {
       let page = try (library ?? SampleLibrary()).lociPage

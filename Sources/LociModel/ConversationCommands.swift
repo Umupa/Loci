@@ -90,7 +90,7 @@ public struct OneConversation: Subscription {
       case .projects: conversation.home != .chat
       case .courseActivity, .notes, .reading, .job, .media, .review, .loci, .runtime, .agentModels, .timers,
         .connectors,
-        .source, .nextUps:
+        .source, .nextUps, .follows:
         false
       }
     }

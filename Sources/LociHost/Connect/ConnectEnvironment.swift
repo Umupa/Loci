@@ -5,13 +5,13 @@ import LociMedia
 import LociModel
 import LociStore
 
-/// What connectors take from the outside world: the network, the loopback the browser comes back to, the
-/// keychain, the `gh` signed in on this Mac, the built-in browser's sign-ins, the calendars and reminders of
+/// What connectors take from the outside world: the network, the loopback the browser comes back to, where
+/// sign-ins are kept, the `gh` signed in on this Mac, the built-in browser's sign-ins, the calendars and reminders of
 /// this Mac (written to only for an approval card the person approved), and randomness for PKCE.
 public struct ConnectEnvironment: Sendable {
   public let http: any HTTPClient
   public let receiver: any CallbackReceiver
-  /// `nil` where there is no keychain: nothing that needs a sign-in can be connected.
+  /// `nil` where sign-ins cannot be kept: nothing that needs one can be connected.
   public let vault: (any ConnectorVault)?
   public let githubLogin: @Sendable () async -> GitHubLogin?
   /// Runs `gh` with arguments that only read; anything else is refused before it starts.
@@ -51,18 +51,18 @@ public struct ConnectEnvironment: Sendable {
     self.browserReturned = browserReturned
   }
 
-  /// No network, no keychain: a host that connects nothing, as in previews and most tests.
+  /// No network, nowhere to keep a sign-in: a host that connects nothing, as in previews and most tests.
   public static let disconnected = ConnectEnvironment(
     http: Unreachable(), receiver: Unreachable(), vault: nil, githubLogin: { nil })
 
   public static func system(
-    githubLogin: @escaping @Sendable () async -> GitHubLogin?,
+    vault: any ConnectorVault, githubLogin: @escaping @Sendable () async -> GitHubLogin?,
     githubRead: @escaping @Sendable (GitHubRead) async -> GitHubReply,
     browserReturned: @escaping @Sendable (ConnectorID) async -> Void
   ) -> ConnectEnvironment {
     ConnectEnvironment(
       http: URLSessionClient(), receiver: LoopbackReceiver(),
-      vault: ConnectorKeychain(serviceName: "com.loci.native.dev.connector"), githubLogin: githubLogin,
+      vault: vault, githubLogin: githubLogin,
       githubRead: githubRead, sites: BuiltInBrowserSignIns(network: SystemNetwork.anonymous()),
       personal: EventKitData(), writes: EventKitWrites(), browserReturned: browserReturned)
   }

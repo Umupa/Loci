@@ -51,6 +51,18 @@ public struct Together: Hashable, Codable, Sendable {
   }
 }
 
+/// How the companion is when it is not busy: how tired, and what it said last in the main conversation.
+public struct LociPresence: Hashable, Codable, Sendable {
+  public let tiredness: Tiredness
+  /// The text of its latest reply in the main conversation; `nil` before it said anything there.
+  public let lastSaid: String?
+
+  public init(tiredness: Tiredness, lastSaid: String?) {
+    self.tiredness = tiredness
+    self.lastSaid = lastSaid
+  }
+}
+
 /// What Loci is working on, if anything.
 public struct LociStatus: Hashable, Codable, Sendable {
   /// `nil` while Loci is idle.

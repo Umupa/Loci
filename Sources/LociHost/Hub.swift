@@ -93,7 +93,7 @@ extension ContentChange {
     case .notes(let content): .notes(content)
     case .everything, .reading, .job, .media, .conversation, .turnEnded, .review, .loci, .runtime, .agentModels,
       .timers, .connectors,
-      .projects, .source, .nextUps:
+      .projects, .source, .nextUps, .follows:
       nil
     }
   }

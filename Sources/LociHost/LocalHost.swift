@@ -27,6 +27,8 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   /// Keeps what each fetch of a data source got.
   let sourceKeeper: SourceKeeper
   let sourceLine: SourceLine
+  /// The follows, and what reading them found.
+  let follows: FollowKeeper
   let watchTriage: WatchTriage
   let nextUpExpiry: NextUpExpiry
   /// Previews of the links Loci's replies show as cards.
@@ -89,7 +91,13 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       context: context, connectors: connectorKeeper,
       refreshed: refreshed, watch: watchTriage)
     sourceKeeper = keeper
-    sourceLine = SourceLine(keeper: keeper)
+    let libraryContext = library.context
+    let follows = FollowKeeper(
+      store: store, database: database, reader: environment.media.follows, now: environment.now,
+      newID: environment.newID, ytDlp: { try? await libraryContext.ytDlp(needing: [], anonymous: true) },
+      notify: { await follower.follow($0) })
+    self.follows = follows
+    sourceLine = SourceLine(keeper: keeper, follows: follows)
     links = LinkPreviewReader(network: environment.media.network)
     sessionFiles = SessionFileReader(folders: environment.sessionFiles, timeZone: environment.timeZone)
   }

@@ -106,7 +106,7 @@ struct PanelSnapshots {
     view
       .background(Palette.canvas)
       .environment(\.covers, Covers())
-      .environment(\.panelPictures, PanelPictures())
+      .environment(\.webPictures, WebPictures())
       .lociHost(FakeHost(try Sample(problems: false)))
   }
 

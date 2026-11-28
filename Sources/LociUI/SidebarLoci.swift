@@ -1,13 +1,13 @@
 import LociModel
 import SwiftUI
 
-/// Loci at the top of the sidebar: its face and its name, with no row drawn behind them. A thin ring goes
-/// round the face while the main conversation or Loci's page is on screen. While Loci works, an amber ring
-/// breathes there instead and a faint line under the name says what it is doing.
+/// The companion at the top of the sidebar, like the first chat in a chat app: its face with its dot, its
+/// name, and under it what it is doing, or else the last thing it said in the chat. A thin ring goes round the
+/// face while the chat or its home page is on screen. While it works, an amber ring breathes there instead.
 struct SidebarLoci: View {
   @Environment(\.companionName) private var name
+  @Environment(\.companionNow) private var now
   let chosen: Bool
-  let work: LociWork?
   let choose: () -> Void
   @Environment(\.reducesMotion) private var reduceMotion
 
@@ -17,17 +17,17 @@ struct SidebarLoci: View {
         face
         VStack(alignment: .leading, spacing: 1) {
           label.lineLimit(1).font(.system(size: 16.5, weight: .semibold, design: .serif))
-          if let work {
-            Text(work.words)
+          if let line = now.sidebarLine {
+            line
               .font(.system(size: 12))
               .foregroundStyle(Palette.ink.opacity(Self.faint))
               .lineLimit(1)
               .truncationMode(.tail)
-              .id(work.said)
+              .id(lineKey)
               .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 5)))
           }
         }
-        .animation(reduceMotion ? nil : Motion.swap, value: work?.said)
+        .animation(reduceMotion ? nil : Motion.swap, value: lineKey)
         Spacer(minLength: 0)
       }
       .foregroundStyle(Palette.ink)
@@ -38,10 +38,16 @@ struct SidebarLoci: View {
     .buttonStyle(PressStyle())
     .accessibilityLabel(label)
     .accessibilityAddTraits(chosen ? .isSelected : [])
-    .accessibilityValue(work.map { Text($0.words) } ?? Text(verbatim: ""))
+    .accessibilityValue(now.sidebarLine ?? Text(verbatim: ""))
   }
 
   private var label: Text { name.isEmpty ? Text(.loci("companion.title")) : Text(verbatim: name) }
+
+  /// What the line says, so it changes over only when the words do.
+  private var lineKey: String {
+    if let work = now.work { return "\(work.said)" }
+    return now.presence?.lastSaid ?? ""
+  }
 
   private var face: some View {
     LociAvatar(size: Self.face)
@@ -50,13 +56,14 @@ struct SidebarLoci: View {
         ZStack {
           Circle()
             .strokeBorder(Palette.ink.opacity(0.3), lineWidth: 1)
-            .opacity(chosen && work == nil ? 1 : 0)
-          BreathingRing(color: Tones.accent, width: 1.5, breathing: work != nil, period: 2.8)
-            .opacity(work == nil ? 0 : 1)
+            .opacity(chosen && now.work == nil ? 1 : 0)
+          BreathingRing(color: Tones.accent, width: 1.5, breathing: now.work != nil, period: 2.8)
+            .opacity(now.work == nil ? 0 : 1)
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: work == nil)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: now.work == nil)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: chosen)
       }
+      .presenceDot(now.tone, side: Self.face + Self.gap * 2, ring: Palette.sidebarRing)
   }
 
   private static let face: CGFloat = 36

@@ -36,7 +36,6 @@ struct SignInScenarioTests {
 
       await signIns.decline()
       #expect(await signIns.choice() == .declined(.chrome))
-      #expect(try await signIns.currentCookies().isEmpty)
     }
   }
 
@@ -66,7 +65,6 @@ struct SignInScenarioTests {
       let signIns = LocalSignIns(applicationSupport: applicationSupport, support: support, keys: Keys())
 
       #expect(await signIns.choice() == .declined(.chrome))
-      #expect(try await signIns.currentCookies().isEmpty)
     }
   }
 }

@@ -55,6 +55,17 @@ public struct YtDlp: Sendable {
     return (try MediaInfo(json: json), json)
   }
 
+  /// The newest `most` videos of a channel, listed without opening each: ids, titles, lengths and roughly when
+  /// each came out.
+  public func channelVideos(_ channel: URL, most: Int) async throws(MediaError) -> Data {
+    let tab = channel.appending(path: "videos")
+    let result = try await run([
+      "--flat-playlist", "-J", "--playlist-end", "\(most)", "--extractor-args", "youtubetab:approximate_date",
+      tab.absoluteString,
+    ])
+    return Data(result.output.utf8)
+  }
+
   private static func knowsNoSite(_ error: MediaError) -> Bool {
     let reason = error.reason.lowercased()
     return reason.hasPrefix("no suitable extractor") || reason.hasPrefix("unsupported url")

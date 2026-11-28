@@ -35,10 +35,20 @@ struct TalkRow: Identifiable {
   let kind: Kind
   /// For a part of a reply, the reply it belongs to, so hovering any part offers to copy the answer.
   var reply: EntityID?
+  /// The first of Loci's rows in a reply, which the main conversation draws its face beside.
+  var leads = false
 
   /// Whether it rises into place when it appears. The later bubbles of a reply appear where they are
   /// written, since a reply being written brings new ones several times a second.
   var arrives: Bool { id.part < 1 }
+
+  /// Whether it stands on Loci's side of the conversation, lined up under its face.
+  var isLoci: Bool {
+    switch kind {
+    case .said, .ended, .doing, .saved, .savedItems, .document, .links: true
+    case .day, .asked, .startedOver: false
+    }
+  }
 
   var speaker: Speaker? {
     switch kind {
@@ -88,7 +98,24 @@ struct TalkRow: Identifiable {
     {
       rows.append(TalkRow(id: ID(message: nil, part: 0), kind: .doing(Doing(turn.messages))))
     }
-    return rows
+    return Self.leading(rows)
+  }
+
+  /// Marks where each of Loci's replies begins: its first row after anything of the person's, a date or a
+  /// fresh start, or after another reply. What it is doing goes on from the parts already shown.
+  private static func leading(_ rows: [TalkRow]) -> [TalkRow] {
+    var marked = rows
+    for index in marked.indices where marked[index].isLoci {
+      let row = marked[index]
+      guard index > 0, marked[index - 1].isLoci else {
+        marked[index].leads = true
+        continue
+      }
+      let before = marked[index - 1]
+      if case .doing = row.kind { continue }
+      marked[index].leads = (before.reply ?? before.id.message) != (row.reply ?? row.id.message)
+    }
+    return marked
   }
 
   /// Whether the turn's reply is what shows last, so there is nothing to say about what Loci is doing.

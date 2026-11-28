@@ -11,7 +11,7 @@ struct DeletionsTests {
     var restored = 0
 
     deletions.happened(2, undoManager: nil) { restored += 1 }
-    #expect(deletions.latest?.count == 2)
+    #expect(deletions.latest.map { String(localized: $0.words) } == String(localized: .loci("library.deleted \(2)")))
     deletions.undo()
     deletions.undo()
 
@@ -45,6 +45,21 @@ struct DeletionsTests {
 
     deletions.settle(first)
 
-    #expect(deletions.latest?.count == 2)
+    #expect(deletions.latest.map { String(localized: $0.words) } == String(localized: .loci("library.deleted \(2)")))
+  }
+}
+
+/// FO-S7: stopping a follow is undone from the same notice.
+@MainActor
+struct StoppedFollowNoticeTests {
+  @Test func stoppingAFollowSaysSoAndUndoesIt() {
+    let deletions = Deletions()
+    var restored = 0
+
+    deletions.happened(.loci("follow.stopped"), action: .loci("follow.stop"), undoManager: nil) { restored += 1 }
+    #expect(deletions.latest.map { String(localized: $0.words) } == String(localized: .loci("follow.stopped")))
+    deletions.undo()
+
+    #expect(restored == 1)
   }
 }
